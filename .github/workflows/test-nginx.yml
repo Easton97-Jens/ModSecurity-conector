@@ -5,8 +5,18 @@ on:
   pull_request:
 
 jobs:
-  nginx-structure:
+  nginx-poc:
     runs-on: ubuntu-latest
+    env:
+      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
+      LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/nginx
+      MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
+      MODSECURITY_NGINX_SOURCE_DIR: ${{ github.workspace }}/ModSecurity-nginx
+      BUILD_NGINX_FROM_SOURCE: "1"
+      NGINX_SOURCE_MODE: github-release
+      NGINX_GITHUB_REPO: https://github.com/nginx/nginx
+      NGINX_RELEASE_TAG: latest
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/python-pycache
     steps:
       - uses: actions/checkout@v4
       - name: Check NGINX scaffold
@@ -14,11 +24,44 @@ jobs:
           set -eu
           test -f connectors/nginx/README.md
           test -f connectors/nginx/TODO.md
+          test -f connectors/nginx/harness/nginx_smoke.conf
+          test -x connectors/nginx/harness/run_nginx_smoke.sh
+          test -f connectors/nginx/harness/README.md
           test -f connectors/nginx/docs/architecture.md
           test -f connectors/nginx/docs/build.md
           test -f connectors/nginx/docs/public-sources.md
           test -f tests/nginx/nginx-regression-map.md
+          test -f tests/common/cases/minimal/phase2_args_block.yaml
+          test -f docs/nginx-poc.md
+          test -f docs/apache-vs-nginx-poc.md
           grep -q 'Status:' connectors/nginx/TODO.md
-      - name: Note unimplemented build
+      - name: Syntax checks
         run: |
-          echo "TODO: add NGINX build/test only after module build steps are reproducible."
+          set -eu
+          sh -n ci/prepare-nginx-build.sh
+          sh -n connectors/nginx/harness/run_nginx_smoke.sh
+          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
+      - name: Prepare NGINX PoC build or mark blocked
+        run: |
+          set +e
+          REFRESH=1 sh ci/prepare-nginx-build.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "::notice::NGINX PoC build blocked; see $LOG_DIR when sources/dependencies are available."
+            exit 0
+          fi
+          exit "$rc"
+      - name: Run NGINX smoke or mark blocked
+        env:
+          LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/nginx-runtime
+        run: |
+          set +e
+          sh connectors/nginx/harness/run_nginx_smoke.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "::notice::NGINX smoke blocked; build artifacts or sources are not available in this workflow."
+            exit 0
+          fi
+          exit "$rc"

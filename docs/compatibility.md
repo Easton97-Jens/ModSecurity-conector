@@ -14,7 +14,7 @@ architecture for new connectors.
 | Common headers | implemented | Connector-neutral C-compatible data shapes only |
 | libmodsecurity v3 API mapping | planned | Public API sequence documented, not wrapped |
 | Apache connector | scaffolded | Local source-built PoC observed HTTP 403 for minimal shared case |
-| NGINX connector | planned | PoC plan documented from local connector lifecycle; no build yet |
+| NGINX connector | scaffolded | Local source-built PoC observed HTTP 403 for minimal shared case |
 | HAProxy connector | unknown | SPOE/Lua/native options documented, implementation undecided |
 | Envoy connector | unknown | HTTP filter/ext_authz/Wasm options documented, implementation undecided |
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
@@ -32,3 +32,7 @@ configuration, it is connector-specific unless proven portable.
 `tests/common/cases/minimal/phase2_args_block.yaml` is a portable rule/request
 model. It is not proof that a connector supports `ARGS:test` until that
 connector's runtime harness observes the expected HTTP `403`.
+
+Apache and NGINX have both observed HTTP `403` locally for this case. That
+proves only the minimal PoC behavior in this workspace, not full connector
+compatibility.

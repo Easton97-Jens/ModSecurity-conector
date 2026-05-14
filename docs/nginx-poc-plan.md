@@ -1,9 +1,9 @@
 # NGINX PoC Plan
 
-Status: planned
+Status: scaffolded
 
-This document is analysis only. No NGINX connector build is implemented in this
-step.
+This document records the NGINX PoC direction and the source facts used for the
+scaffolded build/runtime harness.
 
 ## Local Source Facts
 
@@ -29,7 +29,21 @@ or dynamic module mode:
 ```
 
 TODO: choose a portable NGINX source/build-copy strategy under `BUILD_ROOT`.
-No NGINX source tree is copied or built by the Apache PoC.
+The implemented PoC helper chooses dynamic module mode and builds only under
+`BUILD_ROOT`.
+
+Default source mode:
+
+```sh
+NGINX_SOURCE_MODE=github-release
+NGINX_GITHUB_REPO=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=latest
+```
+
+When `NGINX_RELEASE_TAG=latest`, `ci/prepare-nginx-build.sh` resolves the actual
+release through the GitHub Releases API and records the resulting tag in
+`$BUILD_ROOT/logs/nginx/artifacts.txt`. Explicit tags such as
+`release-1.31.0` are also supported. No branch fallback is allowed.
 
 ## Request Lifecycle
 
@@ -52,7 +66,7 @@ Observed local source:
 
 ## PoC Target
 
-The future NGINX PoC should reuse the same portable case as Apache:
+The NGINX PoC reuses the same portable case as Apache:
 
 ```text
 tests/common/cases/minimal/phase2_args_block.yaml
@@ -62,10 +76,9 @@ Pass criteria remain the same: real HTTP `403` for `GET /?test=attack`.
 
 ## Blocked Items
 
-- Need a read-only NGINX source path variable and writable build copy under
-  `BUILD_ROOT`.
-- Need a documented dynamic/static module decision.
-- Need a runtime harness that proves module loading before claiming connector
-  behavior.
-- Need NGINX-specific handling for access phase, header filter, body filter,
-  log phase, and request body buffering.
+- Fresh environments are blocked until the read-only v3 and ModSecurity-nginx
+  source checkouts exist or are provided through environment variables.
+- GitHub latest release resolution or explicit tag download can block on
+  network/API failures.
+- NGINX `pass` is blocked until the dynamic module builds and the runtime
+  harness observes HTTP `403`.

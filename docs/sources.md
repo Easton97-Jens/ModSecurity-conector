@@ -21,6 +21,9 @@ Status: implemented
 | Envoy | https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/ext_authz_filter.html | External authorization filter option |
 | Envoy | https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/wasm_filter.html | Wasm filter option |
 | Envoy | https://www.envoyproxy.io/docs/envoy/latest/extending/extending | Extension categories and native extension direction |
+| NGINX | https://github.com/nginx/nginx | Official NGINX Open Source repository used by the NGINX PoC source-build helper |
+| NGINX | https://api.github.com/repos/nginx/nginx/releases/latest | GitHub Releases API endpoint used to resolve `NGINX_RELEASE_TAG=latest` |
+| NGINX | https://nginx.org/en/docs/configure.html | Official NGINX configure options used by the dynamic module build |
 | Lighttpd | https://raw.githubusercontent.com/lighttpd/lighttpd1.4/master/src/plugin.h | Native plugin hook surface |
 | Lighttpd | https://redmine.lighttpd.net/projects/1/wiki/Docs_ModMagnet | `mod_magnet` Lua request manipulation model |
 | Traefik | https://doc.traefik.io/traefik/extend/extend-traefik/ | Yaegi and Wasm plugin systems |

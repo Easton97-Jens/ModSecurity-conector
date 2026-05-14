@@ -22,6 +22,11 @@ Implemented now:
   a runtime smoke harness scaffold; see `docs/apache-poc.md`.
 - A local source-built Apache PoC has observed HTTP `403` for the shared
   `phase2_args_block` case.
+- A scaffolded NGINX PoC build helper and runtime harness use the same shared
+  YAML case and source NGINX from the official `nginx/nginx` GitHub release
+  archive flow.
+- A local source-built NGINX PoC has observed HTTP `403` for the shared
+  `phase2_args_block` case.
 
 Not implemented:
 
@@ -32,6 +37,8 @@ Not implemented:
 - No claim that the v3 API smoke probe passes until `primary_args_phase2`
   observes status `403`.
 - No claim that the Apache PoC is complete beyond the documented minimal
+  `ARGS:test` HTTP `403` smoke.
+- No claim that the NGINX PoC is complete beyond the documented minimal
   `ARGS:test` HTTP `403` smoke.
 
 Observed local references:
@@ -56,6 +63,18 @@ BUILD_PCRE2_FROM_SOURCE=1
 PCRE2_VERSION=10.47
 ```
 
+NGINX PoC source-build defaults are overrideable:
+
+```sh
+BUILD_NGINX_FROM_SOURCE=1
+NGINX_SOURCE_MODE=github-release
+NGINX_GITHUB_REPO=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=latest
+```
+
+When `NGINX_RELEASE_TAG=latest`, the actual tag is resolved at build time and
+recorded under `$BUILD_ROOT/logs/nginx/`.
+
 Boundary rule:
 
 - `common/` contains connector-neutral code only.
@@ -66,3 +85,4 @@ Boundary rule:
 See `docs/architecture.md`, `docs/compatibility.md`, and `docs/roadmap.md`.
 See `docs/v3-api-smoke-test.md` for the minimal libmodsecurity v3 API smoke
 probe status.
+See `docs/nginx-poc.md` for the NGINX PoC build and smoke status rules.

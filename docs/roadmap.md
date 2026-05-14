@@ -16,14 +16,17 @@ Status: scaffolded
 - Apache PoC build-preparation helper, runtime smoke harness scaffold, and
   shared minimal `phase2_args_block` case.
 - Apache PoC source-built httpd path with local HTTP `403` smoke pass.
-- NGINX PoC plan based on the local `ModSecurity-nginx` connector lifecycle.
+- NGINX PoC build helper and runtime harness using the same shared minimal case
+  and the official `nginx/nginx` GitHub release archive flow, with local HTTP
+  `403` smoke pass observed.
 
 ## Planned
 
 - Compile checks for common headers.
 - Capability schema for portable vs connector-specific tests.
 - Promote the Apache minimal smoke case into a repeatable connector test.
-- Build the NGINX PoC using the same shared minimal case.
+- Promote Apache and NGINX minimal smoke cases into repeatable connector test
+  targets.
 
 ## Unknown
 
@@ -44,3 +47,5 @@ Status: scaffolded
   copy.
 - Apache PoC runtime is blocked in fresh environments until source downloads,
   PCRE/APR/httpd/libmodsecurity builds, and the module build complete.
+- Fresh environments remain blocked until GitHub release resolution/downloads,
+  libmodsecurity v3 build, connector module builds, and runtime smokes complete.
