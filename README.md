@@ -13,6 +13,8 @@ Implemented now:
 - Connector directories for Apache, NGINX, HAProxy, Envoy, Lighttpd, and
   Traefik.
 - Test layout, normalizer skeletons, runner skeletons, and CI structure checks.
+- A connector-free libmodsecurity v3 C API smoke probe scaffold; see
+  `docs/v3-api-smoke-test.md`.
 
 Not implemented:
 
@@ -35,3 +37,5 @@ Boundary rule:
 - `tests/<connector>/` contains connector-specific behavior tests.
 
 See `docs/architecture.md`, `docs/compatibility.md`, and `docs/roadmap.md`.
+See `docs/v3-api-smoke-test.md` for the minimal libmodsecurity v3 API smoke
+probe status.
