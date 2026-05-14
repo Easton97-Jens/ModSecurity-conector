@@ -1,0 +1,66 @@
+name: test-common
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  common-structure:
+    runs-on: ubuntu-latest
+    env:
+      MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
+      MODSECURITY_V3_DIR: ${{ runner.temp }}/ModSecurity_V3_build
+      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
+      LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/python-pycache
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check common scaffold
+        run: |
+          set -eu
+          test -f common/include/msconnector/request.h
+          test -f common/include/msconnector/response.h
+          test -f common/include/msconnector/transaction.h
+          test -f common/include/msconnector/capabilities.h
+          test -f common/include/msconnector/logging.h
+          test -f tests/common/modsecurity-v2-regression-map.md
+          test -f tests/common/modsecurity-v3-regression-map.md
+      - name: Compile Python skeletons
+        run: |
+          mkdir -p "$PYTHONPYCACHEPREFIX"
+          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
+      - name: Check shared case runner
+        run: |
+          set -eu
+          mkdir -p "$BUILD_ROOT/case-runner"
+          python3 tests/runners/case_cli.py materialize \
+            --case tests/common/cases/minimal/phase2_args_block.yaml \
+            --rules-file "$BUILD_ROOT/case-runner/rules.conf" \
+            --env-file "$BUILD_ROOT/case-runner/case.env"
+          grep -q 'SecRule ARGS:test' "$BUILD_ROOT/case-runner/rules.conf"
+          python3 tests/runners/case_cli.py assert-status \
+            --case tests/common/cases/minimal/phase2_args_block.yaml \
+            --actual-status 403 \
+            --status-file "$BUILD_ROOT/case-runner/status.txt"
+      - name: Check v3 API smoke prerequisites
+        run: |
+          set +e
+          sh ci/check-v3-api-smoke-prereqs.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "v3 API smoke prerequisites blocked in this workflow"
+            exit 0
+          fi
+          exit "$rc"
+      - name: Run v3 API smoke when available
+        run: |
+          set +e
+          sh ci/run-v3-api-smoke.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "v3 API smoke run blocked in this workflow"
+            exit 0
+          fi
+          exit "$rc"

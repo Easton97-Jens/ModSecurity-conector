@@ -1,0 +1,15 @@
+name: phase2_args_block
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:test "@streq attack" \
+    "id:1001,phase:2,deny,status:403"
+
+request:
+  method: GET
+  path: "/?test=attack"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1001
