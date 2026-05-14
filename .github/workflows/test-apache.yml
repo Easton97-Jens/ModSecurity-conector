@@ -1,0 +1,24 @@
+name: test-apache
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  apache-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Apache scaffold
+        run: |
+          set -eu
+          test -f connectors/apache/README.md
+          test -f connectors/apache/TODO.md
+          test -f connectors/apache/docs/architecture.md
+          test -f connectors/apache/docs/build.md
+          test -f connectors/apache/docs/public-sources.md
+          test -f tests/apache/apache-regression-map.md
+          grep -q 'Status:' connectors/apache/TODO.md
+      - name: Note unimplemented build
+        run: |
+          echo "TODO: add Apache build/test only after apxs/httpd steps are reproducible."

@@ -1,0 +1,24 @@
+name: test-lighttpd
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lighttpd-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Lighttpd scaffold
+        run: |
+          set -eu
+          test -f connectors/lighttpd/README.md
+          test -f connectors/lighttpd/TODO.md
+          test -f connectors/lighttpd/docs/architecture.md
+          test -f connectors/lighttpd/docs/build.md
+          test -f connectors/lighttpd/docs/public-sources.md
+          test -f tests/lighttpd/README.md
+          grep -q 'Status:' connectors/lighttpd/TODO.md
+      - name: Compile Python skeletons
+        run: |
+          python -m py_compile tests/normalizers/*.py tests/runners/*.py

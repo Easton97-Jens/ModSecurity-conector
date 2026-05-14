@@ -1,0 +1,24 @@
+name: test-nginx
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  nginx-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check NGINX scaffold
+        run: |
+          set -eu
+          test -f connectors/nginx/README.md
+          test -f connectors/nginx/TODO.md
+          test -f connectors/nginx/docs/architecture.md
+          test -f connectors/nginx/docs/build.md
+          test -f connectors/nginx/docs/public-sources.md
+          test -f tests/nginx/nginx-regression-map.md
+          grep -q 'Status:' connectors/nginx/TODO.md
+      - name: Note unimplemented build
+        run: |
+          echo "TODO: add NGINX build/test only after module build steps are reproducible."

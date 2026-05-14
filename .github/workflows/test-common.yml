@@ -1,0 +1,24 @@
+name: test-common
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  common-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check common scaffold
+        run: |
+          set -eu
+          test -f common/include/msconnector/request.h
+          test -f common/include/msconnector/response.h
+          test -f common/include/msconnector/transaction.h
+          test -f common/include/msconnector/capabilities.h
+          test -f common/include/msconnector/logging.h
+          test -f tests/common/modsecurity-v2-regression-map.md
+          test -f tests/common/modsecurity-v3-regression-map.md
+      - name: Compile Python skeletons
+        run: |
+          python -m py_compile tests/normalizers/*.py tests/runners/*.py

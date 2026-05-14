@@ -1,0 +1,24 @@
+name: test-haproxy
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  haproxy-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check HAProxy scaffold
+        run: |
+          set -eu
+          test -f connectors/haproxy/README.md
+          test -f connectors/haproxy/TODO.md
+          test -f connectors/haproxy/docs/architecture.md
+          test -f connectors/haproxy/docs/build.md
+          test -f connectors/haproxy/docs/public-sources.md
+          test -f tests/haproxy/README.md
+          grep -q 'Status:' connectors/haproxy/TODO.md
+      - name: Compile Python skeletons
+        run: |
+          python -m py_compile tests/normalizers/*.py tests/runners/*.py
