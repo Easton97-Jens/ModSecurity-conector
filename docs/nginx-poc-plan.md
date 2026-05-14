@@ -1,0 +1,71 @@
+# NGINX PoC Plan
+
+Status: planned
+
+This document is analysis only. No NGINX connector build is implemented in this
+step.
+
+## Local Source Facts
+
+- Source: `/root/conecter/ModSecurity-nginx`
+- Observed branch: `master`
+- Observed version: `v1.0.4-14-g9eb44fd`
+- Build integration is the NGINX third-party module `config` file.
+- The `config` file supports explicit libmodsecurity paths through
+  `MODSECURITY_INC` and `MODSECURITY_LIB`.
+
+## Build Model
+
+The observed README documents building from an NGINX source tree with:
+
+```sh
+./configure --add-module=/path/to/ModSecurity-nginx
+```
+
+or dynamic module mode:
+
+```sh
+./configure --add-dynamic-module=/path/to/ModSecurity-nginx --with-compat
+```
+
+TODO: choose a portable NGINX source/build-copy strategy under `BUILD_ROOT`.
+No NGINX source tree is copied or built by the Apache PoC.
+
+## Request Lifecycle
+
+Observed local source:
+
+- `src/ngx_http_modsecurity_module.c` registers the access handler in
+  `NGX_HTTP_ACCESS_PHASE`.
+- The same postconfiguration registers a log handler in `NGX_HTTP_LOG_PHASE`.
+- Header and body filters are installed through
+  `ngx_http_modsecurity_header_filter_init()` and
+  `ngx_http_modsecurity_body_filter_init()`.
+- `src/ngx_http_modsecurity_access.c` creates request context, processes
+  connection data, URI, request headers, and request body through libmodsecurity
+  v3 APIs.
+- `src/ngx_http_modsecurity_header_filter.c` sends response headers and calls
+  `msc_process_response_headers`.
+- `src/ngx_http_modsecurity_body_filter.c` appends response body data and calls
+  `msc_process_response_body` on the last buffer.
+- `src/ngx_http_modsecurity_log.c` calls `msc_process_logging`.
+
+## PoC Target
+
+The future NGINX PoC should reuse the same portable case as Apache:
+
+```text
+tests/common/cases/minimal/phase2_args_block.yaml
+```
+
+Pass criteria remain the same: real HTTP `403` for `GET /?test=attack`.
+
+## Blocked Items
+
+- Need a read-only NGINX source path variable and writable build copy under
+  `BUILD_ROOT`.
+- Need a documented dynamic/static module decision.
+- Need a runtime harness that proves module loading before claiming connector
+  behavior.
+- Need NGINX-specific handling for access phase, header filter, body filter,
+  log phase, and request body buffering.

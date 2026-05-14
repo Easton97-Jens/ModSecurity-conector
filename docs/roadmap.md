@@ -13,12 +13,18 @@ Status: scaffolded
   and prerequisite check.
 - Portable `/src` default build flow for the v3 API smoke probe, with local
   `primary_args_phase2` pass observed against `/src/ModSecurity_V3_build`.
+- Apache PoC build-preparation helper, runtime smoke harness scaffold, and
+  shared minimal `phase2_args_block` case.
+- NGINX PoC plan based on the local `ModSecurity-nginx` connector lifecycle.
 
 ## Planned
 
 - Compile checks for common headers.
 - Capability schema for portable vs connector-specific tests.
-- Connector-specific proof-of-concept adapters, one connector at a time.
+- Run the Apache PoC in an environment with `apxs` and Apache available.
+- Promote the Apache minimal smoke case into a repeatable connector test only
+  after HTTP `403` is observed.
+- Build the NGINX PoC after the Apache PoC has a real pass or documented fail.
 
 ## Unknown
 
@@ -37,3 +43,5 @@ Status: scaffolded
 - Fresh environments remain blocked until
   `$MODSECURITY_V3_DIR/src/.libs/libmodsecurity.so` exists in a writable build
   copy.
+- Apache PoC runtime is blocked in environments without `apxs`/`apxs2` and an
+  Apache `httpd`/`apache2` executable.

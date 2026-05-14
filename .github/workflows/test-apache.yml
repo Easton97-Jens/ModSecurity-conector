@@ -17,8 +17,45 @@ jobs:
           test -f connectors/apache/docs/architecture.md
           test -f connectors/apache/docs/build.md
           test -f connectors/apache/docs/public-sources.md
+          test -f connectors/apache/harness/README.md
+          test -f connectors/apache/harness/apache_smoke.conf
+          test -f connectors/apache/harness/run_apache_smoke.sh
+          test -f ci/prepare-apache-build.sh
           test -f tests/apache/apache-regression-map.md
+          test -f tests/common/cases/minimal/phase2_args_block.yaml
           grep -q 'Status:' connectors/apache/TODO.md
-      - name: Note unimplemented build
+      - name: Shell syntax
         run: |
-          echo "TODO: add Apache build/test only after apxs/httpd steps are reproducible."
+          set -eu
+          sh -n ci/prepare-apache-build.sh
+          sh -n connectors/apache/harness/run_apache_smoke.sh
+      - name: Apache PoC build or blocked
+        env:
+          MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
+          MODSECURITY_APACHE_SOURCE_DIR: ${{ github.workspace }}/ModSecurity-apache
+          BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
+          LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/apache
+        run: |
+          set +e
+          sh ci/prepare-apache-build.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "Apache PoC build blocked; sources or Apache/APXS prerequisites are absent."
+            exit 0
+          fi
+          exit "$rc"
+      - name: Apache smoke or blocked
+        env:
+          BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
+          LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/apache-runtime
+        run: |
+          set +e
+          sh connectors/apache/harness/run_apache_smoke.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "Apache smoke blocked; built module or Apache runtime is absent."
+            exit 0
+          fi
+          exit "$rc"

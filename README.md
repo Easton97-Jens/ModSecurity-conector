@@ -17,14 +17,18 @@ Implemented now:
   `src/v3-api-smoke/`; see `docs/v3-api-smoke-test.md`.
 - A local `/src` default v3 smoke run has observed `primary_args_phase2`
   returning intervention status `403`.
+- An Apache PoC build helper and runtime smoke harness scaffold; see
+  `docs/apache-poc.md`.
 
 Not implemented:
 
 - No complete connector runtime.
-- No server/proxy module build.
+- No proven server/proxy module runtime pass.
 - No claim that any connector can load, run, block, log, or reload rules.
 - No claim that the v3 API smoke probe passes until `primary_args_phase2`
   observes status `403`.
+- No claim that the Apache PoC passes until Apache returns HTTP `403` for the
+  shared minimal case.
 
 Observed local references:
 
