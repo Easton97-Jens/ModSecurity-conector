@@ -13,14 +13,16 @@ Implemented now:
 - Connector directories for Apache, NGINX, HAProxy, Envoy, Lighttpd, and
   Traefik.
 - Test layout, normalizer skeletons, runner skeletons, and CI structure checks.
-- A connector-free libmodsecurity v3 C API smoke probe scaffold; see
-  `docs/v3-api-smoke-test.md`.
+- A connector-free libmodsecurity v3 C API smoke probe build harness under
+  `src/v3-api-smoke/`; see `docs/v3-api-smoke-test.md`.
 
 Not implemented:
 
 - No complete connector runtime.
 - No server/proxy module build.
 - No claim that any connector can load, run, block, log, or reload rules.
+- No claim that the v3 API smoke probe passes until `primary_args_phase2`
+  observes status `403`.
 
 Primary local references:
 

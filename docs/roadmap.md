@@ -9,7 +9,8 @@ Status: scaffolded
 - Branch-aware source documentation.
 - Test runner and normalizer skeletons.
 - CI workflows for structure and documentation checks.
-- Connector-free libmodsecurity v3 C API smoke probe source and runner.
+- Connector-free libmodsecurity v3 C API smoke probe source, Makefile runner,
+  and prerequisite check.
 
 ## Planned
 
@@ -30,3 +31,6 @@ Status: scaffolded
   repeatable fixtures, and passing connector-specific tests.
 - Executing the v3 API smoke probe is blocked until
   `/root/conecter/ModSecurity_V3/src/.libs/libmodsecurity.so` exists.
+- v3 API smoke status is `pass` only when the primary `ARGS:test` scenario
+  observes intervention status `403`; `fallback pass` is only a minimal API
+  proof.
