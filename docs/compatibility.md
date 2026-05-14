@@ -13,7 +13,7 @@ architecture for new connectors.
 | --- | --- | --- |
 | Common headers | implemented | Connector-neutral C-compatible data shapes only |
 | libmodsecurity v3 API mapping | planned | Public API sequence documented, not wrapped |
-| Apache connector | scaffolded | Build helper and runtime harness added; pass requires real HTTP 403 |
+| Apache connector | scaffolded | Local source-built PoC observed HTTP 403 for minimal shared case |
 | NGINX connector | planned | PoC plan documented from local connector lifecycle; no build yet |
 | HAProxy connector | unknown | SPOE/Lua/native options documented, implementation undecided |
 | Envoy connector | unknown | HTTP filter/ext_authz/Wasm options documented, implementation undecided |

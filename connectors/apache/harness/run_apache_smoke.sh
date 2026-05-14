@@ -7,11 +7,13 @@ BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
 RUNTIME_ROOT="${RUNTIME_ROOT:-$BUILD_ROOT/apache-runtime/phase2_args_block}"
+HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
 MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-$APACHE_BUILD_ROOT/ModSecurity_V3}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$APACHE_BUILD_ROOT/output/modsecurity/lib}"
+PCRE2_PREFIX="${PCRE2_PREFIX:-$APACHE_BUILD_ROOT/output/pcre2}"
 APACHE_MODULE="${APACHE_MODULE:-$APACHE_BUILD_ROOT/output/apache/mod_security3.so}"
-APACHE_HTTPD_BIN="${APACHE_HTTPD:-${APACHE:-}}"
-APXS_BIN="${APXS:-}"
+APACHE_HTTPD_BIN="${APACHE_HTTPD:-${APACHE:-$HTTPD_PREFIX/bin/httpd}}"
+APXS_BIN="${APXS:-$HTTPD_PREFIX/bin/apxs}"
 CURL_BIN="${CURL:-}"
 PORT="${PORT:-18080}"
 TEMPLATE="$SCRIPT_DIR/apache_smoke.conf"
@@ -49,17 +51,13 @@ require_absolute_generated_path() {
 find_apache() {
     if [ -n "$APACHE_HTTPD_BIN" ]; then
         printf '%s\n' "$APACHE_HTTPD_BIN"
-        return 0
     fi
-    command -v apache2 2>/dev/null || command -v httpd 2>/dev/null || true
 }
 
 find_apxs() {
     if [ -n "$APXS_BIN" ]; then
         printf '%s\n' "$APXS_BIN"
-        return 0
     fi
-    command -v apxs 2>/dev/null || command -v apxs2 2>/dev/null || true
 }
 
 find_curl() {
@@ -152,6 +150,7 @@ cleanup() {
 
 echo "apache_smoke: BUILD_ROOT=$BUILD_ROOT"
 echo "apache_smoke: APACHE_BUILD_ROOT=$APACHE_BUILD_ROOT"
+echo "apache_smoke: HTTPD_PREFIX=$HTTPD_PREFIX"
 echo "apache_smoke: RUNTIME_ROOT=$RUNTIME_ROOT"
 echo "apache_smoke: LOG_DIR=$LOG_DIR"
 echo "apache_smoke: APACHE_MODULE=$APACHE_MODULE"
@@ -159,10 +158,17 @@ echo "apache_smoke: TEST_CASE=$TEST_CASE"
 
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$APACHE_BUILD_ROOT" "APACHE_BUILD_ROOT"
+require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 
 mkdir -p "$LOG_DIR" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/logs" "$RUNTIME_ROOT/htdocs" "$RUNTIME_ROOT/run"
+rm -f "$RUNTIME_ROOT/logs/"* \
+    "$LOG_DIR/configtest.log" \
+    "$LOG_DIR/curl-attack.err" \
+    "$LOG_DIR/curl-ready.err" \
+    "$LOG_DIR/httpd.log" \
+    "$LOG_DIR/response-body.txt"
 : > "$STATUS_FILE"
 
 APACHE_HTTPD_BIN=$(find_apache)
@@ -186,10 +192,16 @@ fi
 MODULES_FILE="$RUNTIME_ROOT/conf/modules.load"
 CONFIG_FILE="$RUNTIME_ROOT/conf/httpd.conf"
 RULES_FILE="$RUNTIME_ROOT/conf/modsecurity-smoke.conf"
+MIME_TYPES_FILE="$RUNTIME_ROOT/conf/mime.types"
 DOCROOT="$RUNTIME_ROOT/htdocs"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
 
 echo "TEST-OK-IF-YOU-SEE-THIS" > "$DOCROOT/index.html"
+if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
+    cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
+else
+    : > "$MIME_TYPES_FILE"
+fi
 cat > "$RULES_FILE" <<'RULES'
 SecRuleEngine On
 SecRule ARGS:test "@streq attack" "id:1001,phase:2,deny,status:403"
@@ -207,7 +219,7 @@ fi
 
 render_config
 
-LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
 
 if ! "$APACHE_HTTPD_BIN" -t -f "$CONFIG_FILE" > "$LOG_DIR/configtest.log" 2>&1; then

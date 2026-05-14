@@ -35,13 +35,16 @@ jobs:
           MODSECURITY_APACHE_SOURCE_DIR: ${{ github.workspace }}/ModSecurity-apache
           BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
           LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/apache
+          HTTPD_PREFIX: ${{ runner.temp }}/ModSecurity-conector-build/apache-runtime/httpd
+          BUILD_HTTPD_FROM_SOURCE: "1"
+          BUILD_PCRE2_FROM_SOURCE: "1"
         run: |
           set +e
-          sh ci/prepare-apache-build.sh
+          REFRESH=1 sh ci/prepare-apache-build.sh
           rc=$?
           set -e
           if [ "$rc" -eq 77 ]; then
-            echo "Apache PoC build blocked; sources or Apache/APXS prerequisites are absent."
+            echo "Apache PoC build blocked; sources or build prerequisites are absent."
             exit 0
           fi
           exit "$rc"
@@ -49,6 +52,7 @@ jobs:
         env:
           BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
           LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/apache-runtime
+          HTTPD_PREFIX: ${{ runner.temp }}/ModSecurity-conector-build/apache-runtime/httpd
         run: |
           set +e
           sh connectors/apache/harness/run_apache_smoke.sh

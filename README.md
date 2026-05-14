@@ -17,18 +17,21 @@ Implemented now:
   `src/v3-api-smoke/`; see `docs/v3-api-smoke-test.md`.
 - A local `/src` default v3 smoke run has observed `primary_args_phase2`
   returning intervention status `403`.
-- An Apache PoC build helper and runtime smoke harness scaffold; see
-  `docs/apache-poc.md`.
+- An Apache PoC build helper that can source-build httpd under `BUILD_ROOT`, plus
+  a runtime smoke harness scaffold; see `docs/apache-poc.md`.
+- A local source-built Apache PoC has observed HTTP `403` for the shared
+  `phase2_args_block` case.
 
 Not implemented:
 
 - No complete connector runtime.
-- No proven server/proxy module runtime pass.
-- No claim that any connector can load, run, block, log, or reload rules.
+- No complete connector regression suite.
+- No claim that any connector beyond the local Apache minimal PoC can load, run,
+  block, log, or reload rules.
 - No claim that the v3 API smoke probe passes until `primary_args_phase2`
   observes status `403`.
-- No claim that the Apache PoC passes until Apache returns HTTP `403` for the
-  shared minimal case.
+- No claim that the Apache PoC is complete beyond the documented minimal
+  `ARGS:test` HTTP `403` smoke.
 
 Observed local references:
 
@@ -40,6 +43,17 @@ Observed local references:
 These paths are read-only references, not required build locations. Smoke
 builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
 `LOG_DIR`; local defaults build under `/src`, while CI can use `$RUNNER_TEMP`.
+
+Apache PoC source-build defaults are also overrideable:
+
+```sh
+BUILD_HTTPD_FROM_SOURCE=1
+HTTPD_VERSION=2.4.67
+APR_VERSION=1.7.6
+APR_UTIL_VERSION=1.6.3
+BUILD_PCRE2_FROM_SOURCE=1
+PCRE2_VERSION=10.47
+```
 
 Boundary rule:
 
