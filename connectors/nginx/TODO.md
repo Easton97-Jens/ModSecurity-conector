@@ -1,0 +1,10 @@
+# NGINX TODO
+
+Status: scaffolded
+
+- Verify license requirements before importing or adapting any code.
+- Decide dynamic vs static module build strategy.
+- Define capability flags for request body, response body, HTTP/2, audit log,
+  reload, and custom transaction ID.
+- Keep nginx-tests-derived cases in `tests/nginx/`.
+- Document filter ordering before implementation.
