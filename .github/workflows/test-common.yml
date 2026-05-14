@@ -21,4 +21,4 @@ jobs:
           test -f tests/common/modsecurity-v3-regression-map.md
       - name: Compile Python skeletons
         run: |
-          python -m py_compile tests/normalizers/*.py tests/runners/*.py
+          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py

@@ -21,4 +21,4 @@ jobs:
           grep -q 'Status:' connectors/envoy/TODO.md
       - name: Compile Python skeletons
         run: |
-          python -m py_compile tests/normalizers/*.py tests/runners/*.py
+          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
