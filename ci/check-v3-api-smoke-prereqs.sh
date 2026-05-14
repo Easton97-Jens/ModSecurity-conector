@@ -1,12 +1,18 @@
 #!/bin/sh
 set -eu
 
-MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-/root/conecter/ModSecurity_V3}"
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-/root/conecter/ModSecurity_V3}"
+MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-/src/ModSecurity_V3_build}"
+BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs}"
 HEADER_FILE="$MODSECURITY_V3_DIR/headers/modsecurity/modsecurity.h"
 LIB_FILE="$MODSECURITY_V3_DIR/src/.libs/libmodsecurity.so"
 status=0
 
+echo "v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=$MODSECURITY_V3_SOURCE_DIR"
 echo "v3_api_smoke: MODSECURITY_V3_DIR=$MODSECURITY_V3_DIR"
+echo "v3_api_smoke: BUILD_ROOT=$BUILD_ROOT"
+echo "v3_api_smoke: LOG_DIR=$LOG_DIR"
 
 if git -C "$MODSECURITY_V3_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     branch=$(git -C "$MODSECURITY_V3_DIR" rev-parse --abbrev-ref HEAD)

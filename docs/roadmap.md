@@ -11,6 +11,8 @@ Status: scaffolded
 - CI workflows for structure and documentation checks.
 - Connector-free libmodsecurity v3 C API smoke probe source, Makefile runner,
   and prerequisite check.
+- Portable `/src` default build flow for the v3 API smoke probe, with local
+  `primary_args_phase2` pass observed against `/src/ModSecurity_V3_build`.
 
 ## Planned
 
@@ -29,8 +31,9 @@ Status: scaffolded
 
 - Runtime claims are blocked until each connector has a build, test server,
   repeatable fixtures, and passing connector-specific tests.
-- Executing the v3 API smoke probe is blocked until
-  `/root/conecter/ModSecurity_V3/src/.libs/libmodsecurity.so` exists.
 - v3 API smoke status is `pass` only when the primary `ARGS:test` scenario
   observes intervention status `403`; `fallback pass` is only a minimal API
   proof.
+- Fresh environments remain blocked until
+  `$MODSECURITY_V3_DIR/src/.libs/libmodsecurity.so` exists in a writable build
+  copy.

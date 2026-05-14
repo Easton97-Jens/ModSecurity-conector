@@ -15,6 +15,8 @@ Implemented now:
 - Test layout, normalizer skeletons, runner skeletons, and CI structure checks.
 - A connector-free libmodsecurity v3 C API smoke probe build harness under
   `src/v3-api-smoke/`; see `docs/v3-api-smoke-test.md`.
+- A local `/src` default v3 smoke run has observed `primary_args_phase2`
+  returning intervention status `403`.
 
 Not implemented:
 
@@ -24,12 +26,16 @@ Not implemented:
 - No claim that the v3 API smoke probe passes until `primary_args_phase2`
   observes status `403`.
 
-Primary local references:
+Observed local references:
 
 - `/root/conecter/ModSecurity_V3`: `v3/master`, observed `v3.0.15`
 - `/root/conecter/ModSecurity_V2`: `v2/master`, observed `v2.9.13`
 - `/root/conecter/ModSecurity-apache`: observed `v0.0.9-beta1-26-g0488c77`
 - `/root/conecter/ModSecurity-nginx`: observed `v1.0.4-14-g9eb44fd`
+
+These paths are read-only references, not required build locations. Smoke
+builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
+`LOG_DIR`; local defaults build under `/src`, while CI can use `$RUNNER_TEMP`.
 
 Boundary rule:
 

@@ -1,7 +1,7 @@
 # libmodsecurity v3 API Smoke Probe
 
-Status: implemented build harness, blocked locally until libmodsecurity is
-built.
+Status: implemented portable build harness. Local default run observed
+`primary_args_phase2` pass after building libmodsecurity in `/src`.
 
 This directory contains a connector-free C smoke probe for the public
 libmodsecurity v3 C API. It does not contain Apache, NGINX, HAProxy, Envoy,
@@ -24,8 +24,8 @@ make -C src/v3-api-smoke run
 Optional overrides:
 
 ```sh
-make -C src/v3-api-smoke MODSECURITY_V3_DIR=/root/conecter/ModSecurity_V3
-make -C src/v3-api-smoke BUILD_DIR=/tmp/msconnector-smoke
+make -C src/v3-api-smoke MODSECURITY_V3_DIR=/tmp/ModSecurity_V3_build
+make -C src/v3-api-smoke BUILD_ROOT=/tmp/ModSecurity-conector-build
 ```
 
 The Makefile checks for:
@@ -35,6 +35,27 @@ The Makefile checks for:
 
 It intentionally does not run `build.sh`, `configure`, or `make` inside
 `MODSECURITY_V3_DIR`.
+
+`BUILD_ROOT` and `BUILD_DIR` should be absolute paths outside the Git checkout.
+The Makefile blocks relative `BUILD_DIR` values to avoid repo-local artifacts.
+
+Local defaults:
+
+```sh
+MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
+MODSECURITY_V3_DIR=/src/ModSecurity_V3_build
+BUILD_ROOT=/src/ModSecurity-conector-build
+LOG_DIR=/src/ModSecurity-conector-build/logs
+```
+
+GitHub Actions-style paths:
+
+```sh
+MODSECURITY_V3_SOURCE_DIR=$GITHUB_WORKSPACE/ModSecurity_V3
+MODSECURITY_V3_DIR=$RUNNER_TEMP/ModSecurity_V3_build
+BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build
+LOG_DIR=$RUNNER_TEMP/ModSecurity-conector-build/logs
+```
 
 For automation that needs the blocked exit code `77`, use:
 
@@ -49,7 +70,7 @@ GNU Make reports failed recipe commands as a make failure; it will print
 ## Result Meanings
 
 - `implemented`: this source file and Makefile exist.
-- `blocked`: the local v3 checkout is missing headers or
+- `blocked`: the configured v3 build copy is missing headers or
   `src/.libs/libmodsecurity.so`.
 - `pass`: `primary_args_phase2` produced intervention status `403`.
 - `fallback pass`: `fallback_request_uri_phase1` produced status `403` after
@@ -58,3 +79,10 @@ GNU Make reports failed recipe commands as a make failure; it will print
   observed.
 
 The fallback must not be documented as ARGS support.
+
+Observed local pass:
+
+```text
+primary_args_phase2: pass status=403 phase=request_body
+fallback_request_uri_phase1: skipped primary_passed
+```
