@@ -18,6 +18,9 @@ HTTP `403` for the shared minimal `ARGS:test` case.
   `ARGS:test` case.
 - Defaults to the source-built httpd under
   `$BUILD_ROOT/apache-runtime/httpd/bin/httpd`.
+- Reads rule, request, and expected status from
+  `tests/common/cases/minimal/phase2_args_block.yaml` through
+  `tests/runners/case_cli.py`.
 
 ## Usage
 
@@ -51,5 +54,6 @@ The harness implements the same rule and request described by:
 tests/common/cases/minimal/phase2_args_block.yaml
 ```
 
-There is intentionally no YAML runner yet; the file is the documented data model
-for future Apache and NGINX harness parity.
+The harness materializes the Apache rule file and request variables from this
+YAML file at runtime. Do not duplicate the rule, request path, or expected HTTP
+status in the harness.

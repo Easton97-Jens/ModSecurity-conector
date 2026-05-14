@@ -12,6 +12,8 @@ Status: scaffolded
   runtime under `BUILD_ROOT` and checks for a real HTTP `403`.
 - `tests/common/cases/minimal/phase2_args_block.yaml` defines the shared
   minimal rule/request/expectation model for Apache first and NGINX later.
+- `tests/runners/case_cli.py` reads that YAML file and materializes the Apache
+  rules, request, and expected HTTP status for the harness.
 
 Implemented here means build orchestration, runtime harness, and documentation.
 It does not mean that Apache has loaded the module successfully in every
@@ -114,7 +116,13 @@ $BUILD_ROOT/apache-build/output/modsecurity/lib/
 The Apache harness renders `connectors/apache/harness/apache_smoke.conf` into
 `$BUILD_ROOT/apache-runtime/phase2_args_block/conf/httpd.conf`.
 
-The rule is:
+The rule, request, and expected status are read from:
+
+```text
+tests/common/cases/minimal/phase2_args_block.yaml
+```
+
+The YAML currently contains this rule:
 
 ```text
 SecRuleEngine On
@@ -127,8 +135,10 @@ The request is:
 GET /?test=attack
 ```
 
-Status `pass` is only valid when the harness observes HTTP `403` from the local
-Apache process. A successful compile alone is not a runtime pass.
+The harness does not hardcode the rule, request path, request method, or
+expected HTTP status. Status `pass` is only valid when the common runner checks
+the observed Apache response against the YAML expectation. A successful compile
+alone is not a runtime pass.
 
 ## Current Local Status
 

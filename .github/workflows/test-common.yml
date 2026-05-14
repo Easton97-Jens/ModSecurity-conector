@@ -29,6 +29,19 @@ jobs:
         run: |
           mkdir -p "$PYTHONPYCACHEPREFIX"
           python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
+      - name: Check shared case runner
+        run: |
+          set -eu
+          mkdir -p "$BUILD_ROOT/case-runner"
+          python3 tests/runners/case_cli.py materialize \
+            --case tests/common/cases/minimal/phase2_args_block.yaml \
+            --rules-file "$BUILD_ROOT/case-runner/rules.conf" \
+            --env-file "$BUILD_ROOT/case-runner/case.env"
+          grep -q 'SecRule ARGS:test' "$BUILD_ROOT/case-runner/rules.conf"
+          python3 tests/runners/case_cli.py assert-status \
+            --case tests/common/cases/minimal/phase2_args_block.yaml \
+            --actual-status 403 \
+            --status-file "$BUILD_ROOT/case-runner/status.txt"
       - name: Check v3 API smoke prerequisites
         run: |
           set +e

@@ -13,6 +13,7 @@ Implemented now:
 - Connector directories for Apache, NGINX, HAProxy, Envoy, Lighttpd, and
   Traefik.
 - Test layout, normalizer skeletons, runner skeletons, and CI structure checks.
+- A minimal shared YAML case runner used by the Apache PoC.
 - A connector-free libmodsecurity v3 C API smoke probe build harness under
   `src/v3-api-smoke/`; see `docs/v3-api-smoke-test.md`.
 - A local `/src` default v3 smoke run has observed `primary_args_phase2`

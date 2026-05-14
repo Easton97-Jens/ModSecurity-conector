@@ -15,9 +15,11 @@ APACHE_MODULE="${APACHE_MODULE:-$APACHE_BUILD_ROOT/output/apache/mod_security3.s
 APACHE_HTTPD_BIN="${APACHE_HTTPD:-${APACHE:-$HTTPD_PREFIX/bin/httpd}}"
 APXS_BIN="${APXS:-$HTTPD_PREFIX/bin/apxs}"
 CURL_BIN="${CURL:-}"
+PYTHON_BIN="${PYTHON:-python3}"
 PORT="${PORT:-18080}"
 TEMPLATE="$SCRIPT_DIR/apache_smoke.conf"
 TEST_CASE="$REPO_ROOT/tests/common/cases/minimal/phase2_args_block.yaml"
+CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
 STATUS_FILE="$LOG_DIR/status.txt"
 
 blocked() {
@@ -195,6 +197,7 @@ RULES_FILE="$RUNTIME_ROOT/conf/modsecurity-smoke.conf"
 MIME_TYPES_FILE="$RUNTIME_ROOT/conf/mime.types"
 DOCROOT="$RUNTIME_ROOT/htdocs"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
+CASE_ENV_FILE="$RUNTIME_ROOT/conf/case.env"
 
 echo "TEST-OK-IF-YOU-SEE-THIS" > "$DOCROOT/index.html"
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
@@ -202,10 +205,13 @@ if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
 else
     : > "$MIME_TYPES_FILE"
 fi
-cat > "$RULES_FILE" <<'RULES'
-SecRuleEngine On
-SecRule ARGS:test "@streq attack" "id:1001,phase:2,deny,status:403"
-RULES
+if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
+    --case "$TEST_CASE" \
+    --rules-file "$RULES_FILE" \
+    --env-file "$CASE_ENV_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
+    blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+fi
+. "$CASE_ENV_FILE"
 
 : > "$MODULES_FILE"
 if modules_dir=$(apache_modules_dir); then
@@ -247,7 +253,7 @@ done
 [ "$ready" -eq 1 ] || fail "Apache did not become ready on 127.0.0.1:$PORT"
 
 set +e
-http_status=$("$CURL_BIN" -sS -o "$RESPONSE_BODY" -w "%{http_code}" "http://127.0.0.1:$PORT/?test=attack" 2>"$LOG_DIR/curl-attack.err")
+http_status=$("$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}" "http://127.0.0.1:$PORT$REQUEST_PATH" 2>"$LOG_DIR/curl-attack.err")
 curl_rc=$?
 set -e
 
@@ -255,12 +261,13 @@ if [ "$curl_rc" -ne 0 ]; then
     fail "curl attack request failed rc=$curl_rc; see $LOG_DIR/curl-attack.err"
 fi
 
-if [ "$http_status" = "403" ]; then
-    echo "pass: apache smoke HTTP 403 observed" >> "$STATUS_FILE"
-    echo "apache_smoke: pass status=403"
+if "$PYTHON_BIN" "$CASE_CLI" assert-status \
+    --case "$TEST_CASE" \
+    --actual-status "$http_status" \
+    --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
+    echo "apache_smoke: pass status=$http_status"
     exit 0
 fi
 
-echo "fail: expected HTTP 403, observed HTTP $http_status" >> "$STATUS_FILE"
-echo "apache_smoke: fail expected=403 observed=$http_status"
+echo "apache_smoke: fail observed=$http_status expected=$EXPECT_STATUS"
 exit 1

@@ -25,4 +25,8 @@ until proven otherwise.
 
 ## Status
 
-No test runner executes real connector behavior yet.
+A minimal shared YAML case materializer and HTTP status assertion runner exists
+under `tests/runners/`. The Apache PoC uses it for the
+`phase2_args_block.yaml` smoke case.
+
+No full connector regression suite exists yet.
