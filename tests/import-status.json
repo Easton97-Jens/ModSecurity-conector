@@ -1,0 +1,92 @@
+{
+  "fully_imported_common": [
+    {
+      "case": "tests/common/cases/imported/action_allow_phase1_pass.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/action_deny_phase1.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/action_deny_phase2.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/collection_args_combined_size_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/collection_args_get_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/collection_args_names_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/request_body_args_post_names_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/request_body_raw_text_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/json_request_body_block.yaml",
+      "reason": "Raw JSON request-body match is portable; parsed JSON collection extraction remains mapped."
+    },
+    {
+      "case": "tests/common/cases/imported/multipart_basic_block.yaml",
+      "reason": "Simple multipart text field is portable; parser edge cases remain mapped."
+    },
+    {
+      "case": "tests/common/cases/imported/response_body_pass.yaml",
+      "reason": "Response-body access pass-through is portable; response-body blocking remains xfail/mapped."
+    }
+  ],
+  "connector_specific": [
+    {
+      "case": "tests/nginx/cases/imported/nginx_redirect_phase1_302.yaml",
+      "reason": "NGINX redirect behavior is not yet proven against Apache."
+    },
+    {
+      "case": "tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml",
+      "reason": "NGINX TX scoring import is not yet proven against Apache."
+    },
+    {
+      "case": "tests/nginx/cases/imported/nginx_tx_scoring_iterative_block.yaml",
+      "reason": "NGINX TX scoring import is not yet proven against Apache."
+    }
+  ],
+  "mapped_only": [
+    {
+      "source": "ModSecurity-apache/tests/regression/rule/10-xml.t",
+      "reason": "XML parser cases require explicit fixture/schema support before active import."
+    },
+    {
+      "source": "ModSecurity-apache/tests/regression/misc/00-multipart-parser.t",
+      "reason": "Multipart parser error and file collection branches exceed the current minimal multipart smoke."
+    },
+    {
+      "source": "ModSecurity-nginx/tests/nginx-tests-cvt.pl",
+      "reason": "Converter tooling is build-runtime support, not a portable rule case."
+    }
+  ],
+  "blocked": [
+    {
+      "source": "ModSecurity-nginx/tests/modsecurity-request-body-h2.t",
+      "reason": "HTTP/2 is outside the current HTTP/1.1 smoke harness."
+    },
+    {
+      "source": "ModSecurity-nginx/tests/modsecurity-h2.t",
+      "reason": "HTTP/2 is outside the current HTTP/1.1 smoke harness."
+    }
+  ],
+  "xfail": [
+    {
+      "source": "ModSecurity-nginx/tests/modsecurity-response-body.t",
+      "reason": "Upstream marks response-body block behavior TODO; local probing recognized the rule but did not produce stable HTTP 403."
+    }
+  ]
+}
