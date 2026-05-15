@@ -8,19 +8,24 @@ jobs:
   apache-structure:
     runs-on: ubuntu-latest
     env:
-      SOURCE_ROOT: ${{ runner.temp }}/sources
-      MODSECURITY_V3_SOURCE_DIR: ${{ runner.temp }}/sources/ModSecurity_V3
-      MODSECURITY_APACHE_SOURCE_DIR: ${{ runner.temp }}/sources/ModSecurity-apache
       MODSECURITY_V3_GIT_URL: https://github.com/owasp-modsecurity/ModSecurity.git
       MODSECURITY_V3_GIT_REF: v3/master
       MODSECURITY_APACHE_GIT_URL: https://github.com/owasp-modsecurity/ModSecurity-apache.git
       MODSECURITY_APACHE_GIT_REF: master
-      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
       BUILD_HTTPD_FROM_SOURCE: "1"
       BUILD_PCRE2_FROM_SOURCE: "1"
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/python-pycache
     steps:
       - uses: actions/checkout@v4
+      - name: Initialize runner temp paths
+        run: |
+          set -eu
+          {
+            echo "SOURCE_ROOT=$RUNNER_TEMP/sources"
+            echo "MODSECURITY_V3_SOURCE_DIR=$RUNNER_TEMP/sources/ModSecurity_V3"
+            echo "MODSECURITY_APACHE_SOURCE_DIR=$RUNNER_TEMP/sources/ModSecurity-apache"
+            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
       - name: Check Apache scaffold
         run: |
           set -eu
@@ -90,6 +95,6 @@ jobs:
           name: apache-smoke-artifacts
           if-no-files-found: ignore
           path: |
-            ${{ runner.temp }}/ModSecurity-conector-build/logs
-            ${{ runner.temp }}/ModSecurity-conector-build/results
-            ${{ runner.temp }}/ModSecurity-conector-build/apache-runtime/*/conf
+            ${{ env.BUILD_ROOT }}/logs
+            ${{ env.BUILD_ROOT }}/results
+            ${{ env.BUILD_ROOT }}/apache-runtime/*/conf

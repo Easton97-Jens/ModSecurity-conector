@@ -9,12 +9,17 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
-      MODSECURITY_V3_DIR: ${{ runner.temp }}/ModSecurity_V3_build
-      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
-      LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/python-pycache
     steps:
       - uses: actions/checkout@v4
+      - name: Initialize runner temp paths
+        run: |
+          set -eu
+          {
+            echo "MODSECURITY_V3_DIR=$RUNNER_TEMP/ModSecurity_V3_build"
+            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build"
+            echo "LOG_DIR=$RUNNER_TEMP/ModSecurity-conector-build/logs"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
       - name: Check common scaffold
         run: |
           set -eu
@@ -137,6 +142,6 @@ jobs:
           name: common-smoke-artifacts
           if-no-files-found: ignore
           path: |
-            ${{ runner.temp }}/ModSecurity-conector-build/case-runner
-            ${{ runner.temp }}/ModSecurity-conector-build/logs
-            ${{ runner.temp }}/ModSecurity-conector-build/results
+            ${{ env.BUILD_ROOT }}/case-runner
+            ${{ env.BUILD_ROOT }}/logs
+            ${{ env.BUILD_ROOT }}/results
