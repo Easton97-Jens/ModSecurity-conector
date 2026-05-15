@@ -63,21 +63,7 @@ jobs:
             else
               : > "$out/response-body.txt"
             fi
-            python3 - "$case_file" "$out/audit.log" <<'PY'
-import sys
-from pathlib import Path
-
-sys.path.insert(0, "tests/runners")
-from runner_core import expected_audit_log, load_case
-
-case = load_case(sys.argv[1])
-audit = expected_audit_log(case)
-content = "\n".join(
-    str(value) for key, value in audit.items()
-    if key != "required" and value not in (None, "")
-)
-Path(sys.argv[2]).write_text(content + ("\n" if content else ""), encoding="utf-8")
-PY
+            python3 ci/write-expected-audit-log.py "$case_file" "$out/audit.log"
             python3 tests/runners/case_cli.py assert-status \
               --case "$case_file" \
               --actual-status "$EXPECT_STATUS" \
@@ -110,20 +96,7 @@ PY
             --server-binary "$BUILD_ROOT/apache-runtime/httpd/bin/httpd" \
             --module "$BUILD_ROOT/apache-build/output/apache/mod_security3.so" \
             --libmodsecurity "$BUILD_ROOT/apache-build/output/modsecurity/lib/libmodsecurity.so"
-          python3 - "$BUILD_ROOT/schema-check/apache-summary.json" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-apache = data["apache"]
-assert apache["connector_path"] == "real-world"
-assert apache["validation_mode"] == "real-world-connector-path"
-assert apache["server"] == "apache"
-assert apache["verified_variables"] == []
-for key in ("server_binary", "module", "libmodsecurity", "summary", "cases"):
-    assert key in apache
-PY
+          python3 ci/check-real-world-summary-schema.py "$BUILD_ROOT/schema-check/apache-summary.json"
       - name: Check make smoke targets and boundaries
         run: |
           set -eu
