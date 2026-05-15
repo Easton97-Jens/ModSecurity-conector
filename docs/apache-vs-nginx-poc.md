@@ -30,6 +30,12 @@ status.
 `make smoke-all` also runs connector-specific imported cases on their matching
 connector.
 
+The proof mode for both PoCs is `real-world-connector-path`: a real HTTP client
+talks to a real server process, the server loads the real connector module, the
+module calls libmodsecurity, and the observed HTTP response must match the YAML
+expectation. Direct libmodsecurity API smoke results are separate and are not
+counted as connector success.
+
 ## Connector-Specific Pieces
 
 Apache:
@@ -134,3 +140,19 @@ body/filter additions are:
 response-body rule in local probing, but the HTTP response was not a stable
 403, and the upstream NGINX test marks the block case TODO. It stays documented
 as xfail/mapped-only until both connectors return the same stable HTTP 403.
+
+## Summary Metadata
+
+Apache and NGINX summaries under `$BUILD_ROOT/results/` include:
+
+- `connector_path: real-world`
+- `validation_mode: real-world-connector-path`
+- server binary path
+- connector module path
+- libmodsecurity shared library path
+- `verified_variables` derived only from passing YAML cases
+
+The currently verified real-world variable families are `ARGS`,
+`REQUEST_HEADERS`, `REQUEST_BODY`, `FILES`, `XML`, `AUDIT_LOG`, and
+`RESPONSE_HEADERS`. `RESPONSE_BODY` remains excluded until a response-body
+rule-variable case passes on both connectors.

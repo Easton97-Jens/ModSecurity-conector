@@ -22,6 +22,15 @@ Implemented here means build orchestration, runtime harness, shared-case
 integration, and documentation. It does not mean every environment can build or
 run the NGINX module.
 
+When the smoke passes it is a `real-world-connector-path` validation:
+
+```text
+HTTP client -> source-built NGINX -> ngx_http_modsecurity_module.so -> libmodsecurity -> HTTP response
+```
+
+The connector-free v3 API smoke under `src/v3-api-smoke/` is separate and is
+not counted as NGINX connector success.
+
 ## Build Flow
 
 Defaults are local conveniences only:
@@ -135,6 +144,11 @@ body, response fixture, or expected HTTP status. Readiness uses
 not affect startup checks. Status `pass` is only valid when the common runner
 checks the observed NGINX response against each YAML expectation.
 
+The generated `$BUILD_ROOT/results/nginx-summary.json` records
+`connector_path: real-world`, `validation_mode:
+real-world-connector-path`, the NGINX binary, dynamic module path,
+libmodsecurity, and `verified_variables` derived only from passing cases.
+
 Run the smoke after a successful build:
 
 ```sh
@@ -171,6 +185,8 @@ nginx_binary=/src/ModSecurity-conector-build/nginx-runtime/nginx/sbin/nginx
 nginx_module=/src/ModSecurity-conector-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
 nginx_smoke_cases=audit_log_phase1_block, phase1_header_block, phase2_args_block, phase2_args_pass, request_body_json_block, request_body_urlencoded_block, response_header_basic, json_request_body_block, multipart_basic_block, response_body_pass
 nginx_smoke_status=all pass; blocking cases HTTP 403; pass-through case HTTP 200
+nginx_validation_mode=real-world-connector-path
+nginx_verified_variables=ARGS,REQUEST_HEADERS,REQUEST_BODY,FILES,XML,AUDIT_LOG,RESPONSE_HEADERS
 ```
 
 The SHA256 value above is the local hash of the GitHub archive downloaded in

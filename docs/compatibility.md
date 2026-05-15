@@ -15,6 +15,8 @@ architecture for new connectors.
 | libmodsecurity v3 API mapping | planned | Public API sequence documented, not wrapped |
 | Apache connector | scaffolded | Local source-built PoC observed expected HTTP behavior for all current shared minimal cases |
 | NGINX connector | scaffolded | Local source-built PoC observed expected HTTP behavior for all current shared minimal cases |
+| Apache real-world connector path | implemented | Smoke summaries record source-built httpd, `mod_security3.so`, libmodsecurity, and verified variables |
+| NGINX real-world connector path | implemented | Smoke summaries record source-built NGINX, dynamic module, libmodsecurity, and verified variables |
 | HAProxy connector | unknown | SPOE/Lua/native options documented, implementation undecided |
 | Envoy connector | unknown | HTTP filter/ext_authz/Wasm options documented, implementation undecided |
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
@@ -100,3 +102,23 @@ The active cases prove only the minimal YAML scenarios. V2 Perl harness
 internals, v3 API-only cases, XML schema/DTD validation, malformed multipart,
 streaming, HTTP/2, and optional-library operators remain mapped until dedicated
 support is added.
+
+## Real-World Connector Path
+
+`real-world-connector-path` is the compatibility proof mode for Apache and
+NGINX:
+
+```text
+HTTP client -> server process -> connector module -> libmodsecurity -> rule variables -> HTTP response
+```
+
+The direct v3 API smoke remains separate and is not connector proof. Connector
+summary JSON records `connector_path`, `validation_mode`, `server_binary`,
+`module`, `libmodsecurity`, and `verified_variables`. A variable appears there
+only if at least one active passing case exercised it through the real server
+runtime.
+
+Current active passing cases verify `ARGS`, `REQUEST_HEADERS`, `REQUEST_BODY`,
+`FILES`, `XML`, `AUDIT_LOG`, and `RESPONSE_HEADERS` through both Apache and
+NGINX in this workspace. `RESPONSE_BODY` remains mapped/xfail until an active
+response-body variable/blocking case passes on both connectors.

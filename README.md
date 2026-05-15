@@ -18,6 +18,8 @@ Implemented now:
   `src/v3-api-smoke/`; see `docs/v3-api-smoke-test.md`.
 - A local `/src` default v3 smoke run has observed `primary_args_phase2`
   returning intervention status `403`.
+- Explicit `real-world-connector-path` validation metadata for Apache and
+  NGINX smoke summaries; see `docs/real-world-connector-validation.md`.
 - An Apache PoC build helper that can source-build httpd under `BUILD_ROOT`, plus
   a runtime smoke harness scaffold; see `docs/apache-poc.md`.
 - A local source-built Apache PoC has observed the YAML-expected HTTP behavior
@@ -179,3 +181,17 @@ See `docs/architecture.md`, `docs/compatibility.md`, and `docs/roadmap.md`.
 See `docs/v3-api-smoke-test.md` for the minimal libmodsecurity v3 API smoke
 probe status.
 See `docs/nginx-poc.md` for the NGINX PoC build and smoke status rules.
+
+## API Smoke vs Connector Smoke
+
+The connector-free API smoke under `src/v3-api-smoke/` proves only the public
+libmodsecurity v3 C API path. It is not counted as Apache or NGINX connector
+success.
+
+Apache and NGINX `pass` means `real-world-connector-path`: a real HTTP client
+talked to a source-built server process, the real connector module loaded, the
+YAML rules evaluated in libmodsecurity, and the server returned the
+YAML-expected HTTP status. Connector summaries record the server binary, module
+path, libmodsecurity path, and verified variable families such as `ARGS`,
+`REQUEST_HEADERS`, `REQUEST_BODY`, `FILES`, `XML`, `AUDIT_LOG`, and
+`RESPONSE_HEADERS`.

@@ -36,6 +36,9 @@ Status: scaffolded
 - Capability validation/normalization in the shared runner for multipart,
   files, XML, JSON, response-body, audit-log, collections, operators,
   transformations, actions, rule-parser, and transaction-lifecycle metadata.
+- `real-world-connector-path` result metadata for Apache and NGINX smokes,
+  including server binary, connector module, libmodsecurity path, and verified
+  variable families derived only from passing cases.
 
 ## Planned
 
@@ -65,6 +68,8 @@ Status: scaffolded
 
 - Runtime claims are blocked until each connector has a build, test server,
   repeatable fixtures, and passing connector-specific tests.
+- Direct libmodsecurity API smoke is not connector proof; connector pass must
+  come from the `real-world-connector-path`.
 - v3 API smoke status is `pass` only when the primary `ARGS:test` scenario
   observes intervention status `403`; `fallback pass` is only a minimal API
   proof.
