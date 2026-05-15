@@ -13,6 +13,57 @@ from adapter_interface import ConnectorAdapter
 DEFAULT_RESPONSE_BODY = "TEST-OK-IF-YOU-SEE-THIS\n"
 READY_BODY = "ready\n"
 
+CAPABILITY_ALIASES = {
+    "api_smoke": "api-smoke",
+    "audit_log": "audit-log",
+    "body_processor": "body-processors",
+    "body_processors": "body-processors",
+    "form_urlencoded": "form-urlencoded",
+    "pass_through": "pass-through",
+    "query_args": "query-args",
+    "request_body": "request-body",
+    "request_headers": "request-headers",
+    "response_body": "response-body",
+    "response_filters": "response-filters",
+    "response_headers": "response-headers",
+    "rule_parser": "rule-parser",
+    "transaction_lifecycle": "transaction-lifecycle",
+    "tx": "tx-collection",
+}
+
+KNOWN_CAPABILITIES = {
+    "actions",
+    "api-smoke",
+    "audit-log",
+    "body-processors",
+    "collections",
+    "engine-core",
+    "files",
+    "form-urlencoded",
+    "intervention",
+    "json",
+    "logging",
+    "multipart",
+    "operators",
+    "pass-through",
+    "phase1",
+    "phase2",
+    "phase3",
+    "phase4",
+    "query-args",
+    "redirect",
+    "request-body",
+    "request-headers",
+    "response-body",
+    "response-filters",
+    "response-headers",
+    "rule-parser",
+    "transaction-lifecycle",
+    "transformations",
+    "tx-collection",
+    "xml",
+}
+
 
 @dataclass
 class RunnerResult:
@@ -186,6 +237,14 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
         raise ValueError(f"case capabilities must be a mapping or list{where}")
     if isinstance(capabilities, list) and not all(isinstance(item, str) for item in capabilities):
         raise ValueError(f"case capabilities list must contain strings{where}")
+    unknown_capabilities = [
+        capability
+        for capability in _capability_names(case)
+        if capability not in KNOWN_CAPABILITIES
+    ]
+    if unknown_capabilities:
+        joined = ", ".join(sorted(unknown_capabilities))
+        raise ValueError(f"case capabilities contain unsupported values: {joined}{where}")
     origin = case.get("origin")
     if origin is not None:
         if not isinstance(origin, list) or not all(isinstance(item, Mapping) for item in origin):
@@ -448,10 +507,17 @@ def _capability_names(case: Mapping[str, Any]) -> list[str]:
     if capabilities is None:
         return []
     if isinstance(capabilities, Mapping):
-        return [str(key) for key, value in capabilities.items() if _bool_value(value)]
-    if isinstance(capabilities, list):
-        return [str(item) for item in capabilities]
-    return []
+        raw_names = [str(key) for key, value in capabilities.items() if _bool_value(value)]
+    elif isinstance(capabilities, list):
+        raw_names = [str(item) for item in capabilities]
+    else:
+        return []
+    normalized = {
+        CAPABILITY_ALIASES.get(name.strip(), name.strip().replace("_", "-"))
+        for name in raw_names
+        if name.strip()
+    }
+    return sorted(normalized)
 
 
 def case_scope(path: str | Path) -> str:
@@ -508,6 +574,8 @@ def _case_dirs(repo_root: Path, connector: str, scope: str) -> list[Path]:
     common_dirs = [
         repo_root / "tests" / "common" / "cases" / "minimal",
         repo_root / "tests" / "common" / "cases" / "imported",
+        repo_root / "tests" / "common" / "cases" / "v2-imported",
+        repo_root / "tests" / "common" / "cases" / "v3-imported",
     ]
     connector_dirs = [repo_root / "tests" / connector / "cases" / "imported"]
     if scope == "common":

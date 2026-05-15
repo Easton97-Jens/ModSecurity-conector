@@ -43,6 +43,54 @@
     {
       "case": "tests/common/cases/imported/response_body_pass.yaml",
       "reason": "Response-body access pass-through is portable; response-body blocking remains xfail/mapped."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_streq_block.yaml",
+      "reason": "V2-derived operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_contains_block.yaml",
+      "reason": "V2-derived operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_transformation_lowercase_block.yaml",
+      "reason": "V2-derived transformation case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_transformation_trim_block.yaml",
+      "reason": "V2-derived transformation case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/multipart_files_value_block.yaml",
+      "reason": "V3-derived multipart FILES case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/multipart_files_names_block.yaml",
+      "reason": "V3-derived multipart FILES_NAMES case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/multipart_files_combined_size.yaml",
+      "reason": "V3-derived multipart FILES_COMBINED_SIZE case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/multipart_filename_block.yaml",
+      "reason": "V3-derived MULTIPART_FILENAME case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/xml_request_body_block.yaml",
+      "reason": "V3-derived XML request-body case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_operator_rx_block.yaml",
+      "reason": "V3-derived operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_transformation_trim_block.yaml",
+      "reason": "V3-derived transformation case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_secaction_block.yaml",
+      "reason": "V3-derived SecAction case observed PASS on Apache and NGINX in the shared smoke harness."
     }
   ],
   "connector_specific": [
@@ -87,6 +135,58 @@
     {
       "source": "ModSecurity-nginx/tests/modsecurity-response-body.t",
       "reason": "Upstream marks response-body block behavior TODO; local probing recognized the rule but did not produce stable HTTP 403."
+    }
+  ],
+  "v2_imported": [
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_streq_block.yaml",
+      "reason": "Derived from V2 streq operator semantics and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_contains_block.yaml",
+      "reason": "Derived from V2 contains operator semantics and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_transformation_lowercase_block.yaml",
+      "reason": "Derived from V2 lowercase transformation semantics and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_transformation_trim_block.yaml",
+      "reason": "Derived from V2 trim transformation semantics and observed through the shared connector smoke path."
+    }
+  ],
+  "v3_imported": [
+    {
+      "case": "tests/common/cases/v3-imported/multipart_files_value_block.yaml",
+      "reason": "Derived from V3 variable-FILES regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/multipart_files_names_block.yaml",
+      "reason": "Derived from V3 variable-FILES_NAMES regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/multipart_files_combined_size.yaml",
+      "reason": "Derived from V3 variable-FILES_COMBINED_SIZE regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/multipart_filename_block.yaml",
+      "reason": "Derived from V3 variable-MULTIPART_FILENAME regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/xml_request_body_block.yaml",
+      "reason": "Derived from V3 variable-XML regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_operator_rx_block.yaml",
+      "reason": "Derived from V3 operator-rx regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_transformation_trim_block.yaml",
+      "reason": "Derived from V3 transformations regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_secaction_block.yaml",
+      "reason": "Derived from V3 secruleengine SecAction coverage and observed through the shared connector smoke path."
     }
   ]
 }

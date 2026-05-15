@@ -122,7 +122,15 @@ def summarize_results(args: argparse.Namespace) -> int:
         import_status_path = Path(args.import_status_file)
         if import_status_path.exists():
             manifest = json.loads(import_status_path.read_text(encoding="utf-8"))
-            for key in ("fully_imported_common", "connector_specific", "mapped_only", "blocked", "xfail"):
+            for key in (
+                "fully_imported_common",
+                "connector_specific",
+                "mapped_only",
+                "blocked",
+                "xfail",
+                "v2_imported",
+                "v3_imported",
+            ):
                 value = manifest.get(key, [])
                 import_status[key] = len(value) if isinstance(value, list) else 0
     summary = {

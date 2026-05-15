@@ -25,6 +25,9 @@ jobs:
           test -f common/include/msconnector/logging.h
           test -f tests/common/modsecurity-v2-regression-map.md
           test -f tests/common/modsecurity-v3-regression-map.md
+          test -f tests/common/v2-regression-map.md
+          test -f tests/common/v3-regression-map.md
+          test -f docs/v2-vs-v3-test-compatibility.md
       - name: Compile Python skeletons
         run: |
           mkdir -p "$PYTHONPYCACHEPREFIX"
@@ -33,7 +36,11 @@ jobs:
         run: |
           set -eu
           mkdir -p "$BUILD_ROOT/case-runner"
-          for case_file in tests/common/cases/minimal/*.yaml tests/common/cases/imported/*.yaml; do
+          for case_file in \
+            tests/common/cases/minimal/*.yaml \
+            tests/common/cases/imported/*.yaml \
+            tests/common/cases/v2-imported/*.yaml \
+            tests/common/cases/v3-imported/*.yaml; do
             name=$(basename "$case_file" .yaml)
             out="$BUILD_ROOT/case-runner/$name"
             mkdir -p "$out"
