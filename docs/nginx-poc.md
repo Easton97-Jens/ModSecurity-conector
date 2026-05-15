@@ -160,8 +160,8 @@ nginx_archive_sha256_verified=0
 nginx_version=nginx/1.31.0
 nginx_binary=/src/ModSecurity-conector-build/nginx-runtime/nginx/sbin/nginx
 nginx_module=/src/ModSecurity-conector-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
-nginx_smoke_cases=phase1_header_block, phase2_args_block, request_body_json_block, request_body_urlencoded_block, response_header_basic
-nginx_smoke_status=all pass, HTTP 403
+nginx_smoke_cases=audit_log_phase1_block, phase1_header_block, phase2_args_block, phase2_args_pass, request_body_json_block, request_body_urlencoded_block, response_header_basic
+nginx_smoke_status=all pass; blocking cases HTTP 403; pass-through case HTTP 200
 ```
 
 The SHA256 value above is the local hash of the GitHub archive downloaded in

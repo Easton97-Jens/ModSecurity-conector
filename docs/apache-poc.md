@@ -132,6 +132,8 @@ The default run executes:
 ```text
 phase1_header_block
 phase2_args_block
+phase2_args_pass
+audit_log_phase1_block
 request_body_json_block
 request_body_urlencoded_block
 response_header_basic
@@ -189,8 +191,8 @@ apache_httpd_version=Apache/2.4.67
 pcre_config=/usr/bin/pcre2-config
 pcre_config_version=10.46
 pcre2_source_built=0
-apache_smoke_cases=phase1_header_block, phase2_args_block, request_body_json_block, request_body_urlencoded_block, response_header_basic
-apache_smoke_status=all pass, HTTP 403
+apache_smoke_cases=audit_log_phase1_block, phase1_header_block, phase2_args_block, phase2_args_pass, request_body_json_block, request_body_urlencoded_block, response_header_basic
+apache_smoke_status=all pass; blocking cases HTTP 403; pass-through case HTTP 200
 ```
 
 ## Status Meanings

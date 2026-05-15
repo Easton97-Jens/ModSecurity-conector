@@ -7,7 +7,8 @@ NGINX module built from the read-only `ModSecurity-nginx` source copy. It is not
 a complete regression suite.
 
 Observed locally on 2026-05-15: source-built NGINX `1.31.0` from GitHub tag
-`release-1.31.0` returned HTTP `403` for all current shared minimal cases.
+`release-1.31.0` returned the YAML-expected HTTP status for all current shared
+minimal cases.
 
 ## Boundaries
 

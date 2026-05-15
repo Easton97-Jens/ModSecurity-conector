@@ -8,6 +8,11 @@
 # CRS, multipart handling, or streaming.
 name: request_body_json_block
 
+capabilities:
+  request_body: true
+  phase2: true
+  intervention: true
+
 rules: |
   SecRuleEngine On
   SecRequestBodyAccess On

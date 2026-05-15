@@ -15,20 +15,22 @@ Status: scaffolded
   `primary_args_phase2` pass observed against `/src/ModSecurity_V3_build`.
 - Apache PoC build-preparation helper, runtime smoke harness scaffold, and
   shared minimal YAML cases.
-- Apache PoC source-built httpd path with local HTTP `403` smoke pass for all
+- Apache PoC source-built httpd path with local expected HTTP behavior for all
   current shared minimal cases.
 - NGINX PoC build helper and runtime harness using the same shared minimal cases
-  and the official `nginx/nginx` GitHub release archive flow, with local HTTP
-  `403` smoke pass observed for all current shared minimal cases.
+  and the official `nginx/nginx` GitHub release archive flow, with local
+  expected HTTP behavior observed for all current shared minimal cases.
 - Formal smoke orchestration through `make smoke-apache`, `make smoke-nginx`,
   and `make smoke-all`.
+- Shared YAML schema fields for `capabilities`, pass-through expectations,
+  response body checks, and stable audit-log field checks.
 
 ## Planned
 
 - Compile checks for common headers.
-- Capability schema for portable vs connector-specific tests.
-- Add capability tags to each shared YAML case.
-- Add negative/pass-through cases after their source origins are mapped.
+- Promote the documented YAML shape into a machine-readable schema.
+- Add more source-derived negative/pass-through cases after their origins are
+  mapped.
 
 ## Unknown
 

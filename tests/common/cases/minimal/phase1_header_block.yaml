@@ -9,6 +9,11 @@
 # HTTP status 403; connector-specific config directives are not used.
 name: phase1_header_block
 
+capabilities:
+  request_headers: true
+  phase1: true
+  intervention: true
+
 rules: |
   SecRuleEngine On
   SecRule REQUEST_HEADERS:User-Agent "@contains attack" \

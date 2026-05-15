@@ -7,6 +7,11 @@
 # a GET request, and an HTTP status intervention.
 name: phase2_args_block
 
+capabilities:
+  query_args: true
+  phase2: true
+  intervention: true
+
 rules: |
   SecRuleEngine On
   SecRule ARGS:test "@streq attack" \

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from runner_core import (
-    assert_case_response,
+    assert_case_artifacts,
     load_case,
     write_body_file,
     write_headers_file,
@@ -18,18 +18,30 @@ from runner_core import (
 
 def materialize(args: argparse.Namespace) -> int:
     case = load_case(args.case)
-    write_rules_file(case, args.rules_file)
+    write_rules_file(case, args.rules_file, args.audit_log_file, args.audit_log_dir)
     if args.headers_file:
         write_headers_file(case, args.headers_file)
     if args.body_file:
         write_body_file(case, args.body_file)
-    write_shell_env(case, args.env_file, args.headers_file, args.body_file)
+    write_shell_env(
+        case,
+        args.env_file,
+        args.headers_file,
+        args.body_file,
+        args.audit_log_file,
+        args.audit_log_dir,
+    )
     return 0
 
 
 def assert_status(args: argparse.Namespace) -> int:
     case = load_case(args.case)
-    errors = assert_case_response(case, {"status": int(args.actual_status)})
+    errors = assert_case_artifacts(
+        case,
+        {"status": int(args.actual_status)},
+        args.response_body_file,
+        args.audit_log_file,
+    )
     status_file = Path(args.status_file) if args.status_file else None
     if errors:
         message = "; ".join(errors)
@@ -59,6 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     materialize_parser.add_argument("--env-file", required=True)
     materialize_parser.add_argument("--headers-file")
     materialize_parser.add_argument("--body-file")
+    materialize_parser.add_argument("--audit-log-file")
+    materialize_parser.add_argument("--audit-log-dir")
     materialize_parser.set_defaults(func=materialize)
 
     assert_parser = subparsers.add_parser(
@@ -68,6 +82,8 @@ def build_parser() -> argparse.ArgumentParser:
     assert_parser.add_argument("--case", required=True)
     assert_parser.add_argument("--actual-status", required=True)
     assert_parser.add_argument("--status-file")
+    assert_parser.add_argument("--response-body-file")
+    assert_parser.add_argument("--audit-log-file")
     assert_parser.set_defaults(func=assert_status)
 
     return parser

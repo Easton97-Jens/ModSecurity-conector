@@ -29,5 +29,5 @@ builds the connector as a dynamic NGINX module against an official
 
 Observed locally on 2026-05-15: `NGINX_RELEASE_TAG=latest` resolved to
 `release-1.31.0`, built `nginx/1.31.0`, built
-`ngx_http_modsecurity_module.so`, and the harness observed HTTP `403` for all
-current shared minimal cases.
+`ngx_http_modsecurity_module.so`, and the harness observed the YAML-expected
+HTTP status for all current shared minimal cases.

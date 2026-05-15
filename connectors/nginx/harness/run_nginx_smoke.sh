@@ -235,7 +235,7 @@ require_absolute_generated_path "$NGINX_PREFIX" "NGINX_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 
-mkdir -p "$LOG_DIR" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs" \
+mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs" \
     "$RUNTIME_ROOT/client_body_temp" "$RUNTIME_ROOT/proxy_temp" \
     "$RUNTIME_ROOT/fastcgi_temp" "$RUNTIME_ROOT/uwsgi_temp" \
     "$RUNTIME_ROOT/scgi_temp"
@@ -245,7 +245,9 @@ rm -f "$LOG_DIR/configtest.log" \
     "$LOG_DIR/nginx.log" \
     "$LOG_DIR/nginx-stdout.log" \
     "$LOG_DIR/response-body.txt" \
+    "$LOG_DIR/audit.log" \
     "$RUNTIME_ROOT/nginx.pid"
+rm -f "$LOG_DIR/audit/"*
 : > "$STATUS_FILE"
 
 CURL_BIN=$(find_curl)
@@ -263,14 +265,20 @@ RESPONSE_BODY="$LOG_DIR/response-body.txt"
 CASE_ENV_FILE="$RUNTIME_ROOT/conf/case.env"
 REQUEST_HEADERS_FILE="$RUNTIME_ROOT/conf/request-headers.txt"
 REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
+AUDIT_LOG_FILE="$LOG_DIR/audit.log"
+AUDIT_LOG_DIR="$LOG_DIR/audit"
 
 echo "TEST-OK-IF-YOU-SEE-THIS" > "$DOCROOT/index.html"
+chmod go+rx "$BUILD_ROOT" "$RUNTIME_BASE" "$RUNTIME_ROOT" "$DOCROOT" 2>/dev/null || true
+chmod go+r "$DOCROOT/index.html" 2>/dev/null || true
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
     --rules-file "$RULES_FILE" \
     --env-file "$CASE_ENV_FILE" \
     --headers-file "$REQUEST_HEADERS_FILE" \
-    --body-file "$REQUEST_BODY_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
+    --body-file "$REQUEST_BODY_FILE" \
+    --audit-log-file "$AUDIT_LOG_FILE" \
+    --audit-log-dir "$AUDIT_LOG_DIR" > "$LOG_DIR/case-materialize.log" 2>&1; then
     blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
@@ -316,6 +324,8 @@ fi
 if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --case "$TEST_CASE" \
     --actual-status "$http_status" \
+    --response-body-file "$RESPONSE_BODY" \
+    --audit-log-file "$AUDIT_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
     echo "nginx_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0

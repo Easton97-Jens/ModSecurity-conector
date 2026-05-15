@@ -42,12 +42,37 @@ jobs:
               --rules-file "$out/rules.conf" \
               --env-file "$out/case.env" \
               --headers-file "$out/request-headers.txt" \
-              --body-file "$out/request-body.bin"
+              --body-file "$out/request-body.bin" \
+              --audit-log-file "$out/audit.log" \
+              --audit-log-dir "$out/audit"
             grep -q 'SecRuleEngine On' "$out/rules.conf"
             grep -q '^REQUEST_METHOD=' "$out/case.env"
+            . "$out/case.env"
+            if [ -n "${EXPECT_RESPONSE_CONTAINS:-}" ]; then
+              printf '%s\n' "$EXPECT_RESPONSE_CONTAINS" > "$out/response-body.txt"
+            else
+              : > "$out/response-body.txt"
+            fi
+            python3 - "$case_file" "$out/audit.log" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "tests/runners")
+from runner_core import expected_audit_log, load_case
+
+case = load_case(sys.argv[1])
+audit = expected_audit_log(case)
+content = "\n".join(
+    str(value) for key, value in audit.items()
+    if key != "required" and value not in (None, "")
+)
+Path(sys.argv[2]).write_text(content + ("\n" if content else ""), encoding="utf-8")
+PY
             python3 tests/runners/case_cli.py assert-status \
               --case "$case_file" \
-              --actual-status 403 \
+              --actual-status "$EXPECT_STATUS" \
+              --response-body-file "$out/response-body.txt" \
+              --audit-log-file "$out/audit.log" \
               --status-file "$out/status.txt"
           done
       - name: Check make smoke targets and boundaries

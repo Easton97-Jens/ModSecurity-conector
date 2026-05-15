@@ -32,8 +32,8 @@ Apache:
 - Runtime loads `mod_security3.so` with `LoadModule security3_module`.
 - Configuration enables `modsecurity on` and points `modsecurity_rules_file` at
   the materialized rules file.
-- A local source-built Apache httpd smoke has observed HTTP `403` for all
-  current shared minimal cases.
+- A local source-built Apache httpd smoke has observed the YAML-expected HTTP
+  status for all current shared minimal cases.
 
 NGINX:
 
@@ -42,8 +42,8 @@ NGINX:
 - Runtime loads `ngx_http_modsecurity_module.so` with `load_module`.
 - Configuration enables `modsecurity on` and points `modsecurity_rules_file` at
   the materialized rules file.
-- A local source-built NGINX smoke has observed HTTP `403` for all current
-  shared minimal cases.
+- A local source-built NGINX smoke has observed the YAML-expected HTTP status
+  for all current shared minimal cases.
 
 ## Lifecycle Differences
 
@@ -80,8 +80,10 @@ Observed on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
 
 | Shared case | Apache, httpd 2.4.67 | NGINX, nginx 1.31.0 from `release-1.31.0` |
 | --- | --- | --- |
+| `audit_log_phase1_block.yaml` | HTTP 403 plus audit fields | HTTP 403 plus audit fields |
 | `phase1_header_block.yaml` | HTTP 403 | HTTP 403 |
 | `phase2_args_block.yaml` | HTTP 403 | HTTP 403 |
+| `phase2_args_pass.yaml` | HTTP 200 plus origin body | HTTP 200 plus origin body |
 | `request_body_json_block.yaml` | HTTP 403 | HTTP 403 |
 | `request_body_urlencoded_block.yaml` | HTTP 403 | HTTP 403 |
 | `response_header_basic.yaml` | HTTP 403 | HTTP 403 |

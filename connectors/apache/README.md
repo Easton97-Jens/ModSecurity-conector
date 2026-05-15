@@ -11,8 +11,8 @@ Implemented now:
 - A PoC build-preparation helper in `ci/prepare-apache-build.sh`.
 - A local runtime smoke harness under `connectors/apache/harness/`.
 - Use of all shared minimal cases under `tests/common/cases/minimal/`.
-- A local source-built httpd run observed HTTP `403` for all current shared
-  minimal cases on 2026-05-15.
+- A local source-built httpd run observed the YAML-expected HTTP status for all
+  current shared minimal cases on 2026-05-15.
 
 Not implemented:
 

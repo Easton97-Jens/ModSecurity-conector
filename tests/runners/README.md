@@ -8,16 +8,19 @@ It does not implement a complete server/proxy adapter suite.
 Implemented now:
 
 - `case_cli.py materialize` reads a shared YAML case, writes a connector runtime
-  rule file, request headers/body files, and shell-safe request/expectation
-  variables.
-- `case_cli.py assert-status` compares a real connector HTTP status with the
-  shared YAML case expectation.
+  rule file, request headers/body files, audit-log paths, and shell-safe
+  request/expectation variables.
+- `case_cli.py assert-status` compares real connector HTTP status, optional
+  response body content, and optional audit-log content with the shared YAML
+  case expectation.
 - `runner_core.py` validates the minimal shared case schema and provides the
   status assertion used by the Apache and NGINX harnesses.
 
 The Apache and NGINX PoCs use this runner so each YAML file under
 `tests/common/cases/minimal/` is the single source for the rule, request,
 headers, optional body, and expected HTTP status.
+Audit-log cases also use the YAML as the source for stable audit-log field
+expectations.
 
 Required adapter methods:
 
@@ -42,9 +45,13 @@ python3 tests/runners/case_cli.py materialize \
   --rules-file "$BUILD_ROOT/rules.conf" \
   --env-file "$BUILD_ROOT/case.env" \
   --headers-file "$BUILD_ROOT/request-headers.txt" \
-  --body-file "$BUILD_ROOT/request-body.bin"
+  --body-file "$BUILD_ROOT/request-body.bin" \
+  --audit-log-file "$BUILD_ROOT/audit.log" \
+  --audit-log-dir "$BUILD_ROOT/audit"
 
 python3 tests/runners/case_cli.py assert-status \
   --case tests/common/cases/minimal/phase2_args_block.yaml \
-  --actual-status 403
+  --actual-status 403 \
+  --response-body-file "$BUILD_ROOT/response-body.txt" \
+  --audit-log-file "$BUILD_ROOT/audit.log"
 ```

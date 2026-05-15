@@ -20,13 +20,13 @@ Implemented now:
   returning intervention status `403`.
 - An Apache PoC build helper that can source-build httpd under `BUILD_ROOT`, plus
   a runtime smoke harness scaffold; see `docs/apache-poc.md`.
-- A local source-built Apache PoC has observed HTTP `403` for all current
-  shared minimal cases.
+- A local source-built Apache PoC has observed the YAML-expected HTTP behavior
+  for all current shared minimal cases.
 - A scaffolded NGINX PoC build helper and runtime harness use the same shared
   YAML case and source NGINX from the official `nginx/nginx` GitHub release
   archive flow.
-- A local source-built NGINX PoC has observed HTTP `403` for all current shared
-  minimal cases.
+- A local source-built NGINX PoC has observed the YAML-expected HTTP behavior
+  for all current shared minimal cases.
 - Formal connector smoke targets:
   `make smoke-apache`, `make smoke-nginx`, and `make smoke-all`.
 
@@ -100,8 +100,10 @@ Current shared minimal cases:
 
 | Case | Source-derived origin | Local Apache | Local NGINX |
 | --- | --- | --- | --- |
+| `audit_log_phase1_block.yaml` | Apache logging actions and NGINX serial audit-log tests | pass, HTTP 403, audit fields | pass, HTTP 403, audit fields |
 | `phase1_header_block.yaml` | Apache request-header/JSON gating and NGINX phase-1 block tests | pass, HTTP 403 | pass, HTTP 403 |
 | `phase2_args_block.yaml` | Apache `00-basics.t` and NGINX `modsecurity.t` ARGS phase-2 tests | pass, HTTP 403 | pass, HTTP 403 |
+| `phase2_args_pass.yaml` | Apache non-matching ARGS rule and NGINX "nothing to detect" tests | pass, HTTP 200, origin body | pass, HTTP 200, origin body |
 | `request_body_json_block.yaml` | Apache JSON/body handling and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
 | `request_body_urlencoded_block.yaml` | Apache `ARGS_POST` and NGINX request-body/ARGS_POST tests | pass, HTTP 403 | pass, HTTP 403 |
 | `response_header_basic.yaml` | Apache phase tests and NGINX header-filter path | pass, HTTP 403 | pass, HTTP 403 |

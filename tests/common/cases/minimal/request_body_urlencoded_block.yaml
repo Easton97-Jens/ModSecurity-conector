@@ -8,6 +8,12 @@
 # connector-specific buffering or proxy behavior.
 name: request_body_urlencoded_block
 
+capabilities:
+  request_body: true
+  form_urlencoded: true
+  phase2: true
+  intervention: true
+
 rules: |
   SecRuleEngine On
   SecRequestBodyAccess On

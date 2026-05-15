@@ -7,7 +7,7 @@ module built from the read-only `ModSecurity-apache` source copy. It is not a
 full regression test suite.
 
 Observed locally on 2026-05-15: source-built Apache httpd `2.4.67` returned
-HTTP `403` for all current shared minimal cases.
+the YAML-expected HTTP status for all current shared minimal cases.
 
 ## Boundaries
 
