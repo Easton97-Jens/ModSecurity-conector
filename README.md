@@ -32,6 +32,10 @@ Implemented now:
   `make smoke-all`.
 - Source-derived imported YAML cases from the local Apache and NGINX connector
   test suites, with origin mapping in `docs/test-import-plan.md`.
+- Source-derived V2/V3 compatibility cases under
+  `tests/common/cases/v2-imported/` and `tests/common/cases/v3-imported/`,
+  covering initial operator, transformation, multipart FILES, XML body
+  processor, and v3 action/operator behavior.
 
 Not implemented:
 
@@ -126,6 +130,9 @@ Imported source-derived cases are split by scope:
 Current imported common candidates cover phase actions, query-argument
 collections, form-body collection names, raw request-body matching, raw JSON
 body matching, simple multipart text fields, and response-body pass-through.
+Additional V2/V3-derived common candidates cover v2 operator/transformation
+semantics plus v3 multipart FILES variables, XML body processing, `@rx`, trim,
+and `SecAction`.
 Current imported NGINX-specific cases cover redirect and TX scoring behavior
 from the local NGINX suite. Response-body blocking is mapped as xfail rather
 than counted as common PASS because the local NGINX source marks that behavior
@@ -133,10 +140,11 @@ TODO and local probing did not produce stable HTTP 403. See
 `docs/test-import-plan.md` and
 `tests/common/shared-case-origin-map.md` before promoting or moving a case.
 
-Observed locally on 2026-05-15 after the body/filter import pass,
-`make smoke-all` reported 18 Apache passes (7 minimal + 11 imported common)
-and 21 NGINX passes (7 minimal + 11 imported common + 3 NGINX-specific
-imported). The three additional active common cases are:
+Observed locally on 2026-05-15 after the V2/V3 compatibility import pass,
+`make smoke-all` reported 30 Apache passes (7 minimal + 11 Apache/NGINX-derived
+common + 4 V2-derived common + 8 V3-derived common) and 33 NGINX passes (the
+same common cases plus 3 NGINX-specific imported). The body/filter additions
+from the previous pass are:
 
 | Case | Source-derived origin | Local Apache | Local NGINX |
 | --- | --- | --- | --- |
@@ -146,6 +154,19 @@ imported). The three additional active common cases are:
 
 `response_body_basic_block` remains mapped/xfail until both connectors return
 stable HTTP 403 for the same YAML case.
+
+Observed locally on 2026-05-15, targeted `make smoke-common` runs also reported
+these V2/V3-derived active cases as `PASS` on both Apache and NGINX:
+
+| Case group | Cases | Local Apache | Local NGINX |
+| --- | --- | --- | --- |
+| V2 operators/transformations | `v2_operator_streq_block`, `v2_operator_contains_block`, `v2_transformation_lowercase_block`, `v2_transformation_trim_block` | pass, HTTP 403 | pass, HTTP 403 |
+| V3 multipart FILES | `multipart_files_value_block`, `multipart_files_names_block`, `multipart_files_combined_size`, `multipart_filename_block` | pass, HTTP 403 | pass, HTTP 403 |
+| V3 XML/operator/action | `xml_request_body_block`, `v3_operator_rx_block`, `v3_transformation_trim_block`, `v3_secaction_block` | pass, HTTP 403 | pass, HTTP 403 |
+
+V2/V3 import inventory is documented in
+`tests/common/v2-regression-map.md`, `tests/common/v3-regression-map.md`, and
+`docs/v2-vs-v3-test-compatibility.md`.
 
 Boundary rule:
 

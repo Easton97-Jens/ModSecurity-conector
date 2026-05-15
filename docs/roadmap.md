@@ -30,6 +30,12 @@ Status: scaffolded
 - Deterministic multipart request materialization, per-case response fixtures,
   and active source-derived common cases for raw JSON body matching, simple
   multipart text-field blocking, and response-body pass-through.
+- V2/V3-derived common smoke imports for initial operator, transformation,
+  multipart FILES, XML body processor, v3 `@rx`, trim, and `SecAction`
+  behavior.
+- Capability validation/normalization in the shared runner for multipart,
+  files, XML, JSON, response-body, audit-log, collections, operators,
+  transformations, actions, rule-parser, and transaction-lifecycle metadata.
 
 ## Planned
 
@@ -41,6 +47,12 @@ Status: scaffolded
   matrices.
 - Promote multipart file-name/file-collection cases only after Apache and NGINX
   both pass them through the shared harness.
+- Add a dedicated `smoke-api` target for API-only v3 public C API regression
+  candidates; API-only cases are mapped today but not part of connector
+  `smoke-all`.
+- Expand V2/V3 imports beyond initial text-safe cases after fixture support for
+  external files, schema/DTD files, and binary/NUL payload representation is
+  designed.
 
 ## Unknown
 
@@ -67,3 +79,6 @@ Status: scaffolded
 - Response-body blocking remains blocked/xfail for common import until both
   Apache and NGINX return stable HTTP 403 for the same YAML case. The NGINX
   reference test currently marks this behavior TODO.
+- XML schema/DTD validation, parser-error cases, file-backed operators,
+  malformed multipart bodies, and streaming/body-buffering cases remain mapped
+  until the shared harness has explicit fixture and transport support.

@@ -20,6 +20,8 @@ architecture for new connectors.
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
 | Traefik connector | unknown | Yaegi/Wasm plugin options documented, implementation undecided |
 | v2 regression reuse | planned | Only portable rule/engine semantics may enter `tests/common/` |
+| v2-derived common imports | implemented | Initial `@streq`, `@contains`, `t:lowercase`, and `t:trim` cases pass locally on Apache and NGINX |
+| v3-derived common imports | implemented | Initial multipart FILES, XML body processor, operator, transformation, and action cases pass locally on Apache and NGINX |
 | Source-derived Apache/NGINX test import | implemented | Imported YAML cases are derived, not copied; origin and portability are documented |
 
 ## Capability Rule
@@ -56,6 +58,8 @@ complete response-body behavior.
 | --- | --- | --- |
 | common minimal | `tests/common/cases/minimal/` | Already proven locally for both PoCs before the import step |
 | common imported | `tests/common/cases/imported/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
+| v2 imported | `tests/common/cases/v2-imported/` | Portable v2 semantics candidates adapted to HTTP behavior and proven on both connector PoCs |
+| v3 imported | `tests/common/cases/v3-imported/` | Portable v3 regression candidates adapted to HTTP behavior and proven on both connector PoCs |
 | Apache imported | `tests/apache/cases/imported/` | Apache-only until a common equivalent is proven |
 | NGINX imported | `tests/nginx/cases/imported/` | NGINX-only until a common equivalent is proven |
 
@@ -79,3 +83,20 @@ passed only on NGINX and remain `portable: false`.
 The response-body block row is intentionally not an active smoke. The NGINX
 reference test marks the behavior TODO, so this repository documents the
 evidence without claiming connector parity.
+
+## V2/V3-Derived Compatibility
+
+Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
+
+| Case group | Apache | NGINX | Status |
+| --- | --- | --- | --- |
+| V2 operator semantics (`@streq`, `@contains`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V2 transformation semantics (`t:lowercase`, `t:trim`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V3 multipart FILES variables | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V3 XML body processor basic case | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V3 `@rx`, trim, and `SecAction` basics | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+
+The active cases prove only the minimal YAML scenarios. V2 Perl harness
+internals, v3 API-only cases, XML schema/DTD validation, malformed multipart,
+streaming, HTTP/2, and optional-library operators remain mapped until dedicated
+support is added.

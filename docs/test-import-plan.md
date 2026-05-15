@@ -14,12 +14,17 @@ Observed local source inventory on 2026-05-15:
 | --- | ---: | --- |
 | `/root/conecter/ModSecurity-apache/tests/` | 29 | Apache regression `.t`, `.t.in`, and harness files |
 | `/root/conecter/ModSecurity-nginx/tests/` | 17 | NGINX `.t`, README, and converter files |
+| `/root/conecter/ModSecurity_V2/tests/` | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
+| `/root/conecter/ModSecurity_V3/test/` | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
 
 Every relevant source file is mapped in:
 
 - `tests/apache/apache-regression-map.md`
 - `tests/nginx/nginx-regression-map.md`
 - `tests/common/shared-case-origin-map.md`
+- `tests/common/v2-regression-map.md`
+- `tests/common/v3-regression-map.md`
+- `docs/v2-vs-v3-test-compatibility.md`
 
 ## Import Rules
 
@@ -38,6 +43,11 @@ Every relevant source file is mapped in:
 - Imported YAML must include `origin`, `category`, `capabilities`, `portable`,
   `status`, and `known_limitations`; connector-specific YAML must include
   `connector`.
+- Active V2/V3-derived common cases must pass on both Apache and NGINX before
+  they are counted as `fully-imported-common`.
+- API-only v3 cases stay mapped to the connector-free v3 API smoke area until a
+  dedicated API smoke target exists; they are not folded into connector
+  `smoke-all`.
 
 ## Imported Common Cases
 
@@ -57,13 +67,25 @@ The following source-derived common cases were added under
 | `json_request_body_block.yaml` | Apache JSON parser coverage; NGINX request-body tests | body-processors | HTTP 403 |
 | `multipart_basic_block.yaml` | Apache normal multipart parser coverage; NGINX request-body tests | multipart | HTTP 403 |
 | `response_body_pass.yaml` | Apache response directives; NGINX response-body access tests | response-body | HTTP 200 |
+| `v2_operator_streq_block.yaml` | V2 `tests/op/streq.t` | operators | HTTP 403 |
+| `v2_operator_contains_block.yaml` | V2 `tests/op/contains.t` | operators | HTTP 403 |
+| `v2_transformation_lowercase_block.yaml` | V2 `tests/tfn/lowercase.t` | transformations | HTTP 403 |
+| `v2_transformation_trim_block.yaml` | V2 `tests/tfn/trim.t` | transformations | HTTP 403 |
+| `multipart_files_value_block.yaml` | V3 `variable-FILES.json` | multipart/files | HTTP 403 |
+| `multipart_files_names_block.yaml` | V3 `variable-FILES_NAMES.json` | multipart/files | HTTP 403 |
+| `multipart_files_combined_size.yaml` | V3 `variable-FILES_COMBINED_SIZE.json` | multipart/files | HTTP 403 |
+| `multipart_filename_block.yaml` | V3 `variable-MULTIPART_FILENAME.json` | multipart/files | HTTP 403 |
+| `xml_request_body_block.yaml` | V3 `variable-XML.json` | xml/body-processors | HTTP 403 |
+| `v3_operator_rx_block.yaml` | V3 `operator-rx.json` | operators | HTTP 403 |
+| `v3_transformation_trim_block.yaml` | V3 `transformations.json` | transformations | HTTP 403 |
+| `v3_secaction_block.yaml` | V3 `secruleengine.json` | actions | HTTP 403 |
 
 These cases are imported as portable candidates. They count as proven only in an
 environment where both connector smokes observe the expected HTTP behavior.
 
 Observed locally on 2026-05-15 with
-`BUILD_ROOT=/src/ModSecurity-conector-build`, `make smoke-all` reported all
-eleven common imported cases as `PASS` on Apache and NGINX.
+`BUILD_ROOT=/src/ModSecurity-conector-build`, targeted `make smoke-common`
+runs reported the V2/V3-derived active imports as `PASS` on Apache and NGINX.
 
 ## Body And Filter Import Notes
 
@@ -74,10 +96,11 @@ produce stable HTTP 403. The source rows are therefore documented as
 `xfail`/`mapped-only` in the maps, while `response_body_pass.yaml` remains a
 pass-through smoke only.
 
-`multipart_basic_block.yaml` covers only a simple multipart text field that is
-visible through `ARGS:name`. File-name variables, upload temp files,
-`MULTIPART_*` parser flags, and malformed multipart bodies remain mapped until
-they can be proven without connector-specific setup.
+`multipart_basic_block.yaml` covers a simple multipart text field visible
+through `ARGS:name`. V3-derived FILES, FILES_NAMES, FILES_COMBINED_SIZE, and
+MULTIPART_FILENAME smoke cases are now active common coverage. Upload temporary
+paths, malformed multipart bodies, streaming, and part-header edge cases remain
+mapped until they can be proven without connector-specific setup.
 
 `json_request_body_block.yaml` matches raw `REQUEST_BODY` content. Parsed JSON
 collection extraction from Apache `rule/15-json.t` remains mapped because the
@@ -121,7 +144,7 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 
 | Category | Status | Reason |
 | --- | --- | --- |
-| multipart | todo | Runner does not model multipart bodies |
+| multipart | imported | Simple text-field and V3-derived FILES/FILES_NAMES/FILES_COMBINED_SIZE/MULTIPART_FILENAME cases are active common coverage |
 | http2 | blocked | Current harnesses are HTTP/1.1 local smokes |
 | proxy | todo | No upstream topology support yet |
 | streaming-buffering | todo | No streaming assertions or chunk control yet |
@@ -129,7 +152,9 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 | response-body blocking | xfail | NGINX upstream marks block behavior TODO and local probing did not yield stable HTTP 403 |
 | response-body pass-through | imported | `response_body_pass.yaml` verifies no regression when response-body access is enabled |
 | multipart basic text field | imported | `multipart_basic_block.yaml` covers simple portable multipart parsing |
-| multipart file collections | mapped | FILES/FILES_NAMES/FILES_TMPNAMES need cross-connector proof |
-| XML | todo | Parser capability and body setup must be documented |
+| multipart file collections | imported | FILES, FILES_NAMES, FILES_COMBINED_SIZE, and MULTIPART_FILENAME have active common smoke coverage; FILES_TMPNAMES remains mapped |
+| XML | imported | Tiny XML body processor case is active common coverage; schema/DTD/parser-error cases remain mapped |
+| v2 engine semantics | imported | Initial operator and transformation cases are active common coverage |
+| v3 regression JSON | imported | Initial multipart/XML/operator/action cases are active common coverage |
 | external file operators | todo | Needs fixture-file materialization |
 | debug logs | mapped | Text is volatile and connector-specific |

@@ -42,10 +42,32 @@ connector-specific and are not copied.
 | `nginx_tx_scoring_absolute_block.yaml` | `tests/modsecurity-scoring.t` | nginx | actions | Absolute `tx.score` assignment blocks on threshold | no | imported | `tests/nginx/cases/imported/` | query args, TX collection, phase2 | NGINX-only until promoted after cross-connector proof |
 | `nginx_tx_scoring_iterative_block.yaml` | `tests/modsecurity-scoring.t` | nginx | actions | Iterative `tx.score` increments block on threshold | no | imported | `tests/nginx/cases/imported/` | query args, TX collection, phase2 | NGINX-only until promoted after cross-connector proof |
 
+## V2-Derived Common Cases
+
+| Shared case | original_path | source_repo | category | purpose | portable | status | required_capabilities | known_limitations |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `v2-imported/v2_operator_streq_block.yaml` | `tests/op/streq.t` | ModSecurity_V2 | operators | `@streq` equality semantics | yes | fully-imported-common | operators, query args, phase2 | Converted from V2 Perl operator harness to HTTP intervention |
+| `v2-imported/v2_operator_contains_block.yaml` | `tests/op/contains.t` | ModSecurity_V2 | operators | `@contains` substring semantics | yes | fully-imported-common | operators, query args, phase2 | Empty-string edge cases remain mapped |
+| `v2-imported/v2_transformation_lowercase_block.yaml` | `tests/tfn/lowercase.t` | ModSecurity_V2 | transformations | `t:lowercase` semantic check | yes | fully-imported-common | transformations, query args, phase2 | Embedded NUL cases remain mapped |
+| `v2-imported/v2_transformation_trim_block.yaml` | `tests/tfn/trim.t` | ModSecurity_V2 | transformations | `t:trim` semantic check | yes | fully-imported-common | transformations, query args, phase2 | Complex whitespace/NUL cases remain mapped |
+
+## V3-Derived Common Cases
+
+| Shared case | original_path | source_repo | category | purpose | portable | status | required_capabilities | known_limitations |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `v3-imported/multipart_files_value_block.yaml` | `test/test-cases/regression/variable-FILES.json` | ModSecurity_V3 | multipart | Uploaded file value collection match | yes | fully-imported-common | multipart, files, collections, phase2 | Small deterministic file body only |
+| `v3-imported/multipart_files_names_block.yaml` | `test/test-cases/regression/variable-FILES_NAMES.json` | ModSecurity_V3 | multipart | Uploaded file field-name collection match | yes | fully-imported-common | multipart, files, collections, phase2 | Debug-log assertion converted to HTTP intervention |
+| `v3-imported/multipart_files_combined_size.yaml` | `test/test-cases/regression/variable-FILES_COMBINED_SIZE.json` | ModSecurity_V3 | multipart | Uploaded file combined size collection match | yes | fully-imported-common | multipart, files, collections, phase2 | Exact byte-accounting matrix remains mapped |
+| `v3-imported/multipart_filename_block.yaml` | `test/test-cases/regression/variable-MULTIPART_FILENAME.json` | ModSecurity_V3 | multipart | Multipart filename variable match | yes | fully-imported-common | multipart, files, phase2 | Filename encoding and parser flags remain mapped |
+| `v3-imported/xml_request_body_block.yaml` | `test/test-cases/regression/variable-XML.json` | ModSecurity_V3 | body-processors | XML body processor and XML collection match | yes | fully-imported-common | XML, body processors, collections, phase2 | Schema/DTD/parser-error cases remain mapped |
+| `v3-imported/v3_operator_rx_block.yaml` | `test/test-cases/regression/operator-rx.json` | ModSecurity_V3 | operators | `@rx` operator match | yes | fully-imported-common | operators, query args, phase2 | Regex error branches remain mapped |
+| `v3-imported/v3_transformation_trim_block.yaml` | `test/test-cases/regression/transformations.json` | ModSecurity_V3 | transformations | Trim transformation match | yes | fully-imported-common | transformations, query args, phase2 | Full upstream cookie/header matrix remains mapped |
+| `v3-imported/v3_secaction_block.yaml` | `test/test-cases/regression/secruleengine.json` | ModSecurity_V3 | actions | Minimal disruptive `SecAction` | yes | fully-imported-common | actions, phase2 | DetectionOnly/off branches remain mapped |
+
 ## Mapped/XFail Body And Filter Cases
 
 | Source case | original_path | source_repo | category | portable | status | reason | required_capabilities | known_limitations |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `response_body_basic_block` | `tests/modsecurity-response-body.t`; `tests/regression/config/10-response-directives.t` | nginx/apache | response-body | partial | xfail | NGINX upstream marks the response-body block case TODO; local probing recognized the rule but did not produce a stable HTTP 403 | response body, phase4, intervention | Not counted as common PASS and not executed by `smoke-common` |
-| `multipart_filename_block` | `tests/regression/misc/00-multipart-parser.t`; `tests/regression/target/00-targets.t` | apache | multipart | partial | mapped-only | File-name/file-collection variables need a separate cross-connector proof before active import | multipart, file collections | No active YAML until Apache and NGINX both pass |
-| `xml_request_body_block` | `tests/regression/rule/10-xml.t` | apache | body-processors | unknown | mapped-only | XML cases depend on parser capability and fixture/schema setup not present in the minimal harness | XML, request body, fixtures | No active YAML in this step |
+| `multipart_parser_edge_cases` | `tests/regression/misc/00-multipart-parser.t`; v3 multipart variable regressions | apache/v3 | multipart | partial | mapped-only | Basic FILES/FILES_NAMES/FILES_COMBINED_SIZE/MULTIPART_FILENAME smokes are active; parser errors, temp paths, and malformed bodies are not | multipart, file collections | Active common YAML does not cover malformed multipart or temp-file paths |
+| `xml_schema_dtd_parser_cases` | `tests/regression/rule/10-xml.t`; v3 XML parser regressions | apache/v3 | body-processors | partial | mapped-only | Basic XML body processing is active; schema/DTD/parser-error fixtures are not | XML, request body, fixtures | Needs fixture materialization and separate failure-mode expectations |

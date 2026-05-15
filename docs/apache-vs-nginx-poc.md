@@ -9,6 +9,8 @@ Both connector PoCs use the same portable cases:
 ```text
 tests/common/cases/minimal/*.yaml
 tests/common/cases/imported/*.yaml
+tests/common/cases/v2-imported/*.yaml
+tests/common/cases/v3-imported/*.yaml
 ```
 
 Shared pieces:
@@ -102,9 +104,19 @@ compatibility still requires connector-specific regression coverage.
 Imported common cases add phase action, collection, and request-body coverage.
 Their source paths and portability decisions are documented in
 `tests/common/shared-case-origin-map.md` and `docs/test-import-plan.md`.
-The local `make smoke-all` run on 2026-05-15 reported all 11 common imported
-cases passing on both connectors, plus 3 NGINX-specific imported cases passing
-on NGINX.
+The local `make smoke-all` run on 2026-05-15 after the V2/V3 import pass
+reported 30 Apache passes and 33 NGINX passes. The difference is the 3
+NGINX-specific imported cases that are not executed on Apache.
+
+V2/V3-derived common cases add semantic and regression coverage without copying
+upstream tests:
+
+| Shared group | Apache | NGINX | Notes |
+| --- | --- | --- | --- |
+| V2 operators/transformations | HTTP 403 | HTTP 403 | Derived from `ModSecurity_V2/tests/op` and `tests/tfn` |
+| V3 multipart FILES variables | HTTP 403 | HTTP 403 | Derived from v3 `variable-FILES*` and `variable-MULTIPART_FILENAME` JSON cases |
+| V3 XML body processor | HTTP 403 | HTTP 403 | Basic XML collection check only; schema/DTD remains mapped |
+| V3 operator/action basics | HTTP 403 | HTTP 403 | Derived from `operator-rx.json`, `transformations.json`, and `secruleengine.json` |
 
 ## Body And Multipart Import
 
