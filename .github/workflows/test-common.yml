@@ -12,14 +12,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Initialize runner temp paths
+        id: paths
         run: |
           set -eu
+          build_root="$RUNNER_TEMP/ModSecurity-conector-build"
           {
             echo "MODSECURITY_V3_DIR=$RUNNER_TEMP/ModSecurity_V3_build"
-            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build"
-            echo "LOG_DIR=$RUNNER_TEMP/ModSecurity-conector-build/logs"
+            echo "BUILD_ROOT=$build_root"
+            echo "LOG_DIR=$build_root/logs"
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
+          echo "build_root=$build_root" >> "$GITHUB_OUTPUT"
       - name: Check common scaffold
         run: |
           set -eu
@@ -142,6 +145,6 @@ jobs:
           name: common-smoke-artifacts
           if-no-files-found: ignore
           path: |
-            ${{ env.BUILD_ROOT }}/case-runner
-            ${{ env.BUILD_ROOT }}/logs
-            ${{ env.BUILD_ROOT }}/results
+            ${{ steps.paths.outputs.build_root }}/case-runner
+            ${{ steps.paths.outputs.build_root }}/logs
+            ${{ steps.paths.outputs.build_root }}/results

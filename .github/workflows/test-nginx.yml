@@ -19,16 +19,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Initialize runner temp paths
+        id: paths
         run: |
           set -eu
+          build_root="$RUNNER_TEMP/ModSecurity-conector-build"
           {
             echo "SOURCE_ROOT=$RUNNER_TEMP/sources"
-            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build"
-            echo "LOG_DIR=$RUNNER_TEMP/ModSecurity-conector-build/logs/nginx"
+            echo "BUILD_ROOT=$build_root"
+            echo "LOG_DIR=$build_root/logs/nginx"
             echo "MODSECURITY_V3_SOURCE_DIR=$RUNNER_TEMP/sources/ModSecurity_V3"
             echo "MODSECURITY_NGINX_SOURCE_DIR=$RUNNER_TEMP/sources/ModSecurity-nginx"
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
+          echo "build_root=$build_root" >> "$GITHUB_OUTPUT"
       - name: Check NGINX scaffold
         run: |
           set -eu
@@ -100,6 +103,6 @@ jobs:
           name: nginx-smoke-artifacts
           if-no-files-found: ignore
           path: |
-            ${{ env.BUILD_ROOT }}/logs
-            ${{ env.BUILD_ROOT }}/results
-            ${{ env.BUILD_ROOT }}/nginx-runtime/*/conf
+            ${{ steps.paths.outputs.build_root }}/logs
+            ${{ steps.paths.outputs.build_root }}/results
+            ${{ steps.paths.outputs.build_root }}/nginx-runtime/*/conf
