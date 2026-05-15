@@ -12,7 +12,7 @@ Status: scaffolded
   archive flow.
 - `connectors/nginx/harness/run_nginx_smoke.sh` prepares a local NGINX runtime
   under `BUILD_ROOT` and checks for a real HTTP `403`.
-- `tests/common/cases/minimal/phase2_args_block.yaml` is the shared
+- The shared minimal YAML cases under `tests/common/cases/minimal/` are the
   rule/request/expectation source used by both Apache and NGINX harnesses.
 
 Implemented here means build orchestration, runtime harness, shared-case
@@ -89,7 +89,7 @@ and extracts `tag_name` with `python3`. The actual tag is written to:
 $BUILD_ROOT/logs/nginx/artifacts.txt
 ```
 
-Observed during planning on 2026-05-14: GitHub reported `release-1.31.0` as the
+Observed during planning on 2026-05-15: GitHub reported `release-1.31.0` as the
 latest release. The helper does not hardcode this value.
 
 For a pinned release:
@@ -111,42 +111,42 @@ verification.
 
 ## Runtime Smoke
 
-The NGINX harness renders `connectors/nginx/harness/nginx_smoke.conf` into:
+The NGINX harness renders `connectors/nginx/harness/nginx_smoke.conf` into a
+per-case runtime directory, for example:
 
 ```text
 $BUILD_ROOT/nginx-runtime/phase2_args_block/conf/nginx.conf
 ```
 
-The rule, request, and expected status are read from:
+Rules, request details, and expected statuses are read from:
 
 ```text
-tests/common/cases/minimal/phase2_args_block.yaml
+tests/common/cases/minimal/*.yaml
 ```
 
 The harness does not hardcode the rule, request path, request method, or
 expected HTTP status. Status `pass` is only valid when the common runner checks
-the observed NGINX response against the YAML expectation.
+the observed NGINX response against each YAML expectation.
 
 Run the smoke after a successful build:
 
 ```sh
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh connectors/nginx/harness/run_nginx_smoke.sh
+make smoke-nginx
 ```
 
 ## Current Local Status
 
-Observed in this workspace on 2026-05-14:
+Observed in this workspace on 2026-05-15:
 
 - `REFRESH=1 BUILD_NGINX_FROM_SOURCE=1
   BUILD_ROOT=/src/ModSecurity-conector-build sh ci/prepare-nginx-build.sh`
   built libmodsecurity v3 in a writable copy, resolved the NGINX release
   through GitHub, built NGINX, and produced the ModSecurity dynamic module.
-- `BUILD_ROOT=/src/ModSecurity-conector-build sh
-  connectors/nginx/harness/run_nginx_smoke.sh` returned `pass status=403`.
-- `BUILD_ROOT=/src/ModSecurity-conector-build sh
-  connectors/apache/harness/run_apache_smoke.sh` also returned
-  `pass status=403` for the same shared YAML case.
+- `BUILD_ROOT=/src/ModSecurity-conector-build make smoke-nginx` returned pass
+  for all current shared minimal cases.
+- `BUILD_ROOT=/src/ModSecurity-conector-build make smoke-apache` also returned
+  pass for the same shared YAML cases.
 
 Observed NGINX source and artifact details:
 
@@ -160,6 +160,8 @@ nginx_archive_sha256_verified=0
 nginx_version=nginx/1.31.0
 nginx_binary=/src/ModSecurity-conector-build/nginx-runtime/nginx/sbin/nginx
 nginx_module=/src/ModSecurity-conector-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
+nginx_smoke_cases=phase1_header_block, phase2_args_block, request_body_json_block, request_body_urlencoded_block, response_header_basic
+nginx_smoke_status=all pass, HTTP 403
 ```
 
 The SHA256 value above is the local hash of the GitHub archive downloaded in
@@ -174,7 +176,8 @@ set.
   prerequisite is missing; no functionality is claimed.
 - `fail`: prerequisites exist but a build, configtest, startup, or HTTP
   expectation fails.
-- `pass`: NGINX returns HTTP `403` for the shared minimal `ARGS:test` request.
+- `pass`: NGINX returns the YAML-expected HTTP status for every selected shared
+  smoke case.
 
 ## Open TODOs
 

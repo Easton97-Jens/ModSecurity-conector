@@ -13,8 +13,8 @@ architecture for new connectors.
 | --- | --- | --- |
 | Common headers | implemented | Connector-neutral C-compatible data shapes only |
 | libmodsecurity v3 API mapping | planned | Public API sequence documented, not wrapped |
-| Apache connector | scaffolded | Local source-built PoC observed HTTP 403 for minimal shared case |
-| NGINX connector | scaffolded | Local source-built PoC observed HTTP 403 for minimal shared case |
+| Apache connector | scaffolded | Local source-built PoC observed HTTP 403 for all current shared minimal cases |
+| NGINX connector | scaffolded | Local source-built PoC observed HTTP 403 for all current shared minimal cases |
 | HAProxy connector | unknown | SPOE/Lua/native options documented, implementation undecided |
 | Envoy connector | unknown | HTTP filter/ext_authz/Wasm options documented, implementation undecided |
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
@@ -27,12 +27,22 @@ Tests and connector docs must name required capabilities. If a behavior depends
 on hook timing, buffering, streaming, log artifacts, reload semantics, or server
 configuration, it is connector-specific unless proven portable.
 
-## Minimal Shared Case
+## Shared Minimal Cases
 
-`tests/common/cases/minimal/phase2_args_block.yaml` is a portable rule/request
-model. It is not proof that a connector supports `ARGS:test` until that
-connector's runtime harness observes the expected HTTP `403`.
+The files under `tests/common/cases/minimal/` are portable rule/request models.
+They are not proof that a connector supports the behavior until that
+connector's runtime harness observes the expected HTTP response.
 
-Apache and NGINX have both observed HTTP `403` locally for this case. That
-proves only the minimal PoC behavior in this workspace, not full connector
-compatibility.
+Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
+
+| Case | Capability area | Apache | NGINX |
+| --- | --- | --- | --- |
+| `phase1_header_block.yaml` | request headers, phase 1 | pass, HTTP 403 | pass, HTTP 403 |
+| `phase2_args_block.yaml` | query args, phase 2 | pass, HTTP 403 | pass, HTTP 403 |
+| `request_body_json_block.yaml` | request body, JSON content type, raw body match | pass, HTTP 403 | pass, HTTP 403 |
+| `request_body_urlencoded_block.yaml` | form body, `ARGS_POST` | pass, HTTP 403 | pass, HTTP 403 |
+| `response_header_basic.yaml` | response headers, phase 3 | pass, HTTP 403 | pass, HTTP 403 |
+
+This proves only these PoC behaviors in this workspace, not full connector
+compatibility, CRS support, multipart handling, streaming behavior, HTTP/2, or
+complete response-body behavior.

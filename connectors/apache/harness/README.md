@@ -6,21 +6,20 @@ This harness is a connector-specific proof-of-concept runner for the Apache
 module built from the read-only `ModSecurity-apache` source copy. It is not a
 full regression test suite.
 
-Observed locally on 2026-05-14: source-built Apache httpd `2.4.67` returned
-HTTP `403` for the shared minimal `ARGS:test` case.
+Observed locally on 2026-05-15: source-built Apache httpd `2.4.67` returned
+HTTP `403` for all current shared minimal cases.
 
 ## Boundaries
 
 - Uses only artifacts under `BUILD_ROOT`.
 - Does not build or modify any `/root/conecter/*` repository.
 - Does not import Apache connector source into this monorepo.
-- Reports `pass` only when Apache returns HTTP `403` for the shared minimal
-  `ARGS:test` case.
+- Reports `pass` only when Apache returns the YAML-expected HTTP status for a
+  real local request.
 - Defaults to the source-built httpd under
   `$BUILD_ROOT/apache-runtime/httpd/bin/httpd`.
-- Reads rule, request, and expected status from
-  `tests/common/cases/minimal/phase2_args_block.yaml` through
-  `tests/runners/case_cli.py`.
+- Reads rule, request, headers, body, and expected status from YAML under
+  `tests/common/cases/minimal/` through `tests/runners/case_cli.py`.
 
 ## Usage
 
@@ -31,7 +30,7 @@ BUILD_ROOT=/src/ModSecurity-conector-build \
 sh ci/prepare-apache-build.sh
 
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh connectors/apache/harness/run_apache_smoke.sh
+make smoke-apache
 ```
 
 To use explicit external tools instead of the source-built default:
@@ -46,14 +45,23 @@ sh connectors/apache/harness/run_apache_smoke.sh
 If Apache, the module, or `libmodsecurity.so` is missing, the script exits `77`
 and marks the result as `blocked`.
 
-## Shared Case
+## Shared Cases
 
-The harness implements the same rule and request described by:
+By default the harness iterates every `*.yaml` file in:
 
 ```text
-tests/common/cases/minimal/phase2_args_block.yaml
+tests/common/cases/minimal/
 ```
 
-The harness materializes the Apache rule file and request variables from this
-YAML file at runtime. Do not duplicate the rule, request path, or expected HTTP
-status in the harness.
+To run a subset:
+
+```sh
+BUILD_ROOT=/src/ModSecurity-conector-build \
+SMOKE_CASES="phase1_header_block phase2_args_block" \
+make smoke-apache
+```
+
+The harness materializes the Apache rule file, request variables, request
+headers, and request body from each YAML file at runtime. Do not duplicate the
+rule, request path, request method, headers, body, or expected HTTP status in
+the harness.

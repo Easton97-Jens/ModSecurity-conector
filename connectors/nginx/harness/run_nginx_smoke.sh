@@ -10,13 +10,21 @@ NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$NGINX_BUILD_DIR/output/modsecurity/lib}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/nginx-runtime}"
-RUNTIME_ROOT="${RUNTIME_ROOT:-$BUILD_ROOT/nginx-runtime/phase2_args_block}"
+RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+RUNTIME_BASE="${RUNTIME_BASE:-$BUILD_ROOT/nginx-runtime}"
+RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 CURL_BIN="${CURL:-}"
 PYTHON_BIN="${PYTHON:-python3}"
-PORT="${PORT:-18081}"
+PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
+export PYTHONDONTWRITEBYTECODE
+BASE_PORT="${PORT:-18081}"
+PORT="$BASE_PORT"
 TEMPLATE="$SCRIPT_DIR/nginx_smoke.conf"
-TEST_CASE="$REPO_ROOT/tests/common/cases/minimal/phase2_args_block.yaml"
+DEFAULT_CASE_DIR="$REPO_ROOT/tests/common/cases/minimal"
+TEST_CASE="${TEST_CASE:-}"
+SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
+RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
 
 blocked() {
@@ -45,6 +53,112 @@ require_absolute_generated_path() {
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
     esac
+}
+
+resolve_case_path() {
+    item=$1
+    case "$item" in
+        /*|*/*) path=$item ;;
+        *.yaml) path="$DEFAULT_CASE_DIR/$item" ;;
+        *) path="$DEFAULT_CASE_DIR/$item.yaml" ;;
+    esac
+    if [ ! -f "$path" ]; then
+        echo "nginx_smoke: fail missing shared case: $item" >&2
+        return 1
+    fi
+    printf '%s\n' "$path"
+}
+
+list_case_files() {
+    if [ -n "$TEST_CASE" ]; then
+        resolve_case_path "$TEST_CASE"
+        return
+    fi
+    if [ -n "$SMOKE_CASES" ]; then
+        for item in $SMOKE_CASES; do
+            resolve_case_path "$item"
+        done
+        return
+    fi
+    find "$DEFAULT_CASE_DIR" -maxdepth 1 -type f -name '*.yaml' | sort
+}
+
+write_json_entry() {
+    json_file=$1
+    first=$2
+    case_name=$3
+    status=$4
+    if [ "$first" -eq 0 ]; then
+        printf ',\n' >> "$json_file"
+    fi
+    printf '    "%s": "%s"' "$case_name" "$status" >> "$json_file"
+}
+
+run_all_cases() {
+    require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
+    require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
+    require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
+    require_absolute_generated_path "$RUNTIME_BASE" "RUNTIME_BASE"
+
+    mkdir -p "$LOG_DIR" "$RESULTS_DIR"
+    summary_file="$RESULTS_DIR/nginx-summary.txt"
+    json_file="$RESULTS_DIR/nginx-summary.json"
+    connector_summary="$RESULTS_DIR/connector-summary.txt"
+    : > "$summary_file"
+    printf '{\n  "nginx": {\n' > "$json_file"
+
+    cases=$(list_case_files) || exit 1
+    if [ -z "$cases" ]; then
+        echo "nginx_smoke: fail no shared smoke cases found" >&2
+        exit 1
+    fi
+
+    any_fail=0
+    any_blocked=0
+    first=1
+    index=0
+    for case_path in $cases; do
+        case_name=$(basename "$case_path" .yaml)
+        case_log_dir="$LOG_DIR/$case_name"
+        case_runtime="$RUNTIME_BASE/$case_name"
+        case_port=$((BASE_PORT + index))
+        echo "nginx_smoke: running case=$case_name port=$case_port"
+        set +e
+        RUN_ONE_CASE=1 \
+            TEST_CASE="$case_path" \
+            LOG_DIR="$case_log_dir" \
+            RUNTIME_ROOT="$case_runtime" \
+            PORT="$case_port" \
+            sh "$0"
+        rc=$?
+        set -e
+        case_status=pass
+        case_status_upper=PASS
+        if [ "$rc" -eq 77 ]; then
+            case_status=blocked
+            case_status_upper=BLOCKED
+            any_blocked=1
+        elif [ "$rc" -ne 0 ]; then
+            case_status=fail
+            case_status_upper=FAIL
+            any_fail=1
+        fi
+        echo "$case_status_upper $case_name" | tee -a "$summary_file"
+        write_json_entry "$json_file" "$first" "$case_name" "$case_status"
+        first=0
+        index=$((index + 1))
+    done
+
+    printf '\n  }\n}\n' >> "$json_file"
+    cp "$summary_file" "$connector_summary"
+
+    if [ "$any_fail" -ne 0 ]; then
+        exit 1
+    fi
+    if [ "$any_blocked" -ne 0 ]; then
+        exit 77
+    fi
+    exit 0
 }
 
 find_curl() {
@@ -76,6 +190,35 @@ cleanup() {
         wait "$NGINX_PID" >/dev/null 2>&1 || true
     fi
 }
+
+send_case_request() {
+    set -- "$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}"
+    if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
+        while IFS= read -r header_line || [ -n "$header_line" ]; do
+            [ -n "$header_line" ] || continue
+            set -- "$@" -H "$header_line"
+        done < "$REQUEST_HEADERS_FILE"
+    fi
+    if [ "${REQUEST_HAS_BODY:-0}" = "1" ]; then
+        set -- "$@" --data-binary "@$REQUEST_BODY_FILE"
+    fi
+    set -- "$@" "http://127.0.0.1:$PORT$REQUEST_PATH"
+    "$@" 2>"$LOG_DIR/curl-attack.err"
+}
+
+if [ "$RUN_ONE_CASE" != "1" ]; then
+    run_all_cases
+fi
+
+if [ -z "$TEST_CASE" ]; then
+    TEST_CASE="$DEFAULT_CASE_DIR/phase2_args_block.yaml"
+fi
+TEST_CASE=$(resolve_case_path "$TEST_CASE") || exit 1
+case_name=$(basename "$TEST_CASE" .yaml)
+if [ -z "$RUNTIME_ROOT" ]; then
+    RUNTIME_ROOT="$RUNTIME_BASE/$case_name"
+fi
+STATUS_FILE="$LOG_DIR/status.txt"
 
 echo "nginx_smoke: BUILD_ROOT=$BUILD_ROOT"
 echo "nginx_smoke: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
@@ -118,12 +261,16 @@ RULES_FILE="$RUNTIME_ROOT/conf/modsecurity-smoke.conf"
 DOCROOT="$RUNTIME_ROOT/htdocs"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
 CASE_ENV_FILE="$RUNTIME_ROOT/conf/case.env"
+REQUEST_HEADERS_FILE="$RUNTIME_ROOT/conf/request-headers.txt"
+REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
 
 echo "TEST-OK-IF-YOU-SEE-THIS" > "$DOCROOT/index.html"
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
     --rules-file "$RULES_FILE" \
-    --env-file "$CASE_ENV_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
+    --env-file "$CASE_ENV_FILE" \
+    --headers-file "$REQUEST_HEADERS_FILE" \
+    --body-file "$REQUEST_BODY_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
@@ -158,7 +305,7 @@ done
 [ "$ready" -eq 1 ] || fail "NGINX did not become ready on 127.0.0.1:$PORT"
 
 set +e
-http_status=$("$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}" "http://127.0.0.1:$PORT$REQUEST_PATH" 2>"$LOG_DIR/curl-attack.err")
+http_status=$(send_case_request)
 curl_rc=$?
 set -e
 
@@ -170,9 +317,9 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --case "$TEST_CASE" \
     --actual-status "$http_status" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
-    echo "nginx_smoke: pass status=$http_status"
+    echo "nginx_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
 fi
 
-echo "nginx_smoke: fail observed=$http_status expected=$EXPECT_STATUS"
+echo "nginx_smoke: fail case=$CASE_NAME observed=$http_status expected=$EXPECT_STATUS"
 exit 1

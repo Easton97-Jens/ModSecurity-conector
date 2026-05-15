@@ -6,13 +6,24 @@ import argparse
 import sys
 from pathlib import Path
 
-from runner_core import assert_case_response, load_case, write_rules_file, write_shell_env
+from runner_core import (
+    assert_case_response,
+    load_case,
+    write_body_file,
+    write_headers_file,
+    write_rules_file,
+    write_shell_env,
+)
 
 
 def materialize(args: argparse.Namespace) -> int:
     case = load_case(args.case)
     write_rules_file(case, args.rules_file)
-    write_shell_env(case, args.env_file)
+    if args.headers_file:
+        write_headers_file(case, args.headers_file)
+    if args.body_file:
+        write_body_file(case, args.body_file)
+    write_shell_env(case, args.env_file, args.headers_file, args.body_file)
     return 0
 
 
@@ -46,6 +57,8 @@ def build_parser() -> argparse.ArgumentParser:
     materialize_parser.add_argument("--case", required=True)
     materialize_parser.add_argument("--rules-file", required=True)
     materialize_parser.add_argument("--env-file", required=True)
+    materialize_parser.add_argument("--headers-file")
+    materialize_parser.add_argument("--body-file")
     materialize_parser.set_defaults(func=materialize)
 
     assert_parser = subparsers.add_parser(

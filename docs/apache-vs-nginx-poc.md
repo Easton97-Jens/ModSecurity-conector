@@ -4,10 +4,10 @@ Status: scaffolded
 
 ## Shared Behavior
 
-Both connector PoCs use the same portable case:
+Both connector PoCs use the same portable cases:
 
 ```text
-tests/common/cases/minimal/phase2_args_block.yaml
+tests/common/cases/minimal/*.yaml
 ```
 
 Shared pieces:
@@ -16,10 +16,12 @@ Shared pieces:
   and request variables from the YAML case.
 - `tests/runners/case_cli.py assert-status` compares the observed HTTP status
   with `expect.status`.
-- The expected proof is HTTP `403` for `GET /?test=attack`.
+- The expected proof is the HTTP status encoded in each YAML file, currently
+  HTTP `403` for all minimal blocking cases.
 
 The shared case is a rule/request/expectation model. It is not proof of a
-connector until that connector's runtime harness observes HTTP `403`.
+connector until that connector's runtime harness observes the expected HTTP
+status.
 
 ## Connector-Specific Pieces
 
@@ -30,7 +32,8 @@ Apache:
 - Runtime loads `mod_security3.so` with `LoadModule security3_module`.
 - Configuration enables `modsecurity on` and points `modsecurity_rules_file` at
   the materialized rules file.
-- A local source-built Apache httpd smoke has observed HTTP `403`.
+- A local source-built Apache httpd smoke has observed HTTP `403` for all
+  current shared minimal cases.
 
 NGINX:
 
@@ -39,7 +42,8 @@ NGINX:
 - Runtime loads `ngx_http_modsecurity_module.so` with `load_module`.
 - Configuration enables `modsecurity on` and points `modsecurity_rules_file` at
   the materialized rules file.
-- A local source-built NGINX smoke has observed HTTP `403`.
+- A local source-built NGINX smoke has observed HTTP `403` for all current
+  shared minimal cases.
 
 ## Lifecycle Differences
 
@@ -72,12 +76,15 @@ Neither PoC writes to `/usr`, `/usr/local`, `/etc/apache2`, `/etc/nginx`, or
 
 ## Current Local Comparison
 
-Observed on 2026-05-14 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
+Observed on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
 
-| Connector | Source-built server | Shared case | Observed status |
-| --- | --- | --- | --- |
-| Apache | httpd 2.4.67 | `phase2_args_block.yaml` | HTTP 403 |
-| NGINX | nginx 1.31.0 from `release-1.31.0` | `phase2_args_block.yaml` | HTTP 403 |
+| Shared case | Apache, httpd 2.4.67 | NGINX, nginx 1.31.0 from `release-1.31.0` |
+| --- | --- | --- |
+| `phase1_header_block.yaml` | HTTP 403 | HTTP 403 |
+| `phase2_args_block.yaml` | HTTP 403 | HTTP 403 |
+| `request_body_json_block.yaml` | HTTP 403 | HTTP 403 |
+| `request_body_urlencoded_block.yaml` | HTTP 403 | HTTP 403 |
+| `response_header_basic.yaml` | HTTP 403 | HTTP 403 |
 
-This proves the minimal shared case for this workspace only. Broader
+This proves these shared PoC cases for this workspace only. Broader
 compatibility still requires connector-specific regression coverage.

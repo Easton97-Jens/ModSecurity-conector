@@ -17,8 +17,8 @@ Not implemented:
 
 - No NGINX module source is imported into this monorepo.
 - No full NGINX regression suite.
-- No runtime pass is claimed beyond environments where `run_nginx_smoke.sh`
-  observes real HTTP `403` for the shared `phase2_args_block` case.
+- No runtime pass is claimed beyond environments where the NGINX smoke runner
+  observes real HTTP `403` for the shared minimal YAML cases.
 
 Primary local reference: `/root/conecter/ModSecurity-nginx`.
 
@@ -27,6 +27,7 @@ ModSecurity-nginx source and libmodsecurity v3 source into `BUILD_ROOT`, then
 builds the connector as a dynamic NGINX module against an official
 `nginx/nginx` GitHub release archive.
 
-Observed locally on 2026-05-14: `NGINX_RELEASE_TAG=latest` resolved to
+Observed locally on 2026-05-15: `NGINX_RELEASE_TAG=latest` resolved to
 `release-1.31.0`, built `nginx/1.31.0`, built
-`ngx_http_modsecurity_module.so`, and the harness observed HTTP `403`.
+`ngx_http_modsecurity_module.so`, and the harness observed HTTP `403` for all
+current shared minimal cases.

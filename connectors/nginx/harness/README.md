@@ -6,19 +6,18 @@ This harness is a connector-specific proof-of-concept runner for the dynamic
 NGINX module built from the read-only `ModSecurity-nginx` source copy. It is not
 a complete regression suite.
 
-Observed locally on 2026-05-14: source-built NGINX `1.31.0` from GitHub tag
-`release-1.31.0` returned HTTP `403` for the shared minimal `ARGS:test` case.
+Observed locally on 2026-05-15: source-built NGINX `1.31.0` from GitHub tag
+`release-1.31.0` returned HTTP `403` for all current shared minimal cases.
 
 ## Boundaries
 
 - Uses only artifacts under `BUILD_ROOT`.
 - Does not build or modify any `/root/conecter/*` repository.
 - Does not import NGINX or ModSecurity-nginx source into this monorepo.
-- Reports `pass` only when NGINX returns HTTP `403` for the shared minimal
-  `ARGS:test` case.
-- Reads rule, request, and expected status from
-  `tests/common/cases/minimal/phase2_args_block.yaml` through
-  `tests/runners/case_cli.py`.
+- Reports `pass` only when NGINX returns the YAML-expected HTTP status for a
+  real local request.
+- Reads rule, request, headers, body, and expected status from YAML under
+  `tests/common/cases/minimal/` through `tests/runners/case_cli.py`.
 
 ## Usage
 
@@ -29,7 +28,7 @@ BUILD_ROOT=/src/ModSecurity-conector-build \
 sh ci/prepare-nginx-build.sh
 
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh connectors/nginx/harness/run_nginx_smoke.sh
+make smoke-nginx
 ```
 
 The build helper defaults to the official GitHub release source:
@@ -47,14 +46,23 @@ specific release, set `NGINX_RELEASE_TAG=release-1.31.0` or another exact tag.
 If NGINX, the dynamic module, or `libmodsecurity.so` is missing, the script
 exits `77` and marks the result as `blocked`.
 
-## Shared Case
+## Shared Cases
 
-The harness implements the same rule and request described by:
+By default the harness iterates every `*.yaml` file in:
 
 ```text
-tests/common/cases/minimal/phase2_args_block.yaml
+tests/common/cases/minimal/
 ```
 
-The harness materializes the NGINX rule file and request variables from this
-YAML file at runtime. Do not duplicate the rule, request path, or expected HTTP
-status in the harness.
+To run a subset:
+
+```sh
+BUILD_ROOT=/src/ModSecurity-conector-build \
+SMOKE_CASES="phase1_header_block phase2_args_block" \
+make smoke-nginx
+```
+
+The harness materializes the NGINX rule file, request variables, request
+headers, and request body from each YAML file at runtime. Do not duplicate the
+rule, request path, request method, headers, body, or expected HTTP status in
+the harness.

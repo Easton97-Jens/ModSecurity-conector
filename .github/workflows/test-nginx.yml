@@ -30,6 +30,7 @@ jobs:
           test -f connectors/nginx/docs/architecture.md
           test -f connectors/nginx/docs/build.md
           test -f connectors/nginx/docs/public-sources.md
+          test -f ci/run-nginx-smoke.sh
           test -f tests/nginx/nginx-regression-map.md
           test -f tests/common/cases/minimal/phase2_args_block.yaml
           test -f docs/nginx-poc.md
@@ -39,29 +40,27 @@ jobs:
         run: |
           set -eu
           sh -n ci/prepare-nginx-build.sh
+          sh -n ci/run-nginx-smoke.sh
           sh -n connectors/nginx/harness/run_nginx_smoke.sh
           python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
-      - name: Prepare NGINX PoC build or mark blocked
+      - name: Run NGINX connector smoke or mark blocked
         run: |
           set +e
-          REFRESH=1 sh ci/prepare-nginx-build.sh
+          REFRESH=1 sh ci/run-nginx-smoke.sh
           rc=$?
           set -e
           if [ "$rc" -eq 77 ]; then
-            echo "::notice::NGINX PoC build blocked; see $LOG_DIR when sources/dependencies are available."
+            echo "::notice::NGINX connector smoke blocked; see $BUILD_ROOT/logs when sources/dependencies are available."
             exit 0
           fi
           exit "$rc"
-      - name: Run NGINX smoke or mark blocked
-        env:
-          LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/nginx-runtime
-        run: |
-          set +e
-          sh connectors/nginx/harness/run_nginx_smoke.sh
-          rc=$?
-          set -e
-          if [ "$rc" -eq 77 ]; then
-            echo "::notice::NGINX smoke blocked; build artifacts or sources are not available in this workflow."
-            exit 0
-          fi
-          exit "$rc"
+      - name: Upload NGINX smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nginx-smoke-artifacts
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/ModSecurity-conector-build/logs
+            ${{ runner.temp }}/ModSecurity-conector-build/results
+            ${{ runner.temp }}/ModSecurity-conector-build/nginx-runtime/*/conf

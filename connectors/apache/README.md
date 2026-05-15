@@ -10,17 +10,16 @@ Implemented now:
 - Directory layout for future source and connector-specific tests.
 - A PoC build-preparation helper in `ci/prepare-apache-build.sh`.
 - A local runtime smoke harness under `connectors/apache/harness/`.
-- Use of the shared minimal case
-  `tests/common/cases/minimal/phase2_args_block.yaml`.
-- A local source-built httpd run observed HTTP `403` for that minimal case on
-  2026-05-14.
+- Use of all shared minimal cases under `tests/common/cases/minimal/`.
+- A local source-built httpd run observed HTTP `403` for all current shared
+  minimal cases on 2026-05-15.
 
 Not implemented:
 
 - No Apache module source.
 - No source import from `ModSecurity-apache`.
-- No claim that the Apache connector is complete beyond the documented minimal
-  smoke.
+- No claim that the Apache connector is complete beyond the documented shared
+  minimal smokes.
 
 Primary local reference: `/root/conecter/ModSecurity-apache`.
 

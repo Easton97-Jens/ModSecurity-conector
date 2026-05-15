@@ -7,6 +7,13 @@ on:
 jobs:
   apache-structure:
     runs-on: ubuntu-latest
+    env:
+      MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
+      MODSECURITY_APACHE_SOURCE_DIR: ${{ github.workspace }}/ModSecurity-apache
+      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
+      BUILD_HTTPD_FROM_SOURCE: "1"
+      BUILD_PCRE2_FROM_SOURCE: "1"
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/python-pycache
     steps:
       - uses: actions/checkout@v4
       - name: Check Apache scaffold
@@ -21,6 +28,7 @@ jobs:
           test -f connectors/apache/harness/apache_smoke.conf
           test -f connectors/apache/harness/run_apache_smoke.sh
           test -f ci/prepare-apache-build.sh
+          test -f ci/run-apache-smoke.sh
           test -f tests/apache/apache-regression-map.md
           test -f tests/common/cases/minimal/phase2_args_block.yaml
           grep -q 'Status:' connectors/apache/TODO.md
@@ -28,38 +36,26 @@ jobs:
         run: |
           set -eu
           sh -n ci/prepare-apache-build.sh
+          sh -n ci/run-apache-smoke.sh
           sh -n connectors/apache/harness/run_apache_smoke.sh
-      - name: Apache PoC build or blocked
-        env:
-          MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
-          MODSECURITY_APACHE_SOURCE_DIR: ${{ github.workspace }}/ModSecurity-apache
-          BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
-          LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/apache
-          HTTPD_PREFIX: ${{ runner.temp }}/ModSecurity-conector-build/apache-runtime/httpd
-          BUILD_HTTPD_FROM_SOURCE: "1"
-          BUILD_PCRE2_FROM_SOURCE: "1"
+      - name: Apache connector smoke or blocked
         run: |
           set +e
-          REFRESH=1 sh ci/prepare-apache-build.sh
+          REFRESH=1 sh ci/run-apache-smoke.sh
           rc=$?
           set -e
           if [ "$rc" -eq 77 ]; then
-            echo "Apache PoC build blocked; sources or build prerequisites are absent."
+            echo "::notice::Apache connector smoke blocked; sources or build prerequisites are absent."
             exit 0
           fi
           exit "$rc"
-      - name: Apache smoke or blocked
-        env:
-          BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
-          LOG_DIR: ${{ runner.temp }}/ModSecurity-conector-build/logs/apache-runtime
-          HTTPD_PREFIX: ${{ runner.temp }}/ModSecurity-conector-build/apache-runtime/httpd
-        run: |
-          set +e
-          sh connectors/apache/harness/run_apache_smoke.sh
-          rc=$?
-          set -e
-          if [ "$rc" -eq 77 ]; then
-            echo "Apache smoke blocked; built module or Apache runtime is absent."
-            exit 0
-          fi
-          exit "$rc"
+      - name: Upload Apache smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apache-smoke-artifacts
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/ModSecurity-conector-build/logs
+            ${{ runner.temp }}/ModSecurity-conector-build/results
+            ${{ runner.temp }}/ModSecurity-conector-build/apache-runtime/*/conf
