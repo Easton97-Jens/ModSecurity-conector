@@ -56,8 +56,9 @@ fail() {
 }
 
 canonical_existing() {
-    if [ -e "$1" ]; then
-        (cd "$1" 2>/dev/null && pwd -P)
+    target_path=$1
+    if [ -e "$target_path" ]; then
+        (cd "$target_path" 2>/dev/null && pwd -P)
     else
         return 1
     fi
@@ -74,6 +75,7 @@ require_absolute_generated_path() {
         "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
+        *) ;;
     esac
 }
 
@@ -84,6 +86,7 @@ safe_remove_dir() {
         /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT"|/root/conecter/*)
             blocked "unsafe REFRESH target: $real_target"
             ;;
+        *) ;;
     esac
     rm -rf "$target"
 }
@@ -137,6 +140,7 @@ github_repo_path() {
         https://github.com/*) repo=${repo#https://github.com/} ;;
         http://github.com/*) repo=${repo#http://github.com/} ;;
         git@github.com:*) repo=${repo#git@github.com:} ;;
+        *) ;;
     esac
     repo=${repo%.git}
     repo=${repo%/}

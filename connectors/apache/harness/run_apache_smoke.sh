@@ -6,7 +6,9 @@ REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
-RUNTIME_ROOT="${RUNTIME_ROOT:-$BUILD_ROOT/apache-runtime/phase2_args_block}"
+RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+RUNTIME_BASE="${RUNTIME_BASE:-$BUILD_ROOT/apache-runtime}"
+RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
 MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-$APACHE_BUILD_ROOT/ModSecurity_V3}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$APACHE_BUILD_ROOT/output/modsecurity/lib}"
@@ -16,11 +18,18 @@ APACHE_HTTPD_BIN="${APACHE_HTTPD:-${APACHE:-$HTTPD_PREFIX/bin/httpd}}"
 APXS_BIN="${APXS:-$HTTPD_PREFIX/bin/apxs}"
 CURL_BIN="${CURL:-}"
 PYTHON_BIN="${PYTHON:-python3}"
-PORT="${PORT:-18080}"
+PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
+export PYTHONDONTWRITEBYTECODE
+BASE_PORT="${PORT:-18080}"
+PORT="$BASE_PORT"
 TEMPLATE="$SCRIPT_DIR/apache_smoke.conf"
-TEST_CASE="$REPO_ROOT/tests/common/cases/minimal/phase2_args_block.yaml"
+TEST_CASE="${TEST_CASE:-}"
+SMOKE_CASES="${SMOKE_CASES:-}"
+CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
+RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
+IFMODULE_END="</IfModule>"
 
 blocked() {
     echo "apache_smoke: blocked $*"
@@ -47,7 +56,144 @@ require_absolute_generated_path() {
         "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
+        *) ;;
     esac
+}
+
+resolve_case_path() {
+    item=$1
+    "$PYTHON_BIN" "$CASE_CLI" list-cases \
+        --repo-root "$REPO_ROOT" \
+        --connector apache \
+        --scope "$CASE_SCOPE" \
+        --test-case "$item"
+}
+
+list_case_files() {
+    args="--repo-root $REPO_ROOT --connector apache --scope $CASE_SCOPE"
+    if [ -n "$TEST_CASE" ]; then
+        "$PYTHON_BIN" "$CASE_CLI" list-cases \
+            --repo-root "$REPO_ROOT" \
+            --connector apache \
+            --scope "$CASE_SCOPE" \
+            --test-case "$TEST_CASE"
+        return
+    fi
+    if [ -n "$SMOKE_CASES" ]; then
+        "$PYTHON_BIN" "$CASE_CLI" list-cases \
+            --repo-root "$REPO_ROOT" \
+            --connector apache \
+            --scope "$CASE_SCOPE" \
+            --smoke-cases "$SMOKE_CASES"
+        return
+    fi
+    # shellcheck disable=SC2086
+    "$PYTHON_BIN" "$CASE_CLI" list-cases $args
+}
+
+write_case_result() {
+    case_path=$1
+    case_status=$2
+    actual_status=${3:-}
+    output=$4
+    if [ -n "$actual_status" ]; then
+        "$PYTHON_BIN" "$CASE_CLI" case-info \
+            --case "$case_path" \
+            --connector apache \
+            --status "$case_status" \
+            --actual-status "$actual_status" \
+            --output "$output"
+    else
+        "$PYTHON_BIN" "$CASE_CLI" case-info \
+            --case "$case_path" \
+            --connector apache \
+            --status "$case_status" \
+            --output "$output"
+    fi
+}
+
+run_all_cases() {
+    require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
+    require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
+    require_absolute_generated_path "$RESULTS_DIR" "RESULTS_DIR"
+    require_absolute_generated_path "$RUNTIME_BASE" "RUNTIME_BASE"
+
+    mkdir -p "$LOG_DIR" "$RESULTS_DIR"
+    summary_file="$RESULTS_DIR/apache-summary.txt"
+    json_file="$RESULTS_DIR/apache-summary.json"
+    results_jsonl="$RESULTS_DIR/apache-results.jsonl"
+    connector_summary="$RESULTS_DIR/connector-summary.txt"
+    : > "$summary_file"
+    : > "$results_jsonl"
+
+    cases=$(list_case_files) || exit 1
+    if [ -z "$cases" ]; then
+        echo "apache_smoke: fail no shared smoke cases found" >&2
+        exit 1
+    fi
+
+    any_fail=0
+    any_blocked=0
+    index=0
+    for case_path in $cases; do
+        case_name=$(basename "$case_path" .yaml)
+        case_log_dir="$LOG_DIR/$case_name"
+        case_runtime="$RUNTIME_BASE/$case_name"
+        case_port=$((BASE_PORT + index))
+        echo "apache_smoke: running case=$case_name port=$case_port"
+        set +e
+        RUN_ONE_CASE=1 \
+            TEST_CASE="$case_path" \
+            LOG_DIR="$case_log_dir" \
+            RUNTIME_ROOT="$case_runtime" \
+            PORT="$case_port" \
+            sh "$0"
+        rc=$?
+        set -e
+        case_status=pass
+        case_status_upper=PASS
+        if [ "$rc" -eq 77 ]; then
+            case_status=blocked
+            case_status_upper=BLOCKED
+            any_blocked=1
+        elif [ "$rc" -ne 0 ]; then
+            case_status=fail
+            case_status_upper=FAIL
+            any_fail=1
+        fi
+        actual_status=""
+        if [ -f "$case_log_dir/observed-status.txt" ]; then
+            actual_status=$(cat "$case_log_dir/observed-status.txt")
+        fi
+        write_case_result "$case_path" "$case_status" "$actual_status" "$case_log_dir/result.json" || true
+        if [ -f "$case_log_dir/result.json" ]; then
+            cat "$case_log_dir/result.json" >> "$results_jsonl"
+        fi
+        echo "$case_status_upper $case_name" | tee -a "$summary_file"
+        index=$((index + 1))
+    done
+
+    "$PYTHON_BIN" "$CASE_CLI" summarize-results \
+        --connector apache \
+        --input-jsonl "$results_jsonl" \
+        --summary-json "$json_file" \
+        --summary-text "$summary_file" \
+        --import-status-file "$REPO_ROOT/tests/import-status.json" \
+        --connector-path real-world \
+        --validation-mode real-world-connector-path \
+        --server apache \
+        --server-binary "$APACHE_HTTPD_BIN" \
+        --module "$APACHE_MODULE" \
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+    cp "$summary_file" "$connector_summary"
+
+    if [ "$any_fail" -ne 0 ]; then
+        exit 1
+    fi
+    if [ "$any_blocked" -ne 0 ]; then
+        exit 77
+    fi
+    exit 0
 }
 
 find_apache() {
@@ -93,11 +239,11 @@ append_load_if_exists() {
     output=$4
     module_path="$modules_dir/$file_name"
     if [ -f "$module_path" ]; then
-        {
-            echo "<IfModule !$module_name>"
-            echo "LoadModule $module_name \"$module_path\""
-            echo "</IfModule>"
-        } >> "$output"
+            {
+                echo "<IfModule !$module_name>"
+                echo "LoadModule $module_name \"$module_path\""
+                echo "$IFMODULE_END"
+            } >> "$output"
     fi
 }
 
@@ -118,9 +264,9 @@ append_mpm_if_needed() {
                 echo "<IfModule !mpm_worker_module>"
                 echo "<IfModule !mpm_prefork_module>"
                 echo "LoadModule $module_name \"$module_path\""
-                echo "</IfModule>"
-                echo "</IfModule>"
-                echo "</IfModule>"
+                echo "$IFMODULE_END"
+                echo "$IFMODULE_END"
+                echo "$IFMODULE_END"
             } >> "$output"
             return 0
         fi
@@ -129,7 +275,8 @@ append_mpm_if_needed() {
 }
 
 escape_sed() {
-    printf '%s' "$1" | sed 's/[&|]/\\&/g'
+    raw_value=$1
+    printf '%s' "$raw_value" | sed 's/[&|]/\\&/g'
 }
 
 render_config() {
@@ -150,6 +297,35 @@ cleanup() {
     fi
 }
 
+send_case_request() {
+    set -- "$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}"
+    if [ -n "${REQUEST_HEADERS_FILE:-}" ] && [ -s "$REQUEST_HEADERS_FILE" ]; then
+        while IFS= read -r header_line || [ -n "$header_line" ]; do
+            [ -n "$header_line" ] || continue
+            set -- "$@" -H "$header_line"
+        done < "$REQUEST_HEADERS_FILE"
+    fi
+    if [ "${REQUEST_HAS_BODY:-0}" = "1" ]; then
+        set -- "$@" --data-binary "@$REQUEST_BODY_FILE"
+    fi
+    set -- "$@" "http://127.0.0.1:$PORT$REQUEST_PATH"
+    "$@" 2>"$LOG_DIR/curl-attack.err"
+}
+
+if [ "$RUN_ONE_CASE" != "1" ]; then
+    run_all_cases
+fi
+
+if [ -z "$TEST_CASE" ]; then
+    TEST_CASE="phase2_args_block"
+fi
+TEST_CASE=$(resolve_case_path "$TEST_CASE") || exit 1
+case_name=$(basename "$TEST_CASE" .yaml)
+if [ -z "$RUNTIME_ROOT" ]; then
+    RUNTIME_ROOT="$RUNTIME_BASE/$case_name"
+fi
+STATUS_FILE="$LOG_DIR/status.txt"
+
 echo "apache_smoke: BUILD_ROOT=$BUILD_ROOT"
 echo "apache_smoke: APACHE_BUILD_ROOT=$APACHE_BUILD_ROOT"
 echo "apache_smoke: HTTPD_PREFIX=$HTTPD_PREFIX"
@@ -157,6 +333,7 @@ echo "apache_smoke: RUNTIME_ROOT=$RUNTIME_ROOT"
 echo "apache_smoke: LOG_DIR=$LOG_DIR"
 echo "apache_smoke: APACHE_MODULE=$APACHE_MODULE"
 echo "apache_smoke: TEST_CASE=$TEST_CASE"
+echo "apache_smoke: CASE_SCOPE=$CASE_SCOPE"
 
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$APACHE_BUILD_ROOT" "APACHE_BUILD_ROOT"
@@ -164,13 +341,15 @@ require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 
-mkdir -p "$LOG_DIR" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/logs" "$RUNTIME_ROOT/htdocs" "$RUNTIME_ROOT/run"
+mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/logs" "$RUNTIME_ROOT/htdocs" "$RUNTIME_ROOT/run"
 rm -f "$RUNTIME_ROOT/logs/"* \
     "$LOG_DIR/configtest.log" \
     "$LOG_DIR/curl-attack.err" \
     "$LOG_DIR/curl-ready.err" \
     "$LOG_DIR/httpd.log" \
-    "$LOG_DIR/response-body.txt"
+    "$LOG_DIR/response-body.txt" \
+    "$LOG_DIR/audit.log"
+rm -f "$LOG_DIR/audit/"*
 : > "$STATUS_FILE"
 
 APACHE_HTTPD_BIN=$(find_apache)
@@ -198,8 +377,11 @@ MIME_TYPES_FILE="$RUNTIME_ROOT/conf/mime.types"
 DOCROOT="$RUNTIME_ROOT/htdocs"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
 CASE_ENV_FILE="$RUNTIME_ROOT/conf/case.env"
+REQUEST_HEADERS_FILE="$RUNTIME_ROOT/conf/request-headers.txt"
+REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
+AUDIT_LOG_FILE="$LOG_DIR/audit.log"
+AUDIT_LOG_DIR="$LOG_DIR/audit"
 
-echo "TEST-OK-IF-YOU-SEE-THIS" > "$DOCROOT/index.html"
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
 else
@@ -208,7 +390,12 @@ fi
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
     --rules-file "$RULES_FILE" \
-    --env-file "$CASE_ENV_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
+    --env-file "$CASE_ENV_FILE" \
+    --headers-file "$REQUEST_HEADERS_FILE" \
+    --body-file "$REQUEST_BODY_FILE" \
+    --docroot "$DOCROOT" \
+    --audit-log-file "$AUDIT_LOG_FILE" \
+    --audit-log-dir "$AUDIT_LOG_DIR" > "$LOG_DIR/case-materialize.log" 2>&1; then
     blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
@@ -242,7 +429,7 @@ while [ "$i" -lt 30 ]; do
     if ! kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
         fail "Apache exited before request; see $LOG_DIR/httpd.log"
     fi
-    if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+    if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/__modsec_smoke_ready" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
         ready=1
         break
     fi
@@ -253,21 +440,27 @@ done
 [ "$ready" -eq 1 ] || fail "Apache did not become ready on 127.0.0.1:$PORT"
 
 set +e
-http_status=$("$CURL_BIN" -sS -X "$REQUEST_METHOD" -o "$RESPONSE_BODY" -w "%{http_code}" "http://127.0.0.1:$PORT$REQUEST_PATH" 2>"$LOG_DIR/curl-attack.err")
+http_status=$(send_case_request)
 curl_rc=$?
 set -e
+printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
 
 if [ "$curl_rc" -ne 0 ]; then
+    write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
     fail "curl attack request failed rc=$curl_rc; see $LOG_DIR/curl-attack.err"
 fi
 
 if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --case "$TEST_CASE" \
     --actual-status "$http_status" \
+    --response-body-file "$RESPONSE_BODY" \
+    --audit-log-file "$AUDIT_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
-    echo "apache_smoke: pass status=$http_status"
+    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" || true
+    echo "apache_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
 fi
 
-echo "apache_smoke: fail observed=$http_status expected=$EXPECT_STATUS"
+write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
+echo "apache_smoke: fail case=$CASE_NAME observed=$http_status expected=$EXPECT_STATUS"
 exit 1

@@ -12,8 +12,9 @@ REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 log_file=""
 
 canonical_existing() {
-    if [ -e "$1" ]; then
-        (cd "$1" 2>/dev/null && pwd -P)
+    target_path=$1
+    if [ -e "$target_path" ]; then
+        (cd "$target_path" 2>/dev/null && pwd -P)
     else
         return 1
     fi
@@ -52,6 +53,7 @@ for generated_path in "$MODSECURITY_V3_DIR" "$BUILD_ROOT" "$LOG_DIR"; do
             echo "v3_build: blocked generated path is not allowed: $generated_path"
             exit 77
             ;;
+        *) ;;
     esac
 done
 
@@ -73,6 +75,7 @@ if [ -e "$MODSECURITY_V3_DIR" ]; then
             echo "v3_build: blocked destination is inside read-only /root/conecter: $dest_real"
             exit 77
             ;;
+        *) ;;
     esac
     if [ "$REFRESH" != "1" ]; then
         echo "v3_build: blocked destination exists: $MODSECURITY_V3_DIR"
@@ -84,6 +87,7 @@ if [ -e "$MODSECURITY_V3_DIR" ]; then
             echo "v3_build: blocked unsafe REFRESH destination: $dest_real"
             exit 77
             ;;
+        *) ;;
     esac
     rm -rf "$MODSECURITY_V3_DIR"
 fi

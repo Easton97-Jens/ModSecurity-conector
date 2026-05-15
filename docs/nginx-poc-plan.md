@@ -28,7 +28,6 @@ or dynamic module mode:
 ./configure --add-dynamic-module=/path/to/ModSecurity-nginx --with-compat
 ```
 
-TODO: choose a portable NGINX source/build-copy strategy under `BUILD_ROOT`.
 The implemented PoC helper chooses dynamic module mode and builds only under
 `BUILD_ROOT`.
 
@@ -66,13 +65,14 @@ Observed local source:
 
 ## PoC Target
 
-The NGINX PoC reuses the same portable case as Apache:
+The NGINX PoC reuses the same portable cases as Apache:
 
 ```text
-tests/common/cases/minimal/phase2_args_block.yaml
+tests/common/cases/minimal/*.yaml
 ```
 
-Pass criteria remain the same: real HTTP `403` for `GET /?test=attack`.
+Pass criteria remain the same: a real local HTTP response matching each YAML
+case expectation. The current minimal cases all expect HTTP `403`.
 
 ## Blocked Items
 
