@@ -20,9 +20,9 @@ export PYTHONDONTWRITEBYTECODE
 BASE_PORT="${PORT:-18081}"
 PORT="$BASE_PORT"
 TEMPLATE="$SCRIPT_DIR/nginx_smoke.conf"
-DEFAULT_CASE_DIR="$REPO_ROOT/tests/common/cases/minimal"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
+CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
@@ -57,41 +57,55 @@ require_absolute_generated_path() {
 
 resolve_case_path() {
     item=$1
-    case "$item" in
-        /*|*/*) path=$item ;;
-        *.yaml) path="$DEFAULT_CASE_DIR/$item" ;;
-        *) path="$DEFAULT_CASE_DIR/$item.yaml" ;;
-    esac
-    if [ ! -f "$path" ]; then
-        echo "nginx_smoke: fail missing shared case: $item" >&2
-        return 1
-    fi
-    printf '%s\n' "$path"
+    "$PYTHON_BIN" "$CASE_CLI" list-cases \
+        --repo-root "$REPO_ROOT" \
+        --connector nginx \
+        --scope "$CASE_SCOPE" \
+        --test-case "$item"
 }
 
 list_case_files() {
     if [ -n "$TEST_CASE" ]; then
-        resolve_case_path "$TEST_CASE"
+        "$PYTHON_BIN" "$CASE_CLI" list-cases \
+            --repo-root "$REPO_ROOT" \
+            --connector nginx \
+            --scope "$CASE_SCOPE" \
+            --test-case "$TEST_CASE"
         return
     fi
     if [ -n "$SMOKE_CASES" ]; then
-        for item in $SMOKE_CASES; do
-            resolve_case_path "$item"
-        done
+        "$PYTHON_BIN" "$CASE_CLI" list-cases \
+            --repo-root "$REPO_ROOT" \
+            --connector nginx \
+            --scope "$CASE_SCOPE" \
+            --smoke-cases "$SMOKE_CASES"
         return
     fi
-    find "$DEFAULT_CASE_DIR" -maxdepth 1 -type f -name '*.yaml' | sort
+    "$PYTHON_BIN" "$CASE_CLI" list-cases \
+        --repo-root "$REPO_ROOT" \
+        --connector nginx \
+        --scope "$CASE_SCOPE"
 }
 
-write_json_entry() {
-    json_file=$1
-    first=$2
-    case_name=$3
-    status=$4
-    if [ "$first" -eq 0 ]; then
-        printf ',\n' >> "$json_file"
+write_case_result() {
+    case_path=$1
+    case_status=$2
+    actual_status=${3:-}
+    output=$4
+    if [ -n "$actual_status" ]; then
+        "$PYTHON_BIN" "$CASE_CLI" case-info \
+            --case "$case_path" \
+            --connector nginx \
+            --status "$case_status" \
+            --actual-status "$actual_status" \
+            --output "$output"
+    else
+        "$PYTHON_BIN" "$CASE_CLI" case-info \
+            --case "$case_path" \
+            --connector nginx \
+            --status "$case_status" \
+            --output "$output"
     fi
-    printf '    "%s": "%s"' "$case_name" "$status" >> "$json_file"
 }
 
 run_all_cases() {
@@ -103,9 +117,10 @@ run_all_cases() {
     mkdir -p "$LOG_DIR" "$RESULTS_DIR"
     summary_file="$RESULTS_DIR/nginx-summary.txt"
     json_file="$RESULTS_DIR/nginx-summary.json"
+    results_jsonl="$RESULTS_DIR/nginx-results.jsonl"
     connector_summary="$RESULTS_DIR/connector-summary.txt"
     : > "$summary_file"
-    printf '{\n  "nginx": {\n' > "$json_file"
+    : > "$results_jsonl"
 
     cases=$(list_case_files) || exit 1
     if [ -z "$cases" ]; then
@@ -115,7 +130,6 @@ run_all_cases() {
 
     any_fail=0
     any_blocked=0
-    first=1
     index=0
     for case_path in $cases; do
         case_name=$(basename "$case_path" .yaml)
@@ -143,13 +157,23 @@ run_all_cases() {
             case_status_upper=FAIL
             any_fail=1
         fi
+        actual_status=""
+        if [ -f "$case_log_dir/observed-status.txt" ]; then
+            actual_status=$(cat "$case_log_dir/observed-status.txt")
+        fi
+        write_case_result "$case_path" "$case_status" "$actual_status" "$case_log_dir/result.json" || true
+        if [ -f "$case_log_dir/result.json" ]; then
+            cat "$case_log_dir/result.json" >> "$results_jsonl"
+        fi
         echo "$case_status_upper $case_name" | tee -a "$summary_file"
-        write_json_entry "$json_file" "$first" "$case_name" "$case_status"
-        first=0
         index=$((index + 1))
     done
 
-    printf '\n  }\n}\n' >> "$json_file"
+    "$PYTHON_BIN" "$CASE_CLI" summarize-results \
+        --connector nginx \
+        --input-jsonl "$results_jsonl" \
+        --summary-json "$json_file" \
+        --summary-text "$summary_file"
     cp "$summary_file" "$connector_summary"
 
     if [ "$any_fail" -ne 0 ]; then
@@ -211,7 +235,7 @@ if [ "$RUN_ONE_CASE" != "1" ]; then
 fi
 
 if [ -z "$TEST_CASE" ]; then
-    TEST_CASE="$DEFAULT_CASE_DIR/phase2_args_block.yaml"
+    TEST_CASE="phase2_args_block"
 fi
 TEST_CASE=$(resolve_case_path "$TEST_CASE") || exit 1
 case_name=$(basename "$TEST_CASE" .yaml)
@@ -228,6 +252,7 @@ echo "nginx_smoke: NGINX_MODULE=$NGINX_MODULE"
 echo "nginx_smoke: RUNTIME_ROOT=$RUNTIME_ROOT"
 echo "nginx_smoke: LOG_DIR=$LOG_DIR"
 echo "nginx_smoke: TEST_CASE=$TEST_CASE"
+echo "nginx_smoke: CASE_SCOPE=$CASE_SCOPE"
 
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
@@ -316,8 +341,10 @@ set +e
 http_status=$(send_case_request)
 curl_rc=$?
 set -e
+printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
 
 if [ "$curl_rc" -ne 0 ]; then
+    write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
     fail "curl attack request failed rc=$curl_rc; see $LOG_DIR/curl-attack.err"
 fi
 
@@ -327,9 +354,11 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --response-body-file "$RESPONSE_BODY" \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
+    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" || true
     echo "nginx_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
 fi
 
+write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
 echo "nginx_smoke: fail case=$CASE_NAME observed=$http_status expected=$EXPECT_STATUS"
 exit 1

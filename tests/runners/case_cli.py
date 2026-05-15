@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from runner_core import (
     assert_case_artifacts,
+    case_info as build_case_info,
+    discover_case_files,
     load_case,
     write_body_file,
     write_headers_file,
@@ -58,6 +61,86 @@ def assert_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def list_cases(args: argparse.Namespace) -> int:
+    cases = discover_case_files(
+        args.repo_root,
+        args.connector,
+        args.scope,
+        args.smoke_cases or "",
+        args.test_case or "",
+    )
+    for case_path in cases:
+        print(case_path)
+    return 0
+
+
+def case_info(args: argparse.Namespace) -> int:
+    case = load_case(args.case)
+    actual_status = int(args.actual_status) if args.actual_status not in (None, "") else None
+    info = build_case_info(
+        case,
+        args.case,
+        args.connector,
+        args.status,
+        actual_status,
+    )
+    output = Path(args.output) if args.output else None
+    content = (
+        json.dumps(info, sort_keys=True) + "\n"
+        if output is not None
+        else json.dumps(info, indent=2, sort_keys=True) + "\n"
+    )
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(content, encoding="utf-8")
+    else:
+        print(content, end="")
+    return 0
+
+
+def summarize_results(args: argparse.Namespace) -> int:
+    entries = []
+    input_path = Path(args.input_jsonl)
+    if input_path.exists():
+        with input_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    entries.append(json.loads(line))
+
+    counts = {"pass": 0, "fail": 0, "blocked": 0, "skipped": 0, "xfail": 0}
+    for entry in entries:
+        status = str(entry.get("status", "fail"))
+        counts.setdefault(status, 0)
+        counts[status] += 1
+
+    cases = {str(entry.get("name", "")): entry for entry in entries}
+    summary = {
+        args.connector: {
+            "summary": counts,
+            "cases": cases,
+        }
+    }
+
+    summary_json = Path(args.summary_json)
+    summary_json.parent.mkdir(parents=True, exist_ok=True)
+    summary_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    summary_text = Path(args.summary_text)
+    lines = []
+    for entry in entries:
+        status = str(entry.get("status", "fail")).upper()
+        scope = str(entry.get("scope", "unknown"))
+        name = str(entry.get("name", "unknown"))
+        expected = entry.get("expected_status")
+        actual = entry.get("actual_status")
+        if actual is None:
+            lines.append(f"{status} {scope} {name} expected={expected}\n")
+        else:
+            lines.append(f"{status} {scope} {name} expected={expected} actual={actual}\n")
+    summary_text.write_text("".join(lines), encoding="utf-8")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -85,6 +168,38 @@ def build_parser() -> argparse.ArgumentParser:
     assert_parser.add_argument("--response-body-file")
     assert_parser.add_argument("--audit-log-file")
     assert_parser.set_defaults(func=assert_status)
+
+    list_parser = subparsers.add_parser(
+        "list-cases",
+        help="list applicable YAML case paths for a connector and scope",
+    )
+    list_parser.add_argument("--repo-root", required=True)
+    list_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    list_parser.add_argument("--scope", default="all", choices=("common", "connector", "all"))
+    list_parser.add_argument("--smoke-cases")
+    list_parser.add_argument("--test-case")
+    list_parser.set_defaults(func=list_cases)
+
+    info_parser = subparsers.add_parser(
+        "case-info",
+        help="write normalized case metadata as JSON",
+    )
+    info_parser.add_argument("--case", required=True)
+    info_parser.add_argument("--connector", choices=("apache", "nginx"))
+    info_parser.add_argument("--status")
+    info_parser.add_argument("--actual-status")
+    info_parser.add_argument("--output")
+    info_parser.set_defaults(func=case_info)
+
+    summarize_parser = subparsers.add_parser(
+        "summarize-results",
+        help="write connector summary files from JSONL case results",
+    )
+    summarize_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    summarize_parser.add_argument("--input-jsonl", required=True)
+    summarize_parser.add_argument("--summary-json", required=True)
+    summarize_parser.add_argument("--summary-text", required=True)
+    summarize_parser.set_defaults(func=summarize_results)
 
     return parser
 

@@ -13,12 +13,17 @@ Implemented now:
 - `case_cli.py assert-status` compares real connector HTTP status, optional
   response body content, and optional audit-log content with the shared YAML
   case expectation.
+- `case_cli.py list-cases` selects applicable common or connector-specific
+  YAML cases for a connector scope.
+- `case_cli.py case-info` and `summarize-results` write normalized JSON result
+  metadata with origin, category, scope, expected status, and observed status.
 - `runner_core.py` validates the minimal shared case schema and provides the
   status assertion used by the Apache and NGINX harnesses.
 
 The Apache and NGINX PoCs use this runner so each YAML file under
-`tests/common/cases/minimal/` is the single source for the rule, request,
-headers, optional body, and expected HTTP status.
+`tests/common/cases/minimal/`, `tests/common/cases/imported/`, or the
+applicable connector-specific imported directory is the single source for the
+rule, request, headers, optional body, and expected HTTP status.
 Audit-log cases also use the YAML as the source for stable audit-log field
 expectations.
 

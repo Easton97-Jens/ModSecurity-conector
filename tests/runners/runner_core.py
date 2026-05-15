@@ -72,6 +72,53 @@ def _load_minimal_yaml(path: Path) -> Mapping[str, Any]:
 
     lines = path.read_text(encoding="utf-8").splitlines()
 
+    def next_significant(index: int) -> str | None:
+        while index < len(lines):
+            candidate = lines[index]
+            if candidate.strip() and not candidate.lstrip().startswith("#"):
+                return candidate
+            index += 1
+        return None
+
+    def parse_node(index: int, indent: int) -> tuple[Any, int]:
+        candidate = next_significant(index)
+        if candidate is not None and _indent_of(candidate) == indent and candidate.strip().startswith("- "):
+            return parse_sequence(index, indent)
+        return parse_mapping(index, indent)
+
+    def parse_sequence(index: int, indent: int) -> tuple[list[Any], int]:
+        parsed: list[Any] = []
+        while index < len(lines):
+            line = lines[index]
+            if not line.strip() or line.lstrip().startswith("#"):
+                index += 1
+                continue
+            current_indent = _indent_of(line)
+            if current_indent < indent:
+                break
+            if current_indent > indent:
+                raise ValueError(f"unexpected indentation in {path}: {line}")
+            stripped = line.strip()
+            if not stripped.startswith("- "):
+                break
+            raw_value = stripped[2:].strip()
+            index += 1
+            if not raw_value:
+                item, index = parse_node(index, indent + 2)
+                parsed.append(item)
+                continue
+            if ":" in raw_value and not raw_value.startswith(("'", '"')):
+                key, value = raw_value.split(":", 1)
+                item: dict[str, Any] = {key.strip(): _parse_scalar(value.strip())}
+                candidate = next_significant(index)
+                if candidate is not None and _indent_of(candidate) == indent + 2:
+                    nested, index = parse_mapping(index, indent + 2)
+                    item.update(nested)
+                parsed.append(item)
+                continue
+            parsed.append(_parse_scalar(raw_value))
+        return parsed, index
+
     def parse_mapping(index: int, indent: int) -> tuple[dict[str, Any], int]:
         parsed: dict[str, Any] = {}
         while index < len(lines):
@@ -104,7 +151,7 @@ def _load_minimal_yaml(path: Path) -> Mapping[str, Any]:
             if raw_value:
                 parsed[key] = _parse_scalar(raw_value)
                 continue
-            nested, index = parse_mapping(index, current_indent + 2)
+            nested, index = parse_node(index, current_indent + 2)
             parsed[key] = nested
         return parsed, index
 
@@ -132,8 +179,32 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     if not str(case.get("rules", "")).strip():
         raise ValueError(f"case requires rules{where}")
     capabilities = case.get("capabilities", {})
-    if capabilities is not None and not isinstance(capabilities, Mapping):
-        raise ValueError(f"case capabilities must be a mapping{where}")
+    if capabilities is not None and not isinstance(capabilities, (Mapping, list)):
+        raise ValueError(f"case capabilities must be a mapping or list{where}")
+    if isinstance(capabilities, list) and not all(isinstance(item, str) for item in capabilities):
+        raise ValueError(f"case capabilities list must contain strings{where}")
+    origin = case.get("origin")
+    if origin is not None:
+        if not isinstance(origin, list) or not all(isinstance(item, Mapping) for item in origin):
+            raise ValueError(f"case origin must be a list of mappings{where}")
+    portable = case.get("portable")
+    if portable is not None and not isinstance(portable, bool):
+        raise ValueError(f"case portable must be a boolean{where}")
+    connector = case.get("connector")
+    if connector is not None and str(connector) not in {"apache", "nginx", "common"}:
+        raise ValueError(f"case connector must be apache, nginx, or common{where}")
+    status = case.get("status")
+    if status is not None and str(status) not in {
+        "active",
+        "imported",
+        "minimal",
+        "mapped",
+        "todo",
+        "blocked",
+        "xfail",
+        "skipped",
+    }:
+        raise ValueError(f"case status is unsupported{where}")
     request = case.get("request")
     if not isinstance(request, Mapping):
         raise ValueError(f"case requires request mapping{where}")
@@ -153,7 +224,7 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     if not isinstance(status, int):
         raise ValueError(f"case requires integer expect.status{where}")
     intervention = expect.get("intervention")
-    if intervention is not None and str(intervention) not in {"deny", "pass", "none"}:
+    if intervention is not None and str(intervention) not in {"deny", "pass", "none", "redirect", "block"}:
         raise ValueError(f"case expect.intervention is unsupported{where}")
     audit_log = expect.get("audit_log", {})
     if audit_log is not None and not isinstance(audit_log, Mapping):
@@ -261,6 +332,139 @@ def write_shell_env(
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("".join(lines), encoding="utf-8")
+
+
+def _capability_names(case: Mapping[str, Any]) -> list[str]:
+    capabilities = case.get("capabilities", {})
+    if capabilities is None:
+        return []
+    if isinstance(capabilities, Mapping):
+        return [str(key) for key, value in capabilities.items() if _bool_value(value)]
+    if isinstance(capabilities, list):
+        return [str(item) for item in capabilities]
+    return []
+
+
+def case_scope(path: str | Path) -> str:
+    parts = Path(path).parts
+    if "tests" in parts:
+        index = parts.index("tests")
+        tail = parts[index:]
+        if len(tail) >= 4 and tail[1] == "common" and tail[2] == "cases":
+            return f"common/{tail[3]}"
+        if len(tail) >= 4 and tail[1] in {"apache", "nginx"} and tail[2] == "cases":
+            return f"{tail[1]}/{tail[3]}"
+    return "unknown"
+
+
+def case_group(path: str | Path) -> str:
+    scope = case_scope(path)
+    if "/" in scope:
+        return scope.split("/", 1)[1]
+    return scope
+
+
+def case_info(
+    case: Mapping[str, Any],
+    path: str | Path,
+    connector: str | None = None,
+    status: str | None = None,
+    actual_status: int | None = None,
+) -> dict[str, Any]:
+    expect = case["expect"]
+    info: dict[str, Any] = {
+        "name": str(case["name"]),
+        "path": str(path),
+        "scope": case_scope(path),
+        "group": case_group(path),
+        "category": str(case.get("category", "")),
+        "portable": case.get("portable"),
+        "connector": str(case.get("connector", "")),
+        "case_status": str(case.get("status", "")),
+        "capabilities": _capability_names(case),
+        "origin": case.get("origin", []),
+        "expected_status": expect["status"],
+        "expected_intervention": str(expect.get("intervention", "")),
+        "actual_status": actual_status,
+    }
+    if connector is not None:
+        info["executed_connector"] = connector
+    if status is not None:
+        info["status"] = status
+    return info
+
+
+def _case_dirs(repo_root: Path, connector: str, scope: str) -> list[Path]:
+    common_dirs = [
+        repo_root / "tests" / "common" / "cases" / "minimal",
+        repo_root / "tests" / "common" / "cases" / "imported",
+    ]
+    connector_dirs = [repo_root / "tests" / connector / "cases" / "imported"]
+    if scope == "common":
+        return common_dirs
+    if scope == "connector":
+        return connector_dirs
+    if scope == "all":
+        return common_dirs + connector_dirs
+    raise ValueError(f"unsupported case scope: {scope}")
+
+
+def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str, scope: str) -> bool:
+    path_scope = case_scope(path)
+    declared_connector = case.get("connector")
+    portable = case.get("portable")
+    if path_scope.startswith("common/"):
+        if declared_connector not in (None, "", "common"):
+            return False
+        if portable is False:
+            return False
+        return scope in {"common", "all"}
+    if path_scope.startswith(f"{connector}/"):
+        return scope in {"connector", "all"} and declared_connector in (None, "", connector)
+    return False
+
+
+def discover_case_files(
+    repo_root: str | Path,
+    connector: str,
+    scope: str = "all",
+    smoke_cases: str = "",
+    test_case: str = "",
+) -> list[Path]:
+    root = Path(repo_root).resolve()
+    selected_dirs = _case_dirs(root, connector, scope)
+
+    def resolve_one(item: str) -> Path:
+        candidate = Path(item)
+        if candidate.is_absolute() or "/" in item:
+            path = candidate if candidate.is_absolute() else root / candidate
+            if not path.is_file():
+                raise FileNotFoundError(f"missing smoke case: {item}")
+            return path.resolve()
+        name = item if item.endswith(".yaml") else f"{item}.yaml"
+        matches = [directory / name for directory in selected_dirs if (directory / name).is_file()]
+        if not matches:
+            raise FileNotFoundError(f"missing smoke case in selected scope: {item}")
+        if len(matches) > 1:
+            raise ValueError(f"ambiguous smoke case name {item}; use a path")
+        return matches[0].resolve()
+
+    if test_case:
+        candidates = [resolve_one(test_case)]
+    elif smoke_cases.strip():
+        candidates = [resolve_one(item) for item in smoke_cases.split()]
+    else:
+        candidates = []
+        for directory in selected_dirs:
+            if directory.is_dir():
+                candidates.extend(sorted(directory.glob("*.yaml")))
+
+    applicable: list[Path] = []
+    for path in candidates:
+        case = load_case(path)
+        if is_case_applicable(case, path, connector, scope):
+            applicable.append(path)
+    return applicable
 
 
 def response_status(response: Any) -> int | None:
