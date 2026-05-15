@@ -8,6 +8,7 @@ Both connector PoCs use the same portable cases:
 
 ```text
 tests/common/cases/minimal/*.yaml
+tests/common/cases/imported/*.yaml
 ```
 
 Shared pieces:
@@ -22,6 +23,10 @@ Shared pieces:
 The shared case is a rule/request/expectation model. It is not proof of a
 connector until that connector's runtime harness observes the expected HTTP
 status.
+
+`make smoke-common` runs only these common cases on both Apache and NGINX.
+`make smoke-all` also runs connector-specific imported cases on their matching
+connector.
 
 ## Connector-Specific Pieces
 
@@ -44,6 +49,9 @@ NGINX:
   the materialized rules file.
 - A local source-built NGINX smoke has observed the YAML-expected HTTP status
   for all current shared minimal cases.
+- NGINX-specific imported cases under `tests/nginx/cases/imported/` currently
+  cover redirect and TX scoring behavior from the local NGINX suite. They stay
+  NGINX-only until Apache equivalence is explicitly tested.
 
 ## Lifecycle Differences
 
@@ -90,3 +98,10 @@ Observed on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
 
 This proves these shared PoC cases for this workspace only. Broader
 compatibility still requires connector-specific regression coverage.
+
+Imported common cases add phase action, collection, and request-body coverage.
+Their source paths and portability decisions are documented in
+`tests/common/shared-case-origin-map.md` and `docs/test-import-plan.md`.
+The local `make smoke-all` run on 2026-05-15 reported all 8 common imported
+cases passing on both connectors, plus 3 NGINX-specific imported cases passing
+on NGINX.

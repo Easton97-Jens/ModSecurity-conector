@@ -20,6 +20,7 @@ architecture for new connectors.
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
 | Traefik connector | unknown | Yaegi/Wasm plugin options documented, implementation undecided |
 | v2 regression reuse | planned | Only portable rule/engine semantics may enter `tests/common/` |
+| Source-derived Apache/NGINX test import | implemented | Imported YAML cases are derived, not copied; origin and portability are documented |
 
 ## Capability Rule
 
@@ -48,3 +49,19 @@ Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`
 This proves only these PoC behaviors in this workspace, not full connector
 compatibility, CRS support, multipart handling, streaming behavior, HTTP/2, or
 complete response-body behavior.
+
+## Imported Case Scopes
+
+| Scope | Location | Compatibility meaning |
+| --- | --- | --- |
+| common minimal | `tests/common/cases/minimal/` | Already proven locally for both PoCs before the import step |
+| common imported | `tests/common/cases/imported/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
+| Apache imported | `tests/apache/cases/imported/` | Apache-only until a common equivalent is proven |
+| NGINX imported | `tests/nginx/cases/imported/` | NGINX-only until a common equivalent is proven |
+
+Mapped-only categories include HTTP/2, proxy, multipart, response-body filter
+coverage, external-file operators, debug logs, and connector config inheritance.
+
+Observed locally on 2026-05-15, the current imported common cases all passed on
+Apache and NGINX through `make smoke-all`; the NGINX-specific imported cases
+passed only on NGINX and remain `portable: false`.

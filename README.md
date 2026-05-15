@@ -28,7 +28,10 @@ Implemented now:
 - A local source-built NGINX PoC has observed the YAML-expected HTTP behavior
   for all current shared minimal cases.
 - Formal connector smoke targets:
-  `make smoke-apache`, `make smoke-nginx`, and `make smoke-all`.
+  `make smoke-common`, `make smoke-apache`, `make smoke-nginx`, and
+  `make smoke-all`.
+- Source-derived imported YAML cases from the local Apache and NGINX connector
+  test suites, with origin mapping in `docs/test-import-plan.md`.
 
 Not implemented:
 
@@ -85,6 +88,7 @@ The connector smoke targets reuse build artifacts under `BUILD_ROOT` unless
 ```sh
 BUILD_ROOT=/src/ModSecurity-conector-build make smoke-apache
 BUILD_ROOT=/src/ModSecurity-conector-build make smoke-nginx
+BUILD_ROOT=/src/ModSecurity-conector-build make smoke-common
 BUILD_ROOT=/src/ModSecurity-conector-build make smoke-all
 ```
 
@@ -111,6 +115,23 @@ Current shared minimal cases:
 These pass observations were made locally on 2026-05-15 with
 `BUILD_ROOT=/src/ModSecurity-conector-build`. Other environments must run the
 same targets before claiming pass there.
+
+Imported source-derived cases are split by scope:
+
+- `tests/common/cases/imported/`: portable cases that Apache and NGINX both
+  must run for `smoke-common` and `smoke-all`.
+- `tests/apache/cases/imported/`: Apache-specific cases only.
+- `tests/nginx/cases/imported/`: NGINX-specific cases only.
+
+Current imported common candidates cover phase actions, query-argument
+collections, form-body collection names, and raw request-body matching. Current
+imported NGINX-specific cases cover redirect and TX scoring behavior from the
+local NGINX suite. See `docs/test-import-plan.md` and
+`tests/common/shared-case-origin-map.md` before promoting or moving a case.
+
+Observed locally on 2026-05-15, `make smoke-all` reported 15 Apache passes
+(7 minimal + 8 imported common) and 18 NGINX passes (7 minimal + 8 imported
+common + 3 NGINX-specific imported).
 
 Boundary rule:
 

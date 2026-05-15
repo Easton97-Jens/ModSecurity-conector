@@ -32,9 +32,12 @@ jobs:
           test -f connectors/nginx/docs/public-sources.md
           test -f ci/run-nginx-smoke.sh
           test -f tests/nginx/nginx-regression-map.md
+          test -f tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml
           test -f tests/common/cases/minimal/phase2_args_block.yaml
+          test -f tests/common/cases/imported/request_body_raw_text_block.yaml
           test -f docs/nginx-poc.md
           test -f docs/apache-vs-nginx-poc.md
+          test -f docs/test-import-plan.md
           grep -q 'Status:' connectors/nginx/TODO.md
       - name: Syntax checks
         run: |

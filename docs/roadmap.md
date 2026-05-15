@@ -21,16 +21,21 @@ Status: scaffolded
   and the official `nginx/nginx` GitHub release archive flow, with local
   expected HTTP behavior observed for all current shared minimal cases.
 - Formal smoke orchestration through `make smoke-apache`, `make smoke-nginx`,
-  and `make smoke-all`.
+  `make smoke-common`, and `make smoke-all`.
 - Shared YAML schema fields for `capabilities`, pass-through expectations,
   response body checks, and stable audit-log field checks.
+- Source-derived imported YAML smoke cases from the local Apache and NGINX
+  connector tests, with common vs connector-specific placement documented in
+  `docs/test-import-plan.md`.
 
 ## Planned
 
 - Compile checks for common headers.
 - Promote the documented YAML shape into a machine-readable schema.
-- Add more source-derived negative/pass-through cases after their origins are
-  mapped.
+- Promote imported NGINX-only TX scoring/redirect cases to common only after
+  Apache equivalence is tested and documented.
+- Add fixture support for external-file operators, multipart bodies, and
+  connector-specific config matrices.
 
 ## Unknown
 
