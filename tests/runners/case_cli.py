@@ -126,12 +126,12 @@ def case_info(args: argparse.Namespace) -> int:
 
 
 def verified_variables(entries: list[dict[str, object]]) -> list[str]:
-    variables = set()
+    variables = []
     for names in passing_capability_sets(entries):
         for variable, capabilities in VARIABLE_CAPABILITIES.items():
             if names.intersection(capabilities):
-                variables.add(variable)
-    return sorted(variables)
+                variables.append(variable)
+    return sorted(dict.fromkeys(variables))
 
 
 def passing_capability_sets(entries: list[dict[str, object]]) -> list[set[str]]:

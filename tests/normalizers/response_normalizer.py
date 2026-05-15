@@ -9,7 +9,7 @@ _PATTERNS = (
     (re.compile(r"^(Date|Last-Modified): .*$", re.MULTILINE | re.IGNORECASE), r"\1: <timestamp>"),
     (re.compile(r"^(Server): .*$", re.MULTILINE | re.IGNORECASE), r"\1: <server-banner>"),
     (re.compile(r"\b127\.0\.0\.1:\d+\b"), "127.0.0.1:<port>"),
-    (re.compile(r"\btransaction(?:_id)?[=: ][A-Za-z0-9._:-]+\b", re.IGNORECASE), "transaction_id=<transaction-id>"),
+    (re.compile(r"\btransaction(?:_id)?[=: ][A-Z0-9._:-]+\b", re.IGNORECASE), "transaction_id=<transaction-id>"),
 )
 
 

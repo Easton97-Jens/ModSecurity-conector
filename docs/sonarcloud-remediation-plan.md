@@ -42,6 +42,19 @@ keys after the next analysis run.
 | `AZ4n6KOS9eBhNcyBKSiX` | shell robustness | critical | `ci/build-v3-under-src.sh` | real | Add default `case` branch for destination guard | fixed |
 | `AZ4n6KOS9eBhNcyBKSiY` | shell robustness | critical | `ci/build-v3-under-src.sh` | real | Add default `case` branch for refresh guard | fixed |
 
+## Follow-Up Cleanup
+
+The following additional SonarCloud code smells were reported after the first
+remediation pass and are fixed in source without suppressions:
+
+| Issue | Category | Severity | Affected file | Real issue or false positive | Fix strategy | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| screenshot L43 | Python code smell | minor | `ci/write-case-matrix.py` | real | Remove the unused `path` parameter from `case_kind()` | fixed |
+| screenshot L45 | Python code smell | minor | `ci/write-case-matrix.py` | real | Replace chained `startswith()` calls with a tuple argument | fixed |
+| screenshot L17 | regex cleanup | minor | `tests/normalizers/audit_log_normalizer.py` | real | Remove the redundant lowercase range from an `IGNORECASE` character class | fixed |
+| screenshot L12 | regex cleanup | minor | `tests/normalizers/response_normalizer.py` | real | Remove the redundant lowercase range from an `IGNORECASE` character class | fixed |
+| screenshot L159 | Python code smell | minor | `tests/runners/case_cli.py` | real | Use `dict.fromkeys()` for stable duplicate removal in verified variables | fixed |
+
 No issue is intentionally suppressed. If SonarCloud reports follow-up issues or
 keeps any of these keys open after the next analysis, update this table with the
 new evidence and fix strategy instead of hiding the warning.

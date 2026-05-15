@@ -40,9 +40,9 @@ def case_source(info: dict[str, object], path: Path) -> str:
     return str(path.relative_to(REPO_ROOT))
 
 
-def case_kind(path: Path, info: dict[str, object]) -> str:
+def case_kind(info: dict[str, object]) -> str:
     scope = str(info.get("scope", ""))
-    if scope.startswith("apache/") or scope.startswith("nginx/"):
+    if scope.startswith(("apache/", "nginx/")):
         return "connector-specific"
     if "xfail" in scope or str(info.get("case_status")) == "xfail":
         return "xfail"
@@ -78,7 +78,7 @@ def row(path: Path, results: dict[str, object]) -> str:
         capabilities,
         result_status(results, "apache", name),
         result_status(results, "nginx", name),
-        case_kind(path, info),
+        case_kind(info),
         notes,
     ]
     return "| " + " | ".join(value.replace("|", "\\|") for value in values) + " |"
