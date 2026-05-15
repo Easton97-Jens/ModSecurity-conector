@@ -91,10 +91,13 @@ runs reported the V2/V3-derived active imports as `PASS` on Apache and NGINX.
 
 The response-body block candidate is deliberately not active common coverage.
 `ModSecurity-nginx/tests/modsecurity-response-body.t` marks the blocking branch
-as TODO, and a local probe recognized the `RESPONSE_BODY` rule but did not
-produce stable HTTP 403. The source rows are therefore documented as
-`xfail`/`mapped-only` in the maps, while `response_body_pass.yaml` remains a
-pass-through smoke only.
+as TODO. The dedicated local probe in
+`tests/common/cases/xfail/response_body_basic_block.yaml` ran three repeats:
+Apache returned HTTP 200 without the required audit hit, while NGINX matched the
+phase 4 `RESPONSE_BODY` rule and wrote audit/error evidence but returned an
+empty client reply (`000`) instead of stable HTTP 403. The source rows remain
+`xfail`/`mapped-only`, while `response_body_pass.yaml` remains a pass-through
+smoke only.
 
 `multipart_basic_block.yaml` covers a simple multipart text field visible
 through `ARGS:name`. V3-derived FILES, FILES_NAMES, FILES_COMBINED_SIZE, and

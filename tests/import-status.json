@@ -133,8 +133,9 @@
   ],
   "xfail": [
     {
-      "source": "ModSecurity-nginx/tests/modsecurity-response-body.t",
-      "reason": "Upstream marks response-body block behavior TODO; local probing recognized the rule but did not produce stable HTTP 403."
+      "case": "tests/common/cases/xfail/response_body_basic_block.yaml",
+      "source": "ModSecurity-nginx/tests/modsecurity-response-body.t; ModSecurity-apache/tests/regression/config/10-response-directives.t; ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json",
+      "reason": "Dedicated three-repeat probe stayed xfail/mapped-only: Apache returned HTTP 200 without audit hit; NGINX matched RESPONSE_BODY in phase 4 but curl observed 000/empty reply instead of stable HTTP 403."
     }
   ],
   "v2_imported": [

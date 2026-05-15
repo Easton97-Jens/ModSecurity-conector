@@ -13,8 +13,11 @@ export BUILD_NGINX_FROM_SOURCE
 export NGINX_SOURCE_MODE
 export NGINX_GITHUB_REPO
 export NGINX_RELEASE_TAG
+export RESPONSE_BODY_PROBE_REPEAT
+export RESPONSE_BODY_PROBE_ROOT
+export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all
+.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body
 
 smoke-common:
 	CASE_SCOPE=common sh ci/run-connector-smokes.sh
@@ -27,3 +30,6 @@ smoke-nginx:
 
 smoke-all:
 	CASE_SCOPE=all sh ci/run-connector-smokes.sh
+
+probe-response-body:
+	sh ci/probe-response-body-blocking.sh
