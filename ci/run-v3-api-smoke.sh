@@ -37,6 +37,7 @@ case "$BUILD_ROOT" in
         echo "v3_api_smoke: blocked BUILD_ROOT is not an allowed artifact location: $BUILD_ROOT"
         exit 77
         ;;
+    *) ;;
 esac
 
 case "$BUILD_DIR" in
@@ -44,6 +45,7 @@ case "$BUILD_DIR" in
         echo "v3_api_smoke: blocked BUILD_DIR is not an allowed artifact location: $BUILD_DIR"
         exit 77
         ;;
+    *) ;;
 esac
 
 set +e

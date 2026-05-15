@@ -29,6 +29,7 @@ CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
+IFMODULE_END="</IfModule>"
 
 blocked() {
     echo "apache_smoke: blocked $*"
@@ -55,6 +56,7 @@ require_absolute_generated_path() {
         "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
+        *) ;;
     esac
 }
 
@@ -237,11 +239,11 @@ append_load_if_exists() {
     output=$4
     module_path="$modules_dir/$file_name"
     if [ -f "$module_path" ]; then
-        {
-            echo "<IfModule !$module_name>"
-            echo "LoadModule $module_name \"$module_path\""
-            echo "</IfModule>"
-        } >> "$output"
+            {
+                echo "<IfModule !$module_name>"
+                echo "LoadModule $module_name \"$module_path\""
+                echo "$IFMODULE_END"
+            } >> "$output"
     fi
 }
 
@@ -262,9 +264,9 @@ append_mpm_if_needed() {
                 echo "<IfModule !mpm_worker_module>"
                 echo "<IfModule !mpm_prefork_module>"
                 echo "LoadModule $module_name \"$module_path\""
-                echo "</IfModule>"
-                echo "</IfModule>"
-                echo "</IfModule>"
+                echo "$IFMODULE_END"
+                echo "$IFMODULE_END"
+                echo "$IFMODULE_END"
             } >> "$output"
             return 0
         fi
@@ -273,7 +275,8 @@ append_mpm_if_needed() {
 }
 
 escape_sed() {
-    printf '%s' "$1" | sed 's/[&|]/\\&/g'
+    raw_value=$1
+    printf '%s' "$raw_value" | sed 's/[&|]/\\&/g'
 }
 
 render_config() {

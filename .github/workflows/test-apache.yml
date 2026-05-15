@@ -41,6 +41,7 @@ jobs:
           test -f connectors/apache/harness/apache_smoke.conf
           test -f connectors/apache/harness/run_apache_smoke.sh
           test -f ci/prepare-apache-build.sh
+          test -f ci/fetch-smoke-sources.sh
           test -f ci/run-apache-smoke.sh
           test -f tests/apache/apache-regression-map.md
           test -f tests/apache/cases/imported/README.md
@@ -55,31 +56,12 @@ jobs:
         run: |
           set -eu
           sh -n ci/prepare-apache-build.sh
+          sh -n ci/fetch-smoke-sources.sh
           sh -n ci/run-apache-smoke.sh
           sh -n connectors/apache/harness/run_apache_smoke.sh
       - name: Fetch Apache real-world smoke sources
         run: |
-          set -eu
-          mkdir -p "$SOURCE_ROOT"
-          clone_source() {
-            url=$1
-            ref=$2
-            dest=$3
-            if [ -d "$dest/.git" ]; then
-              return 0
-            fi
-            echo "Fetching $url ref=$ref into $dest"
-            set +e
-            git clone --depth 1 --branch "$ref" "$url" "$dest"
-            rc=$?
-            set -e
-            if [ "$rc" -ne 0 ]; then
-              echo "::notice::source fetch blocked for $url ref=$ref"
-              rm -rf "$dest"
-            fi
-          }
-          clone_source "$MODSECURITY_V3_GIT_URL" "$MODSECURITY_V3_GIT_REF" "$MODSECURITY_V3_SOURCE_DIR"
-          clone_source "$MODSECURITY_APACHE_GIT_URL" "$MODSECURITY_APACHE_GIT_REF" "$MODSECURITY_APACHE_SOURCE_DIR"
+          sh ci/fetch-smoke-sources.sh apache
       - name: Apache real-world connector smoke or blocked
         run: |
           set +e

@@ -37,6 +37,11 @@ jobs:
           test -f tests/common/v3-regression-map.md
           test -f docs/v2-vs-v3-test-compatibility.md
           test -f docs/real-world-connector-validation.md
+          test -f docs/capability-model.md
+          test -f docs/status-model.md
+          test -f docs/connector-adapter-interface.md
+          test -f docs/future-connectors.md
+          test -f docs/sonarcloud-remediation-plan.md
       - name: Compile Python skeletons
         run: |
           mkdir -p "$PYTHONPYCACHEPREFIX"
@@ -88,6 +93,18 @@ jobs:
             --connector nginx \
             --scope all > "$BUILD_ROOT/case-runner/nginx-all-cases.txt"
           python3 -m json.tool tests/import-status.json > "$BUILD_ROOT/case-runner/import-status.pretty.json"
+          xfail_out="$BUILD_ROOT/case-runner/xfail-v3-nolog"
+          mkdir -p "$xfail_out"
+          python3 tests/runners/case_cli.py materialize \
+            --case tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml \
+            --rules-file "$xfail_out/rules.conf" \
+            --env-file "$xfail_out/case.env" \
+            --headers-file "$xfail_out/request-headers.txt" \
+            --body-file "$xfail_out/request-body.bin" \
+            --docroot "$xfail_out/htdocs" \
+            --audit-log-file "$xfail_out/audit.log" \
+            --audit-log-dir "$xfail_out/audit"
+          python3 ci/write-case-matrix.py "$BUILD_ROOT/results/connector-summary.json" "$BUILD_ROOT/case-runner/case-matrix.md"
       - name: Check real-world summary schema
         run: |
           set -eu
@@ -112,6 +129,9 @@ jobs:
           make -n smoke-apache
           make -n smoke-nginx
           make -n smoke-all
+          make -n lint
+          make -n summary
+          make -n case-matrix
           if grep -R -i -n -E 'apache|nginx|haproxy|envoy|lighttpd|traefik|httpd|ngx_' common/include common/src; then
             echo "common code contains connector-specific text or dependency"
             exit 1

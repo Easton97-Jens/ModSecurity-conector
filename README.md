@@ -32,6 +32,10 @@ Implemented now:
 - Formal connector smoke targets:
   `make smoke-common`, `make smoke-apache`, `make smoke-nginx`, and
   `make smoke-all`.
+- Maintenance targets: `make lint`, `make summary`, and `make case-matrix`.
+- Finalized capability/status/result model documentation:
+  `docs/capability-model.md`, `docs/status-model.md`,
+  `docs/connector-adapter-interface.md`, and `docs/case-matrix.md`.
 - Source-derived imported YAML cases from the local Apache and NGINX connector
   test suites, with origin mapping in `docs/test-import-plan.md`.
 - Source-derived V2/V3 compatibility cases under
@@ -122,6 +126,14 @@ These pass observations were made locally on 2026-05-15 with
 `BUILD_ROOT=/src/ModSecurity-conector-build`. Other environments must run the
 same targets before claiming pass there.
 
+Useful maintenance commands:
+
+```sh
+BUILD_ROOT=/src/ModSecurity-conector-build make lint
+BUILD_ROOT=/src/ModSecurity-conector-build make summary
+BUILD_ROOT=/src/ModSecurity-conector-build make case-matrix
+```
+
 Imported source-derived cases are split by scope:
 
 - `tests/common/cases/imported/`: portable cases that Apache and NGINX both
@@ -142,11 +154,11 @@ TODO and local probing did not produce stable HTTP 403. See
 `docs/test-import-plan.md` and
 `tests/common/shared-case-origin-map.md` before promoting or moving a case.
 
-Observed locally on 2026-05-15 after the V2/V3 compatibility import pass,
-`make smoke-all` reported 30 Apache passes (7 minimal + 11 Apache/NGINX-derived
-common + 4 V2-derived common + 8 V3-derived common) and 33 NGINX passes (the
-same common cases plus 3 NGINX-specific imported). The body/filter additions
-from the previous pass are:
+Observed locally on 2026-05-15 after the stabilization pass, `make smoke-all`
+reported 43 Apache passes (7 minimal + 12 Apache/NGINX-derived common + 10
+V2-derived common + 14 V3-derived common) and 46 NGINX passes (the same common
+cases plus 3 NGINX-specific imported). The body/filter additions from the
+previous pass are:
 
 | Case | Source-derived origin | Local Apache | Local NGINX |
 | --- | --- | --- | --- |
@@ -165,6 +177,13 @@ these V2/V3-derived active cases as `PASS` on both Apache and NGINX:
 | V2 operators/transformations | `v2_operator_streq_block`, `v2_operator_contains_block`, `v2_transformation_lowercase_block`, `v2_transformation_trim_block` | pass, HTTP 403 | pass, HTTP 403 |
 | V3 multipart FILES | `multipart_files_value_block`, `multipart_files_names_block`, `multipart_files_combined_size`, `multipart_filename_block` | pass, HTTP 403 | pass, HTTP 403 |
 | V3 XML/operator/action | `xml_request_body_block`, `v3_operator_rx_block`, `v3_transformation_trim_block`, `v3_secaction_block` | pass, HTTP 403 | pass, HTTP 403 |
+
+`v3_action_nolog_pass_no_audit` remains probeable by explicit `SMOKE_CASES`,
+but it is no longer an active Common-PASS case. Local Apache and NGINX probes
+observed HTTP 200 and an empty audit log, while GitHub Actions reported a
+non-empty audit log for the same semantic expectation. That difference is
+classified as `xfail` until local and CI behavior are stable in both
+connectors.
 
 V2/V3 import inventory is documented in
 `tests/common/v2-regression-map.md`, `tests/common/v3-regression-map.md`, and

@@ -72,13 +72,35 @@ KNOWN_CAPABILITIES = {
     "xml",
 }
 
+CASE_STATUSES = {
+    "active",
+    "blocked",
+    "connector-specific",
+    "fail",
+    "fully-imported-common",
+    "imported",
+    "mapped",
+    "mapped-only",
+    "minimal",
+    "pass",
+    "skipped",
+    "todo",
+    "xfail",
+}
+
+RESULT_STATUSES = {"pass", "fail", "blocked", "skipped", "xfail"}
+
+CONNECTORS = {"apache", "nginx", "common"}
+INTERVENTIONS = {"deny", "pass", "none", "redirect", "block"}
+REQUEST_METHODS = {"GET", "POST"}
+
 
 @dataclass
 class RunnerResult:
     response: Any
     artifacts: Mapping[str, Any]
     passed: bool
-    errors: tuple[str, ...]
+    errors: list[str]
 
 
 def _parse_scalar(value: str) -> Any:
@@ -129,62 +151,64 @@ def _indent_of(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
-def _load_minimal_yaml(path: Path) -> Mapping[str, Any]:
+class MinimalYamlParser:
     """Parse the documented minimal case schema without external dependencies."""
 
-    lines = path.read_text(encoding="utf-8").splitlines()
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.lines = path.read_text(encoding="utf-8").splitlines()
 
-    def next_significant(index: int) -> str | None:
-        while index < len(lines):
-            candidate = lines[index]
+    def next_significant(self, index: int) -> str | None:
+        while index < len(self.lines):
+            candidate = self.lines[index]
             if candidate.strip() and not candidate.lstrip().startswith("#"):
                 return candidate
             index += 1
         return None
 
-    def parse_node(index: int, indent: int) -> tuple[Any, int]:
-        candidate = next_significant(index)
+    def parse_node(self, index: int, indent: int) -> tuple[Any, int]:
+        candidate = self.next_significant(index)
         if candidate is not None and _indent_of(candidate) == indent and candidate.strip().startswith("- "):
-            return parse_sequence(index, indent)
-        return parse_mapping(index, indent)
+            return self.parse_sequence(index, indent)
+        return self.parse_mapping(index, indent)
 
-    def parse_sequence(index: int, indent: int) -> tuple[list[Any], int]:
+    def parse_sequence(self, index: int, indent: int) -> tuple[list[Any], int]:
         parsed: list[Any] = []
-        while index < len(lines):
-            line = lines[index]
-            if not line.strip() or line.lstrip().startswith("#"):
+        while index < len(self.lines):
+            if not self.lines[index].strip() or self.lines[index].lstrip().startswith("#"):
                 index += 1
                 continue
-            current_indent = _indent_of(line)
-            if current_indent < indent:
+            item = self._sequence_item(index, indent)
+            if item is None:
                 break
-            if current_indent > indent:
-                raise ValueError(f"unexpected indentation in {path}: {line}")
-            stripped = line.strip()
-            if not stripped.startswith("- "):
-                break
-            raw_value = stripped[2:].strip()
-            index += 1
-            if not raw_value:
-                item, index = parse_node(index, indent + 2)
-                parsed.append(item)
-                continue
-            if ":" in raw_value and not raw_value.startswith(("'", '"')):
-                key, value = raw_value.split(":", 1)
-                item: dict[str, Any] = {key.strip(): _parse_scalar(value.strip())}
-                candidate = next_significant(index)
-                if candidate is not None and _indent_of(candidate) == indent + 2:
-                    nested, index = parse_mapping(index, indent + 2)
-                    item.update(nested)
-                parsed.append(item)
-                continue
-            parsed.append(_parse_scalar(raw_value))
+            value, index = item
+            parsed.append(value)
         return parsed, index
 
-    def parse_mapping(index: int, indent: int) -> tuple[dict[str, Any], int]:
+    def _sequence_item(self, index: int, indent: int) -> tuple[Any, int] | None:
+        line = self.lines[index]
+        if _indent_of(line) < indent or not line.strip().startswith("- "):
+            return None
+        if _indent_of(line) > indent:
+            raise ValueError(f"unexpected indentation in {self.path}: {line}")
+        raw_value = line.strip()[2:].strip()
+        index += 1
+        if not raw_value:
+            return self.parse_node(index, indent + 2)
+        if ":" not in raw_value or raw_value.startswith(("'", '"')):
+            return _parse_scalar(raw_value), index
+        key, value = raw_value.split(":", 1)
+        item: dict[str, Any] = {key.strip(): _parse_scalar(value.strip())}
+        candidate = self.next_significant(index)
+        if candidate is not None and _indent_of(candidate) == indent + 2:
+            nested, index = self.parse_mapping(index, indent + 2)
+            item.update(nested)
+        return item, index
+
+    def parse_mapping(self, index: int, indent: int) -> tuple[dict[str, Any], int]:
         parsed: dict[str, Any] = {}
-        while index < len(lines):
-            line = lines[index]
+        while index < len(self.lines):
+            line = self.lines[index]
             if not line.strip() or line.lstrip().startswith("#"):
                 index += 1
                 continue
@@ -192,37 +216,49 @@ def _load_minimal_yaml(path: Path) -> Mapping[str, Any]:
             if current_indent < indent:
                 break
             if current_indent > indent:
-                raise ValueError(f"unexpected indentation in {path}: {line}")
+                raise ValueError(f"unexpected indentation in {self.path}: {line}")
             stripped = line.strip()
             if ":" not in stripped:
-                raise ValueError(f"expected key/value line in {path}: {line}")
+                raise ValueError(f"expected key/value line in {self.path}: {line}")
             key, raw_value = stripped.split(":", 1)
             key = key.strip()
             raw_value = raw_value.strip()
             index += 1
             if raw_value == "|":
-                block_lines: list[str] = []
-                while index < len(lines):
-                    block_line = lines[index]
-                    if block_line.strip() and _indent_of(block_line) <= current_indent:
-                        break
-                    block_lines.append(block_line)
-                    index += 1
-                parsed[key] = _dedent_block(block_lines)
+                parsed[key], index = self.parse_block(index, current_indent)
                 continue
             if raw_value:
                 parsed[key] = _parse_scalar(raw_value)
                 continue
-            nested, index = parse_node(index, current_indent + 2)
+            nested, index = self.parse_node(index, current_indent + 2)
             parsed[key] = nested
         return parsed, index
 
-    case, final_index = parse_mapping(0, 0)
-    while final_index < len(lines):
-        trailing = lines[final_index]
-        if trailing.strip() and not trailing.lstrip().startswith("#"):
-            raise ValueError(f"unexpected trailing content in {path}: {trailing}")
-        final_index += 1
+    def parse_block(self, index: int, parent_indent: int) -> tuple[str, int]:
+        block_lines: list[str] = []
+        while index < len(self.lines):
+            line = self.lines[index]
+            if line.strip() and _indent_of(line) <= parent_indent:
+                break
+            block_lines.append(line)
+            index += 1
+        return _dedent_block(block_lines), index
+
+    def parse(self) -> Mapping[str, Any]:
+        case, final_index = self.parse_mapping(0, 0)
+        self._check_trailing(final_index)
+        return case
+
+    def _check_trailing(self, index: int) -> None:
+        while index < len(self.lines):
+            trailing = self.lines[index]
+            if trailing.strip() and not trailing.lstrip().startswith("#"):
+                raise ValueError(f"unexpected trailing content in {self.path}: {trailing}")
+            index += 1
+
+
+def _load_minimal_yaml(path: Path) -> Mapping[str, Any]:
+    case = MinimalYamlParser(path).parse()
     return case
 
 
@@ -236,10 +272,32 @@ def load_case(path: str | Path) -> Mapping[str, Any]:
 
 def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     where = f" in {path}" if path is not None else ""
+    _validate_case_metadata(case, where)
+    _validate_request(case, where)
+    _validate_response(case, where)
+    _validate_expect(case, where)
+
+
+def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
     if not str(case.get("name", "")).strip():
         raise ValueError(f"case requires name{where}")
     if not str(case.get("rules", "")).strip():
         raise ValueError(f"case requires rules{where}")
+    _validate_capabilities(case, where)
+    _validate_origin(case, where)
+    _validate_known_limitations(case, where)
+    portable = case.get("portable")
+    if portable is not None and not isinstance(portable, bool):
+        raise ValueError(f"case portable must be a boolean{where}")
+    connector = case.get("connector")
+    if connector is not None and str(connector) not in CONNECTORS:
+        raise ValueError(f"case connector must be apache, nginx, or common{where}")
+    status = case.get("status")
+    if status is not None and str(status) not in CASE_STATUSES:
+        raise ValueError(f"case status is unsupported{where}")
+
+
+def _validate_capabilities(case: Mapping[str, Any], where: str) -> None:
     capabilities = case.get("capabilities", {})
     if capabilities is not None and not isinstance(capabilities, (Mapping, list)):
         raise ValueError(f"case capabilities must be a mapping or list{where}")
@@ -253,81 +311,81 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     if unknown_capabilities:
         joined = ", ".join(sorted(unknown_capabilities))
         raise ValueError(f"case capabilities contain unsupported values: {joined}{where}")
+
+
+def _validate_origin(case: Mapping[str, Any], where: str) -> None:
     origin = case.get("origin")
-    if origin is not None:
-        if not isinstance(origin, list) or not all(isinstance(item, Mapping) for item in origin):
-            raise ValueError(f"case origin must be a list of mappings{where}")
-        for item in origin:
-            for key in ("repo", "path", "reason"):
-                if not str(item.get(key, "")).strip():
-                    raise ValueError(f"case origin entries require {key}{where}")
+    if origin is None:
+        return
+    if not isinstance(origin, list) or not all(isinstance(item, Mapping) for item in origin):
+        raise ValueError(f"case origin must be a list of mappings{where}")
+    for item in origin:
+        missing = [key for key in ("repo", "path", "reason") if not str(item.get(key, "")).strip()]
+        if missing:
+            raise ValueError(f"case origin entries require {missing[0]}{where}")
+
+
+def _validate_known_limitations(case: Mapping[str, Any], where: str) -> None:
     known_limitations = case.get("known_limitations")
     if known_limitations is not None and not isinstance(known_limitations, (str, list)):
         raise ValueError(f"case known_limitations must be a string or list{where}")
     if isinstance(known_limitations, list) and not all(isinstance(item, str) for item in known_limitations):
         raise ValueError(f"case known_limitations list must contain strings{where}")
-    portable = case.get("portable")
-    if portable is not None and not isinstance(portable, bool):
-        raise ValueError(f"case portable must be a boolean{where}")
-    connector = case.get("connector")
-    if connector is not None and str(connector) not in {"apache", "nginx", "common"}:
-        raise ValueError(f"case connector must be apache, nginx, or common{where}")
-    status = case.get("status")
-    if status is not None and str(status) not in {
-        "active",
-        "imported",
-        "fully-imported-common",
-        "connector-specific",
-        "minimal",
-        "mapped",
-        "mapped-only",
-        "todo",
-        "blocked",
-        "xfail",
-        "skipped",
-    }:
-        raise ValueError(f"case status is unsupported{where}")
+
+
+def _validate_request(case: Mapping[str, Any], where: str) -> None:
     request = case.get("request")
     if not isinstance(request, Mapping):
         raise ValueError(f"case requires request mapping{where}")
     if not str(request.get("method", "")).strip():
         raise ValueError(f"case requires request.method{where}")
-    if str(request.get("method", "")).upper() not in {"GET", "POST"}:
+    if str(request.get("method", "")).upper() not in REQUEST_METHODS:
         raise ValueError(f"case supports only GET or POST request.method{where}")
     if not str(request.get("path", "")).strip():
         raise ValueError(f"case requires request.path{where}")
     headers = request.get("headers", {})
     if headers is not None and not isinstance(headers, Mapping):
         raise ValueError(f"case request.headers must be a mapping{where}")
+    header_map = headers if isinstance(headers, Mapping) else {}
     has_body = "body" in request and request.get("body") is not None
     has_multipart = "multipart" in request and request.get("multipart") is not None
     if has_body and has_multipart:
         raise ValueError(f"case request.body and request.multipart are mutually exclusive{where}")
     if has_multipart:
-        multipart = request.get("multipart")
-        if not isinstance(multipart, Mapping):
-            raise ValueError(f"case request.multipart must be a mapping{where}")
-        if str(request.get("method", "")).upper() != "POST":
-            raise ValueError(f"case request.multipart requires POST{where}")
-        boundary = multipart.get("boundary")
-        if not str(boundary or "").strip():
-            raise ValueError(f"case request.multipart requires boundary{where}")
-        parts = multipart.get("parts")
-        if not isinstance(parts, list) or not parts:
-            raise ValueError(f"case request.multipart.parts must be a non-empty list{where}")
-        for part in parts:
-            if not isinstance(part, Mapping):
-                raise ValueError(f"case multipart parts must be mappings{where}")
-            if not str(part.get("name", "")).strip():
-                raise ValueError(f"case multipart parts require name{where}")
-        if any(str(name).lower() == "content-type" for name in headers):
-            raise ValueError(f"case request.headers must not set Content-Type with request.multipart{where}")
+        _validate_multipart_request(request, header_map, where)
+
+
+def _validate_multipart_request(request: Mapping[str, Any], headers: Mapping[str, Any], where: str) -> None:
+    multipart = request.get("multipart")
+    if not isinstance(multipart, Mapping):
+        raise ValueError(f"case request.multipart must be a mapping{where}")
+    if str(request.get("method", "")).upper() != "POST":
+        raise ValueError(f"case request.multipart requires POST{where}")
+    if not str(multipart.get("boundary") or "").strip():
+        raise ValueError(f"case request.multipart requires boundary{where}")
+    parts = multipart.get("parts")
+    if not isinstance(parts, list) or not parts:
+        raise ValueError(f"case request.multipart.parts must be a non-empty list{where}")
+    for part in parts:
+        if not isinstance(part, Mapping):
+            raise ValueError(f"case multipart parts must be mappings{where}")
+        if not str(part.get("name", "")).strip():
+            raise ValueError(f"case multipart parts require name{where}")
+    if any(str(name).lower() == "content-type" for name in headers):
+        raise ValueError(f"case request.headers must not set Content-Type with request.multipart{where}")
+
+
+def _validate_response(case: Mapping[str, Any], where: str) -> None:
     response = case.get("response")
-    if response is not None:
-        if not isinstance(response, Mapping):
-            raise ValueError(f"case response must be a mapping{where}")
-        if "body" in response and response.get("body") is not None and not isinstance(response.get("body"), str):
-            raise ValueError(f"case response.body must be a string{where}")
+    if response is None:
+        return
+    if not isinstance(response, Mapping):
+        raise ValueError(f"case response must be a mapping{where}")
+    if "body" in response and response.get("body") is not None and not isinstance(response.get("body"), str):
+        raise ValueError(f"case response.body must be a string{where}")
+
+
+def _validate_expect(case: Mapping[str, Any], where: str) -> None:
     expect = case.get("expect")
     if not isinstance(expect, Mapping):
         raise ValueError(f"case requires expect mapping{where}")
@@ -335,7 +393,7 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     if not isinstance(status, int):
         raise ValueError(f"case requires integer expect.status{where}")
     intervention = expect.get("intervention")
-    if intervention is not None and str(intervention) not in {"deny", "pass", "none", "redirect", "block"}:
+    if intervention is not None and str(intervention) not in INTERVENTIONS:
         raise ValueError(f"case expect.intervention is unsupported{where}")
     audit_log = expect.get("audit_log", {})
     if audit_log is not None and not isinstance(audit_log, Mapping):
@@ -599,6 +657,15 @@ def _case_dirs(repo_root: Path, connector: str, scope: str) -> list[Path]:
     raise ValueError(f"unsupported case scope: {scope}")
 
 
+def _case_path_in_scope(path: str | Path, connector: str, scope: str) -> bool:
+    path_scope = case_scope(path)
+    if path_scope.startswith("common/"):
+        return scope in {"common", "all"}
+    if path_scope.startswith(f"{connector}/"):
+        return scope in {"connector", "all"}
+    return False
+
+
 def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str, scope: str) -> bool:
     path_scope = case_scope(path)
     declared_connector = case.get("connector")
@@ -614,6 +681,52 @@ def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str
     return False
 
 
+def _resolve_named_case(item: str, selected_dirs: list[Path]) -> Path:
+    name = item if item.endswith(".yaml") else f"{item}.yaml"
+    matches = [directory / name for directory in selected_dirs if (directory / name).is_file()]
+    if not matches:
+        raise FileNotFoundError(f"missing smoke case in selected scope: {item}")
+    if len(matches) > 1:
+        raise ValueError(f"ambiguous smoke case name {item}; use a path")
+    return matches[0].resolve()
+
+
+def _resolve_case_item(item: str, root: Path, connector: str, scope: str, selected_dirs: list[Path]) -> Path:
+    candidate = Path(item)
+    if not candidate.is_absolute() and "/" not in item:
+        return _resolve_named_case(item, selected_dirs)
+    path = candidate if candidate.is_absolute() else root / candidate
+    if not path.is_file():
+        raise FileNotFoundError(f"missing smoke case: {item}")
+    resolved = path.resolve()
+    if not _case_path_in_scope(resolved, connector, scope):
+        raise ValueError(f"smoke case is outside selected scope: {item}")
+    return resolved
+
+
+def _selected_case_candidates(
+    root: Path,
+    connector: str,
+    scope: str,
+    selected_dirs: list[Path],
+    smoke_cases: str,
+    test_case: str,
+) -> list[Path]:
+    if test_case:
+        return [_resolve_case_item(test_case, root, connector, scope, selected_dirs)]
+    if smoke_cases.strip():
+        return [
+            _resolve_case_item(item, root, connector, scope, selected_dirs)
+            for item in smoke_cases.split()
+        ]
+    return [
+        path
+        for directory in selected_dirs
+        if directory.is_dir()
+        for path in sorted(directory.glob("*.yaml"))
+    ]
+
+
 def discover_case_files(
     repo_root: str | Path,
     connector: str,
@@ -623,38 +736,12 @@ def discover_case_files(
 ) -> list[Path]:
     root = Path(repo_root).resolve()
     selected_dirs = _case_dirs(root, connector, scope)
-
-    def resolve_one(item: str) -> Path:
-        candidate = Path(item)
-        if candidate.is_absolute() or "/" in item:
-            path = candidate if candidate.is_absolute() else root / candidate
-            if not path.is_file():
-                raise FileNotFoundError(f"missing smoke case: {item}")
-            return path.resolve()
-        name = item if item.endswith(".yaml") else f"{item}.yaml"
-        matches = [directory / name for directory in selected_dirs if (directory / name).is_file()]
-        if not matches:
-            raise FileNotFoundError(f"missing smoke case in selected scope: {item}")
-        if len(matches) > 1:
-            raise ValueError(f"ambiguous smoke case name {item}; use a path")
-        return matches[0].resolve()
-
-    if test_case:
-        candidates = [resolve_one(test_case)]
-    elif smoke_cases.strip():
-        candidates = [resolve_one(item) for item in smoke_cases.split()]
-    else:
-        candidates = []
-        for directory in selected_dirs:
-            if directory.is_dir():
-                candidates.extend(sorted(directory.glob("*.yaml")))
-
-    applicable: list[Path] = []
-    for path in candidates:
-        case = load_case(path)
-        if is_case_applicable(case, path, connector, scope):
-            applicable.append(path)
-    return applicable
+    candidates = _selected_case_candidates(root, connector, scope, selected_dirs, smoke_cases, test_case)
+    return [
+        path
+        for path in candidates
+        if is_case_applicable(load_case(path), path, connector, scope)
+    ]
 
 
 def response_status(response: Any) -> int | None:
@@ -667,7 +754,7 @@ def response_status(response: Any) -> int | None:
     return status if isinstance(status, int) else None
 
 
-def assert_case_response(case: Mapping[str, Any], response: Any) -> tuple[str, ...]:
+def assert_case_response(case: Mapping[str, Any], response: Any) -> list[str]:
     expect = case["expect"]
     expected_status = expect["status"]
     actual_status = response_status(response)
@@ -676,65 +763,43 @@ def assert_case_response(case: Mapping[str, Any], response: Any) -> tuple[str, .
         errors.append(f"expected HTTP {expected_status}, observed {actual_status}")
     if str(expect.get("intervention", "")) == "none" and actual_status != 200:
         errors.append(f"expected pass-through HTTP 200, observed {actual_status}")
-    return tuple(errors)
+    return errors
 
 
-def assert_response_body(case: Mapping[str, Any], body_file: str | Path | None) -> tuple[str, ...]:
+def assert_response_body(case: Mapping[str, Any], body_file: str | Path | None) -> list[str]:
     expected = case["expect"].get("response_contains")
     if expected in (None, ""):
-        return ()
+        return []
     if body_file is None:
-        return ("response body expectation requires a response body file",)
+        return ["response body expectation requires a response body file"]
     path = Path(body_file)
     if not path.exists():
-        return (f"response body file missing: {path}",)
+        return [f"response body file missing: {path}"]
     body = path.read_text(encoding="utf-8", errors="replace")
     if str(expected) not in body:
-        return (f"expected response body to contain {expected!r}",)
-    return ()
+        return [f"expected response body to contain {expected!r}"]
+    return []
 
 
-def assert_audit_log(
-    case: Mapping[str, Any],
-    audit_log_file: str | Path | None,
-    timeout_seconds: float = 2.0,
-) -> tuple[str, ...]:
-    audit_log = expected_audit_log(case)
-    if _bool_value(audit_log.get("absent")):
-        if audit_log_file is None:
-            return ()
-        path = Path(audit_log_file)
-        deadline = time.monotonic() + timeout_seconds
-        content = ""
-        while True:
-            if path.exists():
-                content = path.read_text(encoding="utf-8", errors="replace")
-                if content:
-                    break
-            if time.monotonic() >= deadline:
-                break
-            time.sleep(0.1)
-        if content:
-            return (f"expected audit log to be absent or empty: {path}",)
-        return ()
-    if not _bool_value(audit_log.get("required")):
-        return ()
-    if audit_log_file is None:
-        return ("audit log expectation requires an audit log file",)
-    path = Path(audit_log_file)
+def _wait_for_file_content(path: Path, timeout_seconds: float) -> str:
     deadline = time.monotonic() + timeout_seconds
-    content = ""
     while True:
         if path.exists():
             content = path.read_text(encoding="utf-8", errors="replace")
             if content:
-                break
+                return content
         if time.monotonic() >= deadline:
-            break
+            return ""
         time.sleep(0.1)
-    if not content:
-        return (f"audit log file missing or empty: {path}",)
 
+
+def _assert_audit_log_absent(path: Path, timeout_seconds: float) -> list[str]:
+    if _wait_for_file_content(path, timeout_seconds):
+        return [f"expected audit log to be absent or empty: {path}"]
+    return []
+
+
+def _assert_audit_log_fields(audit_log: Mapping[str, Any], content: str) -> list[str]:
     errors: list[str] = []
     for key, value in audit_log.items():
         if key == "required" or value in (None, ""):
@@ -742,7 +807,28 @@ def assert_audit_log(
         expected = str(value)
         if expected not in content:
             errors.append(f"expected audit log field {key} to contain {expected!r}")
-    return tuple(errors)
+    return errors
+
+
+def assert_audit_log(
+    case: Mapping[str, Any],
+    audit_log_file: str | Path | None,
+    timeout_seconds: float = 2.0,
+) -> list[str]:
+    audit_log = expected_audit_log(case)
+    if _bool_value(audit_log.get("absent")):
+        if audit_log_file is None:
+            return []
+        return _assert_audit_log_absent(Path(audit_log_file), timeout_seconds)
+    if not _bool_value(audit_log.get("required")):
+        return []
+    if audit_log_file is None:
+        return ["audit log expectation requires an audit log file"]
+    path = Path(audit_log_file)
+    content = _wait_for_file_content(path, timeout_seconds)
+    if not content:
+        return [f"audit log file missing or empty: {path}"]
+    return _assert_audit_log_fields(audit_log, content)
 
 
 def assert_case_artifacts(
@@ -750,12 +836,12 @@ def assert_case_artifacts(
     response: Any,
     response_body_file: str | Path | None = None,
     audit_log_file: str | Path | None = None,
-) -> tuple[str, ...]:
+) -> list[str]:
     errors: list[str] = []
     errors.extend(assert_case_response(case, response))
     errors.extend(assert_response_body(case, response_body_file))
     errors.extend(assert_audit_log(case, audit_log_file))
-    return tuple(errors)
+    return errors
 
 
 class RunnerCore:

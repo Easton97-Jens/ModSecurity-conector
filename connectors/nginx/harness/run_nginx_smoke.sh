@@ -52,6 +52,7 @@ require_absolute_generated_path() {
         "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
+        *) ;;
     esac
 }
 
@@ -201,7 +202,8 @@ find_curl() {
 }
 
 escape_sed() {
-    printf '%s' "$1" | sed 's/[&|]/\\&/g'
+    raw_value=$1
+    printf '%s' "$raw_value" | sed 's/[&|]/\\&/g'
 }
 
 render_config() {

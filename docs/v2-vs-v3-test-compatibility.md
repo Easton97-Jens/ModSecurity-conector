@@ -37,13 +37,16 @@ Observed locally on 2026-05-15:
 | Source family | Imported active cases | Apache | NGINX |
 | --- | ---: | --- | --- |
 | V2 operators/transformations | 10 | pass | pass |
-| V3 multipart FILES/XML/operator/action/collections/audit | 15 | pass | pass |
+| V3 multipart FILES/XML/operator/action/collections/audit | 14 | pass | pass |
 
 The second compatibility import wave intentionally used source-confirmed
 values from the V2/V3 fixtures. For example, `urlDecode` uses `Test+Case` ->
 `Test Case`, `htmlEntityDecode` uses the `&lt;&gt;` -> `<>` fragment, V2 `pm`
 uses param `abc` with input `abcdefghi`, V2 `containsWord` uses param `abc`
 with input `abc def ghi`, and V3 `pm` uses `@pm 1 2 3` with `param1=123`.
+The V3 `issue-2196` `nolog,pass` case is no longer counted as an active
+common import because GitHub Actions observed audit-log output while local
+Apache and NGINX runs observed empty audit logs.
 
 ## Mapped Only
 

@@ -23,7 +23,7 @@ architecture for new connectors.
 | Traefik connector | unknown | Yaegi/Wasm plugin options documented, implementation undecided |
 | v2 regression reuse | planned | Only portable rule/engine semantics may enter `tests/common/` |
 | v2-derived common imports | implemented | Operator and transformation cases including `@streq`, `@contains`, `@beginsWith`, `@endsWith`, `@pm`, `@containsWord`, `t:lowercase`, `t:trim`, `t:urlDecode`, and `t:htmlEntityDecode` pass locally on Apache and NGINX |
-| v3-derived common imports | implemented | Multipart FILES, XML body processor, operator, transformation, action, cookie/header-name/ARGS_NAMES, and audit cases pass locally on Apache and NGINX |
+| v3-derived common imports | implemented | Multipart FILES, XML body processor, operator, transformation, action, cookie/header-name/ARGS_NAMES, and stable audit cases pass locally on Apache and NGINX |
 | Source-derived Apache/NGINX test import | implemented | Imported YAML cases are derived, not copied; origin and portability are documented |
 
 ## Capability Rule
@@ -98,7 +98,8 @@ Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`
 | V3 multipart FILES variables | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 XML body processor basic case | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 `@rx`, trim, and `SecAction` basics | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| V3 `@pm`, cookies, header names, ARGS_NAMES, serial audit, and `nolog` basics | pass | pass | fully-imported-common |
+| V3 `@pm`, cookies, header names, ARGS_NAMES, and serial audit basics | pass | pass | fully-imported-common |
+| V3 `nolog,pass` audit absence (`issue-2196`) | pass locally, empty audit log | pass locally, empty audit log | xfail because GitHub Actions observed a non-empty audit log |
 
 The active cases prove only the minimal YAML scenarios. V2 Perl harness
 internals, v3 API-only cases, XML schema/DTD validation, malformed multipart,
@@ -125,3 +126,9 @@ Current active passing cases verify `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
 and `RESPONSE_HEADERS` through both Apache and NGINX in this workspace.
 `RESPONSE_BODY` remains mapped/xfail until an active response-body
 variable/blocking case passes on both connectors.
+
+`v3_action_nolog_pass_no_audit` is also classified as xfail/mapped for now:
+local runs in this workspace produced HTTP 200 and empty audit logs, but the
+current GitHub Actions run reported `expected audit log to be absent or empty`.
+It is not counted as a stable common PASS until local Apache, local NGINX, and
+GitHub Actions agree.

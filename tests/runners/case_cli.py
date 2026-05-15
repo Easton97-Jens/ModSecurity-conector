@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -18,6 +19,29 @@ from runner_core import (
     write_rules_file,
     write_shell_env,
 )
+
+RESULT_STATUSES = ("pass", "fail", "blocked", "skipped", "xfail")
+IMPORT_STATUS_KEYS = (
+    "fully_imported_common",
+    "connector_specific",
+    "mapped_only",
+    "blocked",
+    "xfail",
+    "v2_imported",
+    "v3_imported",
+)
+VARIABLE_CAPABILITIES = {
+    "ARGS": {"query-args", "form-urlencoded"},
+    "ARGS_NAMES": {"args-names"},
+    "REQUEST_COOKIES": {"request-cookies"},
+    "REQUEST_HEADERS": {"request-headers"},
+    "REQUEST_URI": {"request-uri"},
+    "REQUEST_BODY": {"request-body", "json", "body-processors"},
+    "FILES": {"files"},
+    "XML": {"xml"},
+    "AUDIT_LOG": {"audit-log"},
+    "RESPONSE_HEADERS": {"response-headers"},
+}
 
 
 def materialize(args: argparse.Namespace) -> int:
@@ -102,89 +126,100 @@ def case_info(args: argparse.Namespace) -> int:
 
 
 def verified_variables(entries: list[dict[str, object]]) -> list[str]:
-    variables: set[str] = set()
+    variables = set()
+    for names in passing_capability_sets(entries):
+        for variable, capabilities in VARIABLE_CAPABILITIES.items():
+            if names.intersection(capabilities):
+                variables.add(variable)
+    return sorted(variables)
+
+
+def passing_capability_sets(entries: list[dict[str, object]]) -> list[set[str]]:
+    sets = []
     for entry in entries:
         if str(entry.get("status", "")) != "pass":
             continue
         capabilities = entry.get("capabilities", [])
-        if not isinstance(capabilities, list):
-            continue
-        names = {str(item) for item in capabilities}
-        if names.intersection({"query-args", "form-urlencoded"}):
-            variables.add("ARGS")
-        if "args-names" in names:
-            variables.add("ARGS_NAMES")
-        if "request-cookies" in names:
-            variables.add("REQUEST_COOKIES")
-        if "request-headers" in names:
-            variables.add("REQUEST_HEADERS")
-        if "request-uri" in names:
-            variables.add("REQUEST_URI")
-        if names.intersection({"request-body", "json", "body-processors"}):
-            variables.add("REQUEST_BODY")
-        if "files" in names:
-            variables.add("FILES")
-        if "xml" in names:
-            variables.add("XML")
-        if "audit-log" in names:
-            variables.add("AUDIT_LOG")
-        if "response-headers" in names:
-            variables.add("RESPONSE_HEADERS")
-    return sorted(variables)
+        if isinstance(capabilities, list):
+            sets.append({str(item) for item in capabilities})
+    return sets
 
 
-def summarize_results(args: argparse.Namespace) -> int:
+def read_jsonl(path: Path) -> list[dict[str, object]]:
     entries = []
-    input_path = Path(args.input_jsonl)
-    if input_path.exists():
-        with input_path.open("r", encoding="utf-8") as handle:
+    if path.exists():
+        with path.open("r", encoding="utf-8") as handle:
             for line in handle:
                 if line.strip():
                     entries.append(json.loads(line))
+    return entries
 
-    counts = {"pass": 0, "fail": 0, "blocked": 0, "skipped": 0, "xfail": 0}
+
+def result_counts(entries: list[dict[str, object]]) -> dict[str, int]:
+    counts = {status: 0 for status in RESULT_STATUSES}
     for entry in entries:
         status = str(entry.get("status", "fail"))
         counts.setdefault(status, 0)
         counts[status] += 1
+    return counts
 
+
+def import_status_counts(path: str | None) -> dict[str, int]:
+    if not path:
+        return {}
+    import_status_path = Path(path)
+    if not import_status_path.exists():
+        return {}
+    manifest = json.loads(import_status_path.read_text(encoding="utf-8"))
+    return {
+        key: len(manifest.get(key, []))
+        for key in IMPORT_STATUS_KEYS
+        if isinstance(manifest.get(key, []), list)
+    }
+
+
+def audit_behavior(entries: list[dict[str, object]], import_status: dict[str, int]) -> str:
+    for entry in entries:
+        capabilities = entry.get("capabilities", [])
+        if str(entry.get("status", "")) == "fail" and isinstance(capabilities, list):
+            if {"audit-log", "audit-log-absent"}.intersection({str(item) for item in capabilities}):
+                return "unexpected"
+    if import_status.get("xfail", 0):
+        return "unstable"
+    return "stable"
+
+
+def default_environment() -> str:
+    configured = os.environ.get("SMOKE_ENVIRONMENT", "").strip()
+    if configured:
+        return configured
+    if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+        return "github-actions"
+    return "local"
+
+
+def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]) -> dict[str, object]:
     cases = {str(entry.get("name", "")): entry for entry in entries}
-    import_status = {}
-    if args.import_status_file:
-        import_status_path = Path(args.import_status_file)
-        if import_status_path.exists():
-            manifest = json.loads(import_status_path.read_text(encoding="utf-8"))
-            for key in (
-                "fully_imported_common",
-                "connector_specific",
-                "mapped_only",
-                "blocked",
-                "xfail",
-                "v2_imported",
-                "v3_imported",
-            ):
-                value = manifest.get(key, [])
-                import_status[key] = len(value) if isinstance(value, list) else 0
-    connector_summary = {
+    import_status = import_status_counts(args.import_status_file)
+    summary = {
         "connector_path": args.connector_path,
         "validation_mode": args.validation_mode,
+        "environment": args.environment or default_environment(),
+        "audit_behavior": audit_behavior(entries, import_status),
         "server": args.server or args.connector,
         "server_binary": args.server_binary or "",
         "module": args.module or "",
         "libmodsecurity": args.libmodsecurity or "",
         "verified_variables": verified_variables(entries),
-        "summary": counts,
+        "summary": result_counts(entries),
         "cases": cases,
     }
-    summary = {args.connector: connector_summary}
     if import_status:
-        summary[args.connector]["import_status"] = import_status
+        summary["import_status"] = import_status
+    return summary
 
-    summary_json = Path(args.summary_json)
-    summary_json.parent.mkdir(parents=True, exist_ok=True)
-    summary_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    summary_text = Path(args.summary_text)
+def write_summary_text(entries: list[dict[str, object]], path: Path) -> None:
     lines = []
     for entry in entries:
         status = str(entry.get("status", "fail")).upper()
@@ -192,11 +227,18 @@ def summarize_results(args: argparse.Namespace) -> int:
         name = str(entry.get("name", "unknown"))
         expected = entry.get("expected_status")
         actual = entry.get("actual_status")
-        if actual is None:
-            lines.append(f"{status} {scope} {name} expected={expected}\n")
-        else:
-            lines.append(f"{status} {scope} {name} expected={expected} actual={actual}\n")
-    summary_text.write_text("".join(lines), encoding="utf-8")
+        suffix = f"expected={expected}" if actual is None else f"expected={expected} actual={actual}"
+        lines.append(f"{status} {scope} {name} {suffix}\n")
+    path.write_text("".join(lines), encoding="utf-8")
+
+
+def summarize_results(args: argparse.Namespace) -> int:
+    entries = read_jsonl(Path(args.input_jsonl))
+    summary = {args.connector: connector_summary(args, entries)}
+    summary_json = Path(args.summary_json)
+    summary_json.parent.mkdir(parents=True, exist_ok=True)
+    summary_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_summary_text(entries, Path(args.summary_text))
     return 0
 
 
@@ -262,6 +304,7 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--import-status-file")
     summarize_parser.add_argument("--connector-path", default="real-world")
     summarize_parser.add_argument("--validation-mode", default="real-world-connector-path")
+    summarize_parser.add_argument("--environment")
     summarize_parser.add_argument("--server")
     summarize_parser.add_argument("--server-binary")
     summarize_parser.add_argument("--module")

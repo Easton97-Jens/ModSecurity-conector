@@ -143,10 +143,6 @@
     {
       "case": "tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
       "reason": "V3-derived serial audit log field case observed PASS on Apache and NGINX."
-    },
-    {
-      "case": "tests/common/cases/v3-imported/v3_action_nolog_pass_no_audit.yaml",
-      "reason": "V3-derived nolog/pass no-audit case observed PASS on Apache and NGINX."
     }
   ],
   "connector_specific": [
@@ -208,6 +204,11 @@
       "case": "tests/common/cases/xfail/response_body_basic_block.yaml",
       "source": "ModSecurity-nginx/tests/modsecurity-response-body.t; ModSecurity-apache/tests/regression/config/10-response-directives.t; ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json",
       "reason": "Dedicated three-repeat probe stayed xfail/mapped-only: Apache returned HTTP 200 without audit hit; NGINX matched RESPONSE_BODY in phase 4 but curl observed 000/empty reply instead of stable HTTP 403."
+    },
+    {
+      "case": "tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml",
+      "source": "ModSecurity_V3/test/test-cases/regression/issue-2196.json",
+      "reason": "Local Apache and NGINX runs observed empty audit logs, but GitHub Actions reported a non-empty audit log; it is not counted as stable common PASS until both environments agree."
     }
   ],
   "v2_imported": [
@@ -308,10 +309,6 @@
     {
       "case": "tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
       "reason": "V3-derived serial audit log field case and observed through the shared connector smoke path."
-    },
-    {
-      "case": "tests/common/cases/v3-imported/v3_action_nolog_pass_no_audit.yaml",
-      "reason": "V3-derived nolog/pass no-audit case and observed through the shared connector smoke path."
     }
   ]
 }

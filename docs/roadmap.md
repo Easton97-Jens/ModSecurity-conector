@@ -39,10 +39,18 @@ Status: scaffolded
 - `real-world-connector-path` result metadata for Apache and NGINX smokes,
   including server binary, connector module, libmodsecurity path, and verified
   variable families derived only from passing cases.
+- Stabilized status/capability documentation in `docs/capability-model.md` and
+  `docs/status-model.md`.
+- Connector adapter responsibilities documented in
+  `docs/connector-adapter-interface.md`.
+- Case matrix generation through `make case-matrix` and
+  `docs/case-matrix.md`.
+- Maintenance checks through `make lint` and summary rendering through
+  `make summary`.
+- SonarCloud remediation inventory in `docs/sonarcloud-remediation-plan.md`.
 
 ## Planned
 
-- Compile checks for common headers.
 - Promote the documented YAML shape into a machine-readable schema.
 - Promote imported NGINX-only TX scoring/redirect cases to common only after
   Apache equivalence is tested and documented.
@@ -56,6 +64,8 @@ Status: scaffolded
 - Expand V2/V3 imports beyond initial text-safe cases after fixture support for
   external files, schema/DTD files, and binary/NUL payload representation is
   designed.
+- Re-run SonarCloud after the next CI analysis and close any remaining issues
+  that the source-level refactor did not resolve.
 
 ## Unknown
 
@@ -84,6 +94,9 @@ Status: scaffolded
 - Response-body blocking remains blocked/xfail for common import until both
   Apache and NGINX return stable HTTP 403 for the same YAML case. The NGINX
   reference test currently marks this behavior TODO.
+- `v3_action_nolog_pass_no_audit` remains xfail/mapped-only for active common
+  smoke status: local Apache/NGINX probes observed empty audit logs, but GitHub
+  Actions observed unexpected audit output.
 - XML schema/DTD validation, parser-error cases, file-backed operators,
   malformed multipart bodies, and streaming/body-buffering cases remain mapped
   until the shared harness has explicit fixture and transport support.

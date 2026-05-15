@@ -43,6 +43,7 @@ jobs:
           test -f connectors/nginx/docs/architecture.md
           test -f connectors/nginx/docs/build.md
           test -f connectors/nginx/docs/public-sources.md
+          test -f ci/fetch-smoke-sources.sh
           test -f ci/run-nginx-smoke.sh
           test -f tests/nginx/nginx-regression-map.md
           test -f tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml
@@ -59,32 +60,13 @@ jobs:
         run: |
           set -eu
           sh -n ci/prepare-nginx-build.sh
+          sh -n ci/fetch-smoke-sources.sh
           sh -n ci/run-nginx-smoke.sh
           sh -n connectors/nginx/harness/run_nginx_smoke.sh
           python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
       - name: Fetch NGINX real-world smoke sources
         run: |
-          set -eu
-          mkdir -p "$SOURCE_ROOT"
-          clone_source() {
-            url=$1
-            ref=$2
-            dest=$3
-            if [ -d "$dest/.git" ]; then
-              return 0
-            fi
-            echo "Fetching $url ref=$ref into $dest"
-            set +e
-            git clone --depth 1 --branch "$ref" "$url" "$dest"
-            rc=$?
-            set -e
-            if [ "$rc" -ne 0 ]; then
-              echo "::notice::source fetch blocked for $url ref=$ref"
-              rm -rf "$dest"
-            fi
-          }
-          clone_source "$MODSECURITY_V3_GIT_URL" "$MODSECURITY_V3_GIT_REF" "$MODSECURITY_V3_SOURCE_DIR"
-          clone_source "$MODSECURITY_NGINX_GIT_URL" "$MODSECURITY_NGINX_GIT_REF" "$MODSECURITY_NGINX_SOURCE_DIR"
+          sh ci/fetch-smoke-sources.sh nginx
       - name: Run NGINX real-world connector smoke or mark blocked
         run: |
           set +e

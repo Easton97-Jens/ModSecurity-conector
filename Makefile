@@ -1,6 +1,8 @@
 BUILD_ROOT ?= /src/ModSecurity-conector-build
+PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
+export PYTHONDONTWRITEBYTECODE
 export REFRESH
 export SMOKE_CASES
 export CASE_SCOPE
@@ -17,7 +19,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body
+.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix
 
 smoke-common:
 	CASE_SCOPE=common sh ci/run-connector-smokes.sh
@@ -33,3 +35,17 @@ smoke-all:
 
 probe-response-body:
 	sh ci/probe-response-body-blocking.sh
+
+lint:
+	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+	python3 -m json.tool tests/import-status.json >/dev/null
+	python3 ci/check-workflow-yaml.py
+	if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else echo "actionlint unavailable"; fi
+	git diff --check
+
+summary:
+	python3 ci/summarize-results.py "$(BUILD_ROOT)/results/connector-summary.json"
+
+case-matrix:
+	python3 ci/write-case-matrix.py "$(BUILD_ROOT)/results/connector-summary.json" docs/case-matrix.md

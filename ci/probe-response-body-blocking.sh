@@ -23,6 +23,7 @@ require_absolute_generated_path() {
             echo "probe_response_body: blocked $label is inside a source checkout: $path"
             exit 77
             ;;
+        *) ;;
     esac
 }
 
@@ -31,6 +32,7 @@ case "$REPEAT" in
         echo "probe_response_body: fail RESPONSE_BODY_PROBE_REPEAT must be a positive integer"
         exit 1
         ;;
+    *) ;;
 esac
 if [ "$REPEAT" -lt 1 ]; then
     echo "probe_response_body: fail RESPONSE_BODY_PROBE_REPEAT must be >= 1"

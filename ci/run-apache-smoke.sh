@@ -26,13 +26,19 @@ write_connector_result() {
     } > "$RESULTS_DIR/apache-summary.txt"
     python3 - "$RESULTS_DIR/apache-summary.json" "$status" "$HTTPD_PREFIX/bin/httpd" "$APACHE_MODULE" "$MODSECURITY_LIB_DIR/libmodsecurity.so" <<'PY'
 import json
+import os
 import sys
 
 output, status, server_binary, module, libmodsecurity = sys.argv[1:]
+environment = os.environ.get("SMOKE_ENVIRONMENT") or (
+    "github-actions" if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" else "local"
+)
 summary = {
     "apache": {
+        "audit_behavior": "unstable",
         "build": status,
         "connector_path": "real-world",
+        "environment": environment,
         "validation_mode": "real-world-connector-path",
         "server": "apache",
         "server_binary": server_binary,

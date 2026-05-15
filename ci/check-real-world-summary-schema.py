@@ -18,6 +18,8 @@ def main(argv: list[str]) -> int:
     assert apache["connector_path"] == "real-world"
     assert apache["validation_mode"] == "real-world-connector-path"
     assert apache["server"] == "apache"
+    assert apache["environment"] in {"local", "github-actions"} or apache["environment"]
+    assert apache["audit_behavior"] in {"stable", "unstable", "unexpected"}
     assert apache["verified_variables"] == []
     for key in ("server_binary", "module", "libmodsecurity", "summary", "cases"):
         assert key in apache
