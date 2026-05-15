@@ -36,8 +36,14 @@ Observed locally on 2026-05-15:
 
 | Source family | Imported active cases | Apache | NGINX |
 | --- | ---: | --- | --- |
-| V2 operators/transformations | 4 | pass | pass |
-| V3 multipart FILES/XML/operator/action | 8 | pass | pass |
+| V2 operators/transformations | 10 | pass | pass |
+| V3 multipart FILES/XML/operator/action/collections/audit | 15 | pass | pass |
+
+The second compatibility import wave intentionally used source-confirmed
+values from the V2/V3 fixtures. For example, `urlDecode` uses `Test+Case` ->
+`Test Case`, `htmlEntityDecode` uses the `&lt;&gt;` -> `<>` fragment, V2 `pm`
+uses param `abc` with input `abcdefghi`, V2 `containsWord` uses param `abc`
+with input `abc def ghi`, and V3 `pm` uses `@pm 1 2 3` with `param1=123`.
 
 ## Mapped Only
 
@@ -48,5 +54,6 @@ The following remain mapped until a future step adds dedicated support:
 - Multipart malformed body and streaming/buffering edge cases.
 - File-backed operators and external data files.
 - Optional-library operators.
+- NUL, binary, non-ASCII, and invalid-input transformation branches.
 - API-only v3 tests that should run through a dedicated API smoke target rather
   than the Apache/NGINX connector smoke.

@@ -91,6 +91,62 @@
     {
       "case": "tests/common/cases/v3-imported/v3_secaction_block.yaml",
       "reason": "V3-derived SecAction case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/imported/action_status_401_phase1_block.yaml",
+      "reason": "Source-derived HTTP 401 status action observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_begins_with_block.yaml",
+      "reason": "V2-derived beginsWith operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_ends_with_block.yaml",
+      "reason": "V2-derived endsWith operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_pm_block.yaml",
+      "reason": "V2-derived pm operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_contains_word_block.yaml",
+      "reason": "V2-derived containsWord operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_transformation_url_decode_block.yaml",
+      "reason": "V2-derived urlDecode transformation case observed PASS on Apache and NGINX using the source-confirmed Test+Case -> Test Case values."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_transformation_html_entity_decode_block.yaml",
+      "reason": "V2-derived htmlEntityDecode transformation case observed PASS on Apache and NGINX using the source-confirmed &lt;&gt; -> <> fragment."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_operator_pm_digit_block.yaml",
+      "reason": "V3-derived pm operator case observed PASS on Apache and NGINX using @pm 1 2 3 with param1=123."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_request_cookies_block.yaml",
+      "reason": "V3-derived REQUEST_COOKIES case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_request_cookies_names_block.yaml",
+      "reason": "V3-derived REQUEST_COOKIES_NAMES case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_request_headers_names_block.yaml",
+      "reason": "V3-derived REQUEST_HEADERS_NAMES case observed PASS on Apache and NGINX using a stable custom header name."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_args_names_get_block.yaml",
+      "reason": "V3-derived ARGS_NAMES GET case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
+      "reason": "V3-derived serial audit log field case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_action_nolog_pass_no_audit.yaml",
+      "reason": "V3-derived nolog/pass no-audit case observed PASS on Apache and NGINX."
     }
   ],
   "connector_specific": [
@@ -119,6 +175,22 @@
     {
       "source": "ModSecurity-nginx/tests/nginx-tests-cvt.pl",
       "reason": "Converter tooling is build-runtime support, not a portable rule case."
+    },
+    {
+      "source": "ModSecurity_V2/tests/tfn/urlDecode.t",
+      "reason": "Full-byte, NUL, and invalid-encoding urlDecode branches are mapped only; active smoke imports only source-confirmed text-safe Test+Case -> Test Case."
+    },
+    {
+      "source": "ModSecurity_V2/tests/tfn/htmlEntityDecode.t",
+      "reason": "NUL, nbsp, non-ASCII, and invalid entity branches are mapped only; active smoke imports only the text-safe &lt;&gt; -> <> fragment."
+    },
+    {
+      "source": "ModSecurity_V2/tests/op/pm.t",
+      "reason": "Long phrase-list and no-match branches are mapped only; active smoke imports the source-confirmed param abc/input abcdefghi match."
+    },
+    {
+      "source": "ModSecurity_V2/tests/op/containsWord.t",
+      "reason": "Negative word-boundary branches are mapped only; active smoke imports the source-confirmed param abc/input abc def ghi match."
     }
   ],
   "blocked": [
@@ -154,6 +226,30 @@
     {
       "case": "tests/common/cases/v2-imported/v2_transformation_trim_block.yaml",
       "reason": "Derived from V2 trim transformation semantics and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_begins_with_block.yaml",
+      "reason": "V2-derived beginsWith operator case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_ends_with_block.yaml",
+      "reason": "V2-derived endsWith operator case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_pm_block.yaml",
+      "reason": "V2-derived pm operator case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_operator_contains_word_block.yaml",
+      "reason": "V2-derived containsWord operator case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_transformation_url_decode_block.yaml",
+      "reason": "V2-derived urlDecode transformation case observed PASS on Apache and NGINX using the source-confirmed Test+Case -> Test Case values."
+    },
+    {
+      "case": "tests/common/cases/v2-imported/v2_transformation_html_entity_decode_block.yaml",
+      "reason": "V2-derived htmlEntityDecode transformation case observed PASS on Apache and NGINX using the source-confirmed &lt;&gt; -> <> fragment."
     }
   ],
   "v3_imported": [
@@ -188,6 +284,34 @@
     {
       "case": "tests/common/cases/v3-imported/v3_secaction_block.yaml",
       "reason": "Derived from V3 secruleengine SecAction coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_operator_pm_digit_block.yaml",
+      "reason": "V3-derived pm operator case and observed through the shared connector smoke path using @pm 1 2 3 with param1=123."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_request_cookies_block.yaml",
+      "reason": "V3-derived REQUEST_COOKIES case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_request_cookies_names_block.yaml",
+      "reason": "V3-derived REQUEST_COOKIES_NAMES case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_request_headers_names_block.yaml",
+      "reason": "V3-derived REQUEST_HEADERS_NAMES case and observed through the shared connector smoke path using a stable custom header name."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_args_names_get_block.yaml",
+      "reason": "V3-derived ARGS_NAMES GET case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
+      "reason": "V3-derived serial audit log field case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/common/cases/v3-imported/v3_action_nolog_pass_no_audit.yaml",
+      "reason": "V3-derived nolog/pass no-audit case and observed through the shared connector smoke path."
     }
   ]
 }

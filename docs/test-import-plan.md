@@ -67,16 +67,30 @@ The following source-derived common cases were added under
 | `json_request_body_block.yaml` | Apache JSON parser coverage; NGINX request-body tests | body-processors | HTTP 403 |
 | `multipart_basic_block.yaml` | Apache normal multipart parser coverage; NGINX request-body tests | multipart | HTTP 403 |
 | `response_body_pass.yaml` | Apache response directives; NGINX response-body access tests | response-body | HTTP 200 |
+| `action_status_401_phase1_block.yaml` | NGINX `modsecurity.t` block401; Apache disruptive-action compatibility | actions | HTTP 401 |
 | `v2_operator_streq_block.yaml` | V2 `tests/op/streq.t` | operators | HTTP 403 |
 | `v2_operator_contains_block.yaml` | V2 `tests/op/contains.t` | operators | HTTP 403 |
+| `v2_operator_begins_with_block.yaml` | V2 `tests/op/beginsWith.t` with param `abcdef`, input `abcdefghi` | operators | HTTP 403 |
+| `v2_operator_ends_with_block.yaml` | V2 `tests/op/endsWith.t` with param `ghi`, input `abcdefghi` | operators | HTTP 403 |
+| `v2_operator_pm_block.yaml` | V2 `tests/op/pm.t` with param `abc`, input `abcdefghi` | operators | HTTP 403 |
+| `v2_operator_contains_word_block.yaml` | V2 `tests/op/containsWord.t` with param `abc`, input `abc def ghi` | operators | HTTP 403 |
 | `v2_transformation_lowercase_block.yaml` | V2 `tests/tfn/lowercase.t` | transformations | HTTP 403 |
 | `v2_transformation_trim_block.yaml` | V2 `tests/tfn/trim.t` | transformations | HTTP 403 |
+| `v2_transformation_url_decode_block.yaml` | V2 `tests/tfn/urlDecode.t` with input `Test+Case`, output `Test Case` | transformations | HTTP 403 |
+| `v2_transformation_html_entity_decode_block.yaml` | V2 `tests/tfn/htmlEntityDecode.t` fragment `&lt;&gt;` -> `<>` | transformations | HTTP 403 |
 | `multipart_files_value_block.yaml` | V3 `variable-FILES.json` | multipart/files | HTTP 403 |
 | `multipart_files_names_block.yaml` | V3 `variable-FILES_NAMES.json` | multipart/files | HTTP 403 |
 | `multipart_files_combined_size.yaml` | V3 `variable-FILES_COMBINED_SIZE.json` | multipart/files | HTTP 403 |
 | `multipart_filename_block.yaml` | V3 `variable-MULTIPART_FILENAME.json` | multipart/files | HTTP 403 |
 | `xml_request_body_block.yaml` | V3 `variable-XML.json` | xml/body-processors | HTTP 403 |
 | `v3_operator_rx_block.yaml` | V3 `operator-rx.json` | operators | HTTP 403 |
+| `v3_operator_pm_digit_block.yaml` | V3 `operator-pm.json` with rule `@pm 1 2 3`, request `param1=123` | operators | HTTP 403 |
+| `v3_request_cookies_block.yaml` | V3 `variable-REQUEST_COOKIES.json` with `USER_TOKEN=Yes` | collections | HTTP 403 |
+| `v3_request_cookies_names_block.yaml` | V3 `variable-REQUEST_COOKIES_NAMES.json` with cookie name `USER_TOKEN` | collections | HTTP 403 |
+| `v3_request_headers_names_block.yaml` | V3 `variable-REQUEST_HEADERS_NAMES.json`, adapted to stable custom header name | collections | HTTP 403 |
+| `v3_args_names_get_block.yaml` | V3 `variable-ARGS_NAMES.json` with GET argument name `key1` | collections | HTTP 403 |
+| `v3_auditlog_serial_fields_block.yaml` | V3 `auditlog.json` and `issue-2000.json` stable serial audit fields | audit-log | HTTP 403 plus audit fields |
+| `v3_action_nolog_pass_no_audit.yaml` | V3 `issue-2196.json` `nolog,pass` no-audit behavior | actions | HTTP 200 and no audit log |
 | `v3_transformation_trim_block.yaml` | V3 `transformations.json` | transformations | HTTP 403 |
 | `v3_secaction_block.yaml` | V3 `secruleengine.json` | actions | HTTP 403 |
 
@@ -86,6 +100,9 @@ environment where both connector smokes observe the expected HTTP behavior.
 Observed locally on 2026-05-15 with
 `BUILD_ROOT=/src/ModSecurity-conector-build`, targeted `make smoke-common`
 runs reported the V2/V3-derived active imports as `PASS` on Apache and NGINX.
+The second import wave added 14 active PASS cases using source-confirmed values
+for `urlDecode`, `htmlEntityDecode`, `pm`, and `containsWord`; none of these
+cases uses invented example values.
 
 ## Body And Filter Import Notes
 
@@ -157,7 +174,7 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 | multipart basic text field | imported | `multipart_basic_block.yaml` covers simple portable multipart parsing |
 | multipart file collections | imported | FILES, FILES_NAMES, FILES_COMBINED_SIZE, and MULTIPART_FILENAME have active common smoke coverage; FILES_TMPNAMES remains mapped |
 | XML | imported | Tiny XML body processor case is active common coverage; schema/DTD/parser-error cases remain mapped |
-| v2 engine semantics | imported | Initial operator and transformation cases are active common coverage |
-| v3 regression JSON | imported | Initial multipart/XML/operator/action cases are active common coverage |
+| v2 engine semantics | imported | Operator and transformation cases are active common coverage, including beginsWith, endsWith, pm, containsWord, urlDecode, and htmlEntityDecode |
+| v3 regression JSON | imported | Multipart/XML/operator/action/cookie/header-name/ARGS_NAMES/audit cases are active common coverage |
 | external file operators | todo | Needs fixture-file materialization |
 | debug logs | mapped | Text is volatile and connector-specific |

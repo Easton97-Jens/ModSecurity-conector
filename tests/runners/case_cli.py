@@ -112,8 +112,14 @@ def verified_variables(entries: list[dict[str, object]]) -> list[str]:
         names = {str(item) for item in capabilities}
         if names.intersection({"query-args", "form-urlencoded"}):
             variables.add("ARGS")
+        if "args-names" in names:
+            variables.add("ARGS_NAMES")
+        if "request-cookies" in names:
+            variables.add("REQUEST_COOKIES")
         if "request-headers" in names:
             variables.add("REQUEST_HEADERS")
+        if "request-uri" in names:
+            variables.add("REQUEST_URI")
         if names.intersection({"request-body", "json", "body-processors"}):
             variables.add("REQUEST_BODY")
         if "files" in names:

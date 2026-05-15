@@ -21,8 +21,12 @@ CAPABILITY_ALIASES = {
     "form_urlencoded": "form-urlencoded",
     "pass_through": "pass-through",
     "query_args": "query-args",
+    "args_names": "args-names",
+    "audit_log_absent": "audit-log-absent",
     "request_body": "request-body",
+    "request_cookies": "request-cookies",
     "request_headers": "request-headers",
+    "request_uri": "request-uri",
     "response_body": "response-body",
     "response_filters": "response-filters",
     "response_headers": "response-headers",
@@ -34,7 +38,9 @@ CAPABILITY_ALIASES = {
 KNOWN_CAPABILITIES = {
     "actions",
     "api-smoke",
+    "args-names",
     "audit-log",
+    "audit-log-absent",
     "body-processors",
     "collections",
     "engine-core",
@@ -51,9 +57,11 @@ KNOWN_CAPABILITIES = {
     "phase3",
     "phase4",
     "query-args",
+    "request-cookies",
     "redirect",
     "request-body",
     "request-headers",
+    "request-uri",
     "response-body",
     "response-filters",
     "response-headers",
@@ -332,6 +340,10 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     audit_log = expect.get("audit_log", {})
     if audit_log is not None and not isinstance(audit_log, Mapping):
         raise ValueError(f"case expect.audit_log must be a mapping{where}")
+    if isinstance(audit_log, Mapping):
+        absent = audit_log.get("absent")
+        if absent is not None and not isinstance(absent, bool):
+            raise ValueError(f"case expect.audit_log.absent must be a boolean{where}")
 
 
 def write_rules_file(
@@ -688,6 +700,23 @@ def assert_audit_log(
     timeout_seconds: float = 2.0,
 ) -> tuple[str, ...]:
     audit_log = expected_audit_log(case)
+    if _bool_value(audit_log.get("absent")):
+        if audit_log_file is None:
+            return ()
+        path = Path(audit_log_file)
+        deadline = time.monotonic() + timeout_seconds
+        content = ""
+        while True:
+            if path.exists():
+                content = path.read_text(encoding="utf-8", errors="replace")
+                if content:
+                    break
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+        if content:
+            return (f"expected audit log to be absent or empty: {path}",)
+        return ()
     if not _bool_value(audit_log.get("required")):
         return ()
     if audit_log_file is None:

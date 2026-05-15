@@ -22,8 +22,8 @@ architecture for new connectors.
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
 | Traefik connector | unknown | Yaegi/Wasm plugin options documented, implementation undecided |
 | v2 regression reuse | planned | Only portable rule/engine semantics may enter `tests/common/` |
-| v2-derived common imports | implemented | Initial `@streq`, `@contains`, `t:lowercase`, and `t:trim` cases pass locally on Apache and NGINX |
-| v3-derived common imports | implemented | Initial multipart FILES, XML body processor, operator, transformation, and action cases pass locally on Apache and NGINX |
+| v2-derived common imports | implemented | Operator and transformation cases including `@streq`, `@contains`, `@beginsWith`, `@endsWith`, `@pm`, `@containsWord`, `t:lowercase`, `t:trim`, `t:urlDecode`, and `t:htmlEntityDecode` pass locally on Apache and NGINX |
+| v3-derived common imports | implemented | Multipart FILES, XML body processor, operator, transformation, action, cookie/header-name/ARGS_NAMES, and audit cases pass locally on Apache and NGINX |
 | Source-derived Apache/NGINX test import | implemented | Imported YAML cases are derived, not copied; origin and portability are documented |
 
 ## Capability Rule
@@ -93,16 +93,17 @@ Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`
 
 | Case group | Apache | NGINX | Status |
 | --- | --- | --- | --- |
-| V2 operator semantics (`@streq`, `@contains`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| V2 transformation semantics (`t:lowercase`, `t:trim`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V2 operator semantics (`@streq`, `@contains`, `@beginsWith`, `@endsWith`, `@pm`, `@containsWord`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V2 transformation semantics (`t:lowercase`, `t:trim`, `t:urlDecode`, `t:htmlEntityDecode`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 multipart FILES variables | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 XML body processor basic case | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 `@rx`, trim, and `SecAction` basics | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V3 `@pm`, cookies, header names, ARGS_NAMES, serial audit, and `nolog` basics | pass | pass | fully-imported-common |
 
 The active cases prove only the minimal YAML scenarios. V2 Perl harness
 internals, v3 API-only cases, XML schema/DTD validation, malformed multipart,
-streaming, HTTP/2, and optional-library operators remain mapped until dedicated
-support is added.
+NUL/binary transformation branches, streaming, HTTP/2, and optional-library
+operators remain mapped until dedicated support is added.
 
 ## Real-World Connector Path
 
@@ -119,7 +120,8 @@ summary JSON records `connector_path`, `validation_mode`, `server_binary`,
 only if at least one active passing case exercised it through the real server
 runtime.
 
-Current active passing cases verify `ARGS`, `REQUEST_HEADERS`, `REQUEST_BODY`,
-`FILES`, `XML`, `AUDIT_LOG`, and `RESPONSE_HEADERS` through both Apache and
-NGINX in this workspace. `RESPONSE_BODY` remains mapped/xfail until an active
-response-body variable/blocking case passes on both connectors.
+Current active passing cases verify `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
+`REQUEST_HEADERS`, `REQUEST_URI`, `REQUEST_BODY`, `FILES`, `XML`, `AUDIT_LOG`,
+and `RESPONSE_HEADERS` through both Apache and NGINX in this workspace.
+`RESPONSE_BODY` remains mapped/xfail until an active response-body
+variable/blocking case passes on both connectors.
