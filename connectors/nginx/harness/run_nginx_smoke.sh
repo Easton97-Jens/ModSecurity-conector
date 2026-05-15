@@ -174,7 +174,13 @@ run_all_cases() {
         --input-jsonl "$results_jsonl" \
         --summary-json "$json_file" \
         --summary-text "$summary_file" \
-        --import-status-file "$REPO_ROOT/tests/import-status.json"
+        --import-status-file "$REPO_ROOT/tests/import-status.json" \
+        --connector-path real-world \
+        --validation-mode real-world-connector-path \
+        --server nginx \
+        --server-binary "$NGINX_BINARY" \
+        --module "$NGINX_MODULE" \
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so"
     cp "$summary_file" "$connector_summary"
 
     if [ "$any_fail" -ne 0 ]; then

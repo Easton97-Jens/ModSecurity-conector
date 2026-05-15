@@ -24,7 +24,35 @@ write_connector_result() {
     {
         printf '%s nginx-build %s\n' "$(printf '%s' "$status" | tr '[:lower:]' '[:upper:]')" "$message"
     } > "$RESULTS_DIR/nginx-summary.txt"
-    printf '{\n  "nginx": {\n    "build": "%s"\n  }\n}\n' "$status" > "$RESULTS_DIR/nginx-summary.json"
+    python3 - "$RESULTS_DIR/nginx-summary.json" "$status" "$NGINX_BINARY" "$NGINX_MODULE" "$MODSECURITY_LIB_DIR/libmodsecurity.so" <<'PY'
+import json
+import sys
+
+output, status, server_binary, module, libmodsecurity = sys.argv[1:]
+summary = {
+    "nginx": {
+        "build": status,
+        "connector_path": "real-world",
+        "validation_mode": "real-world-connector-path",
+        "server": "nginx",
+        "server_binary": server_binary,
+        "module": module,
+        "libmodsecurity": libmodsecurity,
+        "verified_variables": [],
+        "summary": {
+            "pass": 0,
+            "fail": 1 if status == "fail" else 0,
+            "blocked": 1 if status == "blocked" else 0,
+            "skipped": 0,
+            "xfail": 0,
+        },
+        "cases": {},
+    }
+}
+with open(output, "w", encoding="utf-8") as handle:
+    json.dump(summary, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+PY
     cp "$RESULTS_DIR/nginx-summary.txt" "$RESULTS_DIR/connector-summary.txt"
 }
 

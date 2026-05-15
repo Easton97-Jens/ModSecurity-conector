@@ -101,6 +101,32 @@ def case_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def verified_variables(entries: list[dict[str, object]]) -> list[str]:
+    variables: set[str] = set()
+    for entry in entries:
+        if str(entry.get("status", "")) != "pass":
+            continue
+        capabilities = entry.get("capabilities", [])
+        if not isinstance(capabilities, list):
+            continue
+        names = {str(item) for item in capabilities}
+        if names.intersection({"query-args", "form-urlencoded"}):
+            variables.add("ARGS")
+        if "request-headers" in names:
+            variables.add("REQUEST_HEADERS")
+        if names.intersection({"request-body", "json", "body-processors"}):
+            variables.add("REQUEST_BODY")
+        if "files" in names:
+            variables.add("FILES")
+        if "xml" in names:
+            variables.add("XML")
+        if "audit-log" in names:
+            variables.add("AUDIT_LOG")
+        if "response-headers" in names:
+            variables.add("RESPONSE_HEADERS")
+    return sorted(variables)
+
+
 def summarize_results(args: argparse.Namespace) -> int:
     entries = []
     input_path = Path(args.input_jsonl)
@@ -133,12 +159,18 @@ def summarize_results(args: argparse.Namespace) -> int:
             ):
                 value = manifest.get(key, [])
                 import_status[key] = len(value) if isinstance(value, list) else 0
-    summary = {
-        args.connector: {
-            "summary": counts,
-            "cases": cases,
-        }
+    connector_summary = {
+        "connector_path": args.connector_path,
+        "validation_mode": args.validation_mode,
+        "server": args.server or args.connector,
+        "server_binary": args.server_binary or "",
+        "module": args.module or "",
+        "libmodsecurity": args.libmodsecurity or "",
+        "verified_variables": verified_variables(entries),
+        "summary": counts,
+        "cases": cases,
     }
+    summary = {args.connector: connector_summary}
     if import_status:
         summary[args.connector]["import_status"] = import_status
 
@@ -222,6 +254,12 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--summary-json", required=True)
     summarize_parser.add_argument("--summary-text", required=True)
     summarize_parser.add_argument("--import-status-file")
+    summarize_parser.add_argument("--connector-path", default="real-world")
+    summarize_parser.add_argument("--validation-mode", default="real-world-connector-path")
+    summarize_parser.add_argument("--server")
+    summarize_parser.add_argument("--server-binary")
+    summarize_parser.add_argument("--module")
+    summarize_parser.add_argument("--libmodsecurity")
     summarize_parser.set_defaults(func=summarize_results)
 
     return parser

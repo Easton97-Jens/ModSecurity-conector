@@ -24,7 +24,35 @@ write_connector_result() {
     {
         printf '%s apache-build %s\n' "$(printf '%s' "$status" | tr '[:lower:]' '[:upper:]')" "$message"
     } > "$RESULTS_DIR/apache-summary.txt"
-    printf '{\n  "apache": {\n    "build": "%s"\n  }\n}\n' "$status" > "$RESULTS_DIR/apache-summary.json"
+    python3 - "$RESULTS_DIR/apache-summary.json" "$status" "$HTTPD_PREFIX/bin/httpd" "$APACHE_MODULE" "$MODSECURITY_LIB_DIR/libmodsecurity.so" <<'PY'
+import json
+import sys
+
+output, status, server_binary, module, libmodsecurity = sys.argv[1:]
+summary = {
+    "apache": {
+        "build": status,
+        "connector_path": "real-world",
+        "validation_mode": "real-world-connector-path",
+        "server": "apache",
+        "server_binary": server_binary,
+        "module": module,
+        "libmodsecurity": libmodsecurity,
+        "verified_variables": [],
+        "summary": {
+            "pass": 0,
+            "fail": 1 if status == "fail" else 0,
+            "blocked": 1 if status == "blocked" else 0,
+            "skipped": 0,
+            "xfail": 0,
+        },
+        "cases": {},
+    }
+}
+with open(output, "w", encoding="utf-8") as handle:
+    json.dump(summary, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+PY
     cp "$RESULTS_DIR/apache-summary.txt" "$RESULTS_DIR/connector-summary.txt"
 }
 
