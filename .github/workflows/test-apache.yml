@@ -8,8 +8,13 @@ jobs:
   apache-structure:
     runs-on: ubuntu-latest
     env:
-      MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
-      MODSECURITY_APACHE_SOURCE_DIR: ${{ github.workspace }}/ModSecurity-apache
+      SOURCE_ROOT: ${{ runner.temp }}/sources
+      MODSECURITY_V3_SOURCE_DIR: ${{ runner.temp }}/sources/ModSecurity_V3
+      MODSECURITY_APACHE_SOURCE_DIR: ${{ runner.temp }}/sources/ModSecurity-apache
+      MODSECURITY_V3_GIT_URL: https://github.com/owasp-modsecurity/ModSecurity.git
+      MODSECURITY_V3_GIT_REF: v3/master
+      MODSECURITY_APACHE_GIT_URL: https://github.com/owasp-modsecurity/ModSecurity-apache.git
+      MODSECURITY_APACHE_GIT_REF: master
       BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
       BUILD_HTTPD_FROM_SOURCE: "1"
       BUILD_PCRE2_FROM_SOURCE: "1"
@@ -36,6 +41,7 @@ jobs:
           test -f tests/common/cases/imported/action_deny_phase1.yaml
           test -f tests/common/cases/imported/multipart_basic_block.yaml
           test -f tests/import-status.json
+          test -f docs/real-world-connector-validation.md
           grep -q 'Status:' connectors/apache/TODO.md
       - name: Shell syntax
         run: |
@@ -43,14 +49,37 @@ jobs:
           sh -n ci/prepare-apache-build.sh
           sh -n ci/run-apache-smoke.sh
           sh -n connectors/apache/harness/run_apache_smoke.sh
-      - name: Apache connector smoke or blocked
+      - name: Fetch Apache real-world smoke sources
+        run: |
+          set -eu
+          mkdir -p "$SOURCE_ROOT"
+          clone_source() {
+            url=$1
+            ref=$2
+            dest=$3
+            if [ -d "$dest/.git" ]; then
+              return 0
+            fi
+            echo "Fetching $url ref=$ref into $dest"
+            set +e
+            git clone --depth 1 --branch "$ref" "$url" "$dest"
+            rc=$?
+            set -e
+            if [ "$rc" -ne 0 ]; then
+              echo "::notice::source fetch blocked for $url ref=$ref"
+              rm -rf "$dest"
+            fi
+          }
+          clone_source "$MODSECURITY_V3_GIT_URL" "$MODSECURITY_V3_GIT_REF" "$MODSECURITY_V3_SOURCE_DIR"
+          clone_source "$MODSECURITY_APACHE_GIT_URL" "$MODSECURITY_APACHE_GIT_REF" "$MODSECURITY_APACHE_SOURCE_DIR"
+      - name: Apache real-world connector smoke or blocked
         run: |
           set +e
-          REFRESH=1 sh ci/run-apache-smoke.sh
+          REFRESH=1 make smoke-apache
           rc=$?
           set -e
           if [ "$rc" -eq 77 ]; then
-            echo "::notice::Apache connector smoke blocked; sources or build prerequisites are absent."
+            echo "::notice::Apache real-world connector smoke blocked; sources or build prerequisites are absent."
             exit 0
           fi
           exit "$rc"

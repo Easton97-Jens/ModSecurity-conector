@@ -28,6 +28,7 @@ jobs:
           test -f tests/common/v2-regression-map.md
           test -f tests/common/v3-regression-map.md
           test -f docs/v2-vs-v3-test-compatibility.md
+          test -f docs/real-world-connector-validation.md
       - name: Compile Python skeletons
         run: |
           mkdir -p "$PYTHONPYCACHEPREFIX"
@@ -93,6 +94,36 @@ PY
             --connector nginx \
             --scope all > "$BUILD_ROOT/case-runner/nginx-all-cases.txt"
           python3 -m json.tool tests/import-status.json > "$BUILD_ROOT/case-runner/import-status.pretty.json"
+      - name: Check real-world summary schema
+        run: |
+          set -eu
+          mkdir -p "$BUILD_ROOT/schema-check"
+          : > "$BUILD_ROOT/schema-check/empty-results.jsonl"
+          python3 tests/runners/case_cli.py summarize-results \
+            --connector apache \
+            --input-jsonl "$BUILD_ROOT/schema-check/empty-results.jsonl" \
+            --summary-json "$BUILD_ROOT/schema-check/apache-summary.json" \
+            --summary-text "$BUILD_ROOT/schema-check/apache-summary.txt" \
+            --connector-path real-world \
+            --validation-mode real-world-connector-path \
+            --server apache \
+            --server-binary "$BUILD_ROOT/apache-runtime/httpd/bin/httpd" \
+            --module "$BUILD_ROOT/apache-build/output/apache/mod_security3.so" \
+            --libmodsecurity "$BUILD_ROOT/apache-build/output/modsecurity/lib/libmodsecurity.so"
+          python3 - "$BUILD_ROOT/schema-check/apache-summary.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+apache = data["apache"]
+assert apache["connector_path"] == "real-world"
+assert apache["validation_mode"] == "real-world-connector-path"
+assert apache["server"] == "apache"
+assert apache["verified_variables"] == []
+for key in ("server_binary", "module", "libmodsecurity", "summary", "cases"):
+    assert key in apache
+PY
       - name: Check make smoke targets and boundaries
         run: |
           set -eu
