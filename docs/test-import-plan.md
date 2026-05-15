@@ -30,8 +30,14 @@ Every relevant source file is mapped in:
 - Cases that need HTTP/2, proxy topology, multipart parsing, streaming,
   response-body filters, config inheritance, debug log text, remote rules, or
   external data files remain mapped until the harness has explicit support.
+- Simple multipart text-field bodies are supported; multipart parser errors,
+  file-storage collections, and part-header edge cases remain mapped.
+- Response-body pass-through may be imported when both connectors return the
+  expected HTTP status. Response-body blocking is not counted as common PASS
+  unless both connectors return stable HTTP 403.
 - Imported YAML must include `origin`, `category`, `capabilities`, `portable`,
-  and `status`; connector-specific YAML must include `connector`.
+  `status`, and `known_limitations`; connector-specific YAML must include
+  `connector`.
 
 ## Imported Common Cases
 
@@ -48,13 +54,34 @@ The following source-derived common cases were added under
 | `collection_args_combined_size_block.yaml` | Apache `ARGS_COMBINED_SIZE` target test | collections | HTTP 403 |
 | `request_body_args_post_names_block.yaml` | Apache `ARGS_POST_NAMES`; NGINX request-body tests | request-body | HTTP 403 |
 | `request_body_raw_text_block.yaml` | NGINX raw `REQUEST_BODY`; Apache raw body pattern | request-body | HTTP 403 |
+| `json_request_body_block.yaml` | Apache JSON parser coverage; NGINX request-body tests | body-processors | HTTP 403 |
+| `multipart_basic_block.yaml` | Apache normal multipart parser coverage; NGINX request-body tests | multipart | HTTP 403 |
+| `response_body_pass.yaml` | Apache response directives; NGINX response-body access tests | response-body | HTTP 200 |
 
 These cases are imported as portable candidates. They count as proven only in an
 environment where both connector smokes observe the expected HTTP behavior.
 
 Observed locally on 2026-05-15 with
 `BUILD_ROOT=/src/ModSecurity-conector-build`, `make smoke-all` reported all
-eight common imported cases as `PASS` on Apache and NGINX.
+eleven common imported cases as `PASS` on Apache and NGINX.
+
+## Body And Filter Import Notes
+
+The response-body block candidate is deliberately not active common coverage.
+`ModSecurity-nginx/tests/modsecurity-response-body.t` marks the blocking branch
+as TODO, and a local probe recognized the `RESPONSE_BODY` rule but did not
+produce stable HTTP 403. The source rows are therefore documented as
+`xfail`/`mapped-only` in the maps, while `response_body_pass.yaml` remains a
+pass-through smoke only.
+
+`multipart_basic_block.yaml` covers only a simple multipart text field that is
+visible through `ARGS:name`. File-name variables, upload temp files,
+`MULTIPART_*` parser flags, and malformed multipart bodies remain mapped until
+they can be proven without connector-specific setup.
+
+`json_request_body_block.yaml` matches raw `REQUEST_BODY` content. Parsed JSON
+collection extraction from Apache `rule/15-json.t` remains mapped because the
+current shared smoke path does not prove `ARGS:foo` parity.
 
 ## Imported Connector-Specific Cases
 
@@ -99,6 +126,10 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 | proxy | todo | No upstream topology support yet |
 | streaming-buffering | todo | No streaming assertions or chunk control yet |
 | response-body | todo | Connector filter ordering needs explicit support |
+| response-body blocking | xfail | NGINX upstream marks block behavior TODO and local probing did not yield stable HTTP 403 |
+| response-body pass-through | imported | `response_body_pass.yaml` verifies no regression when response-body access is enabled |
+| multipart basic text field | imported | `multipart_basic_block.yaml` covers simple portable multipart parsing |
+| multipart file collections | mapped | FILES/FILES_NAMES/FILES_TMPNAMES need cross-connector proof |
 | XML | todo | Parser capability and body setup must be documented |
 | external file operators | todo | Needs fixture-file materialization |
 | debug logs | mapped | Text is volatile and connector-specific |

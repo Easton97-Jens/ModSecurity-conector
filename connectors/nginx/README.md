@@ -12,13 +12,18 @@ Implemented now:
 - Directory layout for future source and connector-specific tests.
 - A connector-specific runtime harness under `harness/`.
 - Shared YAML case consumption through `tests/runners/case_cli.py`.
+- Source-derived shared imported cases for raw JSON body matching, simple
+  multipart text-field matching, and response-body pass-through.
 
 Not implemented:
 
 - No NGINX module source is imported into this monorepo.
 - No full NGINX regression suite.
 - No runtime pass is claimed beyond environments where the NGINX smoke runner
-  observes real HTTP `403` for the shared minimal YAML cases.
+  observes the YAML-expected real HTTP behavior for the shared YAML cases.
+- No response-body blocking pass is claimed; the upstream NGINX test marks that
+  behavior TODO and this repository maps it as xfail until stable HTTP 403 is
+  observed.
 
 Primary local reference: `/root/conecter/ModSecurity-nginx`.
 

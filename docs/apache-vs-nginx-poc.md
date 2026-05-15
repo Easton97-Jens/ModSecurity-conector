@@ -102,6 +102,23 @@ compatibility still requires connector-specific regression coverage.
 Imported common cases add phase action, collection, and request-body coverage.
 Their source paths and portability decisions are documented in
 `tests/common/shared-case-origin-map.md` and `docs/test-import-plan.md`.
-The local `make smoke-all` run on 2026-05-15 reported all 8 common imported
+The local `make smoke-all` run on 2026-05-15 reported all 11 common imported
 cases passing on both connectors, plus 3 NGINX-specific imported cases passing
 on NGINX.
+
+## Body And Multipart Import
+
+The shared runner now materializes deterministic multipart bodies and per-case
+response fixtures under each connector runtime directory. The active common
+body/filter additions are:
+
+| Shared case | Apache | NGINX | Notes |
+| --- | --- | --- | --- |
+| `json_request_body_block.yaml` | HTTP 403 | HTTP 403 | Raw `REQUEST_BODY` match; parsed JSON collections remain mapped |
+| `multipart_basic_block.yaml` | HTTP 403 | HTTP 403 | Simple multipart text-field match through `ARGS:name` |
+| `response_body_pass.yaml` | HTTP 200 | HTTP 200 | Response-body access pass-through only |
+
+`response_body_basic_block` is not an active common PASS. NGINX recognized the
+response-body rule in local probing, but the HTTP response was not a stable
+403, and the upstream NGINX test marks the block case TODO. It stays documented
+as xfail/mapped-only until both connectors return the same stable HTTP 403.

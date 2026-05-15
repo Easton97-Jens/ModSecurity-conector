@@ -59,9 +59,23 @@ complete response-body behavior.
 | Apache imported | `tests/apache/cases/imported/` | Apache-only until a common equivalent is proven |
 | NGINX imported | `tests/nginx/cases/imported/` | NGINX-only until a common equivalent is proven |
 
-Mapped-only categories include HTTP/2, proxy, multipart, response-body filter
-coverage, external-file operators, debug logs, and connector config inheritance.
+Mapped-only categories include HTTP/2, proxy, multipart parser edge cases,
+response-body blocking, external-file operators, debug logs, and connector
+config inheritance.
 
 Observed locally on 2026-05-15, the current imported common cases all passed on
 Apache and NGINX through `make smoke-all`; the NGINX-specific imported cases
 passed only on NGINX and remain `portable: false`.
+
+## Body And Filter Compatibility
+
+| Case or category | Apache | NGINX | Status |
+| --- | --- | --- | --- |
+| `json_request_body_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| `response_body_pass.yaml` | pass, HTTP 200 | pass, HTTP 200 | fully-imported-common |
+| `response_body_basic_block` | not counted as common PASS | rule recognized locally, stable HTTP 403 not observed | xfail/mapped-only |
+
+The response-body block row is intentionally not an active smoke. The NGINX
+reference test marks the behavior TODO, so this repository documents the
+evidence without claiming connector parity.

@@ -30,6 +30,9 @@ connector-specific and are not copied.
 | `imported/collection_args_combined_size_block.yaml` | `tests/regression/target/00-targets.t` | apache | collections | `ARGS_COMBINED_SIZE` for two query args | yes | imported | query args, collections, phase2 | Size expectation mirrors the upstream Apache regression value |
 | `imported/request_body_args_post_names_block.yaml` | `tests/regression/target/00-targets.t`; `tests/modsecurity-request-body.t` | apache/nginx | request-body | Form body `ARGS_POST_NAMES` match | yes | imported | request body, form urlencoded, collections | Does not cover method matrix or limits |
 | `imported/request_body_raw_text_block.yaml` | `tests/modsecurity-request-body.t`; `tests/regression/rule/15-json.t` | nginx/apache | request-body | Raw `REQUEST_BODY` text match | yes | imported | request body, phase2 | Does not cover streaming or chunked body delivery |
+| `imported/json_request_body_block.yaml` | `tests/regression/rule/15-json.t`; `tests/modsecurity-request-body.t` | apache/nginx | body-processors | Raw JSON request body match | yes | fully-imported-common | request body, JSON content type, phase2 | Does not prove parsed JSON collections such as `ARGS:foo` |
+| `imported/multipart_basic_block.yaml` | `tests/regression/misc/00-multipart-parser.t`; `tests/modsecurity-request-body.t` | apache/nginx | multipart | Simple multipart text field match through `ARGS:name` | yes | fully-imported-common | request body, multipart, collections, phase2 | Does not cover file storage, parser errors, streaming, or part header folding |
+| `imported/response_body_pass.yaml` | `tests/regression/config/10-response-directives.t`; `tests/modsecurity-response-body.t` | apache/nginx | response-body | Response-body access configured with non-matching rule and HTTP 200 pass-through | yes | fully-imported-common | response body, phase4, pass-through | Does not prove response-body blocking |
 
 ## Connector-Specific Imported Cases
 
@@ -38,3 +41,11 @@ connector-specific and are not copied.
 | `nginx_redirect_phase1_302.yaml` | `tests/modsecurity.t` | nginx | actions | NGINX-observed phase:1 redirect action | no | imported | `tests/nginx/cases/imported/` | query args, phase1, redirect | NGINX-only until Apache equivalence is explicitly tested |
 | `nginx_tx_scoring_absolute_block.yaml` | `tests/modsecurity-scoring.t` | nginx | actions | Absolute `tx.score` assignment blocks on threshold | no | imported | `tests/nginx/cases/imported/` | query args, TX collection, phase2 | NGINX-only until promoted after cross-connector proof |
 | `nginx_tx_scoring_iterative_block.yaml` | `tests/modsecurity-scoring.t` | nginx | actions | Iterative `tx.score` increments block on threshold | no | imported | `tests/nginx/cases/imported/` | query args, TX collection, phase2 | NGINX-only until promoted after cross-connector proof |
+
+## Mapped/XFail Body And Filter Cases
+
+| Source case | original_path | source_repo | category | portable | status | reason | required_capabilities | known_limitations |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `response_body_basic_block` | `tests/modsecurity-response-body.t`; `tests/regression/config/10-response-directives.t` | nginx/apache | response-body | partial | xfail | NGINX upstream marks the response-body block case TODO; local probing recognized the rule but did not produce a stable HTTP 403 | response body, phase4, intervention | Not counted as common PASS and not executed by `smoke-common` |
+| `multipart_filename_block` | `tests/regression/misc/00-multipart-parser.t`; `tests/regression/target/00-targets.t` | apache | multipart | partial | mapped-only | File-name/file-collection variables need a separate cross-connector proof before active import | multipart, file collections | No active YAML until Apache and NGINX both pass |
+| `xml_request_body_block` | `tests/regression/rule/10-xml.t` | apache | body-processors | unknown | mapped-only | XML cases depend on parser capability and fixture/schema setup not present in the minimal harness | XML, request body, fixtures | No active YAML in this step |

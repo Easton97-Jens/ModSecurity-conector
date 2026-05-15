@@ -124,14 +124,28 @@ Imported source-derived cases are split by scope:
 - `tests/nginx/cases/imported/`: NGINX-specific cases only.
 
 Current imported common candidates cover phase actions, query-argument
-collections, form-body collection names, and raw request-body matching. Current
-imported NGINX-specific cases cover redirect and TX scoring behavior from the
-local NGINX suite. See `docs/test-import-plan.md` and
+collections, form-body collection names, raw request-body matching, raw JSON
+body matching, simple multipart text fields, and response-body pass-through.
+Current imported NGINX-specific cases cover redirect and TX scoring behavior
+from the local NGINX suite. Response-body blocking is mapped as xfail rather
+than counted as common PASS because the local NGINX source marks that behavior
+TODO and local probing did not produce stable HTTP 403. See
+`docs/test-import-plan.md` and
 `tests/common/shared-case-origin-map.md` before promoting or moving a case.
 
-Observed locally on 2026-05-15, `make smoke-all` reported 15 Apache passes
-(7 minimal + 8 imported common) and 18 NGINX passes (7 minimal + 8 imported
-common + 3 NGINX-specific imported).
+Observed locally on 2026-05-15 after the body/filter import pass,
+`make smoke-all` reported 18 Apache passes (7 minimal + 11 imported common)
+and 21 NGINX passes (7 minimal + 11 imported common + 3 NGINX-specific
+imported). The three additional active common cases are:
+
+| Case | Source-derived origin | Local Apache | Local NGINX |
+| --- | --- | --- | --- |
+| `json_request_body_block.yaml` | Apache JSON/body coverage and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
+| `multipart_basic_block.yaml` | Apache multipart parser and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
+| `response_body_pass.yaml` | Apache response directives and NGINX response-body access tests | pass, HTTP 200 | pass, HTTP 200 |
+
+`response_body_basic_block` remains mapped/xfail until both connectors return
+stable HTTP 403 for the same YAML case.
 
 Boundary rule:
 

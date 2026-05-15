@@ -14,6 +14,9 @@ Status: scaffolded
   under `BUILD_ROOT` and checks for a real HTTP `403`.
 - The shared minimal YAML cases under `tests/common/cases/minimal/` are the
   rule/request/expectation source used by both Apache and NGINX harnesses.
+- The shared imported YAML cases add raw JSON body, simple multipart
+  text-field, and response-body pass-through coverage without hardcoding those
+  values in the harness.
 
 Implemented here means build orchestration, runtime harness, shared-case
 integration, and documentation. It does not mean every environment can build or
@@ -122,11 +125,15 @@ Rules, request details, and expected statuses are read from:
 
 ```text
 tests/common/cases/minimal/*.yaml
+tests/common/cases/imported/*.yaml
+tests/nginx/cases/imported/*.yaml
 ```
 
-The harness does not hardcode the rule, request path, request method, or
-expected HTTP status. Status `pass` is only valid when the common runner checks
-the observed NGINX response against each YAML expectation.
+The harness does not hardcode the rule, request path, request method, headers,
+body, response fixture, or expected HTTP status. Readiness uses
+`/__modsec_smoke_ready` with ModSecurity disabled so phase and response rules do
+not affect startup checks. Status `pass` is only valid when the common runner
+checks the observed NGINX response against each YAML expectation.
 
 Run the smoke after a successful build:
 
@@ -144,7 +151,9 @@ Observed in this workspace on 2026-05-15:
   built libmodsecurity v3 in a writable copy, resolved the NGINX release
   through GitHub, built NGINX, and produced the ModSecurity dynamic module.
 - `BUILD_ROOT=/src/ModSecurity-conector-build make smoke-nginx` returned pass
-  for all current shared minimal cases.
+  for all current shared minimal cases and the active common imported cases,
+  including raw JSON body, simple multipart text-field, and response-body
+  pass-through smokes.
 - `BUILD_ROOT=/src/ModSecurity-conector-build make smoke-apache` also returned
   pass for the same shared YAML cases.
 
@@ -160,13 +169,17 @@ nginx_archive_sha256_verified=0
 nginx_version=nginx/1.31.0
 nginx_binary=/src/ModSecurity-conector-build/nginx-runtime/nginx/sbin/nginx
 nginx_module=/src/ModSecurity-conector-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
-nginx_smoke_cases=audit_log_phase1_block, phase1_header_block, phase2_args_block, phase2_args_pass, request_body_json_block, request_body_urlencoded_block, response_header_basic
+nginx_smoke_cases=audit_log_phase1_block, phase1_header_block, phase2_args_block, phase2_args_pass, request_body_json_block, request_body_urlencoded_block, response_header_basic, json_request_body_block, multipart_basic_block, response_body_pass
 nginx_smoke_status=all pass; blocking cases HTTP 403; pass-through case HTTP 200
 ```
 
 The SHA256 value above is the local hash of the GitHub archive downloaded in
 this workspace. It is not an upstream checksum because `NGINX_SHA256` was not
 set.
+
+Response-body blocking is not claimed. The NGINX reference test marks that
+behavior TODO, and local probing recognized the rule but did not produce stable
+HTTP 403, so the candidate remains xfail/mapped-only.
 
 ## Status Meanings
 

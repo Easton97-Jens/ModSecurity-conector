@@ -27,6 +27,9 @@ Status: scaffolded
 - Source-derived imported YAML smoke cases from the local Apache and NGINX
   connector tests, with common vs connector-specific placement documented in
   `docs/test-import-plan.md`.
+- Deterministic multipart request materialization, per-case response fixtures,
+  and active source-derived common cases for raw JSON body matching, simple
+  multipart text-field blocking, and response-body pass-through.
 
 ## Planned
 
@@ -34,8 +37,10 @@ Status: scaffolded
 - Promote the documented YAML shape into a machine-readable schema.
 - Promote imported NGINX-only TX scoring/redirect cases to common only after
   Apache equivalence is tested and documented.
-- Add fixture support for external-file operators, multipart bodies, and
-  connector-specific config matrices.
+- Add fixture support for external-file operators and connector-specific config
+  matrices.
+- Promote multipart file-name/file-collection cases only after Apache and NGINX
+  both pass them through the shared harness.
 
 ## Unknown
 
@@ -59,3 +64,6 @@ Status: scaffolded
 - NGINX PoC runtime is blocked in fresh environments until GitHub release
   resolution/downloads, libmodsecurity v3 build, connector module build, and
   runtime smokes complete.
+- Response-body blocking remains blocked/xfail for common import until both
+  Apache and NGINX return stable HTTP 403 for the same YAML case. The NGINX
+  reference test currently marks this behavior TODO.
