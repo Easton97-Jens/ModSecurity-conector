@@ -35,6 +35,8 @@ jobs:
           test -f tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml
           test -f tests/common/cases/minimal/phase2_args_block.yaml
           test -f tests/common/cases/imported/request_body_raw_text_block.yaml
+          test -f tests/common/cases/imported/response_body_pass.yaml
+          test -f tests/import-status.json
           test -f docs/nginx-poc.md
           test -f docs/apache-vs-nginx-poc.md
           test -f docs/test-import-plan.md

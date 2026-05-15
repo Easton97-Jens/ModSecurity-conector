@@ -10,6 +10,9 @@ from typing import Any, Iterable, Mapping
 
 from adapter_interface import ConnectorAdapter
 
+DEFAULT_RESPONSE_BODY = "TEST-OK-IF-YOU-SEE-THIS\n"
+READY_BODY = "ready\n"
+
 
 @dataclass
 class RunnerResult:
@@ -187,6 +190,15 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     if origin is not None:
         if not isinstance(origin, list) or not all(isinstance(item, Mapping) for item in origin):
             raise ValueError(f"case origin must be a list of mappings{where}")
+        for item in origin:
+            for key in ("repo", "path", "reason"):
+                if not str(item.get(key, "")).strip():
+                    raise ValueError(f"case origin entries require {key}{where}")
+    known_limitations = case.get("known_limitations")
+    if known_limitations is not None and not isinstance(known_limitations, (str, list)):
+        raise ValueError(f"case known_limitations must be a string or list{where}")
+    if isinstance(known_limitations, list) and not all(isinstance(item, str) for item in known_limitations):
+        raise ValueError(f"case known_limitations list must contain strings{where}")
     portable = case.get("portable")
     if portable is not None and not isinstance(portable, bool):
         raise ValueError(f"case portable must be a boolean{where}")
@@ -197,8 +209,11 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     if status is not None and str(status) not in {
         "active",
         "imported",
+        "fully-imported-common",
+        "connector-specific",
         "minimal",
         "mapped",
+        "mapped-only",
         "todo",
         "blocked",
         "xfail",
@@ -217,6 +232,35 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     headers = request.get("headers", {})
     if headers is not None and not isinstance(headers, Mapping):
         raise ValueError(f"case request.headers must be a mapping{where}")
+    has_body = "body" in request and request.get("body") is not None
+    has_multipart = "multipart" in request and request.get("multipart") is not None
+    if has_body and has_multipart:
+        raise ValueError(f"case request.body and request.multipart are mutually exclusive{where}")
+    if has_multipart:
+        multipart = request.get("multipart")
+        if not isinstance(multipart, Mapping):
+            raise ValueError(f"case request.multipart must be a mapping{where}")
+        if str(request.get("method", "")).upper() != "POST":
+            raise ValueError(f"case request.multipart requires POST{where}")
+        boundary = multipart.get("boundary")
+        if not str(boundary or "").strip():
+            raise ValueError(f"case request.multipart requires boundary{where}")
+        parts = multipart.get("parts")
+        if not isinstance(parts, list) or not parts:
+            raise ValueError(f"case request.multipart.parts must be a non-empty list{where}")
+        for part in parts:
+            if not isinstance(part, Mapping):
+                raise ValueError(f"case multipart parts must be mappings{where}")
+            if not str(part.get("name", "")).strip():
+                raise ValueError(f"case multipart parts require name{where}")
+        if any(str(name).lower() == "content-type" for name in headers):
+            raise ValueError(f"case request.headers must not set Content-Type with request.multipart{where}")
+    response = case.get("response")
+    if response is not None:
+        if not isinstance(response, Mapping):
+            raise ValueError(f"case response must be a mapping{where}")
+        if "body" in response and response.get("body") is not None and not isinstance(response.get("body"), str):
+            raise ValueError(f"case response.body must be a string{where}")
     expect = case.get("expect")
     if not isinstance(expect, Mapping):
         raise ValueError(f"case requires expect mapping{where}")
@@ -256,7 +300,11 @@ def request_headers(case: Mapping[str, Any]) -> Mapping[str, Any]:
         return {}
     if not isinstance(headers, Mapping):
         raise ValueError("request.headers must be a mapping")
-    return headers
+    materialized = {str(name): value for name, value in headers.items()}
+    request = case["request"]
+    if request.get("multipart") is not None:
+        materialized["Content-Type"] = f"multipart/form-data; boundary={multipart_boundary(case)}"
+    return materialized
 
 
 def request_body(case: Mapping[str, Any]) -> str:
@@ -264,6 +312,60 @@ def request_body(case: Mapping[str, Any]) -> str:
     if "body" not in request or request.get("body") is None:
         return ""
     return str(request["body"])
+
+
+def multipart_boundary(case: Mapping[str, Any]) -> str:
+    request = case["request"]
+    multipart = request.get("multipart")
+    if not isinstance(multipart, Mapping):
+        raise ValueError("request.multipart must be a mapping")
+    return str(multipart["boundary"])
+
+
+def multipart_parts(case: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    request = case["request"]
+    multipart = request.get("multipart")
+    if not isinstance(multipart, Mapping):
+        return []
+    parts = multipart.get("parts", [])
+    if not isinstance(parts, list):
+        raise ValueError("request.multipart.parts must be a list")
+    return parts
+
+
+def request_body_bytes(case: Mapping[str, Any]) -> bytes:
+    request = case["request"]
+    if request.get("multipart") is not None:
+        boundary = multipart_boundary(case)
+        body = bytearray()
+        for part in multipart_parts(case):
+            name = str(part["name"])
+            filename = part.get("filename")
+            content_type = part.get("content_type")
+            value = part.get("body", part.get("value", ""))
+            body.extend(f"--{boundary}\r\n".encode("utf-8"))
+            disposition = f'Content-Disposition: form-data; name="{name}"'
+            if filename not in (None, ""):
+                disposition += f'; filename="{filename}"'
+            body.extend(f"{disposition}\r\n".encode("utf-8"))
+            if content_type not in (None, ""):
+                body.extend(f"Content-Type: {content_type}\r\n".encode("utf-8"))
+            body.extend(b"\r\n")
+            body.extend(str(value).encode("utf-8"))
+            body.extend(b"\r\n")
+        body.extend(f"--{boundary}--\r\n".encode("utf-8"))
+        return bytes(body)
+    return request_body(case).encode("utf-8")
+
+
+def response_body(case: Mapping[str, Any]) -> str:
+    response = case.get("response", {})
+    if response is None:
+        return DEFAULT_RESPONSE_BODY
+    if not isinstance(response, Mapping):
+        raise ValueError("response must be a mapping")
+    body = response.get("body", DEFAULT_RESPONSE_BODY)
+    return str(body)
 
 
 def _bool_value(value: Any) -> bool:
@@ -296,7 +398,14 @@ def write_headers_file(case: Mapping[str, Any], path: str | Path) -> None:
 def write_body_file(case: Mapping[str, Any], path: str | Path) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(request_body(case), encoding="utf-8")
+    output.write_bytes(request_body_bytes(case))
+
+
+def write_response_fixture(case: Mapping[str, Any], docroot: str | Path) -> None:
+    root = Path(docroot)
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "index.html").write_text(response_body(case), encoding="utf-8")
+    (root / "__modsec_smoke_ready").write_text(READY_BODY, encoding="utf-8")
 
 
 def write_shell_env(
@@ -309,7 +418,7 @@ def write_shell_env(
 ) -> None:
     request = case["request"]
     expect = case["expect"]
-    body = request_body(case)
+    body = request_body_bytes(case)
     audit_log = expected_audit_log(case)
     values = {
         "CASE_NAME": case["name"],
@@ -383,6 +492,7 @@ def case_info(
         "case_status": str(case.get("status", "")),
         "capabilities": _capability_names(case),
         "origin": case.get("origin", []),
+        "known_limitations": case.get("known_limitations", []),
         "expected_status": expect["status"],
         "expected_intervention": str(expect.get("intervention", "")),
         "actual_status": actual_status,

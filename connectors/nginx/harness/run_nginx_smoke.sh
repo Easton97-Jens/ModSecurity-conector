@@ -173,7 +173,8 @@ run_all_cases() {
         --connector nginx \
         --input-jsonl "$results_jsonl" \
         --summary-json "$json_file" \
-        --summary-text "$summary_file"
+        --summary-text "$summary_file" \
+        --import-status-file "$REPO_ROOT/tests/import-status.json"
     cp "$summary_file" "$connector_summary"
 
     if [ "$any_fail" -ne 0 ]; then
@@ -293,19 +294,19 @@ REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
 AUDIT_LOG_FILE="$LOG_DIR/audit.log"
 AUDIT_LOG_DIR="$LOG_DIR/audit"
 
-echo "TEST-OK-IF-YOU-SEE-THIS" > "$DOCROOT/index.html"
 chmod go+rx "$BUILD_ROOT" "$RUNTIME_BASE" "$RUNTIME_ROOT" "$DOCROOT" 2>/dev/null || true
-chmod go+r "$DOCROOT/index.html" 2>/dev/null || true
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
     --rules-file "$RULES_FILE" \
     --env-file "$CASE_ENV_FILE" \
     --headers-file "$REQUEST_HEADERS_FILE" \
     --body-file "$REQUEST_BODY_FILE" \
+    --docroot "$DOCROOT" \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --audit-log-dir "$AUDIT_LOG_DIR" > "$LOG_DIR/case-materialize.log" 2>&1; then
     blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
+chmod go+r "$DOCROOT/index.html" "$DOCROOT/__modsec_smoke_ready" 2>/dev/null || true
 . "$CASE_ENV_FILE"
 
 render_config
@@ -327,7 +328,7 @@ while [ "$i" -lt 30 ]; do
     if ! kill -0 "$NGINX_PID" >/dev/null 2>&1; then
         fail "NGINX exited before request; see $LOG_DIR/nginx-stdout.log and $LOG_DIR/error.log"
     fi
-    if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+    if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/__modsec_smoke_ready" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
         ready=1
         break
     fi

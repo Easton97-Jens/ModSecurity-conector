@@ -14,6 +14,7 @@ from runner_core import (
     load_case,
     write_body_file,
     write_headers_file,
+    write_response_fixture,
     write_rules_file,
     write_shell_env,
 )
@@ -26,6 +27,8 @@ def materialize(args: argparse.Namespace) -> int:
         write_headers_file(case, args.headers_file)
     if args.body_file:
         write_body_file(case, args.body_file)
+    if args.docroot:
+        write_response_fixture(case, args.docroot)
     write_shell_env(
         case,
         args.env_file,
@@ -114,12 +117,22 @@ def summarize_results(args: argparse.Namespace) -> int:
         counts[status] += 1
 
     cases = {str(entry.get("name", "")): entry for entry in entries}
+    import_status = {}
+    if args.import_status_file:
+        import_status_path = Path(args.import_status_file)
+        if import_status_path.exists():
+            manifest = json.loads(import_status_path.read_text(encoding="utf-8"))
+            for key in ("fully_imported_common", "connector_specific", "mapped_only", "blocked", "xfail"):
+                value = manifest.get(key, [])
+                import_status[key] = len(value) if isinstance(value, list) else 0
     summary = {
         args.connector: {
             "summary": counts,
             "cases": cases,
         }
     }
+    if import_status:
+        summary[args.connector]["import_status"] = import_status
 
     summary_json = Path(args.summary_json)
     summary_json.parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +167,7 @@ def build_parser() -> argparse.ArgumentParser:
     materialize_parser.add_argument("--env-file", required=True)
     materialize_parser.add_argument("--headers-file")
     materialize_parser.add_argument("--body-file")
+    materialize_parser.add_argument("--docroot")
     materialize_parser.add_argument("--audit-log-file")
     materialize_parser.add_argument("--audit-log-dir")
     materialize_parser.set_defaults(func=materialize)
@@ -199,6 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--input-jsonl", required=True)
     summarize_parser.add_argument("--summary-json", required=True)
     summarize_parser.add_argument("--summary-text", required=True)
+    summarize_parser.add_argument("--import-status-file")
     summarize_parser.set_defaults(func=summarize_results)
 
     return parser

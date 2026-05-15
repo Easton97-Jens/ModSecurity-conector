@@ -18,8 +18,8 @@ the YAML-expected HTTP status for all current shared minimal cases.
   real local request.
 - Defaults to the source-built httpd under
   `$BUILD_ROOT/apache-runtime/httpd/bin/httpd`.
-- Reads rule, request, headers, body, and expected status from YAML under
-  `tests/common/cases/minimal/` through `tests/runners/case_cli.py`.
+- Reads rule, request, headers, body, multipart body, response fixture, and
+  expected status from YAML through `tests/runners/case_cli.py`.
 
 ## Usage
 
@@ -51,6 +51,8 @@ By default the harness iterates every `*.yaml` file in:
 
 ```text
 tests/common/cases/minimal/
+tests/common/cases/imported/
+tests/apache/cases/imported/
 ```
 
 To run a subset:
@@ -62,6 +64,7 @@ make smoke-apache
 ```
 
 The harness materializes the Apache rule file, request variables, request
-headers, and request body from each YAML file at runtime. Do not duplicate the
-rule, request path, request method, headers, body, or expected HTTP status in
-the harness.
+headers, request body, multipart body, and response fixture from each YAML file
+at runtime. It uses `/__modsec_smoke_ready` with ModSecurity disabled only for
+readiness checks. Do not duplicate the rule, request path, request method,
+headers, body, response fixture, or expected HTTP status in the harness.

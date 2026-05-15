@@ -43,10 +43,12 @@ jobs:
               --env-file "$out/case.env" \
               --headers-file "$out/request-headers.txt" \
               --body-file "$out/request-body.bin" \
+              --docroot "$out/htdocs" \
               --audit-log-file "$out/audit.log" \
               --audit-log-dir "$out/audit"
             grep -q 'SecRuleEngine On' "$out/rules.conf"
             grep -q '^REQUEST_METHOD=' "$out/case.env"
+            test -f "$out/htdocs/index.html"
             . "$out/case.env"
             if [ -n "${EXPECT_RESPONSE_CONTAINS:-}" ]; then
               printf '%s\n' "$EXPECT_RESPONSE_CONTAINS" > "$out/response-body.txt"
@@ -83,6 +85,7 @@ PY
             --repo-root "$GITHUB_WORKSPACE" \
             --connector nginx \
             --scope all > "$BUILD_ROOT/case-runner/nginx-all-cases.txt"
+          python3 -m json.tool tests/import-status.json > "$BUILD_ROOT/case-runner/import-status.pretty.json"
       - name: Check make smoke targets and boundaries
         run: |
           set -eu
@@ -116,3 +119,13 @@ PY
             exit 0
           fi
           exit "$rc"
+      - name: Upload common smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: common-smoke-artifacts
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/ModSecurity-conector-build/case-runner
+            ${{ runner.temp }}/ModSecurity-conector-build/logs
+            ${{ runner.temp }}/ModSecurity-conector-build/results

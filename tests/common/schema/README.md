@@ -22,6 +22,14 @@ request:
   headers:
     User-Agent: optional
   body: optional
+  multipart:
+    boundary: optional-boundary
+    parts:
+      - name: optional
+        body: optional
+
+response:
+  body: optional origin response body
 
 expect:
   status: 403
@@ -32,10 +40,18 @@ expect:
     required: false
 ```
 
+`request.body` and `request.multipart` are mutually exclusive. Multipart bodies
+are materialized by the shared runner with deterministic CRLF line endings and
+a generated `Content-Type: multipart/form-data; boundary=...` header.
+
+`response.body` is optional. When omitted, the harness writes a small default
+origin body under the per-case runtime docroot.
+
 `capabilities` names the portable behavior needed by the case. Current minimal
 capabilities include `query_args`, `request_headers`, `request_body`,
-`form_urlencoded`, `response_headers`, `phase1`, `phase2`, `phase3`,
-`intervention`, `pass_through`, and `audit_log`.
+`form_urlencoded`, `multipart`, `json`, `response_headers`, `response_body`,
+`phase1`, `phase2`, `phase3`, `phase4`, `intervention`, `pass_through`, and
+`audit_log`.
 
 `expect.intervention` is limited to `deny`, `pass`, or `none`. A pass-through
 case should use `intervention: none`, `status: 200`, and usually

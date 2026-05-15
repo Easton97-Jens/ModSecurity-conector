@@ -8,8 +8,9 @@ It does not implement a complete server/proxy adapter suite.
 Implemented now:
 
 - `case_cli.py materialize` reads a shared YAML case, writes a connector runtime
-  rule file, request headers/body files, audit-log paths, and shell-safe
-  request/expectation variables.
+  rule file, request headers/body files, deterministic multipart bodies,
+  response fixtures, audit-log paths, and shell-safe request/expectation
+  variables.
 - `case_cli.py assert-status` compares real connector HTTP status, optional
   response body content, and optional audit-log content with the shared YAML
   case expectation.
@@ -23,7 +24,8 @@ Implemented now:
 The Apache and NGINX PoCs use this runner so each YAML file under
 `tests/common/cases/minimal/`, `tests/common/cases/imported/`, or the
 applicable connector-specific imported directory is the single source for the
-rule, request, headers, optional body, and expected HTTP status.
+rule, request, headers, optional body or multipart body, response fixture, and
+expected HTTP status.
 Audit-log cases also use the YAML as the source for stable audit-log field
 expectations.
 
@@ -51,6 +53,7 @@ python3 tests/runners/case_cli.py materialize \
   --env-file "$BUILD_ROOT/case.env" \
   --headers-file "$BUILD_ROOT/request-headers.txt" \
   --body-file "$BUILD_ROOT/request-body.bin" \
+  --docroot "$BUILD_ROOT/htdocs" \
   --audit-log-file "$BUILD_ROOT/audit.log" \
   --audit-log-dir "$BUILD_ROOT/audit"
 
