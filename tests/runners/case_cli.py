@@ -42,6 +42,9 @@ VARIABLE_CAPABILITIES = {
     "AUDIT_LOG": {"audit-log"},
     "RESPONSE_HEADERS": {"response-headers"},
 }
+STATUS_MODEL = "msconnector_status"
+ORIGIN_MODEL = "msconnector_origin"
+INTERVENTION_MODEL = "msconnector_intervention"
 
 
 def materialize(args: argparse.Namespace) -> int:
@@ -202,6 +205,9 @@ def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]
     cases = {str(entry.get("name", "")): entry for entry in entries}
     import_status = import_status_counts(args.import_status_file)
     summary = {
+        "status_model": STATUS_MODEL,
+        "origin_model": ORIGIN_MODEL,
+        "intervention_model": INTERVENTION_MODEL,
         "connector_path": args.connector_path,
         "validation_mode": args.validation_mode,
         "environment": args.environment or default_environment(),
@@ -210,6 +216,7 @@ def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]
         "server_binary": args.server_binary or "",
         "module": args.module or "",
         "libmodsecurity": args.libmodsecurity or "",
+        "origin": origin_summary(args),
         "verified_variables": verified_variables(entries),
         "summary": result_counts(entries),
         "cases": cases,
@@ -217,6 +224,17 @@ def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]
     if import_status:
         summary["import_status"] = import_status
     return summary
+
+
+def origin_summary(args: argparse.Namespace) -> dict[str, str]:
+    return {
+        "source": args.origin_source or "",
+        "source_repo": args.origin_source_repo or "",
+        "source_commit": args.origin_source_commit or "",
+        "source_version": args.origin_source_version or "",
+        "license": args.origin_license or "",
+        "imported_path": args.origin_imported_path or "",
+    }
 
 
 def write_summary_text(entries: list[dict[str, object]], path: Path) -> None:
@@ -309,6 +327,12 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--server-binary")
     summarize_parser.add_argument("--module")
     summarize_parser.add_argument("--libmodsecurity")
+    summarize_parser.add_argument("--origin-source")
+    summarize_parser.add_argument("--origin-source-repo")
+    summarize_parser.add_argument("--origin-source-commit")
+    summarize_parser.add_argument("--origin-source-version")
+    summarize_parser.add_argument("--origin-license")
+    summarize_parser.add_argument("--origin-imported-path")
     summarize_parser.set_defaults(func=summarize_results)
 
     return parser

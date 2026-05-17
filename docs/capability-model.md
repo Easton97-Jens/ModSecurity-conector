@@ -41,3 +41,15 @@ status based:
 - `tests/common/cases/xfail` is excluded from normal discovery and must be
   selected explicitly with `SMOKE_CASES`.
 - Connector-specific cases are active only for their matching connector.
+
+## Summary Representation
+
+Connector summaries expose Common metadata by name, not by C/Python FFI. The
+harnesses keep using shell and Python, but their JSON records declare:
+
+- `status_model: "msconnector_status"`
+- `origin_model: "msconnector_origin"`
+- `intervention_model: "msconnector_intervention"`
+
+That makes the evidence shape line up with the C-first headers while keeping
+the runtime harness independent of compiled adapter code.

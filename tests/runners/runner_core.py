@@ -89,6 +89,13 @@ CASE_STATUSES = {
 }
 
 RESULT_STATUSES = {"pass", "fail", "blocked", "skipped", "xfail"}
+OPERATION_STATUSES = {
+    "pass": "ok",
+    "fail": "error",
+    "blocked": "blocked",
+    "skipped": "unsupported",
+    "xfail": "unsupported",
+}
 
 CONNECTORS = {"apache", "nginx", "common"}
 INTERVENTIONS = {"deny", "pass", "none", "redirect", "block"}
@@ -637,7 +644,19 @@ def case_info(
         info["executed_connector"] = connector
     if status is not None:
         info["status"] = status
+        info["operation_status"] = OPERATION_STATUSES.get(status, "error")
+    info["intervention"] = intervention_info(expect)
     return info
+
+
+def intervention_info(expect: Mapping[str, Any]) -> dict[str, Any]:
+    intervention = str(expect.get("intervention", ""))
+    disruptive = intervention in {"deny", "block", "redirect"}
+    return {
+        "disruptive": disruptive,
+        "status": expect["status"] if disruptive else 0,
+        "log_message": str(expect.get("log_message", "")),
+    }
 
 
 def _case_dirs(repo_root: Path, connector: str, scope: str) -> list[Path]:

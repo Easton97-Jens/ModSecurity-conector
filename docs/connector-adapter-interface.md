@@ -27,6 +27,21 @@ loading, server configuration, request dispatch, log collection, and cleanup.
 | `summarize_results()` | Write connector JSON/text results using shared schema |
 | `cleanup()` | Remove or isolate runtime state under `BUILD_ROOT` |
 
+## Shared Metadata Models
+
+Future adapters should report the same append-only metadata used by the current
+Apache and NGINX harnesses:
+
+- `msconnector_status`: neutral operation result (`ok`, `error`, `blocked`,
+  `unsupported`) mapped from runtime smoke status.
+- `msconnector_origin`: source repository, revision/version, license, and
+  imported path metadata for the connector module under test.
+- `msconnector_intervention`: disruptive flag, HTTP intervention status when
+  disruptive, and optional log message.
+
+The current shell/Python harnesses serialize these shapes as JSON. They do not
+instantiate the C structs through FFI.
+
 ## Boundary Rules
 
 - `common/` and `tests/common/` remain connector-neutral.
