@@ -4,7 +4,9 @@ Status: implemented
 
 This document defines the current minimal imported Apache and NGINX connector
 source sets used by the monorepo smoke builds. The files remain
-connector-specific. No code has been extracted into `common/` in this step.
+connector-specific. Phase 4 replaces one NGINX debug helper with repo-owned
+adapter-near code; no hook, filter, body, transaction, or Common runtime logic
+was extracted.
 
 ## Apache Connector
 
@@ -52,13 +54,19 @@ Minimal imported tree: `connectors/nginx/upstream/`
 Required for NGINX module build and runtime smoke:
 
 - `config`
-- `src/ddebug.h`
 - `src/ngx_http_modsecurity_access.c`
 - `src/ngx_http_modsecurity_body_filter.c`
 - `src/ngx_http_modsecurity_common.h`
 - `src/ngx_http_modsecurity_header_filter.c`
 - `src/ngx_http_modsecurity_log.c`
 - `src/ngx_http_modsecurity_module.c`
+
+Repo-owned build-copy overlay:
+
+- `connectors/nginx/src/ddebug.h` is copied to
+  `$BUILD_ROOT/nginx-build/ModSecurity-nginx/src/ddebug.h` when the selected
+  connector source tree does not provide that header. This keeps the upstream
+  `config` dependency satisfied while reducing `connectors/nginx/upstream/`.
 
 License and provenance context:
 
@@ -74,6 +82,7 @@ real-world connector smokes after extraction.
 
 | Category | Apache source area | NGINX source area | Current decision |
 | --- | --- | --- | --- |
+| Debug compatibility | none | repo-owned `connectors/nginx/src/ddebug.h` | Replaced imported upstream debug helper |
 | Ruleset loading | `src/msc_config.*` | `src/ngx_http_modsecurity_module.c` | Keep connector-specific |
 | Transaction lifecycle | `src/mod_security3.c`, `src/msc_filters.*` | access/header/body/log sources | Keep connector-specific |
 | Intervention handling | `src/mod_security3.c`, `src/msc_utils.*` | `src/ngx_http_modsecurity_module.c` | Keep connector-specific |
@@ -94,4 +103,5 @@ are true:
 - A disposable probe under `$BUILD_ROOT` proves that Apache, NGINX, and
   combined smokes still pass without it.
 
-The current review found no such file.
+The phase-4 review found one safe replacement: the NGINX debug compatibility
+header. All remaining imported files stay under the pruning rule above.

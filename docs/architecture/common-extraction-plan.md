@@ -74,6 +74,15 @@ origin, intervention, and capability metadata only. The Apache and NGINX
 runtime harnesses continue to use Python/Shell and mirror the schema without
 FFI.
 
+## Phase 4 Replace-And-Reduce Boundary
+
+Phase 4 replaces one NGINX adapter-near debug compatibility header. This is not
+a Common extraction: the replacement lives under `connectors/nginx/src/` and is
+copied only into generated build trees that need `src/ddebug.h`.
+
+No Apache or NGINX hook, filter, body handling, transaction ownership,
+configuration parsing, or `RESPONSE_BODY` behavior moves to `common/`.
+
 After this boundary is stable, inspect duplicate libmodsecurity API usage and
 design a separate connector-neutral adapter proposal. That proposal must include
 before/after smoke results and must not start from response-body blocking
