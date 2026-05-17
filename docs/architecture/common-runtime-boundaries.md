@@ -118,3 +118,12 @@ Common still does not own:
 ModSecurity-nginx PR #377 source changes are documented as adapter-owned NGINX
 source provenance. They do not make `RESPONSE_BODY` a verified variable and do
 not affect Apache.
+
+## Phase 10 NGINX Upstream Removal Boundary
+
+Phase 10 removes the remaining NGINX upstream reference tree only after the
+build input has already moved to adapter-owned source. This changes repository
+layout and attribution storage, not runtime semantics. NGINX hooks, filters,
+phase handlers, body handling, intervention behavior, and transaction ownership
+remain connector-specific adapter-owned code, and Common still does not own
+those paths.

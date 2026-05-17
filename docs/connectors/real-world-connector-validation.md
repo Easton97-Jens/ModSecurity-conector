@@ -77,7 +77,7 @@ Each connector summary under `$BUILD_ROOT/results/` records:
   "module": "...",
   "libmodsecurity": "...",
   "origin": {
-    "source": "monorepo-upstream",
+    "source": "adapter-owned|monorepo-upstream|external",
     "source_repo": "ModSecurity-apache",
     "source_commit": "...",
     "source_version": "...",

@@ -25,8 +25,9 @@ Set `MODSECURITY_NGINX_SOURCE_DIR=/path/to/ModSecurity-nginx` to rebuild from an
 external read-only checkout. The build helper sanitizes connector source copies
 into `BUILD_ROOT` and excludes `.git`, CI files, caches, and build artifacts.
 For the monorepo default it first materializes
-`$BUILD_ROOT/nginx-build/connector-src` from `connectors/nginx/src` plus
-retained upstream attribution files.
+`$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
+`connectors/nginx/src` files plus generated manifests. The former
+`connectors/nginx/upstream/` tree is not a build input.
 
 Status `pass` is only a built NGINX binary and dynamic module artifact. Runtime
 pass requires `connectors/nginx/harness/run_nginx_smoke.sh` to observe the

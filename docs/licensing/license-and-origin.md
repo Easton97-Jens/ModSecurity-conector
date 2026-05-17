@@ -9,8 +9,10 @@ code. The imported source files remain connector-specific and are documented in:
 - `connectors/nginx/ORIGIN.md`
 
 The central attribution index is stored under `licenses/`. It mirrors the
-upstream license and attribution files for quick review, but it does not replace
-the upstream-adjacent copies in `connectors/*/upstream/`.
+upstream license and attribution files for quick review. For Apache it
+supplements the retained upstream-adjacent copies; for NGINX it is now the
+durable attribution location after the local upstream reference tree was
+removed.
 
 ## Apache Connector
 
@@ -49,12 +51,11 @@ Observed source revision:
 - describe: `v1.0.4-14-g9eb44fd`
 - license: Apache License 2.0
 
-The upstream `LICENSE` file is imported into
-`connectors/nginx/upstream/LICENSE`. The NGINX module `config` and source files
-are adapter-owned under `connectors/nginx/src` after phase 9, with source
-provenance recorded in `connectors/nginx/src/SOURCE_MAP.json` and
-`connectors/nginx/ORIGIN.md`. The retained `connectors/nginx/upstream/` tree now
-contains upstream attribution/reference files only.
+The upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are retained in
+`licenses/nginx/`. The NGINX module `config` and source files are adapter-owned
+under `connectors/nginx/src`, with source provenance recorded in
+`connectors/nginx/src/SOURCE_MAP.json` and `connectors/nginx/ORIGIN.md`. The
+former `connectors/nginx/upstream/` tree was removed in phase 10.
 
 ModSecurity-nginx PR #377
 (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) source
@@ -88,9 +89,10 @@ documented in `licenses/modsecurity/README.md`.
 - Keep origin maps updated whenever imported files are added, removed, or
   refreshed from upstream.
 - Keep `licenses/` synchronized with imported source origins and license files.
-- Treat `connectors/*/upstream/` as a temporary import/reference basis. Do not
-  remove files from it for cosmetic cleanup; remove only after replacement,
-  retained attribution, and passing smoke evidence.
+- Treat `connectors/apache/upstream/` as a temporary import/reference basis. Do
+  not remove files from it for cosmetic cleanup; remove only after replacement,
+  retained attribution, and passing smoke evidence. NGINX no longer keeps a
+  local `upstream/` tree; its durable attribution lives under `licenses/nginx/`.
 
 ## Pruning Review
 
@@ -98,9 +100,10 @@ The current imported connector trees were reviewed in
 `docs/imports/upstream-pruning-analysis.md` and summarized in
 `docs/imports/minimal-upstream-file-set.md`.
 
-Later replace-and-reduce phases removed the imported NGINX debug helper and
-migrated NGINX `config`/`src/*` into adapter-owned source after smoke proof. The
-remaining Apache upstream files and NGINX attribution files are classified as
-required, build-only, or documentation-only. A future removal must be documented
-in the relevant `ORIGIN.md`, retain license and attribution coverage, and pass
+Later replace-and-reduce phases removed the imported NGINX debug helper,
+migrated NGINX `config`/`src/*` into adapter-owned source, and then removed the
+remaining NGINX upstream reference tree after smoke proof. The remaining Apache
+upstream files are classified as required, build-only, or documentation-only. A
+future removal must be documented in the relevant `ORIGIN.md`, retain license
+and attribution coverage, and pass
 an isolated `$BUILD_ROOT` build/smoke probe before being committed.

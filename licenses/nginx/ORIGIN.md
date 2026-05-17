@@ -4,8 +4,9 @@ Status: implemented
 
 This directory mirrors the upstream license and attribution files for the
 controlled NGINX connector source import. The default NGINX build source is now
-adapter-owned under `connectors/nginx/src`; `connectors/nginx/upstream/` keeps
-only upstream license/reference files.
+adapter-owned under `connectors/nginx/src`; the former
+`connectors/nginx/upstream/` reference tree was removed in phase 10. This
+directory is the durable attribution location.
 
 Local reference: `/root/conecter/ModSecurity-nginx`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
@@ -23,9 +24,9 @@ Default imported path: `connectors/nginx/src`
 
 | Central path | Source path | Purpose |
 | --- | --- | --- |
-| `licenses/nginx/LICENSE` | `connectors/nginx/upstream/LICENSE` | Apache-2.0 license text for imported NGINX connector source |
-| `licenses/nginx/AUTHORS` | `connectors/nginx/upstream/AUTHORS` | Upstream attribution |
-| `licenses/nginx/CHANGES` | `connectors/nginx/upstream/CHANGES` | Upstream change context |
+| `licenses/nginx/LICENSE` | Upstream `LICENSE` | Apache-2.0 license text for imported NGINX connector source |
+| `licenses/nginx/AUTHORS` | Upstream `AUTHORS` | Upstream attribution |
+| `licenses/nginx/CHANGES` | Upstream `CHANGES` | Upstream change context |
 
 ## Imported Source Map
 
@@ -40,5 +41,5 @@ ModSecurity-nginx PR #377 source provenance:
   `connectors/nginx/src/ngx_http_modsecurity_common.h`, and
   `connectors/nginx/src/ngx_http_modsecurity_module.c`
 
-This central license directory is an attribution index and does not replace the
-upstream-adjacent files or the adapter-owned `SOURCE_MAP.json`.
+This central license directory is the durable attribution index for NGINX and
+is paired with the adapter-owned `SOURCE_MAP.json`.

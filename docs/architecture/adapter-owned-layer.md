@@ -9,7 +9,7 @@ code yet.
 ## Purpose
 
 `connectors/<name>/src/` is reserved for connector-owned code developed outside
-`connectors/<name>/upstream/`:
+imported upstream reference trees:
 
 - stable connector metadata;
 - origin and license descriptors;
@@ -20,9 +20,11 @@ For NGINX, this layer now also contains the adapter-owned module build source.
 For Apache, it remains metadata-only.
 
 The layer is separate from `common/`: Common remains connector-neutral, while
-adapter-owned helpers may name Apache or NGINX as components. The layer is also
-separate from `upstream/`: imported sources remain the functional reference
-implementation until a later replace-and-reduce phase proves equivalence.
+adapter-owned helpers may name Apache or NGINX as components. For Apache, the
+layer is also separate from the retained `connectors/apache/upstream/` import.
+For NGINX, the former upstream tree has been removed and `connectors/nginx/src/`
+is now the build source; provenance remains in `licenses/nginx/`,
+`connectors/nginx/ORIGIN.md`, and `connectors/nginx/src/SOURCE_MAP.json`.
 
 ## Current Files
 
@@ -92,9 +94,9 @@ with before/after real-world connector smokes.
 Phase 8 starts using adapter-owned files in generated build sources. Phase 9
 migrates the NGINX module `config` and source files into `connectors/nginx/src`.
 For the monorepo-default NGINX source, `ci/prepare-nginx-build.sh` materializes
-`$BUILD_ROOT/nginx-build/connector-src` from retained upstream attribution files
-and adapter-owned NGINX source. The generated manifests identify the NGINX
-module sources as `adapter-owned` and record PR #377 patch provenance where
+`$BUILD_ROOT/nginx-build/connector-src` from adapter-owned NGINX source and
+generated manifests only. The generated manifests identify the NGINX module
+sources as `adapter-owned` and record PR #377 patch provenance where
 applicable.
 
 Apache is materialized for evidence only in phase 8. Its productive module build

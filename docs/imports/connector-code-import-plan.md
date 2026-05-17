@@ -19,10 +19,9 @@ Imported and migrated connector code is kept in connector-specific areas:
 No Apache or NGINX code is moved into `common/` in this step. The
 `upstream/` directories are temporary reference/import bases and may shrink only
 after functionality is replaced by maintained project code, origin remains
-documented, and the real-world smokes still pass. NGINX has reached that state
-for its module `config` and `src/*` files; they now live under
-`connectors/nginx/src`, while `connectors/nginx/upstream/` retains only
-license/reference files.
+documented, and the real-world smokes still pass. NGINX has reached that state:
+its module `config` and `src/*` files now live under `connectors/nginx/src`,
+and the former `connectors/nginx/upstream/` tree was removed in Phase 10.
 
 ## Source Revisions
 
@@ -44,15 +43,13 @@ Apache import includes source and Autotools/APXS build inputs only:
 
 NGINX adapter-owned source includes source and NGINX module build inputs only:
 
-- `LICENSE`, `AUTHORS`, `CHANGES`, `README.md`
 - `config` under `connectors/nginx/src`
 - connector source files under `connectors/nginx/src`
 - `SOURCE_MAP.json` recording the base upstream commit and PR #377 patch
   provenance
 
-The upstream-adjacent NGINX attribution files remain under
-`connectors/nginx/upstream/`, but no productive NGINX module source remains
-there after phase 9.
+NGINX attribution files remain under `licenses/nginx/`; no local
+`connectors/nginx/upstream/` tree remains after Phase 10.
 
 The following are intentionally not imported:
 
@@ -75,9 +72,9 @@ They do not build or mutate the source checkout directly.
 
 For monorepo-default NGINX builds, the direct build input is now the generated
 `$BUILD_ROOT/nginx-build/connector-src` tree. It is materialized from
-retained NGINX upstream attribution files and adapter-owned
-`connectors/nginx/src/` sources. The NGINX `config` file materializes to root
-`config`; adapter source files materialize under `src/`.
+adapter-owned `connectors/nginx/src/` sources and generated manifests only. The
+NGINX `config` file materializes to root `config`; adapter source files
+materialize under `src/`.
 
 For monorepo-default Apache builds, phase 8 also generates
 `$BUILD_ROOT/apache-build/connector-src` and manifests it, but the productive

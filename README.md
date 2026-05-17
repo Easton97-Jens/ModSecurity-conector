@@ -85,10 +85,12 @@ builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
 
 - `connectors/apache/upstream/` is the current Apache reference/import basis.
 - `connectors/nginx/src/` is the adapter-owned NGINX module source tree.
-- `connectors/nginx/upstream/` is now NGINX attribution/reference material only
-  (`LICENSE`, `AUTHORS`, `CHANGES`, `README.md`).
-- `upstream/` trees may shrink only after functionality has moved to maintained
-  project code, origin is still documented, and smokes still pass.
+- The former `connectors/nginx/upstream/` tree was removed after NGINX
+  adapter-owned source builds and smokes passed. NGINX attribution now lives in
+  `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
+  `connectors/nginx/src/SOURCE_MAP.json`.
+- Remaining `upstream/` trees may shrink only after functionality has moved to
+  maintained project code, origin is still documented, and smokes still pass.
 - `licenses/` is the durable attribution index for imported connector code and
   read-only ModSecurity engine references.
 - `common/` is the future connector-neutral basis. It currently contains
@@ -120,10 +122,9 @@ When `NGINX_RELEASE_TAG=latest`, the actual tag is resolved at build time and
 recorded under `$BUILD_ROOT/logs/nginx/`.
 
 The monorepo-default NGINX connector source is `connectors/nginx/src`. It is
-materialized with retained upstream attribution files into
-`$BUILD_ROOT/nginx-build/connector-src`. Explicit
-`MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external source
-copy.
+materialized into `$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
+files only, plus generated manifests. Explicit `MODSECURITY_NGINX_SOURCE_DIR`
+overrides still use a sanitized external source copy.
 
 ## Shared Smoke Targets
 

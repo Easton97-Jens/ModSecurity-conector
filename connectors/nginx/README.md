@@ -33,17 +33,17 @@ Not implemented:
 Primary local reference: `/root/conecter/ModSecurity-nginx`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx.
 
-The adapter-owned source lives under `connectors/nginx/src/`. The retained
-`connectors/nginx/upstream/` directory now contains upstream license/reference
-files only. It may shrink further only after origin is still documented and
-smokes keep passing.
+The adapter-owned source lives under `connectors/nginx/src/`. The former
+`connectors/nginx/upstream/` directory was removed after materialized-source
+NGINX builds and smokes passed. Durable attribution stays in `licenses/nginx/`,
+`connectors/nginx/ORIGIN.md`, and `connectors/nginx/src/SOURCE_MAP.json`.
 
 The build helper is `ci/prepare-nginx-build.sh`. For the monorepo default it
-materializes `$BUILD_ROOT/nginx-build/connector-src` from `connectors/nginx/src`
-plus retained upstream attribution files, then builds the connector as a
-dynamic NGINX module against an official `nginx/nginx` GitHub release archive.
-Explicit `MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external
-source copy.
+materializes `$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
+`connectors/nginx/src` files only, then builds the connector as a dynamic NGINX
+module against an official `nginx/nginx` GitHub release archive. Explicit
+`MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external source
+copy.
 
 Observed locally on 2026-05-15: `NGINX_RELEASE_TAG=latest` resolved to
 `release-1.31.0`, built `nginx/1.31.0`, built

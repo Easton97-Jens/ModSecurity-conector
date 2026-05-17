@@ -9,23 +9,24 @@ license or origin context, and have a successful isolated `$BUILD_ROOT` probe.
 Phase 4 removed one NGINX debug helper after adding a repo-owned build-copy
 overlay. Phase 5 reviewed the remaining source helpers and found no additional
 safe replacement candidate. Phase 9 moved NGINX `config` and module source
-files into adapter-owned `connectors/nginx/src/` and reduced
-`connectors/nginx/upstream/` to attribution/reference files after a
-materialized-source NGINX smoke passed.
+files into adapter-owned `connectors/nginx/src/`. Phase 10 removed the
+remaining NGINX `upstream/` attribution-only tree after durable attribution was
+confirmed in `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
+`connectors/nginx/src/SOURCE_MAP.json`.
 
 Phase 8 adds a shadow build-source layer. The monorepo-default NGINX build now
 uses `$BUILD_ROOT/nginx-build/connector-src`, originally generated from the
 remaining imported upstream source plus adapter-owned overlays. Phase 8 itself
 was not a new pruning event.
 
-Phase 9 changes that build-copy composition: the NGINX module source and
-`config` are adapter-owned, while retained upstream files provide attribution
-and reference context only.
+Phase 10 changes that build-copy composition again: the NGINX module source and
+`config` are adapter-owned, and NGINX no longer contributes
+`upstream-derived` files to the materialized source manifest.
 
 ## Evidence Used
 
-- File inventory from `connectors/apache/upstream/` and
-  `connectors/nginx/upstream/`.
+- File inventory from `connectors/apache/upstream/`, the former
+  `connectors/nginx/upstream/`, and current `connectors/nginx/src/`.
 - Apache Autotools inputs: `configure.ac`, `Makefile.am`, `build/*.m4`, and
   `build/apxs-wrapper.in`.
 - NGINX module metadata before phase 9:
@@ -39,14 +40,14 @@ and reference context only.
 
 ## Result
 
-| Connector | Imported files before reduction | Removed after phase 4 | Removed after phase 5 | Removed after phase 9 | Reason |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Apache | 25 | 0 | 0 | 0 | Remaining files are license/origin context, Autotools inputs, module source, or templates referenced by `configure.ac`/test layout |
-| NGINX | 12 | 1 | 0 | 7 | `src/ddebug.h` was replaced by repo-owned `connectors/nginx/src/ddebug.h`; NGINX `config` and six module source/dependency files moved to adapter-owned `connectors/nginx/src` |
+| Connector | Imported files before reduction | Removed after phase 4 | Removed after phase 5 | Removed after phase 9 | Removed after phase 10 | Reason |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Apache | 25 | 0 | 0 | 0 | 0 | Remaining files are license/origin context, Autotools inputs, module source, or templates referenced by `configure.ac`/test layout |
+| NGINX | 12 | 1 | 0 | 7 | 4 | `src/ddebug.h` was replaced by repo-owned `connectors/nginx/src/ddebug.h`; NGINX `config` and six module source/dependency files moved to adapter-owned `connectors/nginx/src`; final attribution files moved to durable `licenses/nginx/` |
 
-The imported trees remain intentionally small. NGINX now keeps only
-license/reference files under `connectors/nginx/upstream/`; productive NGINX
-source is adapter-owned and tracked by `connectors/nginx/src/SOURCE_MAP.json`.
+The imported trees remain intentionally small. NGINX no longer keeps a local
+`connectors/nginx/upstream/` tree; productive NGINX source is adapter-owned and
+tracked by `connectors/nginx/src/SOURCE_MAP.json`.
 Phase 5 intentionally did not delete another file because the reviewed
 candidates were production request/response, config, lifecycle, or audit paths.
 
@@ -84,14 +85,15 @@ Source: `connectors/apache/upstream/`
 
 ## NGINX File Classification
 
-Source: `connectors/nginx/upstream/`
+Source: former `connectors/nginx/upstream/`; current source:
+`connectors/nginx/src/` plus durable attribution in `licenses/nginx/`.
 
 | File | Classification | Evidence | Decision |
 | --- | --- | --- | --- |
-| `AUTHORS` | documentation-only | Upstream attribution required for controlled import | Keep |
-| `CHANGES` | documentation-only | Upstream change context retained with imported source | Keep |
-| `LICENSE` | required | License text for Apache-2.0 imported files | Keep |
-| `README.md` | documentation-only | Upstream build and usage context | Keep |
+| `AUTHORS` | documentation-only | Upstream attribution required for controlled import | Removed from `connectors/nginx/upstream/`; durable copy remains at `licenses/nginx/AUTHORS` |
+| `CHANGES` | documentation-only | Upstream change context retained with imported source | Removed from `connectors/nginx/upstream/`; durable copy remains at `licenses/nginx/CHANGES` |
+| `LICENSE` | required | License text for Apache-2.0 imported files | Removed from `connectors/nginx/upstream/`; durable copy remains at `licenses/nginx/LICENSE` |
+| `README.md` | documentation-only | Upstream build and usage context | Removed from `connectors/nginx/upstream/`; origin context remains in `connectors/nginx/ORIGIN.md` and docs |
 | `config` | replaced | NGINX module build metadata now lives at `connectors/nginx/src/config` | Removed from upstream after phase 9 smoke validation |
 | `src/ngx_http_modsecurity_access.c` | replaced | Adapter-owned copy now lives at `connectors/nginx/src/ngx_http_modsecurity_access.c` | Removed from upstream after phase 9 smoke validation |
 | `src/ngx_http_modsecurity_body_filter.c` | replaced | Adapter-owned copy now includes PR #377 source changes | Removed from upstream after phase 9 smoke validation |
@@ -104,19 +106,19 @@ Source: `connectors/nginx/upstream/`
 
 | File | Previous classification | Replacement | Evidence | Decision |
 | --- | --- | --- | --- | --- |
-| `connectors/nginx/upstream/src/ddebug.h` | build dependency | `connectors/nginx/src/ddebug.h` copied into the generated build tree when needed | The header only provides debug macros and sanity-check no-ops; it does not own hooks, filters, bodies, transactions, or libmodsecurity lifecycle | Remove imported copy after smoke validation |
+| `connectors/nginx/upstream/src/ddebug.h` | build dependency | `connectors/nginx/src/ddebug.h` copied into the generated build tree when needed | The header only provides debug macros and sanity-check no-ops; it does not own hooks, filters, bodies, transactions, or libmodsecurity lifecycle | Removed after smoke validation |
 
-## Removal Decision
+## Phase 4 Removal Decision
 
-One file was removed in phase 4. In particular:
+One file was removed in phase 4. At that point:
 
 - Apache `.in` templates are retained because `configure.ac` references them
   directly through `AC_CONFIG_FILES`.
-- NGINX production source files are retained because `config` explicitly lists
-  them as module sources or dependencies.
-- NGINX `config` still lists `src/ddebug.h`, but the generated build copy now
-  receives a repo-owned replacement when the selected source tree lacks it.
-- License and attribution files are retained for provenance and redistribution
+- NGINX production source files were retained because `config` explicitly
+  listed them as module sources or dependencies.
+- NGINX `config` still listed `src/ddebug.h`, but the generated build copy
+  received a repo-owned replacement when the selected source tree lacked it.
+- License and attribution files were retained for provenance and redistribution
   clarity.
 
 Any future deletion must be validated in an isolated copy under `$BUILD_ROOT`,
@@ -142,9 +144,9 @@ this review.
 ## Phase 8 Build-Input Reduction
 
 The generated NGINX connector source tree reduces direct build dependence on the
-`connectors/nginx/upstream/` directory. The retained upstream tree remains the
-reference/provenance source, while the disposable `$BUILD_ROOT` tree records the
-actual build-copy composition.
+former `connectors/nginx/upstream/` directory. At that point the retained
+upstream tree remained a reference/provenance source, while the disposable
+`$BUILD_ROOT` tree recorded the actual build-copy composition.
 
 Apache receives the same manifest-only preparation. Its productive module build
 still uses the sanitized upstream copy in phase 8.
@@ -165,3 +167,10 @@ Phase 9 makes the generated NGINX build source adapter-owned by default:
 
 This is a source ownership/build-input reduction, not a semantic promotion of
 phase-4 response-body blocking. `RESPONSE_BODY` remains xfail/mapped-only.
+
+## Phase 10 Final NGINX Upstream Removal
+
+Phase 10 removes the remaining NGINX upstream reference tree. The materialized
+NGINX source is generated from adapter-owned `connectors/nginx/src/` files and
+generated manifests only. Attribution is retained in `licenses/nginx/`,
+`connectors/nginx/ORIGIN.md`, and `connectors/nginx/src/SOURCE_MAP.json`.

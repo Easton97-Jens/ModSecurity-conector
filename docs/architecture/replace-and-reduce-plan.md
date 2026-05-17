@@ -1,6 +1,6 @@
 # Replace-And-Reduce Plan
 
-Status: phase 9 NGINX source migrated
+Status: phase 10 NGINX upstream reference removed
 
 This plan records candidates for replacing small imported connector source
 pieces with repo-owned code. A replacement is allowed only when it avoids
@@ -43,6 +43,17 @@ connectors.
 | --- | --- | --- | --- | --- | --- |
 | NGINX module source tree | `connectors/nginx/upstream/config`, `connectors/nginx/upstream/src/*` | Medium. The files are productive connector code, so the safe move is path ownership only, not semantic rewrite. | Fresh materialized-source NGINX build plus real-world NGINX smoke; combined smoke remains required. | Move files to `connectors/nginx/src`, keep provenance in `SOURCE_MAP.json`, materialize adapter-owned files into `$BUILD_ROOT/nginx-build/connector-src`, and remove upstream copies only after smoke pass. | replace now |
 | ModSecurity-nginx PR #377 phase-4 changes | PR #377 body filter/common header/module source | Medium. It touches phase-4 / late intervention behavior. | Apply only if the adapter-owned NGINX source compiles and `smoke-nginx` passes. `probe-response-body` remains evidence-only. | Apply source changes to adapter-owned files and document response-body status separately. | apply source, no `RESPONSE_BODY` promotion |
+
+## Phase 10 NGINX Upstream Reference Removal
+
+Phase 10 removes the remaining `connectors/nginx/upstream/` attribution-only
+tree. This is not a runtime replacement: productive NGINX source already lived
+under `connectors/nginx/src` and the materialized build source was already
+generated under `$BUILD_ROOT/nginx-build/connector-src`.
+
+| Candidate | Source | Risk | Test coverage | Replacement strategy | Decision |
+| --- | --- | --- | --- | --- | --- |
+| NGINX remaining upstream reference files | `connectors/nginx/upstream/{LICENSE,AUTHORS,CHANGES,README.md}` | Low if attribution remains complete. They are not build inputs after Phase 9. | NGINX materialized build, `smoke-nginx`, and combined `smoke-all`; manifest must have no NGINX `upstream-derived` entries. | Remove local upstream tree, retain durable attribution in `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and `connectors/nginx/src/SOURCE_MAP.json`. | remove now |
 
 ## Phase 5 Review
 

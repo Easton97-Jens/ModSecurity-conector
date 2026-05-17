@@ -2,12 +2,13 @@
 
 Status: implemented
 
-This document defines the current minimal imported Apache and NGINX connector
-source sets used by the monorepo smoke builds. The files remain
-connector-specific. Phase 9 migrates the NGINX module source into
-adapter-owned `connectors/nginx/src` while retaining upstream attribution files.
-No Apache hook, NGINX filter, body, transaction, or Common runtime logic was
-merged across connectors.
+This document defines the current minimal imported Apache connector source set
+and the adapter-owned NGINX source set used by the monorepo smoke builds. The
+files remain connector-specific. Phase 9 migrated the NGINX module source into
+adapter-owned `connectors/nginx/src`; Phase 10 removed the former NGINX
+`upstream/` reference tree after attribution was preserved in `licenses/nginx/`
+and `connectors/nginx/src/SOURCE_MAP.json`. No Apache hook, NGINX filter, body,
+transaction, or Common runtime logic was merged across connectors.
 
 ## Apache Connector
 
@@ -50,14 +51,16 @@ License and provenance context:
 
 ## NGINX Connector
 
-Minimal retained upstream tree: `connectors/nginx/upstream/`
+There is no remaining NGINX `connectors/nginx/upstream/` tree. The former
+upstream reference files were removed in Phase 10 after durable attribution was
+confirmed in:
 
-Required for attribution/reference:
-
-- `LICENSE`
-- `AUTHORS`
-- `CHANGES`
-- `README.md`
+- `licenses/nginx/LICENSE`
+- `licenses/nginx/AUTHORS`
+- `licenses/nginx/CHANGES`
+- `licenses/nginx/ORIGIN.md`
+- `connectors/nginx/ORIGIN.md`
+- `connectors/nginx/src/SOURCE_MAP.json`
 
 Adapter-owned NGINX module build inputs:
 
@@ -85,9 +88,9 @@ Materialized build input:
 
 - Monorepo-default NGINX builds use
   `$BUILD_ROOT/nginx-build/connector-src`.
-- The materializer copies retained upstream attribution files, overlays
-  adapter-owned `connectors/nginx/src`, maps adapter `config` to root `config`,
-  and writes `MATERIALIZED_SOURCE.md` plus `materialized-source.json`.
+- The materializer copies adapter-owned `connectors/nginx/src` files, maps
+  adapter `config` to root `config`, and writes `MATERIALIZED_SOURCE.md` plus
+  `materialized-source.json`.
 - External NGINX source builds still use a sanitized external-source copy; if
   the selected external source tree lacks `src/ddebug.h`,
   `ci/prepare-nginx-build.sh` overlays the repo-owned header into the generated
@@ -122,8 +125,9 @@ are true:
   combined smokes still pass without it.
 
 The phase-4 review found one safe replacement: the NGINX debug compatibility
-header. Phase 9 migrated NGINX productive source into adapter-owned files and
-reduced `connectors/nginx/upstream/` to attribution/reference files only.
+header. Phase 9 migrated NGINX productive source into adapter-owned files.
+Phase 10 removed the remaining NGINX upstream reference tree because no build
+input depended on it and durable attribution stayed available elsewhere.
 
 ## Phase 8 Shadow Build Source
 
@@ -139,10 +143,16 @@ separate Autotools/APXS proof switches the default.
 
 ## Phase 9 NGINX Source Migration
 
-Phase 9 moves the NGINX module `config` and all remaining module source files
-from `connectors/nginx/upstream/` to `connectors/nginx/src/`, then removes the
-upstream copies after a materialized-source NGINX smoke passes. The retained
-NGINX upstream tree is now a minimal attribution/reference set.
+Phase 9 moved the NGINX module `config` and all remaining module source files
+from `connectors/nginx/upstream/` to `connectors/nginx/src/`, then removed the
+upstream copies after a materialized-source NGINX smoke passed.
+
+## Phase 10 NGINX Upstream Removal
+
+Phase 10 removes the remaining `connectors/nginx/upstream/` attribution-only
+tree. Monorepo-default NGINX builds now materialize from adapter-owned source
+only. The generated manifest is expected to list NGINX `config` and module
+sources as `adapter-owned`, with no NGINX `upstream-derived` entries.
 
 ## Phase 5 Review Result
 

@@ -1,13 +1,13 @@
 # NGINX Connector Origin Map
 
-Status: adapter-owned source migration implemented
+Status: adapter-owned source migration complete
 
 Local reference: `/root/conecter/ModSecurity-nginx`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
 Source branch: `master`
 Source commit: `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`
 Source describe: `v1.0.4-14-g9eb44fd`
-License: Apache-2.0, retained as `connectors/nginx/upstream/LICENSE`
+License: Apache-2.0, retained in `licenses/nginx/LICENSE`
 Default imported path: `connectors/nginx/src`
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
@@ -20,8 +20,9 @@ Central attribution: `licenses/nginx/`
 
 NGINX now builds from a materialized source tree generated under
 `$BUILD_ROOT/nginx-build/connector-src`. The productive module source is
-adapter-owned in `connectors/nginx/src/`; `connectors/nginx/upstream/` is kept
-only for upstream attribution and reference files.
+adapter-owned in `connectors/nginx/src/`. The former
+`connectors/nginx/upstream/` reference tree was removed in phase 10 after the
+source migration, materialized-source build, and real NGINX smokes passed.
 
 | Adapter-owned path | Original upstream path | Repo | Base commit | Extra provenance | License | Import reason |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -55,33 +56,34 @@ Phase-4 / `RESPONSE_BODY` behavior remains evidence-only; `RESPONSE_BODY` is
 not added to `verified_variables` until a separate Apache+NGINX real-world
 promotion proves stable HTTP behavior.
 
-## Retained Upstream Reference Files
+## Durable Attribution Files
 
-| Imported path | Original path | Repo | Commit | License | Import reason |
+| Attribution path | Original path | Repo | Commit | License | Import reason |
 | --- | --- | --- | --- | --- | --- |
-| `connectors/nginx/upstream/LICENSE` | `LICENSE` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | Apache-2.0 | License text for NGINX-derived adapter source |
-| `connectors/nginx/upstream/AUTHORS` | `AUTHORS` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | Apache-2.0 | Upstream attribution |
-| `connectors/nginx/upstream/CHANGES` | `CHANGES` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | Apache-2.0 | Upstream change context |
-| `connectors/nginx/upstream/README.md` | `README.md` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | Apache-2.0 | Upstream build and usage context |
+| `licenses/nginx/LICENSE` | `LICENSE` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | Apache-2.0 | License text for NGINX-derived adapter source |
+| `licenses/nginx/AUTHORS` | `AUTHORS` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | Apache-2.0 | Upstream attribution |
+| `licenses/nginx/CHANGES` | `CHANGES` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | Apache-2.0 | Upstream change context |
 
 ## Excluded Upstream Files
 
 The NGINX test harness, `.git`, `.github`, CI files, release scripts, Windows
 build files, raw upstream tests, and build/runtime artifacts are not imported.
 The previous upstream `config` and `src/*` files were migrated to
-`connectors/nginx/src/` and removed from `connectors/nginx/upstream/` after a
-passing materialized-source NGINX smoke.
+`connectors/nginx/src/`; the former `connectors/nginx/upstream/` directory was
+removed after passing materialized-source NGINX smokes.
 
 ## Central Attribution Copies
 
-The NGINX upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are also mirrored
-under `licenses/nginx/` for repository-level license review. The central
-license directory is an attribution index; it does not replace this origin map.
+The NGINX upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are mirrored under
+`licenses/nginx/` for repository-level license review. The central license
+directory is the durable attribution source; this origin map records how those
+files relate to the adapter-owned source tree.
 
 ## Pruning Review
 
 Last reviewed in `docs/imports/upstream-pruning-analysis.md`.
 
-`connectors/nginx/upstream/` is now a reference/attribution basis. Future
-removal is allowed only after origin/license documentation remains complete and
-real-world smoke evidence continues to pass.
+`connectors/nginx/upstream/` was removed in phase 10. Future NGINX source
+reductions should update `connectors/nginx/src/SOURCE_MAP.json`,
+`licenses/nginx/`, and this origin map, then prove `smoke-nginx` and
+`smoke-all` still pass.
