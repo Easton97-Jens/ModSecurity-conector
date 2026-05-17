@@ -45,12 +45,12 @@ jobs:
           test -f ci/run-apache-smoke.sh
           test -f tests/apache/apache-regression-map.md
           test -f tests/apache/cases/imported/README.md
-          test -f docs/test-import-plan.md
+          test -f docs/testing/test-import-plan.md
           test -f tests/common/cases/minimal/phase2_args_block.yaml
           test -f tests/common/cases/imported/action_deny_phase1.yaml
           test -f tests/common/cases/imported/multipart_basic_block.yaml
           test -f tests/import-status.json
-          test -f docs/real-world-connector-validation.md
+          test -f docs/connectors/real-world-connector-validation.md
           grep -q 'Status:' connectors/apache/TODO.md
       - name: Shell syntax
         run: |

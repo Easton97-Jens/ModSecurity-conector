@@ -2,7 +2,7 @@
 set -eu
 
 MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-/root/conecter/ModSecurity_V3}"
-MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-/root/conecter/ModSecurity-apache}"
+MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache}"
 REFRESH="${REFRESH:-0}"
@@ -35,6 +35,10 @@ PCRE2_SOURCE_DIR="${PCRE2_SOURCE_DIR:-$APACHE_BUILD_ROOT/pcre2-src}"
 PCRE2_PREFIX="${PCRE2_PREFIX:-$OUTPUT_DIR/pcre2}"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache/upstream"
+MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$DEFAULT_APACHE_SOURCE_DIR}"
+APACHE_ADAPTER_SOURCE_DIR="${APACHE_ADAPTER_SOURCE_DIR:-$REPO_ROOT/connectors/apache/src}"
+APACHE_MATERIALIZED_SOURCE_DIR="${APACHE_MATERIALIZED_SOURCE_DIR:-$APACHE_BUILD_ROOT/connector-src}"
 
 default_jobs() {
     if command -v nproc >/dev/null 2>&1; then
@@ -133,6 +137,63 @@ run_logged() {
     echo "apache_poc: blocked command failed: $*"
     echo "apache_poc: see log: $log_file"
     exit 77
+}
+
+copy_sanitized_source() {
+    label=$1
+    source_dir=$2
+    dest_dir=$3
+    require_command tar "copy sanitized $label source"
+    log_file="$LOG_DIR/$label.log"
+    archive="$LOG_DIR/$label.tar"
+    mkdir -p "$dest_dir"
+    {
+        echo "[$label]"
+        echo "source=$source_dir"
+        echo "dest=$dest_dir"
+        echo "excludes=.git .github .travis.yml .deps __pycache__ autom4te.cache build artifacts"
+        echo
+    } >> "$COMMANDS_FILE"
+    echo "apache_poc: running $label"
+    if (cd "$source_dir" && tar \
+        --exclude='./.git' \
+        --exclude='./.github' \
+        --exclude='./.travis.yml' \
+        --exclude='./.deps' \
+        --exclude='./__pycache__' \
+        --exclude='./autom4te.cache' \
+        --exclude='*.o' \
+        --exclude='*.lo' \
+        --exclude='*.la' \
+        --exclude='*.so' \
+        --exclude='*.log' \
+        --exclude='./src/.libs' \
+        -cf "$archive" .) >"$log_file" 2>&1 \
+        && tar -xf "$archive" -C "$dest_dir" >>"$log_file" 2>&1; then
+        rm -f "$archive"
+        echo "pass: $label log=$log_file" >> "$STATUS_FILE"
+        return 0
+    fi
+    rc=$?
+    echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
+    echo "apache_poc: blocked sanitized copy failed: $label"
+    echo "apache_poc: see log: $log_file"
+    exit 77
+}
+
+materialize_apache_connector_source() {
+    run_logged materialize-apache-connector-source "$REPO_ROOT" \
+        sh "$REPO_ROOT/ci/materialize-connector-source.sh" \
+        --connector apache \
+        --upstream-dir "$MODSECURITY_APACHE_SOURCE_DIR" \
+        --adapter-dir "$APACHE_ADAPTER_SOURCE_DIR" \
+        --dest-dir "$APACHE_MATERIALIZED_SOURCE_DIR"
+    {
+        echo "apache_materialized_connector_source=$APACHE_MATERIALIZED_SOURCE_DIR"
+        echo "apache_materialized_connector_source_manifest=$APACHE_MATERIALIZED_SOURCE_DIR/materialized-source.json"
+        echo "apache_materialized_connector_source_manifest_md=$APACHE_MATERIALIZED_SOURCE_DIR/MATERIALIZED_SOURCE.md"
+        echo "apache_connector_build_source=$APACHE_CONNECTOR_BUILD_DIR"
+    } >> "$ARTIFACTS_FILE"
 }
 
 download_file() {
@@ -416,6 +477,9 @@ require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
 require_absolute_generated_path "$HTTPD_BUILD_DIR" "HTTPD_BUILD_DIR"
 require_absolute_generated_path "$HTTPD_SOURCE_DIR" "HTTPD_SOURCE_DIR"
 require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
+if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
+    require_absolute_generated_path "$APACHE_MATERIALIZED_SOURCE_DIR" "APACHE_MATERIALIZED_SOURCE_DIR"
+fi
 
 [ -d "$MODSECURITY_V3_SOURCE_DIR" ] || blocked "missing MODSECURITY_V3_SOURCE_DIR: $MODSECURITY_V3_SOURCE_DIR"
 [ -d "$MODSECURITY_APACHE_SOURCE_DIR" ] || blocked "missing MODSECURITY_APACHE_SOURCE_DIR: $MODSECURITY_APACHE_SOURCE_DIR"
@@ -437,7 +501,11 @@ write_git_info "modsecurity-v3-source" "$MODSECURITY_V3_SOURCE_DIR"
 write_git_info "modsecurity-apache-source" "$MODSECURITY_APACHE_SOURCE_DIR"
 
 run_logged copy-modsecurity-v3 "$APACHE_BUILD_ROOT" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
-run_logged copy-modsecurity-apache "$APACHE_BUILD_ROOT" cp -a "$MODSECURITY_APACHE_SOURCE_DIR" "$APACHE_CONNECTOR_BUILD_DIR"
+if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
+    materialize_apache_connector_source
+    write_git_info "modsecurity-apache-materialized-source" "$APACHE_MATERIALIZED_SOURCE_DIR"
+fi
+copy_sanitized_source copy-modsecurity-apache "$MODSECURITY_APACHE_SOURCE_DIR" "$APACHE_CONNECTOR_BUILD_DIR"
 write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
 write_git_info "modsecurity-apache-build-copy" "$APACHE_CONNECTOR_BUILD_DIR"
 

@@ -1,8 +1,10 @@
 # common/src
 
-Status: scaffolded
+Status: implemented conservative helper layer
 
-This directory is reserved for connector-neutral implementation files only.
+This directory contains connector-neutral implementation files only. The Phase 3
+helpers are a C-first reference model for metadata/status shapes that the
+Python/Shell harnesses mirror in JSON without FFI.
 
 Allowed here:
 
@@ -16,6 +18,10 @@ Not allowed here:
 - Build glue for a specific runtime.
 - Includes from any connector implementation.
 
-TODO:
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
-- Add implementation files only after a concrete connector-neutral need is identified.
+- Keep these helpers limited to metadata and datatypes.
+- Do not add server lifecycle, request body, response filter, or libmodsecurity
+  ownership code here.
+- Use `ci/check-common-helpers.sh` to compile and run the isolated C smoke under
+  `BUILD_ROOT`.

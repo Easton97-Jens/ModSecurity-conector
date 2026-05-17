@@ -2,7 +2,8 @@
 
 Status: implemented
 
-Source: `/root/conecter/ModSecurity_V2/tests/`
+Local source: `/root/conecter/ModSecurity_V2/tests/`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity
 
 The v2 tree is used only as a regression, semantics, and compatibility source.
 No v2 architecture or Apache harness code is imported into this monorepo.

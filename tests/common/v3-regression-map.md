@@ -2,7 +2,8 @@
 
 Status: implemented
 
-Source: `/root/conecter/ModSecurity_V3/test/`
+Local source: `/root/conecter/ModSecurity_V3/test/`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity
 
 The v3 tree is the primary architecture/API reference. Only source-derived,
 connector-neutral YAML cases are imported into this monorepo; no upstream JSON

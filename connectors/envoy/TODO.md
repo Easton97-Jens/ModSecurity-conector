@@ -1,6 +1,8 @@
-# Envoy TODO
+# Envoy Planning
 
 Status: unknown
+
+Tracked in `docs/roadmap/todo-inventory.md`.
 
 - Decide integration path: native C++ HTTP filter, ext_authz service, Lua, or
   Wasm.

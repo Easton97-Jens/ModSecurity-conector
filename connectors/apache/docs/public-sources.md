@@ -2,12 +2,11 @@
 
 Status: scaffolded
 
-Local source used for this scaffold:
+Source references used for this scaffold:
 
-- `/root/conecter/ModSecurity-apache`
+- Local reference: `/root/conecter/ModSecurity-apache`
+- Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
+- Apache httpd source: https://github.com/apache/httpd
 
-TODO:
-
-- Add official Apache module and hook documentation links before implementing
-  Apache-specific code.
-- Record license notes before any code import or adaptation.
+Tracked follow-up: document official Apache module and hook references before
+any maintained Apache adapter rewrite. See `docs/roadmap/todo-inventory.md`.

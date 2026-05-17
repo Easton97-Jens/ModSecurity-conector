@@ -1,6 +1,8 @@
-# Traefik TODO
+# Traefik Planning
 
 Status: unknown
+
+Tracked in `docs/roadmap/todo-inventory.md`.
 
 - Decide integration path: Yaegi middleware or Wasm middleware.
 - Determine whether selected path can support libmodsecurity v3, including any

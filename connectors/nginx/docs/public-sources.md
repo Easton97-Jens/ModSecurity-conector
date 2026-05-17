@@ -2,12 +2,12 @@
 
 Status: scaffolded
 
-Local source used for this scaffold:
+Source references used for this scaffold:
 
-- `/root/conecter/ModSecurity-nginx`
+- Local reference: `/root/conecter/ModSecurity-nginx`
+- Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
+- NGINX Open Source: https://github.com/nginx/nginx
 
-TODO:
-
-- Add official NGINX module development and dynamic module documentation links
-  before implementing NGINX-specific code.
-- Record license notes before any code import or adaptation.
+Tracked follow-up: document official NGINX module development and dynamic
+module references before any maintained NGINX adapter rewrite. See
+`docs/roadmap/todo-inventory.md`.

@@ -39,6 +39,12 @@ static inline int msconnector_capabilities_has(
     return capabilities != 0 && (capabilities->flags & (msconnector_capability_flags)flag) != 0;
 }
 
+const char *msconnector_capability_name(enum msconnector_capability_flag flag);
+enum msconnector_capability_flag msconnector_capability_from_name(const char *name);
+msconnector_capability_flags msconnector_capabilities_add(
+    msconnector_capability_flags flags,
+    enum msconnector_capability_flag flag);
+
 #ifdef __cplusplus
 }
 #endif

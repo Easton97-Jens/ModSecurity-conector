@@ -31,21 +31,31 @@ jobs:
           test -f common/include/msconnector/transaction.h
           test -f common/include/msconnector/capabilities.h
           test -f common/include/msconnector/logging.h
+          test -f common/src/status.c
+          test -f common/src/intervention.c
+          test -f common/src/origin.c
+          test -f common/src/capabilities.c
           test -f tests/common/modsecurity-v2-regression-map.md
           test -f tests/common/modsecurity-v3-regression-map.md
           test -f tests/common/v2-regression-map.md
           test -f tests/common/v3-regression-map.md
-          test -f docs/v2-vs-v3-test-compatibility.md
-          test -f docs/real-world-connector-validation.md
-          test -f docs/capability-model.md
-          test -f docs/status-model.md
-          test -f docs/connector-adapter-interface.md
-          test -f docs/future-connectors.md
-          test -f docs/sonarcloud-remediation-plan.md
+          test -f docs/testing/v2-vs-v3-test-compatibility.md
+          test -f docs/connectors/real-world-connector-validation.md
+          test -f docs/architecture/capability-model.md
+          test -f docs/architecture/status-model.md
+          test -f docs/architecture/connector-adapter-interface.md
+          test -f docs/architecture/common-runtime-boundaries.md
+          test -f docs/architecture/refactor-phase-3-review.md
+          test -f docs/connectors/future-connectors.md
+          test -f docs/quality/sonarcloud-remediation-plan.md
+          test -f ci/check-common-helpers.sh
       - name: Compile Python skeletons
         run: |
           mkdir -p "$PYTHONPYCACHEPREFIX"
           python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
+      - name: Check common C helpers
+        run: |
+          sh ci/check-common-helpers.sh
       - name: Check shared case runner
         run: |
           set -eu

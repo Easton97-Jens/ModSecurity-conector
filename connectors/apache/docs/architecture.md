@@ -13,7 +13,7 @@ APIs. Observed connector-specific concepts include:
 
 These are not connector-neutral and must remain under `connectors/apache/`.
 
-TODO:
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - Define the exact hook order to use for a new adapter.
 - Prove request/response body handling with connector-specific tests.

@@ -1,6 +1,8 @@
-# NGINX TODO
+# NGINX Planning
 
 Status: scaffolded
+
+Tracked in `docs/roadmap/todo-inventory.md`.
 
 - Verify license requirements before importing or adapting any code.
 - Decide dynamic vs static module build strategy.

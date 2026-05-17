@@ -9,6 +9,15 @@ APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
 APACHE_MODULE="${APACHE_MODULE:-$APACHE_BUILD_ROOT/output/apache/mod_security3.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$APACHE_BUILD_ROOT/output/modsecurity/lib}"
+DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache/upstream"
+MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$DEFAULT_APACHE_SOURCE_DIR}"
+APACHE_ORIGIN_SOURCE="${APACHE_ORIGIN_SOURCE:-}"
+APACHE_ORIGIN_SOURCE_REPO="${APACHE_ORIGIN_SOURCE_REPO:-}"
+APACHE_ORIGIN_SOURCE_URL="${APACHE_ORIGIN_SOURCE_URL:-}"
+APACHE_ORIGIN_SOURCE_COMMIT="${APACHE_ORIGIN_SOURCE_COMMIT:-}"
+APACHE_ORIGIN_SOURCE_VERSION="${APACHE_ORIGIN_SOURCE_VERSION:-}"
+APACHE_ORIGIN_LICENSE="${APACHE_ORIGIN_LICENSE:-}"
+APACHE_ORIGIN_IMPORTED_PATH="${APACHE_ORIGIN_IMPORTED_PATH:-}"
 REFRESH="${REFRESH:-0}"
 SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
@@ -16,51 +25,68 @@ BUILD_HTTPD_FROM_SOURCE="${BUILD_HTTPD_FROM_SOURCE:-1}"
 BUILD_PCRE2_FROM_SOURCE="${BUILD_PCRE2_FROM_SOURCE:-1}"
 APACHE_BUILD_LOG_DIR="${APACHE_BUILD_LOG_DIR:-$BUILD_ROOT/logs/apache}"
 APACHE_RUNTIME_LOG_DIR="${APACHE_RUNTIME_LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
+PYTHON_BIN="${PYTHON:-python3}"
+
+git_value() {
+    git_dir=$1
+    shift
+    if git -C "$git_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git -C "$git_dir" "$@" 2>/dev/null || true
+    fi
+}
+
+load_apache_adapter_metadata() {
+    eval "$("$PYTHON_BIN" "$REPO_ROOT/ci/adapter_metadata.py" shell apache --prefix APACHE_ADAPTER)"
+}
+
+configure_apache_origin() {
+    load_apache_adapter_metadata
+    if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
+        APACHE_ORIGIN_SOURCE="${APACHE_ORIGIN_SOURCE:-$APACHE_ADAPTER_SOURCE}"
+        APACHE_ORIGIN_SOURCE_REPO="${APACHE_ORIGIN_SOURCE_REPO:-$APACHE_ADAPTER_SOURCE_REPO}"
+        APACHE_ORIGIN_SOURCE_URL="${APACHE_ORIGIN_SOURCE_URL:-$APACHE_ADAPTER_SOURCE_URL}"
+        APACHE_ORIGIN_SOURCE_COMMIT="${APACHE_ORIGIN_SOURCE_COMMIT:-$APACHE_ADAPTER_SOURCE_COMMIT}"
+        APACHE_ORIGIN_SOURCE_VERSION="${APACHE_ORIGIN_SOURCE_VERSION:-$APACHE_ADAPTER_SOURCE_VERSION}"
+        APACHE_ORIGIN_LICENSE="${APACHE_ORIGIN_LICENSE:-$APACHE_ADAPTER_LICENSE}"
+        APACHE_ORIGIN_IMPORTED_PATH="${APACHE_ORIGIN_IMPORTED_PATH:-$APACHE_ADAPTER_IMPORTED_PATH}"
+        return
+    fi
+    APACHE_ORIGIN_SOURCE="${APACHE_ORIGIN_SOURCE:-external}"
+    APACHE_ORIGIN_SOURCE_REPO="${APACHE_ORIGIN_SOURCE_REPO:-$APACHE_ADAPTER_SOURCE_REPO}"
+    APACHE_ORIGIN_SOURCE_URL="${APACHE_ORIGIN_SOURCE_URL:-$APACHE_ADAPTER_SOURCE_URL}"
+    APACHE_ORIGIN_SOURCE_COMMIT="${APACHE_ORIGIN_SOURCE_COMMIT:-$(git_value "$MODSECURITY_APACHE_SOURCE_DIR" rev-parse HEAD)}"
+    APACHE_ORIGIN_SOURCE_VERSION="${APACHE_ORIGIN_SOURCE_VERSION:-$(git_value "$MODSECURITY_APACHE_SOURCE_DIR" describe --tags --always --dirty)}"
+    APACHE_ORIGIN_LICENSE="${APACHE_ORIGIN_LICENSE:-$APACHE_ADAPTER_LICENSE}"
+    APACHE_ORIGIN_IMPORTED_PATH="${APACHE_ORIGIN_IMPORTED_PATH:-$MODSECURITY_APACHE_SOURCE_DIR}"
+}
 
 write_connector_result() {
     status=$1
     message=$2
     mkdir -p "$RESULTS_DIR"
-    {
-        printf '%s apache-build %s\n' "$(printf '%s' "$status" | tr '[:lower:]' '[:upper:]')" "$message"
-    } > "$RESULTS_DIR/apache-summary.txt"
-    python3 - "$RESULTS_DIR/apache-summary.json" "$status" "$HTTPD_PREFIX/bin/httpd" "$APACHE_MODULE" "$MODSECURITY_LIB_DIR/libmodsecurity.so" <<'PY'
-import json
-import os
-import sys
-
-output, status, server_binary, module, libmodsecurity = sys.argv[1:]
-environment = os.environ.get("SMOKE_ENVIRONMENT") or (
-    "github-actions" if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" else "local"
-)
-summary = {
-    "apache": {
-        "audit_behavior": "unstable",
-        "build": status,
-        "connector_path": "real-world",
-        "environment": environment,
-        "validation_mode": "real-world-connector-path",
-        "server": "apache",
-        "server_binary": server_binary,
-        "module": module,
-        "libmodsecurity": libmodsecurity,
-        "verified_variables": [],
-        "summary": {
-            "pass": 0,
-            "fail": 1 if status == "fail" else 0,
-            "blocked": 1 if status == "blocked" else 0,
-            "skipped": 0,
-            "xfail": 0,
-        },
-        "cases": {},
-    }
-}
-with open(output, "w", encoding="utf-8") as handle:
-    json.dump(summary, handle, indent=2, sort_keys=True)
-    handle.write("\n")
-PY
+    "$PYTHON_BIN" "$REPO_ROOT/tests/runners/case_cli.py" summarize-empty \
+        --connector apache \
+        --status "$status" \
+        --message "$message" \
+        --summary-json "$RESULTS_DIR/apache-summary.json" \
+        --summary-text "$RESULTS_DIR/apache-summary.txt" \
+        --connector-path real-world \
+        --validation-mode real-world-connector-path \
+        --server apache \
+        --server-binary "$HTTPD_PREFIX/bin/httpd" \
+        --module "$APACHE_MODULE" \
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        --origin-source "$APACHE_ORIGIN_SOURCE" \
+        --origin-source-repo "$APACHE_ORIGIN_SOURCE_REPO" \
+        --origin-source-url "$APACHE_ORIGIN_SOURCE_URL" \
+        --origin-source-commit "$APACHE_ORIGIN_SOURCE_COMMIT" \
+        --origin-source-version "$APACHE_ORIGIN_SOURCE_VERSION" \
+        --origin-license "$APACHE_ORIGIN_LICENSE" \
+        --origin-imported-path "$APACHE_ORIGIN_IMPORTED_PATH"
     cp "$RESULTS_DIR/apache-summary.txt" "$RESULTS_DIR/connector-summary.txt"
 }
+
+configure_apache_origin
 
 needs_build=0
 if [ "$REFRESH" = "1" ]; then
@@ -75,6 +101,7 @@ if [ "$needs_build" -eq 1 ]; then
     echo "run_apache_smoke: preparing Apache PoC build"
     set +e
     REFRESH="$REFRESH" \
+        MODSECURITY_APACHE_SOURCE_DIR="$MODSECURITY_APACHE_SOURCE_DIR" \
         LOG_DIR="$APACHE_BUILD_LOG_DIR" \
         BUILD_HTTPD_FROM_SOURCE="$BUILD_HTTPD_FROM_SOURCE" \
         BUILD_PCRE2_FROM_SOURCE="$BUILD_PCRE2_FROM_SOURCE" \
@@ -98,6 +125,13 @@ LOG_DIR="$APACHE_RUNTIME_LOG_DIR" \
     HTTPD_PREFIX="$HTTPD_PREFIX" \
     APACHE_MODULE="$APACHE_MODULE" \
     MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" \
+    CONNECTOR_ORIGIN_SOURCE="$APACHE_ORIGIN_SOURCE" \
+    CONNECTOR_ORIGIN_SOURCE_REPO="$APACHE_ORIGIN_SOURCE_REPO" \
+    CONNECTOR_ORIGIN_SOURCE_URL="$APACHE_ORIGIN_SOURCE_URL" \
+    CONNECTOR_ORIGIN_SOURCE_COMMIT="$APACHE_ORIGIN_SOURCE_COMMIT" \
+    CONNECTOR_ORIGIN_SOURCE_VERSION="$APACHE_ORIGIN_SOURCE_VERSION" \
+    CONNECTOR_ORIGIN_LICENSE="$APACHE_ORIGIN_LICENSE" \
+    CONNECTOR_ORIGIN_IMPORTED_PATH="$APACHE_ORIGIN_IMPORTED_PATH" \
     SMOKE_CASES="$SMOKE_CASES" \
     CASE_SCOPE="$CASE_SCOPE" \
     sh "$REPO_ROOT/connectors/apache/harness/run_apache_smoke.sh"
