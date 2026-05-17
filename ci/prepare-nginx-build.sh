@@ -24,6 +24,7 @@ MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$REPO_ROOT/connectors/nginx/upstream}"
+NGINX_DDEBUG_REPLACEMENT="${NGINX_DDEBUG_REPLACEMENT:-$REPO_ROOT/connectors/nginx/src/ddebug.h}"
 
 default_jobs() {
     if command -v nproc >/dev/null 2>&1; then
@@ -174,6 +175,39 @@ copy_sanitized_source() {
     echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
     echo "nginx_poc: blocked sanitized copy failed: $label"
     echo "nginx_poc: see log: $log_file"
+    exit 77
+}
+
+overlay_nginx_debug_header() {
+    target="$NGINX_CONNECTOR_BUILD_DIR/src/ddebug.h"
+    if [ -f "$target" ]; then
+        {
+            echo "[nginx-debug-header-overlay]"
+            echo "status=kept-source-header"
+            echo "target=$target"
+            echo
+        } >> "$COMMANDS_FILE"
+        echo "nginx_debug_header=source:$target" >> "$ARTIFACTS_FILE"
+        return 0
+    fi
+    if [ ! -f "$NGINX_DDEBUG_REPLACEMENT" ]; then
+        blocked "missing repo-owned NGINX debug header replacement: $NGINX_DDEBUG_REPLACEMENT"
+    fi
+    mkdir -p "$NGINX_CONNECTOR_BUILD_DIR/src"
+    log_file="$LOG_DIR/nginx-debug-header-overlay.log"
+    {
+        echo "[nginx-debug-header-overlay]"
+        echo "source=$NGINX_DDEBUG_REPLACEMENT"
+        echo "target=$target"
+        echo
+    } >> "$COMMANDS_FILE"
+    if cp "$NGINX_DDEBUG_REPLACEMENT" "$target" >"$log_file" 2>&1; then
+        echo "pass: nginx-debug-header-overlay log=$log_file" >> "$STATUS_FILE"
+        echo "nginx_debug_header=repo-owned:$NGINX_DDEBUG_REPLACEMENT -> $target" >> "$ARTIFACTS_FILE"
+        return 0
+    fi
+    echo "blocked: nginx-debug-header-overlay log=$log_file" >> "$STATUS_FILE"
+    echo "nginx_poc: blocked unable to overlay NGINX debug header; see $log_file"
     exit 77
 }
 
@@ -420,6 +454,7 @@ write_git_info "modsecurity-nginx-source" "$MODSECURITY_NGINX_SOURCE_DIR"
 
 run_blocked copy-modsecurity-v3 "$NGINX_BUILD_DIR" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
 copy_sanitized_source copy-modsecurity-nginx "$MODSECURITY_NGINX_SOURCE_DIR" "$NGINX_CONNECTOR_BUILD_DIR"
+overlay_nginx_debug_header
 write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
 write_git_info "modsecurity-nginx-build-copy" "$NGINX_CONNECTOR_BUILD_DIR"
 
