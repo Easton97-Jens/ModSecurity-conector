@@ -61,12 +61,15 @@ Required for NGINX module build and runtime smoke:
 - `src/ngx_http_modsecurity_log.c`
 - `src/ngx_http_modsecurity_module.c`
 
-Repo-owned build-copy overlay:
+Repo-owned materialized-source overlay:
 
 - `connectors/nginx/src/ddebug.h` is copied to
-  `$BUILD_ROOT/nginx-build/ModSecurity-nginx/src/ddebug.h` when the selected
-  connector source tree does not provide that header. This keeps the upstream
-  `config` dependency satisfied while reducing `connectors/nginx/upstream/`.
+  `$BUILD_ROOT/nginx-build/connector-src/src/ddebug.h` for monorepo-default
+  builds. This keeps the upstream `config` dependency satisfied while reducing
+  `connectors/nginx/upstream/`.
+- External NGINX source builds keep the older fallback: if the selected external
+  source tree lacks `src/ddebug.h`, `ci/prepare-nginx-build.sh` overlays the
+  repo-owned header into the generated external build copy.
 
 License and provenance context:
 
@@ -105,6 +108,18 @@ are true:
 
 The phase-4 review found one safe replacement: the NGINX debug compatibility
 header. All remaining imported files stay under the pruning rule above.
+
+## Phase 8 Shadow Build Source
+
+Phase 8 does not remove additional upstream files. It changes the monorepo
+default NGINX build input from a direct sanitized upstream copy to
+`$BUILD_ROOT/nginx-build/connector-src`. That generated source tree contains
+manifests identifying `adapter-owned`, `upstream-derived`, and
+`generated-overlay` files.
+
+Apache also gets `$BUILD_ROOT/apache-build/connector-src` manifests, but its
+module build still uses `$BUILD_ROOT/apache-build/ModSecurity-apache` until a
+separate Autotools/APXS proof switches the default.
 
 ## Phase 5 Review Result
 

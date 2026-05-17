@@ -61,8 +61,17 @@ imports by default when connector source env vars are not set:
 - `MODSECURITY_NGINX_SOURCE_DIR=connectors/nginx/upstream`
 
 External sources remain supported by explicitly setting those env vars. The
-helpers still copy sources into `$BUILD_ROOT` before building. They do not build
-or mutate the source checkout directly.
+helpers still copy or materialize sources into `$BUILD_ROOT` before building.
+They do not build or mutate the source checkout directly.
+
+For monorepo-default NGINX builds, the direct build input is now the generated
+`$BUILD_ROOT/nginx-build/connector-src` tree. It is materialized from
+`connectors/nginx/upstream/` and overlaid with `connectors/nginx/src/`.
+
+For monorepo-default Apache builds, phase 8 also generates
+`$BUILD_ROOT/apache-build/connector-src` and manifests it, but the productive
+Autotools/APXS build still uses the existing sanitized upstream copy at
+`$BUILD_ROOT/apache-build/ModSecurity-apache`.
 
 ## Report Metadata Precedence
 
@@ -79,7 +88,9 @@ The adapter metadata is report/build-summary data only. It is not linked into
 the Apache or NGINX modules and does not change connector runtime behavior.
 
 `ci/check-adapter-metadata-drift.sh` keeps those adapter-owned values aligned
-with the origin maps, license docs, and import documentation.
+with the origin maps, license docs, and import documentation. The generated
+shadow source manifests describe build-copy composition; summary origin metadata
+continues to describe source provenance.
 
 ## Risks
 

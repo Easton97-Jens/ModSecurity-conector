@@ -29,7 +29,7 @@ implementation until a later replace-and-reduce phase proves equivalence.
 | `connectors/apache/src/metadata.c` | Apache origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
 | `connectors/nginx/src/metadata.h` | NGINX adapter metadata API | Not linked into NGINX module builds |
 | `connectors/nginx/src/metadata.c` | NGINX origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
-| `connectors/nginx/src/ddebug.h` | NGINX debug compatibility header | Copied into generated build trees only when the selected source lacks `src/ddebug.h` |
+| `connectors/nginx/src/ddebug.h` | NGINX debug compatibility header | Overlaid into NGINX materialized build sources; still used as external-source fallback when needed |
 
 ## Boundaries
 
@@ -79,6 +79,19 @@ diverge.
 No FFI bridge is added, and the smoke runners do not depend on these helper
 objects. Any future production use requires a separate replace-and-reduce step
 with before/after real-world connector smokes.
+
+## Shadow Build Source Use
+
+Phase 8 starts using adapter-owned files in generated build sources. For the
+monorepo-default NGINX source, `ci/prepare-nginx-build.sh` materializes
+`$BUILD_ROOT/nginx-build/connector-src` from imported upstream files and overlays
+`connectors/nginx/src/*` into `src/`. The generated manifests under that
+directory identify `src/ddebug.h`, `src/metadata.c`, `src/metadata.h`, and
+`src/README.md` as adapter-owned.
+
+Apache is materialized for evidence only in phase 8. Its productive module build
+continues to use the sanitized upstream copy until the Autotools/APXS path is
+validated against the generated source tree.
 
 ## Reporting Precedence
 

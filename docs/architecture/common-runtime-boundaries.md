@@ -87,3 +87,15 @@ override, external source git metadata, then adapter-owned monorepo metadata.
 The summary JSON gains `origin.source_url` append-only. Existing result status,
 case discovery, `verified_variables`, YAML semantics, and `RESPONSE_BODY`
 classification remain unchanged.
+
+## Phase 8 Shadow Build Boundary
+
+Phase 8 lets NGINX build from a generated connector source tree under
+`$BUILD_ROOT`. The tree is assembled from imported upstream files plus
+adapter-owned overlays and contains local manifests. This changes only the build
+input location for the monorepo-default NGINX source.
+
+The generated tree does not create Common ownership of NGINX filters, request
+mapping, body handling, transaction lifecycle, or intervention behavior. Apache
+receives the same generated source evidence, but its module build remains on the
+existing sanitized upstream copy in this phase.

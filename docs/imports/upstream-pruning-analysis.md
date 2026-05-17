@@ -10,6 +10,11 @@ Phase 4 removed one NGINX debug helper after adding a repo-owned build-copy
 overlay. Phase 5 reviewed the remaining source helpers and found no additional
 safe replacement candidate.
 
+Phase 8 adds a shadow build-source layer. The monorepo-default NGINX build now
+uses `$BUILD_ROOT/nginx-build/connector-src`, generated from the remaining
+imported upstream source plus adapter-owned overlays. This is not a new pruning
+event; no additional upstream files are removed from the checkout.
+
 ## Evidence Used
 
 - File inventory from `connectors/apache/upstream/` and
@@ -122,3 +127,13 @@ Phase 5 reviewed a second replacement candidate set and made no new removals.
 No phase-5 candidate can be reduced without creating adapter-owned replacement
 code in a production connector path. That is intentionally out of scope for
 this review.
+
+## Phase 8 Build-Input Reduction
+
+The generated NGINX connector source tree reduces direct build dependence on the
+`connectors/nginx/upstream/` directory. The retained upstream tree remains the
+reference/provenance source, while the disposable `$BUILD_ROOT` tree records the
+actual build-copy composition.
+
+Apache receives the same manifest-only preparation. Its productive module build
+still uses the sanitized upstream copy in phase 8.
