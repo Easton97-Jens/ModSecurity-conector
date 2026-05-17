@@ -49,3 +49,15 @@ requires editing an imported source file without a functional replacement need.
 The phase-5 outcome is therefore a documented hold. The next replacement should
 begin only after a repo-owned adapter file exists for one narrow behavior and
 before/after real-world smokes prove equivalence.
+
+## Phase 6 Adapter Skeletons
+
+Phase 6 does not replace an additional upstream runtime helper. It adds
+adapter-owned metadata skeletons under `connectors/apache/src/` and
+`connectors/nginx/src/` so future replace-and-reduce work has a clear
+repo-owned landing zone.
+
+Those metadata files are validation-only for now. They do not change build or
+runtime behavior for Apache or NGINX connector modules. The only validated
+upstream surface reduction remains the NGINX `ddebug.h` replacement from
+Phase 4.

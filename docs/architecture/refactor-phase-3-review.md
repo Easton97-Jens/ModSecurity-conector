@@ -44,3 +44,6 @@ real-world Apache and NGINX smoke runs.
   added append-only and mirrored in the Python model.
 - The Common helpers are not product connector code yet. Any production use must
   be introduced with separate smoke evidence.
+- Phase 6 added adapter-owned metadata skeletons outside `common/`. Those files
+  may name Apache or NGINX as components, but they still avoid server headers,
+  libmodsecurity ownership, and productive runtime paths.

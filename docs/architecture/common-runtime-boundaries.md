@@ -56,3 +56,23 @@ connector-owned runtime areas:
 Common may continue to define neutral metadata shapes, but it must not absorb
 these paths until a connector adapter owns the behavior and real-world smoke
 results prove compatibility.
+
+## Phase 6 Adapter-Owned Boundary
+
+Phase 6 adds the first adapter-owned source skeletons under
+`connectors/apache/src/` and `connectors/nginx/src/`. These files are not Common
+runtime code and are not linked into the productive Apache or NGINX modules.
+
+The adapter-owned metadata helpers:
+
+- expose stable connector source/origin fields in an `msconnector_origin`
+  compatible shape;
+- contain no Apache or NGINX server headers;
+- contain no libmodsecurity internals;
+- contain no request, response, body, filter, intervention, or transaction
+  lifecycle behavior;
+- are validated only by `ci/check-adapter-helpers.sh` under `$BUILD_ROOT`.
+
+This creates a place for future adapter-owned replacements without changing the
+current real-world connector path. Any production use still requires a separate
+replace-and-reduce phase and passing before/after smokes.
