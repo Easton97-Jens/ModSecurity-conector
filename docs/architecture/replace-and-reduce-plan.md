@@ -1,6 +1,6 @@
 # Replace-And-Reduce Plan
 
-Status: phase 4 started
+Status: phase 5 reviewed
 
 This plan records candidates for replacing small imported connector source
 pieces with repo-owned code. A replacement is allowed only when it avoids
@@ -29,3 +29,23 @@ The build script copies the repo-owned header into `$BUILD_ROOT` only when the
 selected NGINX connector source tree does not already provide `src/ddebug.h`.
 That keeps explicit external `MODSECURITY_NGINX_SOURCE_DIR` builds compatible
 with their own upstream header.
+
+## Phase 5 Review
+
+Phase 5 searched for one additional low-risk replacement. No second candidate
+met the replacement rule: every remaining helper is either embedded in a
+production request/response path, tied to server-specific config/lifecycle, or
+requires editing an imported source file without a functional replacement need.
+
+| Candidate | Risk | Dependencies | Runtime impact | Build impact | Test coverage | Decision |
+| --- | --- | --- | --- | --- | --- | --- |
+| Apache `id()` helper in `src/msc_utils.c/.h` | Low as code, but unsafe as a replace target because removal edits an imported source/header pair that also owns Apache error-bucket declarations. | C stdio/varargs and `msc_utils.h`; no callers were found outside its own declaration/definition. | No known runtime use. Removing it would not replace behavior; it would only mutate upstream reference code. | Apache build may tolerate removal, but proof would require editing imported files directly. | No meaningful smoke coverage because the helper is unused. | obsolete / defer |
+| Apache `send_error_bucket()` in `src/msc_utils.c` | High. It creates Apache buckets, sets status line, inserts EOS, and passes the brigade down the output filter chain. | Apache request/filter/bucket APIs and `msc_filters.c` error paths. | Direct Apache response/error semantics. | Required by `msc_filters.c`; removal requires a repo-owned Apache adapter implementation. | Blocking smokes cover symptoms, not every Apache output-filter edge. | defer |
+| NGINX `ngx_str_to_char()` in `src/ngx_http_modsecurity_module.c` | Medium to high. It is small, but used by config parsing and request metadata mapping. | NGINX pools, `ngx_str_t`, allocation failure sentinel, config and access handler callers. | Request metadata and configuration value conversion. | Exposed in `ngx_http_modsecurity_common.h` and used across multiple module sources. | Active smokes cover common request metadata, but not all allocation/config edge cases. | defer |
+| NGINX PCRE pool helpers in `src/ngx_http_modsecurity_module.c` | High. They temporarily replace PCRE allocators around ruleset loading. | NGINX pool lifecycle, PCRE global allocator hooks, rules/config loading. | Config/lifecycle behavior rather than request data path, but failure could destabilize rules loading. | Required by module config initialization. | Build and smoke prove ordinary rules load, not allocator edge cases. | defer |
+| NGINX response-header resolver helpers in `src/ngx_http_modsecurity_header_filter.c` | High. They normalize response headers for libmodsecurity. | NGINX header filter API, response header structs, filter order. | Direct response metadata/filter path. | Required by the NGINX header filter source. | `response_header_basic` covers one real path; not enough to replace all resolver behavior. | defer |
+| NGINX log callback in `src/ngx_http_modsecurity_log.c` | Medium to high. Audit/log behavior is evidence-sensitive and `nolog` remains xfail. | NGINX logging, libmodsecurity log callback, transaction context. | Audit/log output semantics. | Required by log handler source. | Stable audit field smokes exist, but audit absence differs across environments. | defer |
+
+The phase-5 outcome is therefore a documented hold. The next replacement should
+begin only after a repo-owned adapter file exists for one narrow behavior and
+before/after real-world smokes prove equivalence.

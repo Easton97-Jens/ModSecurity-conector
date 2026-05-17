@@ -22,11 +22,19 @@ bridge binary.
 The following candidates remain connector-specific:
 
 - Apache hook registration and filters.
+- Apache bucket/error helpers, including `send_error_bucket()`.
 - NGINX module registration and body/header filters.
+- NGINX request string conversion, PCRE pool helpers, and log callback.
 - Server-specific configuration parsing.
 - Request/response body ownership and buffering.
 - libmodsecurity transaction lifetime.
 - `RESPONSE_BODY` blocking behavior.
+
+Phase 5 confirmed that these are not safe second replace-and-reduce candidates.
+Even when a helper is small, it is embedded in config, request/response,
+lifecycle, audit, or Apache bucket behavior. Future work should first introduce
+repo-owned adapter code around one narrow behavior, then prove equivalence with
+real-world Apache and NGINX smoke runs.
 
 ## Risks
 

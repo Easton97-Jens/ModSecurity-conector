@@ -41,3 +41,18 @@ Common does not own:
 
 Any future extraction touching those areas requires separate evidence and
 passing real-world connector smokes.
+
+## Phase 5 Replace-And-Reduce Boundary
+
+Phase 5 reviewed the next possible upstream reduction and made no code
+replacement. The remaining helper-looking functions are still inside
+connector-owned runtime areas:
+
+- Apache utility code includes output bucket/error behavior.
+- NGINX string conversion is used by config parsing and request metadata.
+- NGINX PCRE allocation helpers are part of config/rules lifecycle.
+- NGINX response-header helpers and log callback are filter/audit paths.
+
+Common may continue to define neutral metadata shapes, but it must not absorb
+these paths until a connector adapter owns the behavior and real-world smoke
+results prove compatibility.
