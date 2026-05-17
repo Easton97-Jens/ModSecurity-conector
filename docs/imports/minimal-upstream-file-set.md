@@ -105,3 +105,20 @@ are true:
 
 The phase-4 review found one safe replacement: the NGINX debug compatibility
 header. All remaining imported files stay under the pruning rule above.
+
+## Phase 5 Review Result
+
+Phase 5 reviewed a second possible reduction and made no additional upstream
+changes. The remaining small helpers are not standalone debug/build shims:
+
+- Apache `id()` appears unused, but removing it would edit the imported
+  `msc_utils.c/.h` pair for no functional replacement.
+- Apache `send_error_bucket()` owns Apache bucket/error response behavior.
+- NGINX `ngx_str_to_char()` is shared by config parsing and request metadata
+  mapping.
+- NGINX PCRE pool helpers are part of rules/config lifecycle.
+- NGINX response-header resolver helpers and log callback are active
+  response/audit paths.
+
+Those areas stay connector-specific until repo-owned adapter implementations
+exist and before/after real-world smokes prove equivalence.

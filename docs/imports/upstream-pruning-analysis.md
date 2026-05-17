@@ -6,8 +6,9 @@ This document records the pruning review for the controlled Apache and NGINX
 connector source imports. The review is intentionally conservative: files are
 removed only when they have a functional replacement, are not required for
 license or origin context, and have a successful isolated `$BUILD_ROOT` probe.
-Phase 4 removes one NGINX debug helper after adding a repo-owned build-copy
-overlay.
+Phase 4 removed one NGINX debug helper after adding a repo-owned build-copy
+overlay. Phase 5 reviewed the remaining source helpers and found no additional
+safe replacement candidate.
 
 ## Evidence Used
 
@@ -23,13 +24,15 @@ overlay.
 
 ## Result
 
-| Connector | Imported files | Removed in this pass | Reason |
-| --- | ---: | ---: | --- |
-| Apache | 25 | 0 | Remaining files are license/origin context, Autotools inputs, module source, or templates referenced by `configure.ac`/test layout |
-| NGINX | 12 | 1 | `src/ddebug.h` was replaced by repo-owned `connectors/nginx/src/ddebug.h`; remaining files are license/origin context, module metadata, or production source/dependency files listed by `config` |
+| Connector | Imported files | Removed after phase 4 | Removed after phase 5 | Reason |
+| --- | ---: | ---: | ---: | --- |
+| Apache | 25 | 0 | 0 | Remaining files are license/origin context, Autotools inputs, module source, or templates referenced by `configure.ac`/test layout |
+| NGINX | 12 | 1 | 0 | `src/ddebug.h` was replaced by repo-owned `connectors/nginx/src/ddebug.h`; remaining files are license/origin context, module metadata, or production source/dependency files listed by `config` |
 
 The imported trees remain intentionally small. The only reduction is backed by a
-repo-owned replacement and real-world smoke validation.
+repo-owned replacement and real-world smoke validation. Phase 5 intentionally
+does not delete another file because the reviewed candidates are production
+request/response, config, lifecycle, or audit paths.
 
 ## Apache File Classification
 
@@ -102,3 +105,20 @@ One file was removed in phase 4. In particular:
 
 Any future deletion must be validated in an isolated copy under `$BUILD_ROOT`,
 then followed by real-world Apache, NGINX, and combined smoke runs.
+
+## Phase 5 No-Removal Decision
+
+Phase 5 reviewed a second replacement candidate set and made no new removals.
+
+| Candidate | Evidence | Decision |
+| --- | --- | --- |
+| Apache `id()` helper | No callers outside its declaration/definition, but removal would edit `msc_utils.c/.h`, which also owns `send_error_bucket()` declarations and Apache utility context | Defer as obsolete/reference-only until Apache adapter code is repo-owned |
+| Apache `send_error_bucket()` | Called by `msc_filters.c`; creates Apache buckets and controls error response flow | Defer |
+| NGINX `ngx_str_to_char()` | Used by config directives, location merge, and request metadata mapping | Defer |
+| NGINX PCRE pool helpers | Tied to NGINX pool and rules/config loading lifecycle | Defer |
+| NGINX response-header resolver helpers | Direct response header/filter path | Defer |
+| NGINX log callback | Audit/log behavior remains evidence-sensitive | Defer |
+
+No phase-5 candidate can be reduced without creating adapter-owned replacement
+code in a production connector path. That is intentionally out of scope for
+this review.
