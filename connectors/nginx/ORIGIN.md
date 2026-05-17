@@ -27,3 +27,14 @@ License: Apache-2.0, imported as `connectors/nginx/upstream/LICENSE`
 
 The NGINX test harness, `.git`, `.github`, CI files, release scripts, Windows
 build files, and build/runtime artifacts are not imported.
+
+## Pruning Review
+
+Last reviewed in `docs/upstream-pruning-analysis.md`.
+
+No imported NGINX files were removed in the pruning pass. The imported tree is
+already limited to license/provenance files, the NGINX module `config`, and the
+source/dependency files explicitly listed by that `config`. Files with unclear
+build relevance are retained until an isolated `$BUILD_ROOT` probe proves they
+can be removed without breaking `make smoke-apache`, `make smoke-nginx`, and
+`make smoke-all`.

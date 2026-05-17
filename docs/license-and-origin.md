@@ -45,3 +45,15 @@ the NGINX-specific `upstream/` area.
 - Do not move code into `common/` without a separate proof and review step.
 - Keep origin maps updated whenever imported files are added, removed, or
   refreshed from upstream.
+
+## Pruning Review
+
+The current imported connector trees were reviewed in
+`docs/upstream-pruning-analysis.md` and summarized in
+`docs/minimal-upstream-file-set.md`.
+
+No imported files were removed in that review. The remaining Apache and NGINX
+files are classified as required, build-only, or documentation-only. A future
+removal must be documented in the relevant `ORIGIN.md`, retain license and
+attribution coverage, and pass an isolated `$BUILD_ROOT` build/smoke probe
+before being committed.

@@ -40,3 +40,14 @@ License: Apache-2.0, imported as `connectors/apache/upstream/LICENSE`
 
 The full Apache regression tree, `.git`, `.travis.yml`, release scripts,
 generated Autotools files, `.deps`, and build/runtime artifacts are not imported.
+
+## Pruning Review
+
+Last reviewed in `docs/upstream-pruning-analysis.md`.
+
+No imported Apache files were removed in the pruning pass. The imported tree is
+already limited to license/provenance files, Autotools build inputs, module
+source files, and `.in` templates referenced by `configure.ac` or the retained
+upstream test-template layout. Files with unclear build relevance are retained
+until an isolated `$BUILD_ROOT` probe proves they can be removed without
+breaking `make smoke-apache`, `make smoke-nginx`, and `make smoke-all`.
