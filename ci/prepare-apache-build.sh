@@ -2,7 +2,7 @@
 set -eu
 
 MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-/root/conecter/ModSecurity_V3}"
-MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-/root/conecter/ModSecurity-apache}"
+MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache}"
 REFRESH="${REFRESH:-0}"
@@ -35,6 +35,7 @@ PCRE2_SOURCE_DIR="${PCRE2_SOURCE_DIR:-$APACHE_BUILD_ROOT/pcre2-src}"
 PCRE2_PREFIX="${PCRE2_PREFIX:-$OUTPUT_DIR/pcre2}"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$REPO_ROOT/connectors/apache/upstream}"
 
 default_jobs() {
     if command -v nproc >/dev/null 2>&1; then
@@ -131,6 +132,48 @@ run_logged() {
     rc=$?
     echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
     echo "apache_poc: blocked command failed: $*"
+    echo "apache_poc: see log: $log_file"
+    exit 77
+}
+
+copy_sanitized_source() {
+    label=$1
+    source_dir=$2
+    dest_dir=$3
+    require_command tar "copy sanitized $label source"
+    log_file="$LOG_DIR/$label.log"
+    archive="$LOG_DIR/$label.tar"
+    mkdir -p "$dest_dir"
+    {
+        echo "[$label]"
+        echo "source=$source_dir"
+        echo "dest=$dest_dir"
+        echo "excludes=.git .github .travis.yml .deps __pycache__ autom4te.cache build artifacts"
+        echo
+    } >> "$COMMANDS_FILE"
+    echo "apache_poc: running $label"
+    if (cd "$source_dir" && tar \
+        --exclude='./.git' \
+        --exclude='./.github' \
+        --exclude='./.travis.yml' \
+        --exclude='./.deps' \
+        --exclude='./__pycache__' \
+        --exclude='./autom4te.cache' \
+        --exclude='*.o' \
+        --exclude='*.lo' \
+        --exclude='*.la' \
+        --exclude='*.so' \
+        --exclude='*.log' \
+        --exclude='./src/.libs' \
+        -cf "$archive" .) >"$log_file" 2>&1 \
+        && tar -xf "$archive" -C "$dest_dir" >>"$log_file" 2>&1; then
+        rm -f "$archive"
+        echo "pass: $label log=$log_file" >> "$STATUS_FILE"
+        return 0
+    fi
+    rc=$?
+    echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
+    echo "apache_poc: blocked sanitized copy failed: $label"
     echo "apache_poc: see log: $log_file"
     exit 77
 }
@@ -437,7 +480,7 @@ write_git_info "modsecurity-v3-source" "$MODSECURITY_V3_SOURCE_DIR"
 write_git_info "modsecurity-apache-source" "$MODSECURITY_APACHE_SOURCE_DIR"
 
 run_logged copy-modsecurity-v3 "$APACHE_BUILD_ROOT" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
-run_logged copy-modsecurity-apache "$APACHE_BUILD_ROOT" cp -a "$MODSECURITY_APACHE_SOURCE_DIR" "$APACHE_CONNECTOR_BUILD_DIR"
+copy_sanitized_source copy-modsecurity-apache "$MODSECURITY_APACHE_SOURCE_DIR" "$APACHE_CONNECTOR_BUILD_DIR"
 write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
 write_git_info "modsecurity-apache-build-copy" "$APACHE_CONNECTOR_BUILD_DIR"
 

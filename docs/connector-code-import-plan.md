@@ -77,3 +77,23 @@ This import is acceptable only if:
 - `make lint` passes;
 - Apache and NGINX smoke tests still pass through real server connector paths;
 - external source repositories remain unchanged.
+
+## Observed Verification
+
+Observed after wiring the build helpers to default to monorepo imports:
+
+```sh
+REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-import-build \
+  BUILD_HTTPD_FROM_SOURCE=1 BUILD_NGINX_FROM_SOURCE=1 make smoke-apache
+
+REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-import-build \
+  BUILD_HTTPD_FROM_SOURCE=1 BUILD_NGINX_FROM_SOURCE=1 make smoke-nginx
+
+BUILD_ROOT=/src/ModSecurity-conector-import-build make smoke-all
+BUILD_ROOT=/src/ModSecurity-conector-build make smoke-all
+```
+
+All listed smoke commands completed with `pass` results. The build helpers
+reported connector source paths under `connectors/apache/upstream` and
+`connectors/nginx/upstream`; generated build, log, and runtime artifacts stayed
+under the configured `BUILD_ROOT` values.
