@@ -88,19 +88,62 @@ write_connector_result() {
 
 configure_nginx_origin
 
+nginx_adapter_build_current() {
+    manifest="$NGINX_BUILD_DIR/connector-src/materialized-source.json"
+    [ -f "$manifest" ] || return 1
+    "$PYTHON_BIN" - "$manifest" <<'PY'
+import json
+import sys
+
+required_adapter_owned = {
+    "config",
+    "src/ddebug.h",
+    "src/ngx_http_modsecurity_access.c",
+    "src/ngx_http_modsecurity_body_filter.c",
+    "src/ngx_http_modsecurity_common.h",
+    "src/ngx_http_modsecurity_header_filter.c",
+    "src/ngx_http_modsecurity_log.c",
+    "src/ngx_http_modsecurity_module.c",
+}
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    manifest = json.load(handle)
+
+entries = manifest.get("entries")
+if not isinstance(entries, list):
+    raise SystemExit(1)
+
+sources_by_path = {
+    entry.get("path"): entry.get("source")
+    for entry in entries
+    if isinstance(entry, dict)
+}
+if any(source == "upstream-derived" for source in sources_by_path.values()):
+    raise SystemExit(1)
+for path in required_adapter_owned:
+    if sources_by_path.get(path) != "adapter-owned":
+        raise SystemExit(1)
+PY
+}
+
 needs_build=0
+prepare_refresh="$REFRESH"
 if [ "$REFRESH" = "1" ]; then
     needs_build=1
 elif [ ! -x "$NGINX_BINARY" ] || [ ! -f "$NGINX_MODULE" ]; then
     needs_build=1
 elif [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ]; then
     needs_build=1
+elif [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ] && ! nginx_adapter_build_current; then
+    echo "run_nginx_smoke: existing NGINX build predates adapter-owned materialized source; refreshing build artifacts"
+    needs_build=1
+    prepare_refresh=1
 fi
 
 if [ "$needs_build" -eq 1 ]; then
     echo "run_nginx_smoke: preparing NGINX PoC build"
     set +e
-    REFRESH="$REFRESH" \
+    REFRESH="$prepare_refresh" \
         MODSECURITY_NGINX_SOURCE_DIR="$MODSECURITY_NGINX_SOURCE_DIR" \
         LOG_DIR="$NGINX_BUILD_LOG_DIR" \
         BUILD_NGINX_FROM_SOURCE="$BUILD_NGINX_FROM_SOURCE" \

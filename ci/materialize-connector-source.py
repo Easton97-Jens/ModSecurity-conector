@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Materialize connector build sources under BUILD_ROOT.
 
-The materialized source tree is generated from the controlled upstream import
-plus repo-owned adapter files. It is a build artifact and must never be written
-inside the repository checkout or the read-only reference repositories.
+The materialized source tree is generated from repo-owned adapter files plus,
+for connectors that still need it, a controlled upstream import. It is a build
+artifact and must never be written inside the repository checkout or the
+read-only reference repositories.
 """
 
 from __future__ import annotations
@@ -292,23 +293,25 @@ def write_markdown_manifest(destination: Path, payload: dict[str, object]) -> No
     (destination / "MATERIALIZED_SOURCE.md").write_text("\n".join(rows), encoding="utf-8")
 
 
-def materialize(connector: str, upstream_dir: Path, adapter_dir: Path, dest_dir: Path) -> None:
-    upstream = validate_source_dir(upstream_dir, "upstream-dir")
+def materialize(connector: str, upstream_dir: Path | None, adapter_dir: Path, dest_dir: Path) -> None:
+    upstream = validate_source_dir(upstream_dir, "upstream-dir") if upstream_dir is not None else None
     adapter = validate_source_dir(adapter_dir, "adapter-dir")
     destination = validate_destination(dest_dir)
     metadata = load_metadata(connector)
 
     destination.mkdir(parents=True, exist_ok=True)
-    entries = copy_tree_files(
-        upstream,
-        destination,
-        Path("."),
-        "upstream-derived",
-        metadata.license,
-        metadata.source_commit,
-        metadata.source_version,
-        "Remaining imported connector source required by the current build.",
-    )
+    entries: dict[str, ManifestEntry] = {}
+    if upstream is not None:
+        entries = copy_tree_files(
+            upstream,
+            destination,
+            Path("."),
+            "upstream-derived",
+            metadata.license,
+            metadata.source_commit,
+            metadata.source_version,
+            "Remaining imported connector source required by the current build.",
+        )
     entries.update(
         copy_adapter_files(
             connector,
@@ -343,7 +346,7 @@ def materialize(connector: str, upstream_dir: Path, adapter_dir: Path, dest_dir:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
-    parser.add_argument("--upstream-dir", required=True, type=Path)
+    parser.add_argument("--upstream-dir", type=Path)
     parser.add_argument("--adapter-dir", required=True, type=Path)
     parser.add_argument("--dest-dir", required=True, type=Path)
     return parser

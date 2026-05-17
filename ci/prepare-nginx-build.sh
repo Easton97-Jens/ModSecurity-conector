@@ -23,7 +23,6 @@ OUTPUT_DIR="$NGINX_BUILD_DIR/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-NGINX_UPSTREAM_REFERENCE_DIR="${NGINX_UPSTREAM_REFERENCE_DIR:-$REPO_ROOT/connectors/nginx/upstream}"
 DEFAULT_NGINX_SOURCE_DIR="$REPO_ROOT/connectors/nginx/src"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_NGINX_SOURCE_DIR}"
 NGINX_ADAPTER_SOURCE_DIR="${NGINX_ADAPTER_SOURCE_DIR:-$MODSECURITY_NGINX_SOURCE_DIR}"
@@ -224,7 +223,6 @@ materialize_nginx_connector_source() {
     run_blocked materialize-nginx-connector-source "$REPO_ROOT" \
         sh "$REPO_ROOT/ci/materialize-connector-source.sh" \
         --connector nginx \
-        --upstream-dir "$NGINX_UPSTREAM_REFERENCE_DIR" \
         --adapter-dir "$NGINX_ADAPTER_SOURCE_DIR" \
         --dest-dir "$NGINX_CONNECTOR_BUILD_DIR"
     for required_file in \
@@ -445,7 +443,6 @@ build_nginx_from_source() {
 
 echo "nginx_poc: MODSECURITY_V3_SOURCE_DIR=$MODSECURITY_V3_SOURCE_DIR"
 echo "nginx_poc: MODSECURITY_NGINX_SOURCE_DIR=$MODSECURITY_NGINX_SOURCE_DIR"
-echo "nginx_poc: NGINX_UPSTREAM_REFERENCE_DIR=$NGINX_UPSTREAM_REFERENCE_DIR"
 echo "nginx_poc: BUILD_ROOT=$BUILD_ROOT"
 echo "nginx_poc: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
 echo "nginx_poc: LOG_DIR=$LOG_DIR"
@@ -464,9 +461,6 @@ require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
 
 [ -d "$MODSECURITY_V3_SOURCE_DIR" ] || blocked "missing MODSECURITY_V3_SOURCE_DIR: $MODSECURITY_V3_SOURCE_DIR"
 [ -d "$MODSECURITY_NGINX_SOURCE_DIR" ] || blocked "missing MODSECURITY_NGINX_SOURCE_DIR: $MODSECURITY_NGINX_SOURCE_DIR"
-if [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ]; then
-    [ -d "$NGINX_UPSTREAM_REFERENCE_DIR" ] || blocked "missing NGINX_UPSTREAM_REFERENCE_DIR: $NGINX_UPSTREAM_REFERENCE_DIR"
-fi
 
 if [ -e "$NGINX_BUILD_DIR" ]; then
     if [ "$REFRESH" != "1" ]; then
@@ -494,9 +488,6 @@ mkdir -p "$NGINX_BUILD_DIR" "$LOG_DIR" "$OUTPUT_DIR" "$DOWNLOAD_DIR"
 
 write_git_info "modsecurity-v3-source" "$MODSECURITY_V3_SOURCE_DIR"
 write_git_info "modsecurity-nginx-source" "$MODSECURITY_NGINX_SOURCE_DIR"
-if [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ]; then
-    write_git_info "modsecurity-nginx-upstream-reference" "$NGINX_UPSTREAM_REFERENCE_DIR"
-fi
 
 run_blocked copy-modsecurity-v3 "$NGINX_BUILD_DIR" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
 if [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ]; then

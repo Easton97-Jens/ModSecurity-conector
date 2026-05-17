@@ -19,7 +19,6 @@ SKIP_DIR_PARTS = {
     ".git",
     "__pycache__",
     "connectors/apache/upstream",
-    "connectors/nginx/upstream",
 }
 REMOTE_PREFIXES = (
     "http://",
