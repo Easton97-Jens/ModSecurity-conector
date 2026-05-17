@@ -51,10 +51,10 @@ jobs:
           test -f tests/common/cases/imported/request_body_raw_text_block.yaml
           test -f tests/common/cases/imported/response_body_pass.yaml
           test -f tests/import-status.json
-          test -f docs/nginx-poc.md
-          test -f docs/apache-vs-nginx-poc.md
-          test -f docs/test-import-plan.md
-          test -f docs/real-world-connector-validation.md
+          test -f docs/connectors/nginx-poc.md
+          test -f docs/connectors/apache-vs-nginx-poc.md
+          test -f docs/testing/test-import-plan.md
+          test -f docs/connectors/real-world-connector-validation.md
           grep -q 'Status:' connectors/nginx/TODO.md
       - name: Syntax checks
         run: |

@@ -35,13 +35,13 @@ jobs:
           test -f tests/common/modsecurity-v3-regression-map.md
           test -f tests/common/v2-regression-map.md
           test -f tests/common/v3-regression-map.md
-          test -f docs/v2-vs-v3-test-compatibility.md
-          test -f docs/real-world-connector-validation.md
-          test -f docs/capability-model.md
-          test -f docs/status-model.md
-          test -f docs/connector-adapter-interface.md
-          test -f docs/future-connectors.md
-          test -f docs/sonarcloud-remediation-plan.md
+          test -f docs/testing/v2-vs-v3-test-compatibility.md
+          test -f docs/connectors/real-world-connector-validation.md
+          test -f docs/architecture/capability-model.md
+          test -f docs/architecture/status-model.md
+          test -f docs/architecture/connector-adapter-interface.md
+          test -f docs/connectors/future-connectors.md
+          test -f docs/quality/sonarcloud-remediation-plan.md
       - name: Compile Python skeletons
         run: |
           mkdir -p "$PYTHONPYCACHEPREFIX"

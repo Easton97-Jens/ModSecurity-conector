@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate docs/case-matrix.md from YAML cases and optional smoke results."""
+"""Generate docs/testing/case-matrix.md from YAML cases and optional smoke results."""
 
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ def row(path: Path, results: dict[str, object]) -> str:
 
 def main(argv: list[str]) -> int:
     results_path = Path(argv[1]) if len(argv) > 1 else Path("/src/ModSecurity-conector-build/results/connector-summary.json")
-    output_path = Path(argv[2]) if len(argv) > 2 else REPO_ROOT / "docs" / "case-matrix.md"
+    output_path = Path(argv[2]) if len(argv) > 2 else REPO_ROOT / "docs" / "testing" / "case-matrix.md"
     results = load_results(results_path)
     lines = [
         "# Case Matrix",

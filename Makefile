@@ -41,6 +41,7 @@ lint:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
 	python3 -m json.tool tests/import-status.json >/dev/null
 	python3 ci/check-workflow-yaml.py
+	python3 ci/check-doc-links.py
 	if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else echo "actionlint unavailable"; fi
 	git diff --check
 
@@ -48,4 +49,4 @@ summary:
 	python3 ci/summarize-results.py "$(BUILD_ROOT)/results/connector-summary.json"
 
 case-matrix:
-	python3 ci/write-case-matrix.py "$(BUILD_ROOT)/results/connector-summary.json" docs/case-matrix.md
+	python3 ci/write-case-matrix.py "$(BUILD_ROOT)/results/connector-summary.json" docs/testing/case-matrix.md
