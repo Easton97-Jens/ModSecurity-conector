@@ -18,14 +18,18 @@ Implemented now:
 
 Not implemented:
 
-- No Apache module source.
-- No source import from `ModSecurity-apache`.
+- No maintained Apache module rewrite beyond the controlled upstream import.
 - No claim that the Apache connector is complete beyond the documented shared
   minimal/imported smokes.
 
 Primary local reference: `/root/conecter/ModSecurity-apache`.
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
+
+The controlled imported source lives under `connectors/apache/upstream/` as a
+temporary reference/import basis. It may shrink only after equivalent project
+code exists, origin is still documented, and smokes keep passing.
 
 Build and runtime artifacts must stay under `BUILD_ROOT`, defaulting locally to
 `/src/ModSecurity-conector-build`.
 
-See `docs/apache-poc.md` and `connectors/apache/harness/README.md`.
+See `docs/connectors/apache-poc.md` and `connectors/apache/harness/README.md`.

@@ -2,8 +2,10 @@
 
 Status: scaffolded
 
-This repository is a monorepo scaffold for future libmodsecurity v3 based
-connectors.
+This repository is a monorepo scaffold and evidence workspace for future
+libmodsecurity v3 based connectors. It is based on ModSecurity v2/v3 regression
+and API evidence plus controlled Apache and NGINX connector imports, and it
+validates real connector paths through source-derived YAML smokes.
 
 Implemented now:
 
@@ -17,13 +19,13 @@ Implemented now:
 - Test layout, normalizer skeletons, runner skeletons, and CI structure checks.
 - A shared YAML case runner used by Apache and NGINX PoC smokes.
 - A connector-free libmodsecurity v3 C API smoke probe build harness under
-  `src/v3-api-smoke/`; see `docs/v3-api-smoke-test.md`.
+  `src/v3-api-smoke/`; see `docs/testing/v3-api-smoke-test.md`.
 - A local `/src` default v3 smoke run has observed `primary_args_phase2`
   returning intervention status `403`.
 - Explicit `real-world-connector-path` validation metadata for Apache and
-  NGINX smoke summaries; see `docs/real-world-connector-validation.md`.
+  NGINX smoke summaries; see `docs/connectors/real-world-connector-validation.md`.
 - An Apache PoC build helper that can source-build httpd under `BUILD_ROOT`, plus
-  a runtime smoke harness scaffold; see `docs/apache-poc.md`.
+  a runtime smoke harness scaffold; see `docs/connectors/apache-poc.md`.
 - A local source-built Apache PoC has observed the YAML-expected HTTP behavior
   for all current shared minimal cases.
 - A scaffolded NGINX PoC build helper and runtime harness use the same shared
@@ -36,10 +38,10 @@ Implemented now:
   `make smoke-all`.
 - Maintenance targets: `make lint`, `make summary`, and `make case-matrix`.
 - Finalized capability/status/result model documentation:
-  `docs/capability-model.md`, `docs/status-model.md`,
-  `docs/connector-adapter-interface.md`, and `docs/case-matrix.md`.
+  `docs/architecture/capability-model.md`, `docs/architecture/status-model.md`,
+  `docs/architecture/connector-adapter-interface.md`, and `docs/testing/case-matrix.md`.
 - Source-derived imported YAML cases from the local Apache and NGINX connector
-  test suites, with origin mapping in `docs/test-import-plan.md`.
+  test suites, with origin mapping in `docs/testing/test-import-plan.md`.
 - Source-derived V2/V3 compatibility cases under
   `tests/common/cases/v2-imported/` and `tests/common/cases/v3-imported/`,
   covering initial operator, transformation, multipart FILES, XML body
@@ -61,16 +63,34 @@ Not implemented:
 - No claim that the NGINX PoC is complete beyond the documented shared minimal
   HTTP `403` smokes.
 
-Observed local references:
+## Source References
 
-- `/root/conecter/ModSecurity_V3`: `v3/master`, observed `v3.0.15`
-- `/root/conecter/ModSecurity_V2`: `v2/master`, observed `v2.9.13`
-- `/root/conecter/ModSecurity-apache`: observed `v0.0.9-beta1-26-g0488c77`
-- `/root/conecter/ModSecurity-nginx`: observed `v1.0.4-14-g9eb44fd`
+Local paths are examples from the current workspace. The upstream repositories
+are the portable references for GitHub, CI, pull requests, and external
+maintainers.
+
+| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| --- | --- | --- | --- | --- | --- |
+| ModSecurity v2 | `/root/conecter/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 |
+| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
+| ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
 These paths are read-only references, not required build locations. Smoke
 builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
 `LOG_DIR`; local defaults build under `/src`, while CI can use `$RUNNER_TEMP`.
+
+## Architecture Map
+
+- `connectors/apache/upstream/` and `connectors/nginx/upstream/` are temporary
+  reference/import bases. They may shrink only after functionality has moved to
+  maintained project code, origin is still documented, and smokes still pass.
+- `licenses/` is the durable attribution index for imported connector code and
+  read-only ModSecurity engine references.
+- `common/` is the future connector-neutral basis. It currently contains
+  C-first data shapes only; it does not own Apache or NGINX hook/filter logic.
+- `connectors/<name>/` remains server-specific implementation, harness, and
+  build documentation.
 
 Apache PoC source-build defaults are also overrideable:
 
@@ -156,7 +176,7 @@ Current imported NGINX-specific cases cover redirect and TX scoring behavior
 from the local NGINX suite. Response-body blocking is mapped as xfail rather
 than counted as common PASS because the local NGINX source marks that behavior
 TODO and local probing did not produce stable HTTP 403. See
-`docs/test-import-plan.md` and
+`docs/testing/test-import-plan.md` and
 `tests/common/shared-case-origin-map.md` before promoting or moving a case.
 
 Observed locally on 2026-05-15 after the stabilization pass, `make smoke-all`
@@ -192,7 +212,7 @@ connectors.
 
 V2/V3 import inventory is documented in
 `tests/common/v2-regression-map.md`, `tests/common/v3-regression-map.md`, and
-`docs/v2-vs-v3-test-compatibility.md`.
+`docs/testing/v2-vs-v3-test-compatibility.md`.
 
 Boundary rule:
 
@@ -201,12 +221,18 @@ Boundary rule:
 - `tests/common/` contains only portable engine/rule/behavior tests.
 - `tests/<connector>/` contains connector-specific behavior tests.
 
-See `docs/architecture.md`, `docs/compatibility.md`, and `docs/roadmap.md`.
-See `docs/license-and-origin.md` and `licenses/README.md` for imported
-connector source attribution.
-See `docs/v3-api-smoke-test.md` for the minimal libmodsecurity v3 API smoke
-probe status.
-See `docs/nginx-poc.md` for the NGINX PoC build and smoke status rules.
+## Documentation Entry Points
+
+- `docs/README.md`: documentation index.
+- `docs/architecture/`: common model, C-first decision, and adapter boundaries.
+- `docs/connectors/`: Apache/NGINX PoCs, real-world validation, and future
+  connector planning.
+- `docs/testing/`: source-derived YAML cases, compatibility, xfail evidence,
+  and v3 API smoke notes.
+- `docs/imports/`: source inventories, import analyses, and upstream pruning.
+- `docs/roadmap/`: roadmap and TODO inventory.
+- `docs/licensing/license-and-origin.md` and `licenses/README.md`: origin and
+  license attribution.
 
 ## API Smoke vs Connector Smoke
 

@@ -2,9 +2,9 @@
 
 Status: scaffolded
 
-This directory contains the NGINX proof-of-concept harness for the external
-ModSecurity-nginx connector source. It does not vendor or reimplement that
-connector.
+This directory contains the NGINX proof-of-concept harness and controlled
+upstream import for the ModSecurity-nginx connector source. It does not claim a
+maintained rewrite of that connector.
 
 Implemented now:
 
@@ -17,7 +17,7 @@ Implemented now:
 
 Not implemented:
 
-- No NGINX module source is imported into this monorepo.
+- No maintained NGINX module rewrite beyond the controlled upstream import.
 - No full NGINX regression suite.
 - No runtime pass is claimed beyond environments where the NGINX smoke runner
   observes the YAML-expected real HTTP behavior for the shared YAML cases.
@@ -26,6 +26,11 @@ Not implemented:
   observed.
 
 Primary local reference: `/root/conecter/ModSecurity-nginx`.
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx.
+
+The controlled imported source lives under `connectors/nginx/upstream/` as a
+temporary reference/import basis. It may shrink only after equivalent project
+code exists, origin is still documented, and smokes keep passing.
 
 The build helper is `ci/prepare-nginx-build.sh`. It copies the external
 ModSecurity-nginx source and libmodsecurity v3 source into `BUILD_ROOT`, then

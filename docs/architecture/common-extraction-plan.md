@@ -6,6 +6,16 @@ The Apache and NGINX connector sources are imported as separate upstream code
 trees first. Phase 1 creates only a small connector-neutral common foundation;
 it does not move Apache or NGINX hook/filter behavior.
 
+## Repository Roles
+
+| Area | Role | Long-term direction |
+| --- | --- | --- |
+| `connectors/apache/upstream/` | Temporary Apache reference/import basis from https://github.com/owasp-modsecurity/ModSecurity-apache | Shrink only after functional replacement, retained attribution, and passing smokes |
+| `connectors/nginx/upstream/` | Temporary NGINX reference/import basis from https://github.com/owasp-modsecurity/ModSecurity-nginx | Shrink only after functional replacement, retained attribution, and passing smokes |
+| `licenses/` | Durable license and origin attribution | Keep while imported code or source-derived evidence remains |
+| `common/` | Connector-neutral C-first types and future shared helpers | Grow only after evidence-backed extraction |
+| `connectors/<name>/` | Server-specific build, lifecycle, harness, and integration code | Keep hooks, filters, and config parsing connector-specific |
+
 ## Extraction Rule
 
 A candidate may move to `common/` only after all of the following are true:

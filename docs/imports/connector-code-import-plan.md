@@ -3,24 +3,30 @@
 Status: implemented
 
 This document defines the controlled import path for the existing Apache and
-NGINX connectors. The external repositories remain read-only sources:
+NGINX connectors. The external repositories remain read-only sources. Local
+paths are examples; upstream GitHub repositories are the portable references:
 
-- `/root/conecter/ModSecurity-apache`
-- `/root/conecter/ModSecurity-nginx`
+| Connector | Local reference | Upstream |
+| --- | --- | --- |
+| Apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache |
+| NGINX | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx |
 
 Imported code is kept in connector-specific upstream areas:
 
 - `connectors/apache/upstream/`
 - `connectors/nginx/upstream/`
 
-No Apache or NGINX code is moved into `common/` in this step.
+No Apache or NGINX code is moved into `common/` in this step. The
+`upstream/` directories are temporary reference/import bases and may shrink only
+after functionality is replaced by maintained project code, origin remains
+documented, and the real-world smokes still pass.
 
 ## Source Revisions
 
-| Connector | Source repo | Observed ref | License |
-| --- | --- | --- | --- |
-| Apache | `/root/conecter/ModSecurity-apache` | `0488c77f69669584324b70460614a382224b4883` (`v0.0.9-beta1-26-g0488c77`) | Apache-2.0 |
-| NGINX | `/root/conecter/ModSecurity-nginx` | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` (`v1.0.4-14-g9eb44fd`) | Apache-2.0 |
+| Connector | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| --- | --- | --- | --- | --- | --- |
+| Apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+| NGINX | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
 ## Import Boundary
 
