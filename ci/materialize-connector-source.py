@@ -12,8 +12,9 @@ import argparse
 import fnmatch
 import json
 import shutil
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 from adapter_metadata import load_metadata
 
@@ -51,6 +52,9 @@ class ManifestEntry:
     commit: str
     version: str
     reason: str
+    source_url: str = ""
+    base_path: str = ""
+    patches: list[dict[str, str]] = field(default_factory=list)
 
 
 def relative_or_absolute(path: Path) -> str:
@@ -139,6 +143,103 @@ def copy_tree_files(
     return entries
 
 
+def load_source_map(adapter_root: Path) -> dict[str, Any]:
+    source_map_path = adapter_root / "SOURCE_MAP.json"
+    if not source_map_path.exists():
+        return {}
+    with source_map_path.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise SystemExit(f"invalid SOURCE_MAP.json: {source_map_path}")
+    files = payload.get("files", {})
+    patches = payload.get("patches", {})
+    if not isinstance(files, dict) or not isinstance(patches, dict):
+        raise SystemExit(f"invalid SOURCE_MAP.json file/patch maps: {source_map_path}")
+    return payload
+
+
+def adapter_destination_relative(connector: str, relative_path: Path) -> Path:
+    if connector == "nginx" and relative_path.as_posix() == "config":
+        return Path("config")
+    return Path("src") / relative_path
+
+
+def source_map_entry(
+    source_map: dict[str, Any],
+    destination_relative: Path,
+) -> dict[str, Any]:
+    files = source_map.get("files", {})
+    if not isinstance(files, dict):
+        return {}
+    value = files.get(destination_relative.as_posix(), {})
+    return value if isinstance(value, dict) else {}
+
+
+def source_map_patches(
+    source_map: dict[str, Any],
+    file_entry: dict[str, Any],
+) -> list[dict[str, str]]:
+    patch_names = file_entry.get("patches", [])
+    patch_map = source_map.get("patches", {})
+    if not isinstance(patch_names, list) or not isinstance(patch_map, dict):
+        return []
+    patches: list[dict[str, str]] = []
+    for name in patch_names:
+        if not isinstance(name, str):
+            continue
+        patch = patch_map.get(name, {})
+        if not isinstance(patch, dict):
+            continue
+        patches.append(
+            {
+                "name": name,
+                "url": str(patch.get("url", "")),
+                "commit": str(patch.get("commit", "")),
+                "reason": str(patch.get("reason", "")),
+            }
+        )
+    return patches
+
+
+def copy_adapter_files(
+    connector: str,
+    adapter_root: Path,
+    destination_root: Path,
+    metadata_license: str,
+    metadata_commit: str,
+    metadata_version: str,
+) -> dict[str, ManifestEntry]:
+    entries: dict[str, ManifestEntry] = {}
+    source_map = load_source_map(adapter_root)
+    base = source_map.get("base", {})
+    source_url = str(base.get("url", "")) if isinstance(base, dict) else ""
+    for relative_path in iter_files(adapter_root):
+        destination_relative = adapter_destination_relative(connector, relative_path)
+        destination = destination_root / destination_relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(adapter_root / relative_path, destination)
+        file_entry = source_map_entry(source_map, destination_relative)
+        key = destination_relative.as_posix()
+        entries[key] = ManifestEntry(
+            path=key,
+            source="adapter-owned",
+            origin_path=relative_or_absolute(adapter_root / relative_path),
+            license=str(file_entry.get("license", metadata_license)),
+            commit=str(file_entry.get("commit", metadata_commit)),
+            version=str(file_entry.get("version", metadata_version)),
+            reason=str(
+                file_entry.get(
+                    "reason",
+                    "Repo-owned adapter source overlaid into the generated build tree.",
+                )
+            ),
+            source_url=source_url,
+            base_path=str(file_entry.get("base_path", "")),
+            patches=source_map_patches(source_map, file_entry),
+        )
+    return entries
+
+
 def manifest_payload(
     connector: str,
     destination: Path,
@@ -167,13 +268,25 @@ def write_markdown_manifest(destination: Path, payload: dict[str, object]) -> No
         f"Version: `{payload['source_version']}`",
         f"License: {payload['license']}",
         "",
-        "| File | Source | Origin | Reason |",
-        "| --- | --- | --- | --- |",
+        "| File | Source | Origin | Patch provenance | Reason |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for entry in payload["entries"]:
         assert isinstance(entry, dict)
+        patches = entry.get("patches") or []
+        if isinstance(patches, list) and patches:
+            patch_text = ", ".join(
+                f"{patch.get('name', 'patch')}@{patch.get('commit', '')[:12]}"
+                for patch in patches
+                if isinstance(patch, dict)
+            )
+        else:
+            patch_text = "-"
         rows.append(
-            "| `{path}` | {source} | `{origin_path}` | {reason} |".format(**entry)
+            "| `{path}` | {source} | `{origin_path}` | {patch_provenance} | {reason} |".format(
+                patch_provenance=patch_text,
+                **entry,
+            )
         )
     rows.append("")
     (destination / "MATERIALIZED_SOURCE.md").write_text("\n".join(rows), encoding="utf-8")
@@ -197,15 +310,13 @@ def materialize(connector: str, upstream_dir: Path, adapter_dir: Path, dest_dir:
         "Remaining imported connector source required by the current build.",
     )
     entries.update(
-        copy_tree_files(
+        copy_adapter_files(
+            connector,
             adapter,
             destination,
-            Path("src"),
-            "adapter-owned",
             metadata.license,
             metadata.source_commit,
             metadata.source_version,
-            "Repo-owned adapter source overlaid into the generated build tree.",
         )
     )
 
