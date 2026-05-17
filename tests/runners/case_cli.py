@@ -130,6 +130,7 @@ def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]
         libmodsecurity=args.libmodsecurity or "",
         origin_source=args.origin_source or "",
         origin_source_repo=args.origin_source_repo or "",
+        origin_source_url=args.origin_source_url or "",
         origin_source_commit=args.origin_source_commit or "",
         origin_source_version=args.origin_source_version or "",
         origin_license=args.origin_license or "",
@@ -174,6 +175,7 @@ def summarize_empty(args: argparse.Namespace) -> int:
             libmodsecurity=args.libmodsecurity or "",
             origin_source=args.origin_source or "",
             origin_source_repo=args.origin_source_repo or "",
+            origin_source_url=args.origin_source_url or "",
             origin_source_commit=args.origin_source_commit or "",
             origin_source_version=args.origin_source_version or "",
             origin_license=args.origin_license or "",
@@ -261,6 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--libmodsecurity")
     summarize_parser.add_argument("--origin-source")
     summarize_parser.add_argument("--origin-source-repo")
+    summarize_parser.add_argument("--origin-source-url")
     summarize_parser.add_argument("--origin-source-commit")
     summarize_parser.add_argument("--origin-source-version")
     summarize_parser.add_argument("--origin-license")
@@ -285,6 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     empty_parser.add_argument("--libmodsecurity")
     empty_parser.add_argument("--origin-source")
     empty_parser.add_argument("--origin-source-repo")
+    empty_parser.add_argument("--origin-source-url")
     empty_parser.add_argument("--origin-source-commit")
     empty_parser.add_argument("--origin-source-version")
     empty_parser.add_argument("--origin-license")

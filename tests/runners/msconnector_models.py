@@ -75,6 +75,7 @@ def intervention_from_expect(expect: Mapping[str, object]) -> dict[str, object]:
 def origin_metadata(
     source: str = "",
     source_repo: str = "",
+    source_url: str = "",
     source_commit: str = "",
     source_version: str = "",
     license_name: str = "",
@@ -83,6 +84,7 @@ def origin_metadata(
     return {
         "source": source,
         "source_repo": source_repo,
+        "source_url": source_url,
         "source_commit": source_commit,
         "source_version": source_version,
         "license": license_name,
@@ -167,6 +169,7 @@ def connector_summary(
     libmodsecurity: str = "",
     origin_source: str = "",
     origin_source_repo: str = "",
+    origin_source_url: str = "",
     origin_source_commit: str = "",
     origin_source_version: str = "",
     origin_license: str = "",
@@ -189,6 +192,7 @@ def connector_summary(
         "origin": origin_metadata(
             origin_source,
             origin_source_repo,
+            origin_source_url,
             origin_source_commit,
             origin_source_version,
             origin_license,
@@ -216,6 +220,7 @@ def empty_connector_summary(
     libmodsecurity: str = "",
     origin_source: str = "",
     origin_source_repo: str = "",
+    origin_source_url: str = "",
     origin_source_commit: str = "",
     origin_source_version: str = "",
     origin_license: str = "",
@@ -240,6 +245,7 @@ def empty_connector_summary(
         "origin": origin_metadata(
             origin_source,
             origin_source_repo,
+            origin_source_url,
             origin_source_commit,
             origin_source_version,
             origin_license,
