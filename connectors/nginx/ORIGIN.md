@@ -2,11 +2,16 @@
 
 Status: implemented
 
-Source repository: `/root/conecter/ModSecurity-nginx`  
-Source branch: `master`  
-Source commit: `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`  
-Source describe: `v1.0.4-14-g9eb44fd`  
+Local reference: `/root/conecter/ModSecurity-nginx`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
+Source branch: `master`
+Source commit: `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`
+Source describe: `v1.0.4-14-g9eb44fd`
 License: Apache-2.0, imported as `connectors/nginx/upstream/LICENSE`
+
+| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| --- | --- | --- | --- | --- | --- |
+| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
 Central attribution: `licenses/nginx/`
 
@@ -39,7 +44,7 @@ removed.
 
 ## Pruning Review
 
-Last reviewed in `docs/upstream-pruning-analysis.md`.
+Last reviewed in `docs/imports/upstream-pruning-analysis.md`.
 
 No imported NGINX files were removed in the pruning pass. The imported tree is
 already limited to license/provenance files, the NGINX module `config`, and the
@@ -47,3 +52,7 @@ source/dependency files explicitly listed by that `config`. Files with unclear
 build relevance are retained until an isolated `$BUILD_ROOT` probe proves they
 can be removed without breaking `make smoke-apache`, `make smoke-nginx`, and
 `make smoke-all`.
+
+`connectors/nginx/upstream/` is a temporary reference/import basis. Future
+removal is allowed only after functional replacement, retained origin/license
+documentation, and passing real-world smoke evidence.

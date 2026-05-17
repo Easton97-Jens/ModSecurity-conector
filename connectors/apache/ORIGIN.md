@@ -2,11 +2,16 @@
 
 Status: implemented
 
-Source repository: `/root/conecter/ModSecurity-apache`  
-Source branch: `master`  
-Source commit: `0488c77f69669584324b70460614a382224b4883`  
-Source describe: `v0.0.9-beta1-26-g0488c77`  
+Local reference: `/root/conecter/ModSecurity-apache`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
+Source branch: `master`
+Source commit: `0488c77f69669584324b70460614a382224b4883`
+Source describe: `v0.0.9-beta1-26-g0488c77`
 License: Apache-2.0, imported as `connectors/apache/upstream/LICENSE`
+
+| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| --- | --- | --- | --- | --- | --- |
+| ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
 
 Central attribution: `licenses/apache/`
 
@@ -52,7 +57,7 @@ removed.
 
 ## Pruning Review
 
-Last reviewed in `docs/upstream-pruning-analysis.md`.
+Last reviewed in `docs/imports/upstream-pruning-analysis.md`.
 
 No imported Apache files were removed in the pruning pass. The imported tree is
 already limited to license/provenance files, Autotools build inputs, module
@@ -60,3 +65,7 @@ source files, and `.in` templates referenced by `configure.ac` or the retained
 upstream test-template layout. Files with unclear build relevance are retained
 until an isolated `$BUILD_ROOT` probe proves they can be removed without
 breaking `make smoke-apache`, `make smoke-nginx`, and `make smoke-all`.
+
+`connectors/apache/upstream/` is a temporary reference/import basis. Future
+removal is allowed only after functional replacement, retained origin/license
+documentation, and passing real-world smoke evidence.

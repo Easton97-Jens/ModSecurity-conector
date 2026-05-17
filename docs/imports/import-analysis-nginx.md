@@ -2,7 +2,8 @@
 
 Status: implemented
 
-Local source: `/root/conecter/ModSecurity-nginx`  
+Local reference: `/root/conecter/ModSecurity-nginx`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
 Observed ref: `master`, `v1.0.4-14-g9eb44fd`
 
 ## Role
@@ -54,7 +55,7 @@ These are `connector-specific` and belong only under `connectors/nginx/`.
 | Concept | Source | Scope | Compatibility | Decision |
 | --- | --- | --- | --- | --- |
 | v3 C API phase sequence | v3 via connector | engine-specific | compatible | Document and adapt |
-| NGINX phase/filter registration | connector | connector-specific | compatible only for NGINX | NGINX docs/TODO |
+| NGINX phase/filter registration | connector | connector-specific | compatible only for NGINX | Tracked in `docs/roadmap/todo-inventory.md` |
 | nginx-tests cases | connector | connector-specific | partial | Map to `tests/nginx/` |
 | Source code files | connector | connector-specific | compatible only for NGINX | Imported under `connectors/nginx/upstream/` |
 

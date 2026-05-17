@@ -2,7 +2,8 @@
 
 Status: implemented
 
-Local source: `/root/conecter/ModSecurity_V2`  
+Local reference: `/root/conecter/ModSecurity_V2`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity
 Observed ref: `v2/master`, `v2.9.13`
 
 ## Role
@@ -54,7 +55,9 @@ directly into new connectors:
 | `apache2/*` | v2 | connector-specific | incompatible | Historical reference only |
 | `tests/run-regression-tests.pl.in` | v2 | connector-specific | incompatible | Harness reference only |
 
-## TODO
+## Open Work
+
+Tracked in `docs/roadmap/todo-inventory.md`:
 
 - Build a per-test map from v2 Perl structures to v3 JSON-style cases.
 - Mark cases requiring Apache-only config, filesystem layout, or log format as

@@ -3,7 +3,8 @@
 Status: scaffolded
 
 Source inventory: 17 relevant files under
-`/root/conecter/ModSecurity-nginx/tests/`, treated as read-only.
+local `/root/conecter/ModSecurity-nginx/tests/`, treated as read-only. The
+portable upstream source is https://github.com/owasp-modsecurity/ModSecurity-nginx.
 
 | original_path | source_repo | category | purpose | portable | target_location | status | reason | required_capabilities | known_limitations |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -42,6 +42,13 @@ BUILD_ROOT=/src/ModSecurity-conector-build
 LOG_DIR=$BUILD_ROOT/logs/nginx
 ```
 
+Source references for those local defaults:
+
+| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| --- | --- | --- | --- | --- | --- |
+| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
+| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
+
 All paths are environment-overridable. Generated files must stay outside the
 Git checkout and outside `/root/conecter/*`.
 
@@ -208,13 +215,10 @@ HTTP 403, so the candidate remains xfail/mapped-only.
 - `pass`: NGINX returns the YAML-expected HTTP status for every selected shared
   smoke case.
 
-## Open TODOs
+## Tracked Open Work
 
-- Run the NGINX build and runtime smoke in every target environment before
-  claiming pass there.
-- Investigate any NGINX latest-release compatibility failure as a connector
-  build issue, not a guessed dependency issue.
-- Promote only proven NGINX behavior into connector-specific regression tests.
+Open NGINX PoC follow-ups are tracked in
+`docs/roadmap/todo-inventory.md` and `docs/roadmap/roadmap.md`.
 
 ## Public Sources
 
@@ -223,3 +227,5 @@ HTTP 403, so the candidate remains xfail/mapped-only.
   https://api.github.com/repos/nginx/nginx/releases/latest
 - NGINX configure documentation: https://nginx.org/en/docs/configure.html
 - ModSecurity-nginx local source: `/root/conecter/ModSecurity-nginx`
+- ModSecurity-nginx upstream source:
+  https://github.com/owasp-modsecurity/ModSecurity-nginx

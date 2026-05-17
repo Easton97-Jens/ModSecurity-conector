@@ -7,10 +7,10 @@ monorepo. Engine source files are not imported here.
 
 ## Observed Local References
 
-| Source | Branch | Commit | Describe | Role |
-| --- | --- | --- | --- | --- |
-| `/root/conecter/ModSecurity_V2` | `v2/master` | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Regression, semantic, and compatibility reference |
-| `/root/conecter/ModSecurity_V3` | `v3/master` | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Primary libmodsecurity v3 architecture/API reference |
+| Repository | Local reference | Upstream | Branch | Commit | Describe | Role |
+| --- | --- | --- | --- | --- | --- | --- |
+| ModSecurity v2 | `/root/conecter/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | `v2/master` | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Regression, semantic, and compatibility reference |
+| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `v3/master` | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Primary libmodsecurity v3 architecture/API reference |
 
 ## License Observation
 

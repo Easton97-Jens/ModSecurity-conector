@@ -2,7 +2,8 @@
 
 Status: implemented
 
-Local source: `/root/conecter/ModSecurity-apache`  
+Local reference: `/root/conecter/ModSecurity-apache`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
 Observed ref: `master`, `v0.0.9-beta1-26-g0488c77`
 
 ## Role
@@ -63,7 +64,7 @@ These are `connector-specific` and belong only under `connectors/apache/`.
 | Concept | Source | Scope | Compatibility | Decision |
 | --- | --- | --- | --- | --- |
 | v3 C API phase sequence | v3 via connector | engine-specific | compatible | Document and adapt |
-| Apache hook registration | connector | connector-specific | compatible only for Apache | Apache docs/TODO |
+| Apache hook registration | connector | connector-specific | compatible only for Apache | Tracked in `docs/roadmap/todo-inventory.md` |
 | Apache::Test files | connector | connector-specific | partial | Map to `tests/apache/` |
 | Source code files | connector | connector-specific | compatible only for Apache | Imported under `connectors/apache/upstream/` |
 

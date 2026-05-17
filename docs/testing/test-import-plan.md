@@ -2,20 +2,21 @@
 
 Status: implemented
 
-This document records the current import policy for local connector tests. The
-source repositories under `/root/conecter/*` are read-only references. No
-upstream Apache or NGINX test file is copied verbatim into this repository.
+This document records the current import policy for connector tests. Local
+source repositories under `/root/conecter/*` are read-only references; upstream
+GitHub repositories are the portable references for reviews and CI. No upstream
+Apache or NGINX test file is copied verbatim into this repository.
 
 ## Inventory
 
 Observed local source inventory on 2026-05-15:
 
-| Source | Relevant files analyzed | Notes |
-| --- | ---: | --- |
-| `/root/conecter/ModSecurity-apache/tests/` | 29 | Apache regression `.t`, `.t.in`, and harness files |
-| `/root/conecter/ModSecurity-nginx/tests/` | 17 | NGINX `.t`, README, and converter files |
-| `/root/conecter/ModSecurity_V2/tests/` | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
-| `/root/conecter/ModSecurity_V3/test/` | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
+| Source | Local reference | Upstream | Relevant files analyzed | Notes |
+| --- | --- | --- | ---: | --- |
+| ModSecurity-apache tests | `/root/conecter/ModSecurity-apache/tests/` | https://github.com/owasp-modsecurity/ModSecurity-apache | 29 | Apache regression `.t`, `.t.in`, and harness files |
+| ModSecurity-nginx tests | `/root/conecter/ModSecurity-nginx/tests/` | https://github.com/owasp-modsecurity/ModSecurity-nginx | 17 | NGINX `.t`, README, and converter files |
+| ModSecurity v2 tests | `/root/conecter/ModSecurity_V2/tests/` | https://github.com/owasp-modsecurity/ModSecurity | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
+| ModSecurity v3 tests | `/root/conecter/ModSecurity_V3/test/` | https://github.com/owasp-modsecurity/ModSecurity | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
 
 Every relevant source file is mapped in:
 
@@ -24,7 +25,7 @@ Every relevant source file is mapped in:
 - `tests/common/shared-case-origin-map.md`
 - `tests/common/v2-regression-map.md`
 - `tests/common/v3-regression-map.md`
-- `docs/v2-vs-v3-test-compatibility.md`
+- `docs/testing/v2-vs-v3-test-compatibility.md`
 
 ## Import Rules
 

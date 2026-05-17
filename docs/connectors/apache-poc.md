@@ -40,6 +40,13 @@ BUILD_ROOT=/src/ModSecurity-conector-build
 LOG_DIR=$BUILD_ROOT/logs/apache
 ```
 
+Source references for those local defaults:
+
+| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| --- | --- | --- | --- | --- | --- |
+| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
+| ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+
 All paths are environment-overridable. Generated files must stay outside the
 Git checkout and outside `/root/conecter/*`.
 
@@ -230,14 +237,10 @@ apache_verified_variables=ARGS,REQUEST_HEADERS,REQUEST_BODY,FILES,XML,AUDIT_LOG,
 - `pass`: Apache returns the YAML-expected HTTP status for every selected
   shared smoke case.
 
-## Open TODOs
+## Tracked Open Work
 
-- Verify exact Apache module loading requirements across more distributions.
-- Run the source-built httpd mode in CI once the external source checkouts are
-  available there.
-- If Apache returns non-403, inspect `$BUILD_ROOT/logs/apache-runtime` before
-  changing the harness or rule.
-- Promote only proven behavior into connector-specific regression tests.
+Open Apache PoC follow-ups are tracked in
+`docs/roadmap/todo-inventory.md` and `docs/roadmap/roadmap.md`.
 
 ## Public Sources
 

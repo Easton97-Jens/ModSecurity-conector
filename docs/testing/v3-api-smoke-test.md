@@ -36,6 +36,12 @@ BUILD_ROOT=/src/ModSecurity-conector-build
 LOG_DIR=/src/ModSecurity-conector-build/logs
 ```
 
+The local v3 source checkout corresponds to the public ModSecurity repository:
+
+| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| --- | --- | --- | --- | --- | --- |
+| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
+
 Meaning:
 
 - `MODSECURITY_V3_SOURCE_DIR`: read-only source checkout to copy from.
@@ -278,10 +284,12 @@ Current observed status:
 pass
 ```
 
-## TODO
+## Open Work
 
-- Run `sh ci/build-v3-under-src.sh` or provide an existing
-  `MODSECURITY_V3_DIR` build copy, then run `sh ci/run-v3-api-smoke.sh`.
+Tracked in `docs/roadmap/todo-inventory.md`:
+
+- Keep the `MODSECURITY_V3_DIR` build-copy path reproducible outside source
+  checkouts.
 - If `primary_args_phase2` fails and `fallback_request_uri_phase1` passes,
   document the exact output without claiming `ARGS:test` support.
 - If any public C API call sequence needs adjustment, cite the v3 header,
