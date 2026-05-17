@@ -46,6 +46,11 @@ real-world Apache+NGINX blocking proof before promotion.
 No upstream test file was copied. The local YAML is a minimal derived probe at
 `tests/common/cases/xfail/response_body_basic_block.yaml`.
 
+Phase 10 inventories the PR #377 tests in `pr377-test-import-map.md`. Three
+NGINX-only mode/log probes were imported after 3/3 stable NGINX PASS results,
+but they intentionally expect HTTP 200 pass-through and therefore do not verify
+response-body blocking.
+
 ## Probe
 
 Command:

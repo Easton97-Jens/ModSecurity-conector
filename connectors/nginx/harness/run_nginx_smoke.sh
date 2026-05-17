@@ -243,6 +243,7 @@ render_config() {
         -e "s|@@NGINX_MODULE@@|$(escape_sed "$NGINX_MODULE")|g" \
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
+        -e "s|@@NGINX_LOCATION_DIRECTIVES@@|$(escape_sed "$NGINX_LOCATION_DIRECTIVES_FILE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
@@ -436,12 +437,13 @@ mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs"
 stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$LOG_DIR/configtest.log" \
     "$LOG_DIR/curl-attack.err" \
-    "$LOG_DIR/curl-ready.err" \
-    "$LOG_DIR/nginx.log" \
-    "$LOG_DIR/nginx-stdout.log" \
-    "$LOG_DIR/response-body.txt" \
-    "$LOG_DIR/audit.log" \
-    "$RUNTIME_ROOT/nginx.pid"
+	    "$LOG_DIR/curl-ready.err" \
+	    "$LOG_DIR/nginx.log" \
+	    "$LOG_DIR/nginx-stdout.log" \
+	    "$LOG_DIR/phase4.log" \
+	    "$LOG_DIR/response-body.txt" \
+	    "$LOG_DIR/audit.log" \
+	    "$RUNTIME_ROOT/nginx.pid"
 rm -f "$LOG_DIR/audit/"*
 
 CURL_BIN=$(find_curl)
@@ -461,6 +463,8 @@ REQUEST_HEADERS_FILE="$RUNTIME_ROOT/conf/request-headers.txt"
 REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
 AUDIT_LOG_FILE="$LOG_DIR/audit.log"
 AUDIT_LOG_DIR="$LOG_DIR/audit"
+NGINX_LOCATION_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-directives.conf"
+NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
 
 chmod go+rx "$BUILD_ROOT" "$RUNTIME_BASE" "$RUNTIME_ROOT" "$DOCROOT" 2>/dev/null || true
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
@@ -469,9 +473,12 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --env-file "$CASE_ENV_FILE" \
     --headers-file "$REQUEST_HEADERS_FILE" \
     --body-file "$REQUEST_BODY_FILE" \
-    --docroot "$DOCROOT" \
-    --audit-log-file "$AUDIT_LOG_FILE" \
-    --audit-log-dir "$AUDIT_LOG_DIR" > "$LOG_DIR/case-materialize.log" 2>&1; then
+	    --docroot "$DOCROOT" \
+	    --audit-log-file "$AUDIT_LOG_FILE" \
+	    --audit-log-dir "$AUDIT_LOG_DIR" \
+	    --nginx-location-directives-file "$NGINX_LOCATION_DIRECTIVES_FILE" \
+	    --nginx-runtime-config-dir "$RUNTIME_ROOT/conf" \
+	    --nginx-phase4-log-file "$NGINX_PHASE4_LOG_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 chmod go+r "$DOCROOT/index.html" "$DOCROOT/__modsec_smoke_ready" 2>/dev/null || true
@@ -496,10 +503,11 @@ fi
 
 if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --case "$TEST_CASE" \
-    --actual-status "$http_status" \
-    --response-body-file "$RESPONSE_BODY" \
-    --audit-log-file "$AUDIT_LOG_FILE" \
-    --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
+	    --actual-status "$http_status" \
+	    --response-body-file "$RESPONSE_BODY" \
+	    --audit-log-file "$AUDIT_LOG_FILE" \
+	    --nginx-phase4-log-file "$NGINX_PHASE4_LOG_FILE" \
+	    --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
     write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" || true
     echo "nginx_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0

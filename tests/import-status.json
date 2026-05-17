@@ -157,6 +157,18 @@
     {
       "case": "tests/nginx/cases/imported/nginx_tx_scoring_iterative_block.yaml",
       "reason": "NGINX TX scoring import is not yet proven against Apache."
+    },
+    {
+      "case": "tests/nginx/cases/imported/nginx_phase4_minimal_log_only.yaml",
+      "reason": "NGINX PR #377 minimal phase-4 mode observed 3/3 PASS on NGINX with HTTP 200 pass-through and phase4 log_only/mode_minimal evidence; NGINX-specific and not a RESPONSE_BODY promotion."
+    },
+    {
+      "case": "tests/nginx/cases/imported/nginx_phase4_safe_log_only.yaml",
+      "reason": "NGINX PR #377 safe phase-4 mode observed 3/3 PASS on NGINX with HTTP 200 pass-through and phase4 log_only/mode_safe evidence; NGINX-specific and not a RESPONSE_BODY promotion."
+    },
+    {
+      "case": "tests/nginx/cases/imported/nginx_phase4_content_type_out_of_scope.yaml",
+      "reason": "NGINX PR #377 content-type out-of-scope behavior observed 3/3 PASS on NGINX with HTTP 200 pass-through and content_type_not_in_scope evidence; NGINX-specific and not a RESPONSE_BODY promotion."
     }
   ],
   "mapped_only": [
@@ -187,6 +199,18 @@
     {
       "source": "ModSecurity_V2/tests/op/containsWord.t",
       "reason": "Negative word-boundary branches are mapped only; active smoke imports the source-confirmed param abc/input abc def ghi match."
+    },
+    {
+      "source": "ModSecurity-nginx PR #377 tests/modsecurity-phase4-invalid-config.t",
+      "reason": "Invalid config tests require config-test expected-failure assertions rather than HTTP smokes."
+    },
+    {
+      "source": "ModSecurity-nginx PR #377 tests/modsecurity-phase4-regression.t",
+      "reason": "Large-response phase-4 regression needs dedicated large fixture/log-leak coverage before active import."
+    },
+    {
+      "source": "ModSecurity-nginx PR #377 tests/modsecurity-response-body.t",
+      "reason": "Response-body blocking remains xfail/mapped-only and is not promoted without stable real HTTP blocking semantics."
     }
   ],
   "blocked": [
@@ -209,6 +233,11 @@
       "case": "tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml",
       "source": "ModSecurity_V3/test/test-cases/regression/issue-2196.json",
       "reason": "Local Apache and NGINX runs observed empty audit logs, but GitHub Actions reported a non-empty audit log; it is not counted as stable common PASS until both environments agree."
+    },
+    {
+      "case": "tests/nginx/cases/xfail/nginx_phase4_strict_connection_abort.yaml",
+      "source": "ModSecurity-nginx PR #377 tests/modsecurity-phase4-modes.t",
+      "reason": "Strict mode may abort the connection after headers are sent; current smoke schema asserts stable HTTP status and keeps this as NGINX-only xfail evidence."
     }
   ],
   "v2_imported": [

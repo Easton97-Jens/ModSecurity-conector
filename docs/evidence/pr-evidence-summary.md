@@ -55,6 +55,12 @@ The PR source intake is not counted as response-body validation. Active
 connector success still requires real HTTP behavior through Apache and NGINX,
 and `RESPONSE_BODY` remains absent from `verified_variables`.
 
+Phase 10 added source-derived PR #377 test mapping in
+`../testing/pr377-test-import-map.md`. The imported NGINX-only probes cover
+minimal/safe/out-of-scope phase-4 log behavior with HTTP 200 pass-through.
+Strict aborts, invalid config, large-response, and shared response-body blocking
+remain xfail or mapped-only.
+
 ## Reproduction
 
 ```sh

@@ -71,7 +71,9 @@ config inheritance.
 
 Observed locally on 2026-05-15, the current imported common cases all passed on
 Apache and NGINX through `make smoke-all`; the NGINX-specific imported cases
-passed only on NGINX and remain `portable: false`.
+passed only on NGINX and remain `portable: false`. Phase 10 added three
+NGINX-only PR #377 phase-4 log/pass-through probes after 3/3 targeted NGINX
+PASS runs; those are connector-specific evidence, not common compatibility.
 
 ## Body And Filter Compatibility
 
@@ -81,6 +83,8 @@ passed only on NGINX and remain `portable: false`.
 | `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `response_body_pass.yaml` | pass, HTTP 200 | pass, HTTP 200 | fully-imported-common |
 | `response_body_basic_block` | fail, HTTP 200 | fail, HTTP 200 | xfail/mapped-only |
+| PR #377 minimal/safe phase-4 log-only probes | n/a | pass, HTTP 200 plus phase4 log evidence | NGINX connector-specific |
+| PR #377 content-type out-of-scope phase-4 probe | n/a | pass, HTTP 200 plus phase4 log evidence | NGINX connector-specific |
 
 The response-body block row is intentionally not an active smoke. The NGINX
 reference test marks the behavior TODO, and ModSecurity-nginx PR #377 source

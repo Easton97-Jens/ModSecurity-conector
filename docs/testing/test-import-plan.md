@@ -27,6 +27,10 @@ Every relevant source file is mapped in:
 - `tests/common/v3-regression-map.md`
 - `docs/testing/v2-vs-v3-test-compatibility.md`
 
+ModSecurity-nginx PR #377 tests are inventoried separately in
+`docs/testing/pr377-test-import-map.md` because they come from a temporary
+`$BUILD_ROOT` PR checkout rather than the read-only local NGINX reference repo.
+
 ## Import Rules
 
 - Common cases are allowed only when the rule, request, and expectation are
@@ -143,6 +147,9 @@ The following NGINX-specific cases were added under
 | `nginx_redirect_phase1_302.yaml` | `tests/modsecurity.t` redirect302 | actions | HTTP 302 | Imported from NGINX tests and not yet proven against Apache |
 | `nginx_tx_scoring_absolute_block.yaml` | `tests/modsecurity-scoring.t` absolute score | actions | HTTP 403 | Imported from NGINX tests and not yet proven against Apache |
 | `nginx_tx_scoring_iterative_block.yaml` | `tests/modsecurity-scoring.t` iterative score | actions | HTTP 403 | Imported from NGINX tests and not yet proven against Apache |
+| `nginx_phase4_minimal_log_only.yaml` | PR #377 `tests/modsecurity-phase4-modes.t` minimal branch | response-body/phase4 | HTTP 200 body preserved plus phase4 `log_only`/`mode_minimal` evidence | NGINX-only directive behavior; not a response-body blocking promotion |
+| `nginx_phase4_safe_log_only.yaml` | PR #377 `tests/modsecurity-phase4-modes.t` safe branch | response-body/phase4 | HTTP 200 body preserved plus phase4 `log_only`/`mode_safe` evidence | NGINX-only directive behavior; not a response-body blocking promotion |
+| `nginx_phase4_content_type_out_of_scope.yaml` | PR #377 `tests/modsecurity-phase4-content-types.t` out-of-scope branch | response-body/phase4 | HTTP 200 body preserved plus `content_type_not_in_scope` phase4 evidence | NGINX-only directive behavior; not a response-body blocking promotion |
 
 Apache-specific candidates reviewed in this pass mostly require Apache::Test
 context, httpd config inheritance, or Apache-specific runtime setup, so they
@@ -150,7 +157,10 @@ are mapped rather than ported.
 
 Observed locally on 2026-05-15 with
 `BUILD_ROOT=/src/ModSecurity-conector-build`, `make smoke-all` reported all
-three NGINX-specific imported cases as `PASS` on NGINX.
+three original NGINX-specific imported cases as `PASS` on NGINX. The PR #377
+phase-4 evidence probes were later observed 3/3 PASS individually on NGINX
+before import; strict/invalid-config/large-response response-body branches
+remain xfail or mapped-only in `docs/testing/pr377-test-import-map.md`.
 
 ## Smoke Scopes
 

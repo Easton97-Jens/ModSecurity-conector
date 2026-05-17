@@ -22,6 +22,7 @@ from runner_core import (
     write_response_fixture,
     write_rules_file,
     write_shell_env,
+    write_nginx_runtime_files,
 )
 
 
@@ -34,6 +35,12 @@ def materialize(args: argparse.Namespace) -> int:
         write_body_file(case, args.body_file)
     if args.docroot:
         write_response_fixture(case, args.docroot)
+    write_nginx_runtime_files(
+        case,
+        args.nginx_location_directives_file,
+        args.nginx_runtime_config_dir,
+        args.nginx_phase4_log_file,
+    )
     write_shell_env(
         case,
         args.env_file,
@@ -52,6 +59,7 @@ def assert_status(args: argparse.Namespace) -> int:
         {"status": int(args.actual_status)},
         args.response_body_file,
         args.audit_log_file,
+        args.nginx_phase4_log_file,
     )
     status_file = Path(args.status_file) if args.status_file else None
     if errors:
@@ -210,6 +218,9 @@ def build_parser() -> argparse.ArgumentParser:
     materialize_parser.add_argument("--docroot")
     materialize_parser.add_argument("--audit-log-file")
     materialize_parser.add_argument("--audit-log-dir")
+    materialize_parser.add_argument("--nginx-location-directives-file")
+    materialize_parser.add_argument("--nginx-runtime-config-dir")
+    materialize_parser.add_argument("--nginx-phase4-log-file")
     materialize_parser.set_defaults(func=materialize)
 
     assert_parser = subparsers.add_parser(
@@ -221,6 +232,7 @@ def build_parser() -> argparse.ArgumentParser:
     assert_parser.add_argument("--status-file")
     assert_parser.add_argument("--response-body-file")
     assert_parser.add_argument("--audit-log-file")
+    assert_parser.add_argument("--nginx-phase4-log-file")
     assert_parser.set_defaults(func=assert_status)
 
     list_parser = subparsers.add_parser(

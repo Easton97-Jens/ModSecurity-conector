@@ -275,6 +275,7 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     _validate_case_metadata(case, where)
     _validate_request(case, where)
     _validate_response(case, where)
+    _validate_nginx(case, where)
     _validate_expect(case, where)
 
 
@@ -385,6 +386,37 @@ def _validate_response(case: Mapping[str, Any], where: str) -> None:
         raise ValueError(f"case response.body must be a string{where}")
 
 
+def _validate_nginx(case: Mapping[str, Any], where: str) -> None:
+    nginx = case.get("nginx")
+    if nginx is None:
+        return
+    if not isinstance(nginx, Mapping):
+        raise ValueError(f"case nginx must be a mapping{where}")
+    location_directives = nginx.get("location_directives")
+    if location_directives is not None and not isinstance(location_directives, str):
+        raise ValueError(f"case nginx.location_directives must be a string{where}")
+    files = nginx.get("files", {})
+    if files is not None and not isinstance(files, Mapping):
+        raise ValueError(f"case nginx.files must be a mapping{where}")
+    if isinstance(files, Mapping):
+        for name, content in files.items():
+            file_name = str(name)
+            if not file_name.strip() or file_name.startswith("/") or ".." in Path(file_name).parts:
+                raise ValueError(f"case nginx.files keys must be relative safe paths{where}")
+            if not isinstance(content, str):
+                raise ValueError(f"case nginx.files values must be strings{where}")
+
+
+def _validate_expect_string_list(value: Any, key: str, where: str) -> None:
+    if value is None:
+        return
+    if isinstance(value, str):
+        return
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return
+    raise ValueError(f"case expect.phase4_log.{key} must be a string or string list{where}")
+
+
 def _validate_expect(case: Mapping[str, Any], where: str) -> None:
     expect = case.get("expect")
     if not isinstance(expect, Mapping):
@@ -402,6 +434,15 @@ def _validate_expect(case: Mapping[str, Any], where: str) -> None:
         absent = audit_log.get("absent")
         if absent is not None and not isinstance(absent, bool):
             raise ValueError(f"case expect.audit_log.absent must be a boolean{where}")
+    phase4_log = expect.get("phase4_log", {})
+    if phase4_log is not None and not isinstance(phase4_log, Mapping):
+        raise ValueError(f"case expect.phase4_log must be a mapping{where}")
+    if isinstance(phase4_log, Mapping):
+        required = phase4_log.get("required")
+        if required is not None and not isinstance(required, bool):
+            raise ValueError(f"case expect.phase4_log.required must be a boolean{where}")
+        _validate_expect_string_list(phase4_log.get("contains"), "contains", where)
+        _validate_expect_string_list(phase4_log.get("not_contains"), "not_contains", where)
 
 
 def write_rules_file(
@@ -497,6 +538,76 @@ def response_body(case: Mapping[str, Any]) -> str:
     return str(body)
 
 
+def nginx_metadata(case: Mapping[str, Any]) -> Mapping[str, Any]:
+    nginx = case.get("nginx", {})
+    if nginx is None:
+        return {}
+    if not isinstance(nginx, Mapping):
+        raise ValueError("nginx must be a mapping")
+    return nginx
+
+
+def nginx_files(case: Mapping[str, Any]) -> Mapping[str, str]:
+    files = nginx_metadata(case).get("files", {})
+    if files is None:
+        return {}
+    if not isinstance(files, Mapping):
+        raise ValueError("nginx.files must be a mapping")
+    return {str(name): str(content) for name, content in files.items()}
+
+
+def nginx_location_directives(case: Mapping[str, Any]) -> str:
+    directives = nginx_metadata(case).get("location_directives", "")
+    if directives in (None, ""):
+        return ""
+    return str(directives)
+
+
+def _replace_nginx_placeholders(
+    content: str,
+    nginx_runtime_config_dir: Path,
+    nginx_phase4_log_file: str | Path | None,
+) -> str:
+    rendered = content
+    if nginx_phase4_log_file is not None:
+        rendered = rendered.replace("@@NGINX_PHASE4_LOG@@", str(nginx_phase4_log_file))
+    for marker in set(rendered.split("@@NGINX_FILE:")[1:]):
+        name = marker.split("@@", 1)[0]
+        if not name:
+            continue
+        target = nginx_runtime_config_dir / name
+        rendered = rendered.replace(f"@@NGINX_FILE:{name}@@", str(target))
+    if "@@NGINX_PHASE4_LOG@@" in rendered:
+        raise ValueError("NGINX phase4 log placeholder requires a phase4 log path")
+    if "@@NGINX_FILE:" in rendered:
+        raise ValueError("unresolved NGINX file placeholder")
+    return rendered
+
+
+def write_nginx_runtime_files(
+    case: Mapping[str, Any],
+    location_directives_file: str | Path | None,
+    runtime_config_dir: str | Path | None,
+    phase4_log_file: str | Path | None = None,
+) -> None:
+    if location_directives_file is None or runtime_config_dir is None:
+        return
+    config_dir = Path(runtime_config_dir)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    for name, content in nginx_files(case).items():
+        target = config_dir / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content if content.endswith("\n") else f"{content}\n", encoding="utf-8")
+    directives = _replace_nginx_placeholders(
+        nginx_location_directives(case),
+        config_dir,
+        phase4_log_file,
+    )
+    output = Path(location_directives_file)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(directives if directives.endswith("\n") else f"{directives}\n", encoding="utf-8")
+
+
 def _bool_value(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -513,6 +624,16 @@ def expected_audit_log(case: Mapping[str, Any]) -> Mapping[str, Any]:
     if not isinstance(audit_log, Mapping):
         raise ValueError("expect.audit_log must be a mapping")
     return audit_log
+
+
+def expected_phase4_log(case: Mapping[str, Any]) -> Mapping[str, Any]:
+    expect = case["expect"]
+    phase4_log = expect.get("phase4_log", {})
+    if phase4_log is None:
+        return {}
+    if not isinstance(phase4_log, Mapping):
+        raise ValueError("expect.phase4_log must be a mapping")
+    return phase4_log
 
 
 def write_headers_file(case: Mapping[str, Any], path: str | Path) -> None:
@@ -837,16 +958,52 @@ def assert_audit_log(
     return _assert_audit_log_fields(audit_log, content)
 
 
+def _string_list(value: Any) -> list[str]:
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    return [str(value)]
+
+
+def assert_phase4_log(
+    case: Mapping[str, Any],
+    phase4_log_file: str | Path | None,
+    timeout_seconds: float = 2.0,
+) -> list[str]:
+    phase4_log = expected_phase4_log(case)
+    if not phase4_log:
+        return []
+    if phase4_log_file is None:
+        return ["phase4 log expectation requires a phase4 log file"]
+    path = Path(phase4_log_file)
+    content = _wait_for_file_content(path, timeout_seconds)
+    if _bool_value(phase4_log.get("required")) and not content:
+        return [f"phase4 log file missing or empty: {path}"]
+    errors: list[str] = []
+    for expected in _string_list(phase4_log.get("contains")):
+        if expected not in content:
+            errors.append(f"expected phase4 log to contain {expected!r}")
+    for unexpected in _string_list(phase4_log.get("not_contains")):
+        if unexpected in content:
+            errors.append(f"expected phase4 log not to contain {unexpected!r}")
+    return errors
+
+
 def assert_case_artifacts(
     case: Mapping[str, Any],
     response: Any,
     response_body_file: str | Path | None = None,
     audit_log_file: str | Path | None = None,
+    phase4_log_file: str | Path | None = None,
 ) -> list[str]:
     errors: list[str] = []
     errors.extend(assert_case_response(case, response))
     errors.extend(assert_response_body(case, response_body_file))
     errors.extend(assert_audit_log(case, audit_log_file))
+    errors.extend(assert_phase4_log(case, phase4_log_file))
     return errors
 
 
