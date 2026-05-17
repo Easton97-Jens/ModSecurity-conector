@@ -47,3 +47,6 @@ real-world Apache and NGINX smoke runs.
 - Phase 6 added adapter-owned metadata skeletons outside `common/`. Those files
   may name Apache or NGINX as components, but they still avoid server headers,
   libmodsecurity ownership, and productive runtime paths.
+- Phase 9 makes NGINX source adapter-owned, but that remains outside Common.
+  The NGINX module sources still own NGINX-specific hooks, filters, and
+  transaction integration; Common does not absorb those paths.

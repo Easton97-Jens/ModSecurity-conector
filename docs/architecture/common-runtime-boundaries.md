@@ -99,3 +99,22 @@ The generated tree does not create Common ownership of NGINX filters, request
 mapping, body handling, transaction lifecycle, or intervention behavior. Apache
 receives the same generated source evidence, but its module build remains on the
 existing sanitized upstream copy in this phase.
+
+## Phase 9 NGINX Adapter-Owned Source Boundary
+
+Phase 9 moves NGINX productive source files into `connectors/nginx/src` and
+builds the monorepo-default NGINX module from the generated
+`$BUILD_ROOT/nginx-build/connector-src` tree. This is adapter-owned source
+ownership, not Common runtime ownership.
+
+Common still does not own:
+
+- NGINX module registration;
+- NGINX access, header, body, or log filters;
+- phase-4 late intervention behavior;
+- response-body blocking semantics;
+- libmodsecurity transaction lifetime.
+
+ModSecurity-nginx PR #377 source changes are documented as adapter-owned NGINX
+source provenance. They do not make `RESPONSE_BODY` a verified variable and do
+not affect Apache.

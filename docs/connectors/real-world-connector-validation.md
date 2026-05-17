@@ -58,6 +58,8 @@ The connector harnesses materialize them and send real HTTP requests.
 `response_body_pass` case proves pass-through with response-body access enabled,
 but response-body rule-variable blocking remains mapped/xfail until both
 connectors return stable HTTP 403 for the same YAML case.
+ModSecurity-nginx PR #377 source changes are recorded as NGINX source
+provenance, not as connector validation.
 
 ## Result Metadata
 

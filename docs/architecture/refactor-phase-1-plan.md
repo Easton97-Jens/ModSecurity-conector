@@ -9,7 +9,9 @@ shapes visible while preserving the existing real-world smoke behavior.
 ## Inputs Reviewed
 
 - Apache upstream connector source under `connectors/apache/upstream/src/`.
-- NGINX upstream connector source under `connectors/nginx/upstream/src/`.
+- NGINX upstream connector source under `connectors/nginx/upstream/src/` at the
+  time of phase 1. Phase 9 later migrated those files to adapter-owned
+  `connectors/nginx/src/`.
 - Existing common C-first headers under `common/include/msconnector/`.
 - Real-world smoke harnesses for Apache and NGINX.
 

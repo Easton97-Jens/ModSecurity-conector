@@ -63,3 +63,10 @@ Phase 7 is the first report-path use of these skeletons. It may serialize and
 compare adapter metadata in build/runtime summaries, but it still must not link
 the metadata helpers into productive connector modules or alter connector
 request/response behavior.
+
+## Phase 9 Follow-On
+
+Phase 9 expands the NGINX adapter-owned tree from metadata/debug helpers to the
+full NGINX module source. That follow-on remains NGINX-specific; it does not
+make the NGINX filters, phase handlers, response-body behavior, or transaction
+lifecycle part of Common.

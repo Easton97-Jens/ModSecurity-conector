@@ -9,8 +9,10 @@ Observed ref: `master`, `v1.0.4-14-g9eb44fd`
 ## Role
 
 This repository is an NGINX connector for libmodsecurity v3. It is now a
-controlled source import under `connectors/nginx/upstream/`. Imported files are
-kept NGINX-specific and documented in `connectors/nginx/ORIGIN.md`.
+controlled adapter-owned source import under `connectors/nginx/src/`. Retained
+upstream attribution/reference files stay under `connectors/nginx/upstream/`.
+Imported and migrated files are kept NGINX-specific and documented in
+`connectors/nginx/ORIGIN.md`.
 
 ## Build System
 
@@ -57,7 +59,7 @@ These are `connector-specific` and belong only under `connectors/nginx/`.
 | v3 C API phase sequence | v3 via connector | engine-specific | compatible | Document and adapt |
 | NGINX phase/filter registration | connector | connector-specific | compatible only for NGINX | Tracked in `docs/roadmap/todo-inventory.md` |
 | nginx-tests cases | connector | connector-specific | partial | Map to `tests/nginx/` |
-| Source code files | connector | connector-specific | compatible only for NGINX | Imported under `connectors/nginx/upstream/` |
+| Source code files | connector | connector-specific | compatible only for NGINX | Migrated to adapter-owned `connectors/nginx/src/` |
 
 ## Import Decision
 
@@ -65,3 +67,11 @@ The import is intentionally separated from `common/`. NGINX phase handlers,
 header/body filters, configuration merge logic, and NGINX module build metadata
 stay under `connectors/nginx/`. Future common extraction requires separate proof
 via real-world Apache and NGINX smoke tests.
+
+## Phase 9 Source Status
+
+The NGINX module `config` and source files now live in
+`connectors/nginx/src/`. The adapter-owned source includes selected
+ModSecurity-nginx PR #377 source changes from
+`3d72b004ff27a78ea19c6b945870e2cae62a97ac`; this is not a `RESPONSE_BODY`
+promotion.

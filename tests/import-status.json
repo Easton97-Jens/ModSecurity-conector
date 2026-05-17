@@ -203,7 +203,7 @@
     {
       "case": "tests/common/cases/xfail/response_body_basic_block.yaml",
       "source": "ModSecurity-nginx/tests/modsecurity-response-body.t; ModSecurity-apache/tests/regression/config/10-response-directives.t; ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json",
-      "reason": "Dedicated three-repeat probe stayed xfail/mapped-only: Apache returned HTTP 200 without audit hit; NGINX matched RESPONSE_BODY in phase 4 but curl observed 000/empty reply instead of stable HTTP 403."
+      "reason": "Dedicated three-repeat Phase 9 probe stayed xfail/mapped-only: Apache and NGINX both returned HTTP 200 instead of stable HTTP 403. PR #377 source is applied to adapter-owned NGINX files, but RESPONSE_BODY is not promoted without stable real HTTP behavior."
     },
     {
       "case": "tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml",

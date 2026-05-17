@@ -4,9 +4,10 @@ Status: implemented
 
 This document defines the current minimal imported Apache and NGINX connector
 source sets used by the monorepo smoke builds. The files remain
-connector-specific. Phase 4 replaces one NGINX debug helper with repo-owned
-adapter-near code; no hook, filter, body, transaction, or Common runtime logic
-was extracted.
+connector-specific. Phase 9 migrates the NGINX module source into
+adapter-owned `connectors/nginx/src` while retaining upstream attribution files.
+No Apache hook, NGINX filter, body, transaction, or Common runtime logic was
+merged across connectors.
 
 ## Apache Connector
 
@@ -49,34 +50,48 @@ License and provenance context:
 
 ## NGINX Connector
 
-Minimal imported tree: `connectors/nginx/upstream/`
+Minimal retained upstream tree: `connectors/nginx/upstream/`
 
-Required for NGINX module build and runtime smoke:
-
-- `config`
-- `src/ngx_http_modsecurity_access.c`
-- `src/ngx_http_modsecurity_body_filter.c`
-- `src/ngx_http_modsecurity_common.h`
-- `src/ngx_http_modsecurity_header_filter.c`
-- `src/ngx_http_modsecurity_log.c`
-- `src/ngx_http_modsecurity_module.c`
-
-Repo-owned materialized-source overlay:
-
-- `connectors/nginx/src/ddebug.h` is copied to
-  `$BUILD_ROOT/nginx-build/connector-src/src/ddebug.h` for monorepo-default
-  builds. This keeps the upstream `config` dependency satisfied while reducing
-  `connectors/nginx/upstream/`.
-- External NGINX source builds keep the older fallback: if the selected external
-  source tree lacks `src/ddebug.h`, `ci/prepare-nginx-build.sh` overlays the
-  repo-owned header into the generated external build copy.
-
-License and provenance context:
+Required for attribution/reference:
 
 - `LICENSE`
 - `AUTHORS`
 - `CHANGES`
 - `README.md`
+
+Adapter-owned NGINX module build inputs:
+
+- `connectors/nginx/src/config`
+- `connectors/nginx/src/ngx_http_modsecurity_access.c`
+- `connectors/nginx/src/ngx_http_modsecurity_body_filter.c`
+- `connectors/nginx/src/ngx_http_modsecurity_common.h`
+- `connectors/nginx/src/ngx_http_modsecurity_header_filter.c`
+- `connectors/nginx/src/ngx_http_modsecurity_log.c`
+- `connectors/nginx/src/ngx_http_modsecurity_module.c`
+- `connectors/nginx/src/ddebug.h`
+- `connectors/nginx/src/SOURCE_MAP.json`
+
+PR #377 provenance:
+
+- `connectors/nginx/src/ngx_http_modsecurity_body_filter.c`,
+  `connectors/nginx/src/ngx_http_modsecurity_common.h`, and
+  `connectors/nginx/src/ngx_http_modsecurity_module.c` include source changes
+  from ModSecurity-nginx PR #377 commit
+  `3d72b004ff27a78ea19c6b945870e2cae62a97ac`.
+- Those changes are source-level phase-4 evidence only. `RESPONSE_BODY` remains
+  xfail/mapped-only and excluded from `verified_variables`.
+
+Materialized build input:
+
+- Monorepo-default NGINX builds use
+  `$BUILD_ROOT/nginx-build/connector-src`.
+- The materializer copies retained upstream attribution files, overlays
+  adapter-owned `connectors/nginx/src`, maps adapter `config` to root `config`,
+  and writes `MATERIALIZED_SOURCE.md` plus `materialized-source.json`.
+- External NGINX source builds still use a sanitized external-source copy; if
+  the selected external source tree lacks `src/ddebug.h`,
+  `ci/prepare-nginx-build.sh` overlays the repo-owned header into the generated
+  external build copy.
 
 ## Future Common Extraction Candidates
 
@@ -107,7 +122,8 @@ are true:
   combined smokes still pass without it.
 
 The phase-4 review found one safe replacement: the NGINX debug compatibility
-header. All remaining imported files stay under the pruning rule above.
+header. Phase 9 migrated NGINX productive source into adapter-owned files and
+reduced `connectors/nginx/upstream/` to attribution/reference files only.
 
 ## Phase 8 Shadow Build Source
 
@@ -120,6 +136,13 @@ manifests identifying `adapter-owned`, `upstream-derived`, and
 Apache also gets `$BUILD_ROOT/apache-build/connector-src` manifests, but its
 module build still uses `$BUILD_ROOT/apache-build/ModSecurity-apache` until a
 separate Autotools/APXS proof switches the default.
+
+## Phase 9 NGINX Source Migration
+
+Phase 9 moves the NGINX module `config` and all remaining module source files
+from `connectors/nginx/upstream/` to `connectors/nginx/src/`, then removes the
+upstream copies after a materialized-source NGINX smoke passes. The retained
+NGINX upstream tree is now a minimal attribution/reference set.
 
 ## Phase 5 Review Result
 

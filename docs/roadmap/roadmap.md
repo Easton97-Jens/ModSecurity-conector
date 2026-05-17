@@ -9,7 +9,7 @@ Status: scaffolded
 | Now | Keep Apache/NGINX real-world smokes stable; maintain docs/index/link hygiene; keep origin and license maps current |
 | Next | Add machine-readable YAML schema; design fixture support for external files; prepare evidence-backed common helpers for config, logging/audit, request/response metadata, status/origin, and intervention representation |
 | Later | Evaluate HAProxy, Envoy, Lighttpd, and Traefik only after Common stabilization and a real-world harness plan for each |
-| Blocked | `RESPONSE_BODY` blocking common PASS, RAW-ARGS active cases until PR #3564 support is present locally, upstream code reduction until functionality has a proven replacement |
+| Blocked | `RESPONSE_BODY` blocking common PASS, RAW-ARGS active cases until PR #3564 support is present locally, further upstream code reduction until functionality has a proven replacement |
 | Evidence-only | Connector-free v3 API smoke, mapped-only V2/V3 cases, response-body blocking probe, RAW-ARGS PR #3564 evidence |
 
 ## Implemented
@@ -71,6 +71,9 @@ Status: scaffolded
   models while preserving backward-compatible smoke summaries.
 - Apache and NGINX smoke harnesses hardened for generated-runtime pid cleanup
   and deterministic localhost port selection.
+- NGINX module source migrated to adapter-owned `connectors/nginx/src`, built
+  through `$BUILD_ROOT/nginx-build/connector-src`, with retained upstream
+  attribution and PR #377 phase-4 source provenance.
 
 ## Planned
 
@@ -89,8 +92,8 @@ Status: scaffolded
   designed.
 - Re-run SonarCloud after the next CI analysis and close any remaining issues
   that the source-level refactor did not resolve.
-- Reduce `connectors/*/upstream/` only after the equivalent behavior exists in
-  maintained project code, attribution remains under `licenses/` and
+- Continue reducing `connectors/*/upstream/` only after the equivalent behavior
+  exists in maintained project code, attribution remains under `licenses/` and
   `ORIGIN.md`, and smoke-all still passes.
 
 ## Unknown
@@ -121,8 +124,8 @@ Common metadata and harness behavior remain stable.
   resolution/downloads, libmodsecurity v3 build, connector module build, and
   runtime smokes complete.
 - Response-body blocking remains blocked/xfail for common import until both
-  Apache and NGINX return stable HTTP 403 for the same YAML case. The NGINX
-  reference test currently marks this behavior TODO.
+  Apache and NGINX return stable HTTP 403 for the same YAML case. PR #377 source
+  is applied to adapter-owned NGINX source, but it is not a verification result.
 - RAW-ARGS cases remain mapped-only until the configured ModSecurity v3 source
   contains PR #3564 behavior and both Apache and NGINX pass real HTTP smokes.
 - `v3_action_nolog_pass_no_audit` remains xfail/mapped-only for active common

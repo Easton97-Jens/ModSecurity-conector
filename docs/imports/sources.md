@@ -9,7 +9,7 @@ Status: implemented
 | ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 | Primary libmodsecurity architecture and API reference |
 | ModSecurity v2 | `/root/conecter/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 | Regression, semantics, compatibility, historical Apache reference |
 | ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 | Apache v3 connector reference and controlled import source |
-| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 | NGINX v3 connector reference and controlled import source |
+| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 | NGINX v3 connector reference; adapter-owned source now lives in `connectors/nginx/src` |
 
 Local paths are workspace examples. The upstream URLs are the portable source
 references for GitHub, CI, pull requests, and external maintainers.
@@ -39,3 +39,10 @@ references for GitHub, CI, pull requests, and external maintainers.
 
 No public source listed here proves that a ModSecurity connector for that
 server/proxy is implemented in this repository.
+
+## PR Evidence Sources
+
+| Topic | Upstream PR | Local use |
+| --- | --- | --- |
+| RAW argument collections | https://github.com/owasp-modsecurity/ModSecurity/pull/3564 | Mapped/evidence-only until local libmodsecurity support and real Apache+NGINX PASS smokes exist |
+| NGINX phase-4 / `RESPONSE_BODY` handling | https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377 | Source changes applied to adapter-owned NGINX files at commit `3d72b004ff27a78ea19c6b945870e2cae62a97ac`; `RESPONSE_BODY` remains xfail/mapped-only |

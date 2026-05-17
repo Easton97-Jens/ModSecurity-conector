@@ -21,15 +21,14 @@ and how shared evidence maps to Common C-first data shapes.
 | `refactor-phase-1-plan.md` | First conservative Common foundation plan |
 | `refactor-phase-3-review.md` | First implementation-level Common extraction review |
 | `refactor-phase-6-review.md` | First adapter-owned source skeleton review |
+| `refactor-phase-9-review.md` | NGINX adapter-owned source migration and PR #377 status |
 | `replace-and-reduce-plan.md` | Controlled upstream replacement candidates and phase-4 decision |
 
 ## Current Boundary
 
 `common/` contains connector-neutral types, tiny metadata helpers, and docs
-only. `connectors/<name>/src/` now contains adapter-owned skeleton helpers for
-metadata and debug compatibility only. NGINX monorepo-default builds use a
-generated `$BUILD_ROOT/nginx-build/connector-src` tree that overlays those
-adapter-owned files onto the remaining imported source. Apache hooks, NGINX
-filters, server-specific config parsing, and libmodsecurity transaction
-ownership stay under `connectors/<name>/upstream/` or generated build copies
-until separate proof exists.
+only. `connectors/apache/src/` contains adapter-owned metadata helpers only.
+`connectors/nginx/src/` now owns the NGINX module source used by monorepo
+default builds through `$BUILD_ROOT/nginx-build/connector-src`. Apache hooks,
+NGINX filters, server-specific config parsing, and libmodsecurity transaction
+ownership are still connector-specific and are not Common-owned.

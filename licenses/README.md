@@ -11,7 +11,7 @@ beside imported upstream source trees.
 | Area | Local reference | Upstream | Imported code in repo | License | Details |
 | --- | --- | --- | --- | --- | --- |
 | Apache connector | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `connectors/apache/upstream/` | Apache-2.0 | `licenses/apache/ORIGIN.md` |
-| NGINX connector | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `connectors/nginx/upstream/` | Apache-2.0 | `licenses/nginx/ORIGIN.md` |
+| NGINX connector | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `connectors/nginx/src/` plus upstream attribution in `connectors/nginx/upstream/` | Apache-2.0 | `licenses/nginx/ORIGIN.md` |
 
 ## Read-only Reference Sources
 

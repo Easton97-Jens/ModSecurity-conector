@@ -80,12 +80,13 @@ passed only on NGINX and remain `portable: false`.
 | `json_request_body_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `response_body_pass.yaml` | pass, HTTP 200 | pass, HTTP 200 | fully-imported-common |
-| `response_body_basic_block` | fail, HTTP 200 and no audit hit | fail, `RESPONSE_BODY` audit/error hit but client observed `000` empty reply | xfail/mapped-only |
+| `response_body_basic_block` | fail, HTTP 200 | fail, HTTP 200 | xfail/mapped-only |
 
 The response-body block row is intentionally not an active smoke. The NGINX
-reference test marks the behavior TODO. A local three-repeat probe did not
-produce stable HTTP 403 on either connector, so this repository documents the
-evidence without claiming connector parity.
+reference test marks the behavior TODO, and ModSecurity-nginx PR #377 source
+changes are treated as source-level evidence only. A local three-repeat probe
+did not produce stable HTTP 403 on either connector, so this repository
+documents the evidence without claiming connector parity.
 
 ## V2/V3-Derived Compatibility
 

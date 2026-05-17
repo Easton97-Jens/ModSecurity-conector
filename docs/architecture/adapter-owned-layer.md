@@ -1,6 +1,6 @@
 # Adapter-Owned Layer
 
-Status: phase 6 skeleton
+Status: phase 9 NGINX source migration
 
 The adapter-owned layer is the first repo-owned connector code that sits beside
 the imported upstream reference trees. It is intentionally not product runtime
@@ -8,13 +8,16 @@ code yet.
 
 ## Purpose
 
-`connectors/<name>/src/` is reserved for small connector-owned helpers that are
-safe to develop outside `connectors/<name>/upstream/`:
+`connectors/<name>/src/` is reserved for connector-owned code developed outside
+`connectors/<name>/upstream/`:
 
 - stable connector metadata;
 - origin and license descriptors;
 - debug compatibility shims;
 - future adapter-local helpers with explicit smoke evidence.
+
+For NGINX, this layer now also contains the adapter-owned module build source.
+For Apache, it remains metadata-only.
 
 The layer is separate from `common/`: Common remains connector-neutral, while
 adapter-owned helpers may name Apache or NGINX as components. The layer is also
@@ -30,6 +33,10 @@ implementation until a later replace-and-reduce phase proves equivalence.
 | `connectors/nginx/src/metadata.h` | NGINX adapter metadata API | Not linked into NGINX module builds |
 | `connectors/nginx/src/metadata.c` | NGINX origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
 | `connectors/nginx/src/ddebug.h` | NGINX debug compatibility header | Overlaid into NGINX materialized build sources; still used as external-source fallback when needed |
+| `connectors/nginx/src/config` | NGINX dynamic module build metadata | Materialized to `$BUILD_ROOT/nginx-build/connector-src/config` for monorepo-default NGINX builds |
+| `connectors/nginx/src/ngx_http_modsecurity_*.c` | Adapter-owned NGINX module sources | Built through the generated NGINX connector source tree |
+| `connectors/nginx/src/ngx_http_modsecurity_common.h` | Adapter-owned NGINX connector declarations | Built through the generated NGINX connector source tree |
+| `connectors/nginx/src/SOURCE_MAP.json` | NGINX base/PR provenance map | Used by materialized-source manifests; not compiled |
 
 ## Boundaries
 
@@ -82,12 +89,13 @@ with before/after real-world connector smokes.
 
 ## Shadow Build Source Use
 
-Phase 8 starts using adapter-owned files in generated build sources. For the
-monorepo-default NGINX source, `ci/prepare-nginx-build.sh` materializes
-`$BUILD_ROOT/nginx-build/connector-src` from imported upstream files and overlays
-`connectors/nginx/src/*` into `src/`. The generated manifests under that
-directory identify `src/ddebug.h`, `src/metadata.c`, `src/metadata.h`, and
-`src/README.md` as adapter-owned.
+Phase 8 starts using adapter-owned files in generated build sources. Phase 9
+migrates the NGINX module `config` and source files into `connectors/nginx/src`.
+For the monorepo-default NGINX source, `ci/prepare-nginx-build.sh` materializes
+`$BUILD_ROOT/nginx-build/connector-src` from retained upstream attribution files
+and adapter-owned NGINX source. The generated manifests identify the NGINX
+module sources as `adapter-owned` and record PR #377 patch provenance where
+applicable.
 
 Apache is materialized for evidence only in phase 8. Its productive module build
 continues to use the sanitized upstream copy until the Autotools/APXS path is
@@ -102,7 +110,7 @@ Origin metadata used by build and runtime summaries follows this order:
    when `MODSECURITY_APACHE_SOURCE_DIR` or `MODSECURITY_NGINX_SOURCE_DIR` points
    outside the monorepo import;
 3. adapter-owned metadata from `connectors/<name>/src/metadata.c` for the
-   default monorepo `upstream/` source.
+   default monorepo adapter-owned source.
 
 This is report metadata only. It does not link adapter metadata into Apache or
 NGINX modules and does not affect request, response, body, filter, transaction,

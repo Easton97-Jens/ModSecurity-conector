@@ -28,9 +28,10 @@ Implemented now:
   a runtime smoke harness scaffold; see `docs/connectors/apache-poc.md`.
 - A local source-built Apache PoC has observed the YAML-expected HTTP behavior
   for all current shared minimal cases.
-- A scaffolded NGINX PoC build helper and runtime harness use the same shared
-  YAML case and source NGINX from the official `nginx/nginx` GitHub release
-  archive flow.
+- An NGINX PoC build helper and runtime harness use the same shared YAML cases,
+  build NGINX from the official `nginx/nginx` GitHub release archive flow, and
+  build the ModSecurity-nginx module from materialized adapter-owned source
+  under `$BUILD_ROOT/nginx-build/connector-src`.
 - A local source-built NGINX PoC has observed the YAML-expected HTTP behavior
   for all current shared minimal cases.
 - Formal connector smoke targets:
@@ -82,9 +83,12 @@ builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
 
 ## Architecture Map
 
-- `connectors/apache/upstream/` and `connectors/nginx/upstream/` are temporary
-  reference/import bases. They may shrink only after functionality has moved to
-  maintained project code, origin is still documented, and smokes still pass.
+- `connectors/apache/upstream/` is the current Apache reference/import basis.
+- `connectors/nginx/src/` is the adapter-owned NGINX module source tree.
+- `connectors/nginx/upstream/` is now NGINX attribution/reference material only
+  (`LICENSE`, `AUTHORS`, `CHANGES`, `README.md`).
+- `upstream/` trees may shrink only after functionality has moved to maintained
+  project code, origin is still documented, and smokes still pass.
 - `licenses/` is the durable attribution index for imported connector code and
   read-only ModSecurity engine references.
 - `common/` is the future connector-neutral basis. It currently contains
@@ -114,6 +118,12 @@ NGINX_RELEASE_TAG=latest
 
 When `NGINX_RELEASE_TAG=latest`, the actual tag is resolved at build time and
 recorded under `$BUILD_ROOT/logs/nginx/`.
+
+The monorepo-default NGINX connector source is `connectors/nginx/src`. It is
+materialized with retained upstream attribution files into
+`$BUILD_ROOT/nginx-build/connector-src`. Explicit
+`MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external source
+copy.
 
 ## Shared Smoke Targets
 
@@ -173,9 +183,10 @@ Additional V2/V3-derived common candidates cover v2 operator/transformation
 semantics plus v3 multipart FILES variables, XML body processing, `@rx`, trim,
 and `SecAction`.
 Current imported NGINX-specific cases cover redirect and TX scoring behavior
-from the local NGINX suite. Response-body blocking is mapped as xfail rather
-than counted as common PASS because the local NGINX source marks that behavior
-TODO and local probing did not produce stable HTTP 403. See
+from the local NGINX suite. ModSecurity-nginx PR #377 source changes for
+phase-4 / late intervention handling are applied to adapter-owned NGINX source,
+but response-body blocking is still mapped as xfail rather than counted as
+common PASS until stable real-world Apache+NGINX HTTP 403 evidence exists. See
 `docs/testing/test-import-plan.md` and
 `tests/common/shared-case-origin-map.md` before promoting or moving a case.
 

@@ -13,7 +13,7 @@ entries. It intentionally excludes runtime status strings such as shell
 | Owned open/planned items | 23 | Common, schema, normalizer, connector, and future-connector planning |
 | Owned xfail/mapped evidence | 4 | `RESPONSE_BODY`, `v3_action_nolog_pass_no_audit`, RAW-ARGS, response-body pass-through caveat |
 | Resolved owned items | 1 | Common metadata helper implementations added in Refactor Phase 3 |
-| Imported upstream markers | 20 | Kept untouched under `connectors/*/upstream/` and classified as upstream-reference |
+| Imported/upstream-derived markers | 20 | Kept untouched in Apache upstream and NGINX adapter-owned source; classified as upstream-reference or adapter-owned-source |
 | Obsolete/resolved markers cleaned | 11 | Owned `TODO:` headings replaced with tracked inventory references |
 
 ## Inventory
@@ -53,25 +53,25 @@ entries. It intentionally excludes runtime status strings such as shell
 | `connectors/apache/upstream/src/msc_filters.c` | 65 | upstream FIXME | Apache response/body filter sanity note | response-body | mapped | P2 | upstream-reference | Leave untouched; track during response-filter refactor |
 | `connectors/apache/upstream/tests/run-regression-tests.pl.in` | 482 | upstream TODO | Use `select()`/`poll()` in upstream harness | cleanup | deferred | P3 | upstream-reference | Not used by active smokes |
 | `connectors/apache/upstream/tests/regression/server_root/conf/httpd.conf.in` | 3 | upstream TODO | Upstream regression template configurability | cleanup | deferred | P3 | upstream-reference | Retained as configure template |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_module.c` | 226 | upstream FIXME | Audit log response-code accuracy | audit-log | mapped | P2 | upstream-reference | Relevant to audit metadata review; do not edit imported code |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_module.c` | 600 | upstream TODO | Log phase parity with Apache | audit-log | mapped | P2 | upstream-reference | Track before logging helper extraction |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_header_filter.c` | 423 | upstream XXX | `NOT_MODIFIED` header-filter behavior | response-body | mapped | P2 | upstream-reference | Relevant to response-filter evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_header_filter.c` | 439 | upstream XXX | Already processed request question | response-body | mapped | P2 | upstream-reference | Relevant to response-filter evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_header_filter.c` | 440 | upstream XXX | `ModSecurity off` behavior | response-body | mapped | P2 | upstream-reference | Relevant to response-filter evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_header_filter.c` | 445 | upstream FIXME | Verify already processed request state | response-body | mapped | P2 | upstream-reference | Relevant to response-filter evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_header_filter.c` | 454 | upstream FIXME | `SecResponseBody` disabled flag handling | response-body | mapped | P2 | upstream-reference | Relevant to PR #377 evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_body_filter.c` | 27 | upstream XXX | Multiple body-filter behavior | response-body | mapped | P2 | upstream-reference | Relevant to response-filter evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_body_filter.c` | 156 | upstream XXX | Last buffer / last chain handling | response-body | mapped | P2 | upstream-reference | Relevant to PR #377 evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_body_filter.c` | 166 | upstream XXX | ModSecurity body transfer and content-length adjustment | response-body | mapped | P1 | upstream-reference | Relevant to PR #377 evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_body_filter.c` | 184 | upstream XXX | Filter return behavior | response-body | mapped | P2 | upstream-reference | Relevant to response-filter evidence |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_access.c` | 80 | upstream FIXME | Address metadata type choice | connector | mapped | P3 | upstream-reference | Candidate for request metadata mapping review |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_access.c` | 95 | upstream FIXME | Earlier NGINX hook phase | connector | mapped | P2 | upstream-reference | Candidate for phase timing review |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_access.c` | 172 | upstream FIXME | Finalizing request safely | connector | mapped | P1 | upstream-reference | Relevant before intervention extraction |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_access.c` | 291 | upstream FIXME | Empty upstream marker | cleanup | deferred | P3 | upstream-reference | Leave untouched |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_access.c` | 338 | upstream TODO | `request_body_in_single_buf` benefit | request-body | mapped | P2 | upstream-reference | Candidate for request-body buffering review |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_access.c` | 386 | upstream TODO | Stream chunks as they arrive | request-body | mapped | P2 | upstream-reference | Streaming remains out of active scope |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_access.c` | 425 | upstream XXX | Chain processing and intervention timing | connector | mapped | P2 | upstream-reference | Candidate for intervention review |
-| `connectors/nginx/upstream/src/ngx_http_modsecurity_access.c` | 445 | upstream XXX | Body mutation/content-length adjustment | response-body | mapped | P1 | upstream-reference | Relevant to response-filter evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_module.c` | 245 | upstream-derived FIXME | Audit log response-code accuracy | audit-log | mapped | P2 | adapter-owned-source | Relevant to audit metadata review; do not edit without a dedicated NGINX adapter change |
+| `connectors/nginx/src/ngx_http_modsecurity_module.c` | 826 | upstream-derived TODO | Log phase parity with Apache | audit-log | mapped | P2 | adapter-owned-source | Track before logging helper extraction |
+| `connectors/nginx/src/ngx_http_modsecurity_header_filter.c` | 423 | upstream-derived XXX | `NOT_MODIFIED` header-filter behavior | response-body | mapped | P2 | adapter-owned-source | Relevant to response-filter evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_header_filter.c` | 439 | upstream-derived XXX | Already processed request question | response-body | mapped | P2 | adapter-owned-source | Relevant to response-filter evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_header_filter.c` | 440 | upstream-derived XXX | `ModSecurity off` behavior | response-body | mapped | P2 | adapter-owned-source | Relevant to response-filter evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_header_filter.c` | 445 | upstream-derived FIXME | Verify already processed request state | response-body | mapped | P2 | adapter-owned-source | Relevant to response-filter evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_header_filter.c` | 454 | upstream-derived FIXME | `SecResponseBody` disabled flag handling | response-body | mapped | P2 | adapter-owned-source | Relevant to PR #377 evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | 35 | upstream-derived XXX | Multiple body-filter behavior | response-body | mapped | P2 | adapter-owned-source | Relevant to response-filter evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | 168 | upstream-derived XXX | Last buffer / last chain handling | response-body | mapped | P2 | adapter-owned-source | Relevant to PR #377 evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | 182 | upstream-derived XXX | ModSecurity body transfer and content-length adjustment | response-body | mapped | P1 | adapter-owned-source | Relevant to PR #377 evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | 206 | upstream-derived XXX | Filter return behavior | response-body | mapped | P2 | adapter-owned-source | Relevant to response-filter evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | 80 | upstream-derived FIXME | Address metadata type choice | connector | mapped | P3 | adapter-owned-source | Candidate for request metadata mapping review |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | 95 | upstream-derived FIXME | Earlier NGINX hook phase | connector | mapped | P2 | adapter-owned-source | Candidate for phase timing review |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | 172 | upstream-derived FIXME | Finalizing request safely | connector | mapped | P1 | adapter-owned-source | Relevant before intervention extraction |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | 291 | upstream-derived FIXME | Empty upstream marker | cleanup | deferred | P3 | adapter-owned-source | Leave untouched until adapter-owned cleanup is separately scoped |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | 338 | upstream-derived TODO | `request_body_in_single_buf` benefit | request-body | mapped | P2 | adapter-owned-source | Candidate for request-body buffering review |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | 386 | upstream-derived TODO | Stream chunks as they arrive | request-body | mapped | P2 | adapter-owned-source | Streaming remains out of active scope |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | 425 | upstream-derived XXX | Chain processing and intervention timing | connector | mapped | P2 | adapter-owned-source | Candidate for intervention review |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | 445 | upstream-derived XXX | Body mutation/content-length adjustment | response-body | mapped | P1 | adapter-owned-source | Relevant to response-filter evidence |
 
 ## Cleaned Markers
 

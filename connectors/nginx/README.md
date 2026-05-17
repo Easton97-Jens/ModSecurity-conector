@@ -1,15 +1,20 @@
 # NGINX Connector
 
-Status: scaffolded
+Status: adapter-owned source migration
 
-This directory contains the NGINX proof-of-concept harness and controlled
-upstream import for the ModSecurity-nginx connector source. It does not claim a
-maintained rewrite of that connector.
+This directory contains the NGINX proof-of-concept harness, adapter-owned NGINX
+connector source, and upstream attribution files for the ModSecurity-nginx
+connector. It is still validated by real-world smokes rather than a production
+support claim.
 
 Implemented now:
 
 - Documentation of observed local NGINX connector concepts.
-- Directory layout for future source and connector-specific tests.
+- Adapter-owned source under `src/`, derived from ModSecurity-nginx base commit
+  `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`.
+- Selected source changes from ModSecurity-nginx PR #377
+  (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) applied to
+  adapter-owned source for phase-4 / late intervention handling.
 - A connector-specific runtime harness under `harness/`.
 - Shared YAML case consumption through `tests/runners/case_cli.py`.
 - Source-derived shared imported cases for raw JSON body matching, simple
@@ -17,25 +22,28 @@ Implemented now:
 
 Not implemented:
 
-- No maintained NGINX module rewrite beyond the controlled upstream import.
+- No broad NGINX module rewrite beyond the controlled adapter-owned migration.
 - No full NGINX regression suite.
 - No runtime pass is claimed beyond environments where the NGINX smoke runner
   observes the YAML-expected real HTTP behavior for the shared YAML cases.
-- No response-body blocking pass is claimed; the upstream NGINX test marks that
-  behavior TODO and this repository maps it as xfail until stable HTTP 403 is
-  observed.
+- No response-body blocking pass is claimed. PR #377 source has been reviewed
+  and applied where it builds, but `RESPONSE_BODY` stays xfail/mapped-only until
+  stable real HTTP 403 behavior is proven and separately promoted.
 
 Primary local reference: `/root/conecter/ModSecurity-nginx`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx.
 
-The controlled imported source lives under `connectors/nginx/upstream/` as a
-temporary reference/import basis. It may shrink only after equivalent project
-code exists, origin is still documented, and smokes keep passing.
+The adapter-owned source lives under `connectors/nginx/src/`. The retained
+`connectors/nginx/upstream/` directory now contains upstream license/reference
+files only. It may shrink further only after origin is still documented and
+smokes keep passing.
 
-The build helper is `ci/prepare-nginx-build.sh`. It copies the external
-ModSecurity-nginx source and libmodsecurity v3 source into `BUILD_ROOT`, then
-builds the connector as a dynamic NGINX module against an official
-`nginx/nginx` GitHub release archive.
+The build helper is `ci/prepare-nginx-build.sh`. For the monorepo default it
+materializes `$BUILD_ROOT/nginx-build/connector-src` from `connectors/nginx/src`
+plus retained upstream attribution files, then builds the connector as a
+dynamic NGINX module against an official `nginx/nginx` GitHub release archive.
+Explicit `MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external
+source copy.
 
 Observed locally on 2026-05-15: `NGINX_RELEASE_TAG=latest` resolved to
 `release-1.31.0`, built `nginx/1.31.0`, built

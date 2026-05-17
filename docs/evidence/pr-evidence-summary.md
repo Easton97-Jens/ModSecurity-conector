@@ -40,6 +40,21 @@ connector paths when `make smoke-all` passes:
 `RESPONSE_BODY` is not verified. It remains xfail/mapped-only; see
 `../testing/response-body-blocking-investigation.md`.
 
+## PR #377 Source Status
+
+ModSecurity-nginx PR #377 was fetched only under `$BUILD_ROOT` for review.
+Observed PR head: `3d72b004ff27a78ea19c6b945870e2cae62a97ac`.
+
+Relevant source changes are applied to adapter-owned NGINX files:
+
+- `connectors/nginx/src/ngx_http_modsecurity_body_filter.c`
+- `connectors/nginx/src/ngx_http_modsecurity_common.h`
+- `connectors/nginx/src/ngx_http_modsecurity_module.c`
+
+The PR source intake is not counted as response-body validation. Active
+connector success still requires real HTTP behavior through Apache and NGINX,
+and `RESPONSE_BODY` remains absent from `verified_variables`.
+
 ## Reproduction
 
 ```sh

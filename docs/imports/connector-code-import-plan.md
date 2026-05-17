@@ -11,15 +11,18 @@ paths are examples; upstream GitHub repositories are the portable references:
 | Apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache |
 | NGINX | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx |
 
-Imported code is kept in connector-specific upstream areas:
+Imported and migrated connector code is kept in connector-specific areas:
 
 - `connectors/apache/upstream/`
-- `connectors/nginx/upstream/`
+- `connectors/nginx/src/`
 
 No Apache or NGINX code is moved into `common/` in this step. The
 `upstream/` directories are temporary reference/import bases and may shrink only
 after functionality is replaced by maintained project code, origin remains
-documented, and the real-world smokes still pass.
+documented, and the real-world smokes still pass. NGINX has reached that state
+for its module `config` and `src/*` files; they now live under
+`connectors/nginx/src`, while `connectors/nginx/upstream/` retains only
+license/reference files.
 
 ## Source Revisions
 
@@ -39,11 +42,17 @@ Apache import includes source and Autotools/APXS build inputs only:
 - connector source files under `src/`
 - minimal Apache test templates referenced by `configure.ac`
 
-NGINX import includes source and NGINX module build inputs only:
+NGINX adapter-owned source includes source and NGINX module build inputs only:
 
 - `LICENSE`, `AUTHORS`, `CHANGES`, `README.md`
-- `config`
-- connector source files under `src/`
+- `config` under `connectors/nginx/src`
+- connector source files under `connectors/nginx/src`
+- `SOURCE_MAP.json` recording the base upstream commit and PR #377 patch
+  provenance
+
+The upstream-adjacent NGINX attribution files remain under
+`connectors/nginx/upstream/`, but no productive NGINX module source remains
+there after phase 9.
 
 The following are intentionally not imported:
 
@@ -58,7 +67,7 @@ The following are intentionally not imported:
 imports by default when connector source env vars are not set:
 
 - `MODSECURITY_APACHE_SOURCE_DIR=connectors/apache/upstream`
-- `MODSECURITY_NGINX_SOURCE_DIR=connectors/nginx/upstream`
+- `MODSECURITY_NGINX_SOURCE_DIR=connectors/nginx/src`
 
 External sources remain supported by explicitly setting those env vars. The
 helpers still copy or materialize sources into `$BUILD_ROOT` before building.
@@ -66,7 +75,9 @@ They do not build or mutate the source checkout directly.
 
 For monorepo-default NGINX builds, the direct build input is now the generated
 `$BUILD_ROOT/nginx-build/connector-src` tree. It is materialized from
-`connectors/nginx/upstream/` and overlaid with `connectors/nginx/src/`.
+retained NGINX upstream attribution files and adapter-owned
+`connectors/nginx/src/` sources. The NGINX `config` file materializes to root
+`config`; adapter source files materialize under `src/`.
 
 For monorepo-default Apache builds, phase 8 also generates
 `$BUILD_ROOT/apache-build/connector-src` and manifests it, but the productive
@@ -102,6 +113,16 @@ continues to describe source provenance.
 | Audit-log differences | Connector/runtime config can affect log artifacts | Use existing real-world smoke summaries only |
 | Upstream provenance drift | Imported files may diverge from source repos | Maintain `ORIGIN.md` with commit and source path |
 
+## PR #377 Status
+
+ModSecurity-nginx PR #377
+(https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) was fetched
+only under `$BUILD_ROOT` for review. Source changes from PR head
+`3d72b004ff27a78ea19c6b945870e2cae62a97ac` were applied to the adapter-owned
+NGINX body filter, common header, and module file. Raw PR tests and docs were
+not copied. The phase-4 behavior remains evidence-sensitive, and
+`RESPONSE_BODY` is not counted as verified by this source migration.
+
 ## Acceptance
 
 This import is acceptable only if:
@@ -127,7 +148,6 @@ BUILD_ROOT=/src/ModSecurity-conector-import-build make smoke-all
 BUILD_ROOT=/src/ModSecurity-conector-build make smoke-all
 ```
 
-All listed smoke commands completed with `pass` results. The build helpers
-reported connector source paths under `connectors/apache/upstream` and
-`connectors/nginx/upstream`; generated build, log, and runtime artifacts stayed
-under the configured `BUILD_ROOT` values.
+All listed smoke commands completed with `pass` results. Phase 9 changes the
+NGINX monorepo-default source path to `connectors/nginx/src`; generated build,
+log, and runtime artifacts stay under the configured `BUILD_ROOT` values.

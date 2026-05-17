@@ -1,6 +1,6 @@
 # Replace-And-Reduce Plan
 
-Status: phase 5 reviewed
+Status: phase 9 NGINX source migrated
 
 This plan records candidates for replacing small imported connector source
 pieces with repo-owned code. A replacement is allowed only when it avoids
@@ -14,8 +14,8 @@ server hook/filter/body/lifecycle semantics and keeps real-world smokes passing.
 | Apache error bucket helper | `connectors/apache/upstream/src/msc_utils.c` `send_error_bucket()` | High. It creates Apache buckets, sets status line, and affects filter-chain response behavior. | Covered indirectly by blocking smokes, but replacement would touch Apache output semantics. | Keep upstream. Revisit only with a dedicated Apache adapter plan and before/after response/error smoke evidence. | defer |
 | Apache `id()` helper | `connectors/apache/upstream/src/msc_utils.c` | Low code risk but no functional replacement need; removal requires editing upstream C file. | Not meaningfully covered because it appears unused. | Leave as imported reference for now. Consider removing only when Apache sources are moved out of upstream into repo-owned adapter code. | defer / possibly obsolete |
 | Apache intervention handling | `connectors/apache/upstream/src/mod_security3.c` | High. Translates libmodsecurity intervention into Apache HTTP behavior and redirects. | Covered by many 403/401/302 smokes, but behavior is production path. | Document only. Extract data shape is already represented by Common metadata helpers. | defer |
-| NGINX intervention handling | `connectors/nginx/upstream/src/ngx_http_modsecurity_module.c` | High. Tied to NGINX request finalization, redirect headers, early logging, and status updates. | Covered by many blocking/redirect smokes, but behavior is production path. | Document only. No replace until a dedicated NGINX adapter design exists. | defer |
-| NGINX log callback | `connectors/nginx/upstream/src/ngx_http_modsecurity_log.c` | Medium to high. Connector-specific log phase and audit behavior are still under active evidence tracking. | Audit-log smokes cover stable fields, but `nolog` remains xfail. | Keep upstream. | defer |
+| NGINX intervention handling | `connectors/nginx/src/ngx_http_modsecurity_module.c` | High. Tied to NGINX request finalization, redirect headers, early logging, and status updates. | Covered by many blocking/redirect smokes, but behavior is production path. | Keep adapter-owned but connector-specific. No Common extraction until a dedicated NGINX adapter design exists. | defer |
+| NGINX log callback | `connectors/nginx/src/ngx_http_modsecurity_log.c` | Medium to high. Connector-specific log phase and audit behavior are still under active evidence tracking. | Audit-log smokes cover stable fields, but `nolog` remains xfail. | Keep adapter-owned but connector-specific. | defer |
 | Rules/config loading | Apache `src/msc_config.*`, NGINX `src/ngx_http_modsecurity_module.c` | High. Server-specific configuration parsing and libmodsecurity ruleset ownership. | Build and smoke setup depend on it. | Keep connector-specific. | defer |
 | Request/response filters | Apache filters, NGINX access/header/body filters | High. Directly owns connector data path and `RESPONSE_BODY` remains xfail/mapped-only. | Real-world smokes cover active variables, but phase-4 response-body blocking is not stable common PASS. | Keep upstream. | defer |
 
@@ -29,6 +29,20 @@ The build script copies the repo-owned header into `$BUILD_ROOT` only when the
 selected NGINX connector source tree does not already provide `src/ddebug.h`.
 That keeps explicit external `MODSECURITY_NGINX_SOURCE_DIR` builds compatible
 with their own upstream header.
+
+## Phase 9 NGINX Source Migration
+
+Phase 9 moves the remaining NGINX module `config` and source files from the
+upstream reference tree into adapter-owned `connectors/nginx/src/`. This is a
+larger build-input ownership change than the phase-4 `ddebug.h` replacement,
+but it is still not a Common extraction and it does not merge hooks, filters,
+body handling, intervention semantics, or transaction ownership across
+connectors.
+
+| Candidate | Source | Risk | Test coverage | Replacement strategy | Decision |
+| --- | --- | --- | --- | --- | --- |
+| NGINX module source tree | `connectors/nginx/upstream/config`, `connectors/nginx/upstream/src/*` | Medium. The files are productive connector code, so the safe move is path ownership only, not semantic rewrite. | Fresh materialized-source NGINX build plus real-world NGINX smoke; combined smoke remains required. | Move files to `connectors/nginx/src`, keep provenance in `SOURCE_MAP.json`, materialize adapter-owned files into `$BUILD_ROOT/nginx-build/connector-src`, and remove upstream copies only after smoke pass. | replace now |
+| ModSecurity-nginx PR #377 phase-4 changes | PR #377 body filter/common header/module source | Medium. It touches phase-4 / late intervention behavior. | Apply only if the adapter-owned NGINX source compiles and `smoke-nginx` passes. `probe-response-body` remains evidence-only. | Apply source changes to adapter-owned files and document response-body status separately. | apply source, no `RESPONSE_BODY` promotion |
 
 ## Phase 5 Review
 

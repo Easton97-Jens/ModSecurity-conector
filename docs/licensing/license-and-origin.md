@@ -50,8 +50,17 @@ Observed source revision:
 - license: Apache License 2.0
 
 The upstream `LICENSE` file is imported into
-`connectors/nginx/upstream/LICENSE`. Source and build files are copied only into
-the NGINX-specific `upstream/` area.
+`connectors/nginx/upstream/LICENSE`. The NGINX module `config` and source files
+are adapter-owned under `connectors/nginx/src` after phase 9, with source
+provenance recorded in `connectors/nginx/src/SOURCE_MAP.json` and
+`connectors/nginx/ORIGIN.md`. The retained `connectors/nginx/upstream/` tree now
+contains upstream attribution/reference files only.
+
+ModSecurity-nginx PR #377
+(https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) source
+changes at commit `3d72b004ff27a78ea19c6b945870e2cae62a97ac` are recorded for
+the adapter-owned phase-4 files. This does not promote `RESPONSE_BODY` to a
+verified variable.
 
 Central attribution copies:
 
@@ -89,8 +98,9 @@ The current imported connector trees were reviewed in
 `docs/imports/upstream-pruning-analysis.md` and summarized in
 `docs/imports/minimal-upstream-file-set.md`.
 
-No imported files were removed in that review. The remaining Apache and NGINX
-files are classified as required, build-only, or documentation-only. A future
-removal must be documented in the relevant `ORIGIN.md`, retain license and
-attribution coverage, and pass an isolated `$BUILD_ROOT` build/smoke probe
-before being committed.
+Later replace-and-reduce phases removed the imported NGINX debug helper and
+migrated NGINX `config`/`src/*` into adapter-owned source after smoke proof. The
+remaining Apache upstream files and NGINX attribution files are classified as
+required, build-only, or documentation-only. A future removal must be documented
+in the relevant `ORIGIN.md`, retain license and attribution coverage, and pass
+an isolated `$BUILD_ROOT` build/smoke probe before being committed.

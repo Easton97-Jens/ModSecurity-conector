@@ -11,7 +11,8 @@ it does not move Apache or NGINX hook/filter behavior.
 | Area | Role | Long-term direction |
 | --- | --- | --- |
 | `connectors/apache/upstream/` | Temporary Apache reference/import basis from https://github.com/owasp-modsecurity/ModSecurity-apache | Shrink only after functional replacement, retained attribution, and passing smokes |
-| `connectors/nginx/upstream/` | Temporary NGINX reference/import basis from https://github.com/owasp-modsecurity/ModSecurity-nginx | Shrink only after functional replacement, retained attribution, and passing smokes |
+| `connectors/nginx/src/` | Adapter-owned NGINX module source derived from https://github.com/owasp-modsecurity/ModSecurity-nginx | Keep connector-specific; reduce only with dedicated NGINX adapter proof |
+| `connectors/nginx/upstream/` | NGINX attribution/reference basis from https://github.com/owasp-modsecurity/ModSecurity-nginx | Retain license/reference files while NGINX-derived source remains |
 | `licenses/` | Durable license and origin attribution | Keep while imported code or source-derived evidence remains |
 | `common/` | Connector-neutral C-first types and future shared helpers | Grow only after evidence-backed extraction |
 | `connectors/<name>/` | Server-specific build, lifecycle, harness, and integration code | Keep hooks, filters, and config parsing connector-specific |
@@ -87,3 +88,11 @@ After this boundary is stable, inspect duplicate libmodsecurity API usage and
 design a separate connector-neutral adapter proposal. That proposal must include
 before/after smoke results and must not start from response-body blocking
 behavior while it remains xfail/mapped-only.
+
+## Phase 9 NGINX Source Ownership Boundary
+
+Phase 9 migrates NGINX `config` and module source files to
+`connectors/nginx/src/` and builds the monorepo-default NGINX smoke from the
+materialized adapter-owned source tree. This is not a Common extraction.
+NGINX phase handlers, filters, config parsing, transaction ownership, and
+phase-4 behavior remain NGINX-specific.
