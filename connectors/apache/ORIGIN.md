@@ -8,6 +8,8 @@ Source commit: `0488c77f69669584324b70460614a382224b4883`
 Source describe: `v0.0.9-beta1-26-g0488c77`  
 License: Apache-2.0, imported as `connectors/apache/upstream/LICENSE`
 
+Central attribution: `licenses/apache/`
+
 | Imported path | Original path | Repo | Commit | License | Import reason |
 | --- | --- | --- | --- | --- | --- |
 | `connectors/apache/upstream/LICENSE` | `LICENSE` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | License text for imported Apache connector files |
@@ -40,6 +42,13 @@ License: Apache-2.0, imported as `connectors/apache/upstream/LICENSE`
 
 The full Apache regression tree, `.git`, `.travis.yml`, release scripts,
 generated Autotools files, `.deps`, and build/runtime artifacts are not imported.
+
+## Central Attribution Copies
+
+The Apache upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are also mirrored
+under `licenses/apache/` for repository-level license review. The copies in this
+`upstream/` tree remain authoritative for the imported source layout and are not
+removed.
 
 ## Pruning Review
 

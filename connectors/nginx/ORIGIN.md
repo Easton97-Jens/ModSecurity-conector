@@ -8,6 +8,8 @@ Source commit: `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`
 Source describe: `v1.0.4-14-g9eb44fd`  
 License: Apache-2.0, imported as `connectors/nginx/upstream/LICENSE`
 
+Central attribution: `licenses/nginx/`
+
 | Imported path | Original path | Repo | Commit | License | Import reason |
 | --- | --- | --- | --- | --- | --- |
 | `connectors/nginx/upstream/LICENSE` | `LICENSE` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | Apache-2.0 | License text for imported NGINX connector files |
@@ -27,6 +29,13 @@ License: Apache-2.0, imported as `connectors/nginx/upstream/LICENSE`
 
 The NGINX test harness, `.git`, `.github`, CI files, release scripts, Windows
 build files, and build/runtime artifacts are not imported.
+
+## Central Attribution Copies
+
+The NGINX upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are also mirrored
+under `licenses/nginx/` for repository-level license review. The copies in this
+`upstream/` tree remain authoritative for the imported source layout and are not
+removed.
 
 ## Pruning Review
 

@@ -42,6 +42,9 @@ Implemented now:
   `tests/common/cases/v2-imported/` and `tests/common/cases/v3-imported/`,
   covering initial operator, transformation, multipart FILES, XML body
   processor, and v3 action/operator behavior.
+- Central license and attribution index under `licenses/`, with Apache and
+  NGINX connector license mirrors plus ModSecurity V2/V3 read-only reference
+  notes.
 
 Not implemented:
 
@@ -197,6 +200,8 @@ Boundary rule:
 - `tests/<connector>/` contains connector-specific behavior tests.
 
 See `docs/architecture.md`, `docs/compatibility.md`, and `docs/roadmap.md`.
+See `docs/license-and-origin.md` and `licenses/README.md` for imported
+connector source attribution.
 See `docs/v3-api-smoke-test.md` for the minimal libmodsecurity v3 API smoke
 probe status.
 See `docs/nginx-poc.md` for the NGINX PoC build and smoke status rules.

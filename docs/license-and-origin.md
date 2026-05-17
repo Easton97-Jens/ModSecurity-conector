@@ -8,6 +8,10 @@ code. The imported source files remain connector-specific and are documented in:
 - `connectors/apache/ORIGIN.md`
 - `connectors/nginx/ORIGIN.md`
 
+The central attribution index is stored under `licenses/`. It mirrors the
+upstream license and attribution files for quick review, but it does not replace
+the upstream-adjacent copies in `connectors/*/upstream/`.
+
 ## Apache Connector
 
 Source repository: `/root/conecter/ModSecurity-apache`
@@ -22,6 +26,13 @@ Observed source revision:
 The upstream `LICENSE` file is imported into
 `connectors/apache/upstream/LICENSE`. Source and build files are copied only
 into the Apache-specific `upstream/` area.
+
+Central attribution copies:
+
+- `licenses/apache/LICENSE`
+- `licenses/apache/AUTHORS`
+- `licenses/apache/CHANGES`
+- `licenses/apache/ORIGIN.md`
 
 ## NGINX Connector
 
@@ -38,6 +49,19 @@ The upstream `LICENSE` file is imported into
 `connectors/nginx/upstream/LICENSE`. Source and build files are copied only into
 the NGINX-specific `upstream/` area.
 
+Central attribution copies:
+
+- `licenses/nginx/LICENSE`
+- `licenses/nginx/AUTHORS`
+- `licenses/nginx/CHANGES`
+- `licenses/nginx/ORIGIN.md`
+
+## ModSecurity Engine References
+
+ModSecurity v2 and v3 are read-only reference repositories, not imported engine
+source trees. Their observed local revisions and license observation are
+documented in `licenses/modsecurity/README.md`.
+
 ## Rules
 
 - Do not import upstream `.git` directories or generated build artifacts.
@@ -45,6 +69,7 @@ the NGINX-specific `upstream/` area.
 - Do not move code into `common/` without a separate proof and review step.
 - Keep origin maps updated whenever imported files are added, removed, or
   refreshed from upstream.
+- Keep `licenses/` synchronized with imported source origins and license files.
 
 ## Pruning Review
 
