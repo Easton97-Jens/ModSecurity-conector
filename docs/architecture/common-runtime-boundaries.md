@@ -76,3 +76,14 @@ The adapter-owned metadata helpers:
 This creates a place for future adapter-owned replacements without changing the
 current real-world connector path. Any production use still requires a separate
 replace-and-reduce phase and passing before/after smokes.
+
+## Phase 7 Reporting Integration
+
+Phase 7 allows adapter-owned metadata to feed build and runtime summaries. The
+smoke scripts read the metadata through `ci/adapter_metadata.py`, a local parser
+with no FFI or C runtime dependency. The reporting order is explicit env
+override, external source git metadata, then adapter-owned monorepo metadata.
+
+The summary JSON gains `origin.source_url` append-only. Existing result status,
+case discovery, `verified_variables`, YAML semantics, and `RESPONSE_BODY`
+classification remain unchanged.

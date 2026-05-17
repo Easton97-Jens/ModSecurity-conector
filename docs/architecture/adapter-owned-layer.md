@@ -68,7 +68,29 @@ implementation until a later replace-and-reduce phase proves equivalence.
 The adapter metadata helpers are compiled by `ci/check-adapter-helpers.sh`
 under `$BUILD_ROOT/adapter-helper-smoke/`. The script links the metadata sources
 with the Common `origin` helper and asserts that the stable fields are present.
+Its expected values are generated from `ci/adapter_metadata.py`, which parses
+the adapter-owned C metadata without FFI.
+
+`ci/check-adapter-metadata-drift.sh` compares the parsed adapter metadata with
+the connector `ORIGIN.md` files, central `licenses/` origin docs, and import
+documentation. Drift fails `make lint` before report metadata can silently
+diverge.
 
 No FFI bridge is added, and the smoke runners do not depend on these helper
 objects. Any future production use requires a separate replace-and-reduce step
 with before/after real-world connector smokes.
+
+## Reporting Precedence
+
+Origin metadata used by build and runtime summaries follows this order:
+
+1. explicit `*_ORIGIN_*` or `CONNECTOR_ORIGIN_*` environment overrides;
+2. external connector source metadata from `git rev-parse` and `git describe`
+   when `MODSECURITY_APACHE_SOURCE_DIR` or `MODSECURITY_NGINX_SOURCE_DIR` points
+   outside the monorepo import;
+3. adapter-owned metadata from `connectors/<name>/src/metadata.c` for the
+   default monorepo `upstream/` source.
+
+This is report metadata only. It does not link adapter metadata into Apache or
+NGINX modules and does not affect request, response, body, filter, transaction,
+or intervention behavior.

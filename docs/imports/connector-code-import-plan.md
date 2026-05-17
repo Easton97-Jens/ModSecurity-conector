@@ -64,6 +64,23 @@ External sources remain supported by explicitly setting those env vars. The
 helpers still copy sources into `$BUILD_ROOT` before building. They do not build
 or mutate the source checkout directly.
 
+## Report Metadata Precedence
+
+Smoke summaries use connector origin metadata in this order:
+
+1. explicit `APACHE_ORIGIN_*`, `NGINX_ORIGIN_*`, or `CONNECTOR_ORIGIN_*`
+   environment overrides;
+2. external connector source metadata from local git when an explicit external
+   `MODSECURITY_APACHE_SOURCE_DIR` or `MODSECURITY_NGINX_SOURCE_DIR` is used;
+3. adapter-owned metadata parsed from `connectors/apache/src/metadata.c` or
+   `connectors/nginx/src/metadata.c` for the default monorepo imports.
+
+The adapter metadata is report/build-summary data only. It is not linked into
+the Apache or NGINX modules and does not change connector runtime behavior.
+
+`ci/check-adapter-metadata-drift.sh` keeps those adapter-owned values aligned
+with the origin maps, license docs, and import documentation.
+
 ## Risks
 
 | Risk | Impact | Control |

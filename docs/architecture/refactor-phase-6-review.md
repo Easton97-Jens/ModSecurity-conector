@@ -56,3 +56,10 @@ productive replacement should be attempted only after one narrow behavior has:
 - build integration isolated to `$BUILD_ROOT`;
 - before/after real-world Apache and NGINX smoke evidence;
 - updated origin and pruning documentation.
+
+## Phase 7 Follow-On
+
+Phase 7 is the first report-path use of these skeletons. It may serialize and
+compare adapter metadata in build/runtime summaries, but it still must not link
+the metadata helpers into productive connector modules or alter connector
+request/response behavior.
