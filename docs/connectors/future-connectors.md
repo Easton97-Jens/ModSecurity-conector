@@ -6,6 +6,7 @@ NGINX.
 
 ## HAProxy
 
+- Upstream: https://github.com/haproxy/haproxy
 - Expected model: SPOE or native extension path must hand request metadata and
   body data to libmodsecurity at the correct phase.
 - Difficult areas: buffering, response inspection, audit-log ownership, and
@@ -16,6 +17,7 @@ NGINX.
 
 ## Envoy
 
+- Upstream: https://github.com/envoyproxy/envoy
 - Expected model: HTTP filter or external processing flow.
 - Difficult areas: async body buffering, filter ordering, header mutation, and
   mapping interventions to Envoy responses.
@@ -25,6 +27,7 @@ NGINX.
 
 ## Lighttpd
 
+- Upstream: https://github.com/lighttpd/lighttpd1.4
 - Expected model: native plugin hook integration or documented scriptable
   module path.
 - Difficult areas: request body availability, response filter hooks, and stable
@@ -34,6 +37,7 @@ NGINX.
 
 ## Traefik
 
+- Upstream: https://github.com/traefik/traefik
 - Expected model: plugin/middleware path must be proven before any connector
   claims.
 - Difficult areas: plugin sandbox constraints, request body buffering, response

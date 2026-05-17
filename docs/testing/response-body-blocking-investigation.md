@@ -11,14 +11,17 @@ Client -> Apache/NGINX -> connector module -> libmodsecurity -> RESPONSE_BODY ->
 
 The direct libmodsecurity API smoke is not counted here.
 
+Related upstream PR: https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377
+Related upstream repository: https://github.com/owasp-modsecurity/ModSecurity-nginx
+
 ## Source Evidence
 
 | Source | Evidence | Import decision |
 | --- | --- | --- |
-| `ModSecurity-apache/tests/regression/config/10-response-directives.t` | Contains `SecResponseBodyAccess On`, `SecResponseBodyMimeType text/plain null`, and a `RESPONSE_BODY` deny rule expecting HTTP 403. | Source-derived probe candidate |
-| `ModSecurity-nginx/tests/modsecurity-response-body.t` | Contains a comparable `RESPONSE_BODY` deny test, but the upstream Test::Nginx case marks it `TODO: not yet`. | xfail source |
-| `ModSecurity_V2/tests/regression/config/10-response-directives.t` | Historical response directive coverage, including response-body blocking expectations. | Compatibility reference |
-| `ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json` | V3 regression expects `SecRule RESPONSE_BODY "@contains denystring" ... deny` to return HTTP 403. | Engine/reference evidence |
+| `ModSecurity-apache/tests/regression/config/10-response-directives.t` from https://github.com/owasp-modsecurity/ModSecurity-apache | Contains `SecResponseBodyAccess On`, `SecResponseBodyMimeType text/plain null`, and a `RESPONSE_BODY` deny rule expecting HTTP 403. | Source-derived probe candidate |
+| `ModSecurity-nginx/tests/modsecurity-response-body.t` from https://github.com/owasp-modsecurity/ModSecurity-nginx | Contains a comparable `RESPONSE_BODY` deny test, but the upstream Test::Nginx case marks it `TODO: not yet`. PR #377 documents the phase-4/late intervention issue space. | xfail source |
+| `ModSecurity_V2/tests/regression/config/10-response-directives.t` from https://github.com/owasp-modsecurity/ModSecurity | Historical response directive coverage, including response-body blocking expectations. | Compatibility reference |
+| `ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json` from https://github.com/owasp-modsecurity/ModSecurity | V3 regression expects `SecRule RESPONSE_BODY "@contains denystring" ... deny` to return HTTP 403. | Engine/reference evidence |
 
 No upstream test file was copied. The local YAML is a minimal derived probe at
 `tests/common/cases/xfail/response_body_basic_block.yaml`.
