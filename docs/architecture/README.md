@@ -18,6 +18,7 @@ and how shared evidence maps to Common C-first data shapes.
 | `status-model.md` | Runtime, import, and Common operation status mapping |
 | `refactor-phase-1-plan.md` | First conservative Common foundation plan |
 | `refactor-phase-3-review.md` | First implementation-level Common extraction review |
+| `replace-and-reduce-plan.md` | Controlled upstream replacement candidates and phase-4 decision |
 
 ## Current Boundary
 
