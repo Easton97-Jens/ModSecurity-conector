@@ -42,6 +42,10 @@ Apache and NGINX harnesses:
 The current shell/Python harnesses serialize these shapes as JSON. They do not
 instantiate the C structs through FFI.
 
+Phase 3 adds small Common C helper implementations for those shapes. Existing
+Apache and NGINX harnesses still use Python/Shell and mirror the schema through
+`tests/runners/msconnector_models.py`.
+
 ## Boundary Rules
 
 - `common/` and `tests/common/` remain connector-neutral.

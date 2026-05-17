@@ -53,3 +53,7 @@ harnesses keep using shell and Python, but their JSON records declare:
 
 That makes the evidence shape line up with the C-first headers while keeping
 the runtime harness independent of compiled adapter code.
+
+`common/src/capabilities.c` provides C-first descriptor helpers for future
+connector code. The active Python/Shell runners mirror the same metadata names
+without FFI.

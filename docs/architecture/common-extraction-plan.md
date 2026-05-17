@@ -67,9 +67,14 @@ These files must not include Apache, NGINX, or other server/proxy headers. They
 also must not hide ownership of `ModSecurity`, `RulesSet`, `Transaction`, or
 `ModSecurityIntervention` objects from libmodsecurity.
 
-## Next Step
+## Phase 3 Common Runtime Boundary
 
-After the Phase 1 foundation is in place, inspect duplicate libmodsecurity API
-usage and design a separate connector-neutral adapter proposal. That proposal
-must include before/after smoke results and must not start from response-body
-blocking behavior while it remains xfail/mapped-only.
+Phase 3 adds small C implementation files under `common/src/` for status,
+origin, intervention, and capability metadata only. The Apache and NGINX
+runtime harnesses continue to use Python/Shell and mirror the schema without
+FFI.
+
+After this boundary is stable, inspect duplicate libmodsecurity API usage and
+design a separate connector-neutral adapter proposal. That proposal must include
+before/after smoke results and must not start from response-body blocking
+behavior while it remains xfail/mapped-only.

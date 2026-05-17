@@ -10,8 +10,9 @@ entries. It intentionally excludes runtime status strings such as shell
 
 | Category | Count | Notes |
 | --- | ---: | --- |
-| Owned open/planned items | 24 | Common, schema, normalizer, connector, and future-connector planning |
+| Owned open/planned items | 23 | Common, schema, normalizer, connector, and future-connector planning |
 | Owned xfail/mapped evidence | 4 | `RESPONSE_BODY`, `v3_action_nolog_pass_no_audit`, RAW-ARGS, response-body pass-through caveat |
+| Resolved owned items | 1 | Common metadata helper implementations added in Refactor Phase 3 |
 | Imported upstream markers | 20 | Kept untouched under `connectors/*/upstream/` and classified as upstream-reference |
 | Obsolete/resolved markers cleaned | 11 | Owned `TODO:` headings replaced with tracked inventory references |
 
@@ -22,7 +23,7 @@ entries. It intentionally excludes runtime status strings such as shell
 | `common/docs/design.md` | 58 | open work | Define ownership rules for header and body buffers | refactor | planned | P1 | common | Design before moving adapter logic into `common/` |
 | `common/docs/design.md` | 59 | open work | Decide where neutral status values become part of future adapter APIs | refactor | planned | P2 | common | Revisit during first adapter API proposal |
 | `common/docs/design.md` | 60 | open work | Add compile tests proving headers remain connector-independent | test | planned | P2 | common | Add when Common headers become build inputs |
-| `common/src/README.md` | 19 | open work | Add implementation files only after a connector-neutral need exists | refactor | deferred | P3 | common | Keep `common/src` empty for now |
+| `common/src/README.md` | 19 | phase 3 resolved | Add implementation files only after a connector-neutral need exists | refactor | resolved | P3 | common | Metadata-only Common C helpers now exist; broader runtime extraction remains deferred |
 | `tests/common/schema/README.md` | 67 | open work | Define a machine-readable JSON schema | test | planned | P1 | tests/common | Add schema after YAML shape stabilizes |
 | `tests/common/schema/README.md` | 68 | open work | Reject connector-specific fields in common schema validation | test | planned | P1 | tests/common | Add with machine-readable schema |
 | `tests/normalizers/README.md` | 18 | open work | Header order normalization | test | planned | P2 | normalizers | Add artifact-specific parser |

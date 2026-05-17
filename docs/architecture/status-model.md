@@ -17,9 +17,10 @@ connector returns the wrong HTTP status. `blocked` is only for prerequisites.
 
 ## Common Operation Status
 
-The C-first common header `common/include/msconnector/status.h` defines
-connector-neutral operation outcomes. Harness summaries expose those concepts as
-append-only JSON metadata; they do not replace the runtime statuses above.
+The C-first common header `common/include/msconnector/status.h` and helper
+implementation `common/src/status.c` define connector-neutral operation
+outcomes. Harness summaries expose those concepts as append-only JSON metadata;
+they do not replace the runtime statuses above.
 
 | Runtime status | `operation_status` | `msconnector_status` equivalent |
 | --- | --- | --- |
@@ -30,7 +31,9 @@ append-only JSON metadata; they do not replace the runtime statuses above.
 | `xfail` | `unsupported` | `MSCONNECTOR_STATUS_UNSUPPORTED` |
 
 The mapping is intentionally one-way. Existing smoke semantics and exit codes
-stay unchanged.
+stay unchanged. Python/Shell runners mirror this mapping through
+`tests/runners/msconnector_models.py`; they do not load the C helper through
+FFI.
 
 ## Import Status
 
