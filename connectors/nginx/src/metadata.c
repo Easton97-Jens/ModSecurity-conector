@@ -9,8 +9,8 @@ static const msconnector_nginx_adapter_metadata nginx_metadata = {
         "v1.0.4-14-g9eb44fd",
         "Apache-2.0"
     },
-    "monorepo-upstream",
-    "connectors/nginx/upstream"
+    "adapter-owned",
+    "connectors/nginx/src"
 };
 
 msconnector_origin msconnector_nginx_adapter_origin(void) {
