@@ -18,12 +18,20 @@ NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-$NGINX_BUILD_DIR/downloads}"
 V3_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity_V3"
-NGINX_CONNECTOR_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
+NGINX_CONNECTOR_LEGACY_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
 OUTPUT_DIR="$NGINX_BUILD_DIR/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$REPO_ROOT/connectors/nginx/upstream}"
+DEFAULT_NGINX_SOURCE_DIR="$REPO_ROOT/connectors/nginx/upstream"
+MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_NGINX_SOURCE_DIR}"
+NGINX_ADAPTER_SOURCE_DIR="${NGINX_ADAPTER_SOURCE_DIR:-$REPO_ROOT/connectors/nginx/src}"
+NGINX_MATERIALIZED_SOURCE_DIR="${NGINX_MATERIALIZED_SOURCE_DIR:-$NGINX_BUILD_DIR/connector-src}"
+if [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ]; then
+    NGINX_CONNECTOR_BUILD_DIR="$NGINX_MATERIALIZED_SOURCE_DIR"
+else
+    NGINX_CONNECTOR_BUILD_DIR="${NGINX_CONNECTOR_BUILD_DIR:-$NGINX_CONNECTOR_LEGACY_BUILD_DIR}"
+fi
 NGINX_DDEBUG_REPLACEMENT="${NGINX_DDEBUG_REPLACEMENT:-$REPO_ROOT/connectors/nginx/src/ddebug.h}"
 
 default_jobs() {
@@ -209,6 +217,24 @@ overlay_nginx_debug_header() {
     echo "blocked: nginx-debug-header-overlay log=$log_file" >> "$STATUS_FILE"
     echo "nginx_poc: blocked unable to overlay NGINX debug header; see $log_file"
     exit 77
+}
+
+materialize_nginx_connector_source() {
+    run_blocked materialize-nginx-connector-source "$REPO_ROOT" \
+        sh "$REPO_ROOT/ci/materialize-connector-source.sh" \
+        --connector nginx \
+        --upstream-dir "$MODSECURITY_NGINX_SOURCE_DIR" \
+        --adapter-dir "$NGINX_ADAPTER_SOURCE_DIR" \
+        --dest-dir "$NGINX_CONNECTOR_BUILD_DIR"
+    if [ ! -f "$NGINX_CONNECTOR_BUILD_DIR/src/ddebug.h" ]; then
+        blocked "materialized NGINX connector source is missing adapter-owned src/ddebug.h: $NGINX_CONNECTOR_BUILD_DIR"
+    fi
+    {
+        echo "nginx_connector_source=$NGINX_CONNECTOR_BUILD_DIR"
+        echo "nginx_connector_source_manifest=$NGINX_CONNECTOR_BUILD_DIR/materialized-source.json"
+        echo "nginx_connector_source_manifest_md=$NGINX_CONNECTOR_BUILD_DIR/MATERIALIZED_SOURCE.md"
+        echo "nginx_debug_header=adapter-owned-materialized:$NGINX_CONNECTOR_BUILD_DIR/src/ddebug.h"
+    } >> "$ARTIFACTS_FILE"
 }
 
 github_repo_path() {
@@ -418,6 +444,7 @@ require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
 require_absolute_generated_path "$NGINX_SOURCE_DIR" "NGINX_SOURCE_DIR"
 require_absolute_generated_path "$NGINX_PREFIX" "NGINX_PREFIX"
+require_absolute_generated_path "$NGINX_CONNECTOR_BUILD_DIR" "NGINX_CONNECTOR_BUILD_DIR"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 require_absolute_generated_path "$OUTPUT_DIR" "OUTPUT_DIR"
 require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
@@ -453,8 +480,12 @@ write_git_info "modsecurity-v3-source" "$MODSECURITY_V3_SOURCE_DIR"
 write_git_info "modsecurity-nginx-source" "$MODSECURITY_NGINX_SOURCE_DIR"
 
 run_blocked copy-modsecurity-v3 "$NGINX_BUILD_DIR" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
-copy_sanitized_source copy-modsecurity-nginx "$MODSECURITY_NGINX_SOURCE_DIR" "$NGINX_CONNECTOR_BUILD_DIR"
-overlay_nginx_debug_header
+if [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ]; then
+    materialize_nginx_connector_source
+else
+    copy_sanitized_source copy-modsecurity-nginx "$MODSECURITY_NGINX_SOURCE_DIR" "$NGINX_CONNECTOR_BUILD_DIR"
+    overlay_nginx_debug_header
+fi
 write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
 write_git_info "modsecurity-nginx-build-copy" "$NGINX_CONNECTOR_BUILD_DIR"
 
