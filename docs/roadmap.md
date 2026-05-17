@@ -53,6 +53,8 @@ Status: scaffolded
   `licenses/`.
 - First common refactor phase documented in `docs/refactor-phase-1-plan.md`,
   limited to connector-neutral data shapes and documentation.
+- Phase 1 connector-neutral common foundation for status, intervention, and
+  origin metadata without Apache/NGINX hook or filter extraction.
 
 ## Planned
 

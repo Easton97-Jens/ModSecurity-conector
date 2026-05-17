@@ -19,3 +19,5 @@ Not allowed here:
 TODO:
 
 - Add implementation files only after a concrete connector-neutral need is identified.
+- Keep Phase 1 status, intervention, and origin support header-only until a
+  tested adapter API needs shared implementation code.

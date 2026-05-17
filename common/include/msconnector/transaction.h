@@ -1,6 +1,7 @@
 #ifndef MSCONNECTOR_TRANSACTION_H
 #define MSCONNECTOR_TRANSACTION_H
 
+#include "msconnector/intervention.h"
 #include "msconnector/request.h"
 #include "msconnector/response.h"
 
@@ -17,13 +18,6 @@ enum msconnector_phase {
     MSCONNECTOR_PHASE_RESPONSE_BODY = 5,
     MSCONNECTOR_PHASE_LOGGING = 6
 };
-
-typedef struct msconnector_intervention {
-    int disruptive;
-    int status;
-    const char *redirect_url;
-    const char *log_message;
-} msconnector_intervention;
 
 typedef struct msconnector_transaction_view {
     const char *transaction_id;

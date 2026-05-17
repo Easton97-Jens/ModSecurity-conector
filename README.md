@@ -7,7 +7,9 @@ connectors.
 
 Implemented now:
 
-- Connector-neutral headers under `common/include/msconnector/`.
+- Connector-neutral headers under `common/include/msconnector/`, including
+  C-first request, response, transaction, intervention, status, origin, logging,
+  and capability data shapes.
 - Documentation that separates local v3/libmodsecurity facts from v2 historical
   and regression-test material.
 - Connector directories for Apache, NGINX, HAProxy, Envoy, Lighttpd, and
