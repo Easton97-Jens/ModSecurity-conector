@@ -24,6 +24,7 @@ BUILD_HTTPD_FROM_SOURCE="${BUILD_HTTPD_FROM_SOURCE:-1}"
 BUILD_PCRE2_FROM_SOURCE="${BUILD_PCRE2_FROM_SOURCE:-1}"
 APACHE_BUILD_LOG_DIR="${APACHE_BUILD_LOG_DIR:-$BUILD_ROOT/logs/apache}"
 APACHE_RUNTIME_LOG_DIR="${APACHE_RUNTIME_LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
+PYTHON_BIN="${PYTHON:-python3}"
 
 git_value() {
     git_dir=$1
@@ -51,67 +52,24 @@ write_connector_result() {
     status=$1
     message=$2
     mkdir -p "$RESULTS_DIR"
-    {
-        printf '%s apache-build %s\n' "$(printf '%s' "$status" | tr '[:lower:]' '[:upper:]')" "$message"
-    } > "$RESULTS_DIR/apache-summary.txt"
-    python3 - "$RESULTS_DIR/apache-summary.json" "$status" "$HTTPD_PREFIX/bin/httpd" "$APACHE_MODULE" "$MODSECURITY_LIB_DIR/libmodsecurity.so" "$APACHE_ORIGIN_SOURCE" "$APACHE_ORIGIN_SOURCE_REPO" "$APACHE_ORIGIN_SOURCE_COMMIT" "$APACHE_ORIGIN_SOURCE_VERSION" "$APACHE_ORIGIN_LICENSE" "$APACHE_ORIGIN_IMPORTED_PATH" <<'PY'
-import json
-import os
-import sys
-
-(
-    output,
-    status,
-    server_binary,
-    module,
-    libmodsecurity,
-    origin_source,
-    origin_source_repo,
-    origin_source_commit,
-    origin_source_version,
-    origin_license,
-    origin_imported_path,
-) = sys.argv[1:]
-environment = os.environ.get("SMOKE_ENVIRONMENT") or (
-    "github-actions" if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" else "local"
-)
-summary = {
-    "apache": {
-        "audit_behavior": "unstable",
-        "build": status,
-        "connector_path": "real-world",
-        "environment": environment,
-        "intervention_model": "msconnector_intervention",
-        "origin_model": "msconnector_origin",
-        "validation_mode": "real-world-connector-path",
-        "status_model": "msconnector_status",
-        "server": "apache",
-        "server_binary": server_binary,
-        "module": module,
-        "libmodsecurity": libmodsecurity,
-        "origin": {
-            "source": origin_source,
-            "source_repo": origin_source_repo,
-            "source_commit": origin_source_commit,
-            "source_version": origin_source_version,
-            "license": origin_license,
-            "imported_path": origin_imported_path,
-        },
-        "verified_variables": [],
-        "summary": {
-            "pass": 0,
-            "fail": 1 if status == "fail" else 0,
-            "blocked": 1 if status == "blocked" else 0,
-            "skipped": 0,
-            "xfail": 0,
-        },
-        "cases": {},
-    }
-}
-with open(output, "w", encoding="utf-8") as handle:
-    json.dump(summary, handle, indent=2, sort_keys=True)
-    handle.write("\n")
-PY
+    "$PYTHON_BIN" "$REPO_ROOT/tests/runners/case_cli.py" summarize-empty \
+        --connector apache \
+        --status "$status" \
+        --message "$message" \
+        --summary-json "$RESULTS_DIR/apache-summary.json" \
+        --summary-text "$RESULTS_DIR/apache-summary.txt" \
+        --connector-path real-world \
+        --validation-mode real-world-connector-path \
+        --server apache \
+        --server-binary "$HTTPD_PREFIX/bin/httpd" \
+        --module "$APACHE_MODULE" \
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        --origin-source "$APACHE_ORIGIN_SOURCE" \
+        --origin-source-repo "$APACHE_ORIGIN_SOURCE_REPO" \
+        --origin-source-commit "$APACHE_ORIGIN_SOURCE_COMMIT" \
+        --origin-source-version "$APACHE_ORIGIN_SOURCE_VERSION" \
+        --origin-license "$APACHE_ORIGIN_LICENSE" \
+        --origin-imported-path "$APACHE_ORIGIN_IMPORTED_PATH"
     cp "$RESULTS_DIR/apache-summary.txt" "$RESULTS_DIR/connector-summary.txt"
 }
 

@@ -24,6 +24,7 @@ CASE_SCOPE="${CASE_SCOPE:-all}"
 BUILD_NGINX_FROM_SOURCE="${BUILD_NGINX_FROM_SOURCE:-1}"
 NGINX_BUILD_LOG_DIR="${NGINX_BUILD_LOG_DIR:-$BUILD_ROOT/logs/nginx}"
 NGINX_RUNTIME_LOG_DIR="${NGINX_RUNTIME_LOG_DIR:-$BUILD_ROOT/logs/nginx-runtime}"
+PYTHON_BIN="${PYTHON:-python3}"
 
 git_value() {
     git_dir=$1
@@ -51,67 +52,24 @@ write_connector_result() {
     status=$1
     message=$2
     mkdir -p "$RESULTS_DIR"
-    {
-        printf '%s nginx-build %s\n' "$(printf '%s' "$status" | tr '[:lower:]' '[:upper:]')" "$message"
-    } > "$RESULTS_DIR/nginx-summary.txt"
-    python3 - "$RESULTS_DIR/nginx-summary.json" "$status" "$NGINX_BINARY" "$NGINX_MODULE" "$MODSECURITY_LIB_DIR/libmodsecurity.so" "$NGINX_ORIGIN_SOURCE" "$NGINX_ORIGIN_SOURCE_REPO" "$NGINX_ORIGIN_SOURCE_COMMIT" "$NGINX_ORIGIN_SOURCE_VERSION" "$NGINX_ORIGIN_LICENSE" "$NGINX_ORIGIN_IMPORTED_PATH" <<'PY'
-import json
-import os
-import sys
-
-(
-    output,
-    status,
-    server_binary,
-    module,
-    libmodsecurity,
-    origin_source,
-    origin_source_repo,
-    origin_source_commit,
-    origin_source_version,
-    origin_license,
-    origin_imported_path,
-) = sys.argv[1:]
-environment = os.environ.get("SMOKE_ENVIRONMENT") or (
-    "github-actions" if os.environ.get("GITHUB_ACTIONS", "").lower() == "true" else "local"
-)
-summary = {
-    "nginx": {
-        "audit_behavior": "unstable",
-        "build": status,
-        "connector_path": "real-world",
-        "environment": environment,
-        "intervention_model": "msconnector_intervention",
-        "origin_model": "msconnector_origin",
-        "validation_mode": "real-world-connector-path",
-        "status_model": "msconnector_status",
-        "server": "nginx",
-        "server_binary": server_binary,
-        "module": module,
-        "libmodsecurity": libmodsecurity,
-        "origin": {
-            "source": origin_source,
-            "source_repo": origin_source_repo,
-            "source_commit": origin_source_commit,
-            "source_version": origin_source_version,
-            "license": origin_license,
-            "imported_path": origin_imported_path,
-        },
-        "verified_variables": [],
-        "summary": {
-            "pass": 0,
-            "fail": 1 if status == "fail" else 0,
-            "blocked": 1 if status == "blocked" else 0,
-            "skipped": 0,
-            "xfail": 0,
-        },
-        "cases": {},
-    }
-}
-with open(output, "w", encoding="utf-8") as handle:
-    json.dump(summary, handle, indent=2, sort_keys=True)
-    handle.write("\n")
-PY
+    "$PYTHON_BIN" "$REPO_ROOT/tests/runners/case_cli.py" summarize-empty \
+        --connector nginx \
+        --status "$status" \
+        --message "$message" \
+        --summary-json "$RESULTS_DIR/nginx-summary.json" \
+        --summary-text "$RESULTS_DIR/nginx-summary.txt" \
+        --connector-path real-world \
+        --validation-mode real-world-connector-path \
+        --server nginx \
+        --server-binary "$NGINX_BINARY" \
+        --module "$NGINX_MODULE" \
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        --origin-source "$NGINX_ORIGIN_SOURCE" \
+        --origin-source-repo "$NGINX_ORIGIN_SOURCE_REPO" \
+        --origin-source-commit "$NGINX_ORIGIN_SOURCE_COMMIT" \
+        --origin-source-version "$NGINX_ORIGIN_SOURCE_VERSION" \
+        --origin-license "$NGINX_ORIGIN_LICENSE" \
+        --origin-imported-path "$NGINX_ORIGIN_IMPORTED_PATH"
     cp "$RESULTS_DIR/nginx-summary.txt" "$RESULTS_DIR/connector-summary.txt"
 }
 
