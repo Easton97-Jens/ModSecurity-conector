@@ -18,6 +18,12 @@ aliases over the C structs, not a separate ownership model.
 This does not implement a complete connector API. It defines neutral data shapes
 that later connector adapters can translate to libmodsecurity v3 calls.
 
+The project records the full C vs C++ decision in
+`docs/c-vs-cpp-decision.md`. In short: product connector cores stay C-first,
+C++ remains limited to thin wrappers, build/test utilities, and optional helper
+programs, and C++ objects must not cross Apache, NGINX, or future server ABI
+boundaries.
+
 ## Phase 1 foundation
 
 The first controlled refactor phase adds only small connector-neutral data
