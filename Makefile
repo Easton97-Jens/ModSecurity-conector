@@ -43,6 +43,7 @@ lint:
 	python3 ci/check-workflow-yaml.py
 	python3 ci/check-doc-links.py
 	sh ci/check-common-helpers.sh
+	sh ci/check-adapter-helpers.sh
 	if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else echo "actionlint unavailable"; fi
 	git diff --check
 
