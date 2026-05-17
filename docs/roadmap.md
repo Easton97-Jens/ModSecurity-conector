@@ -48,6 +48,11 @@ Status: scaffolded
 - Maintenance checks through `make lint` and summary rendering through
   `make summary`.
 - SonarCloud remediation inventory in `docs/sonarcloud-remediation-plan.md`.
+- Controlled Apache and NGINX connector source imports with file-level origin
+  maps, documented minimal upstream file sets, and central attribution under
+  `licenses/`.
+- First common refactor phase documented in `docs/refactor-phase-1-plan.md`,
+  limited to connector-neutral data shapes and documentation.
 
 ## Planned
 

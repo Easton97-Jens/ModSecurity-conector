@@ -1,9 +1,10 @@
 # Common Extraction Plan
 
-Status: planned
+Status: implemented
 
 The Apache and NGINX connector sources are imported as separate upstream code
-trees first. No common code is extracted in this step.
+trees first. Phase 1 creates only a small connector-neutral common foundation;
+it does not move Apache or NGINX hook/filter behavior.
 
 ## Extraction Rule
 
@@ -19,12 +20,15 @@ A candidate may move to `common/` only after all of the following are true:
 
 | Area | Candidate rationale | Current decision |
 | --- | --- | --- |
+| Capability descriptors | Connectors advertise supported lifecycle artifacts | Existing `capabilities.h` remains canonical |
+| Operation status vocabulary | Build/test adapters need connector-neutral outcomes | Add common status values only |
+| Origin metadata | Imported connectors need stable provenance metadata | Add common origin data shape only |
+| Intervention data shape | Both connectors translate libmodsecurity interventions into HTTP responses | Add neutral representation only; keep translation connector-specific |
 | Ruleset loading | Both connectors load ModSecurity rules and files | Document only |
 | Transaction lifecycle | Both create and drive libmodsecurity transactions | Document only |
-| Intervention handling | Both translate libmodsecurity intervention into HTTP responses | Document only |
 | Audit/logging | Both connect libmodsecurity logging to server artifacts | Document only |
-| Request metadata mapping | Both map method, URI, headers, body, and connection data | Document only |
-| Response metadata mapping | Both map response headers/body through server filters | Document only |
+| Request metadata mapping | Both map method, URI, headers, body, and connection data | Keep existing neutral request shape; no adapter extraction |
+| Response metadata mapping | Both map response headers/body through server filters | Keep existing neutral response shape; no adapter extraction |
 | Config model | Both have enable/rules-file style connector config | Keep connector-specific |
 | Error handling | Both need consistent blocked/fail reporting in tests | Candidate for test harness common code only |
 
@@ -34,11 +38,28 @@ A candidate may move to `common/` only after all of the following are true:
 - NGINX phase handlers and filter ordering.
 - APXS/Autotools integration.
 - NGINX `config` dynamic module integration.
+- Server-specific configuration parsing.
+- libmodsecurity transaction lifetime or ownership.
 - Any `RESPONSE_BODY` blocking logic until it is proven stable for both
   connectors.
 
+## Phase 1 Common Basis
+
+Phase 1 may add or update only connector-neutral C-first headers under
+`common/include/msconnector/`:
+
+- status values for common adapter/test outcomes;
+- intervention data representation without server-specific response handling;
+- origin/provenance metadata;
+- thin C++ alias wrappers matching the existing common header pattern.
+
+These files must not include Apache, NGINX, or other server/proxy headers. They
+also must not hide ownership of `ModSecurity`, `RulesSet`, `Transaction`, or
+`ModSecurityIntervention` objects from libmodsecurity.
+
 ## Next Step
 
-After the imported code builds from the monorepo source paths, inspect duplicate
-libmodsecurity API usage and design a small connector-neutral adapter proposal.
-That proposal must include before/after smoke results.
+After the Phase 1 foundation is in place, inspect duplicate libmodsecurity API
+usage and design a separate connector-neutral adapter proposal. That proposal
+must include before/after smoke results and must not start from response-body
+blocking behavior while it remains xfail/mapped-only.
