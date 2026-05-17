@@ -19,7 +19,7 @@ This does not implement a complete connector API. It defines neutral data shapes
 that later connector adapters can translate to libmodsecurity v3 calls.
 
 The project records the full C vs C++ decision in
-`docs/c-vs-cpp-decision.md`. In short: product connector cores stay C-first,
+`docs/architecture/c-vs-cpp-decision.md`. In short: product connector cores stay C-first,
 C++ remains limited to thin wrappers, build/test utilities, and optional helper
 programs, and C++ objects must not cross Apache, NGINX, or future server ABI
 boundaries.
@@ -55,8 +55,10 @@ The actual calls to libmodsecurity belong in connector adapters or a future
 engine-facing layer with explicit ownership rules. They are not hidden in
 `common/` until their lifetime, error, and cleanup contracts are documented.
 
-## TODO
+## Open Work
 
-- Define ownership rules for header and body buffers.
-- Decide where neutral status values become part of future adapter APIs.
-- Add compile tests proving these headers remain independent of every connector.
+Tracked in `docs/roadmap/todo-inventory.md`:
+
+- common ownership rules for header and body buffers;
+- future adapter API use of neutral status values;
+- compile tests proving Common headers remain independent of every connector.

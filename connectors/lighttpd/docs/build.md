@@ -4,7 +4,7 @@ Status: unknown
 
 No build is implemented.
 
-TODO:
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - If native plugin is selected, document supported Lighttpd version and plugin
   build process.

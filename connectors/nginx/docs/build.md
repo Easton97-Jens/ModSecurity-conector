@@ -41,7 +41,7 @@ make smoke-nginx
 Result: pass. The built NGINX binary and dynamic module paths were under
 `/src/ModSecurity-conector-import-build/nginx-runtime/nginx/`.
 
-TODO:
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - Verify supported NGINX versions.
 - Keep dynamic module support as the only active PoC path until static module

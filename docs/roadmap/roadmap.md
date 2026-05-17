@@ -2,6 +2,16 @@
 
 Status: scaffolded
 
+## Current Roadmap View
+
+| Group | Items |
+| --- | --- |
+| Now | Keep Apache/NGINX real-world smokes stable; maintain docs/index/link hygiene; keep origin and license maps current |
+| Next | Add machine-readable YAML schema; design fixture support for external files; prepare evidence-backed common helpers for config, logging/audit, request/response metadata, status/origin, and intervention representation |
+| Later | Evaluate HAProxy, Envoy, Lighttpd, and Traefik only after Common stabilization and a real-world harness plan for each |
+| Blocked | `RESPONSE_BODY` blocking common PASS, RAW-ARGS active cases until PR #3564 support is present locally, upstream code reduction until functionality has a proven replacement |
+| Evidence-only | Connector-free v3 API smoke, mapped-only V2/V3 cases, response-body blocking probe, RAW-ARGS PR #3564 evidence |
+
 ## Implemented
 
 - Monorepo scaffold.
@@ -26,7 +36,7 @@ Status: scaffolded
   response body checks, and stable audit-log field checks.
 - Source-derived imported YAML smoke cases from the local Apache and NGINX
   connector tests, with common vs connector-specific placement documented in
-  `docs/test-import-plan.md`.
+  `docs/testing/test-import-plan.md`.
 - Deterministic multipart request materialization, per-case response fixtures,
   and active source-derived common cases for raw JSON body matching, simple
   multipart text-field blocking, and response-body pass-through.
@@ -39,19 +49,19 @@ Status: scaffolded
 - `real-world-connector-path` result metadata for Apache and NGINX smokes,
   including server binary, connector module, libmodsecurity path, and verified
   variable families derived only from passing cases.
-- Stabilized status/capability documentation in `docs/capability-model.md` and
-  `docs/status-model.md`.
+- Stabilized status/capability documentation in `docs/architecture/capability-model.md` and
+  `docs/architecture/status-model.md`.
 - Connector adapter responsibilities documented in
-  `docs/connector-adapter-interface.md`.
+  `docs/architecture/connector-adapter-interface.md`.
 - Case matrix generation through `make case-matrix` and
-  `docs/case-matrix.md`.
+  `docs/testing/case-matrix.md`.
 - Maintenance checks through `make lint` and summary rendering through
   `make summary`.
-- SonarCloud remediation inventory in `docs/sonarcloud-remediation-plan.md`.
+- SonarCloud remediation inventory in `docs/quality/sonarcloud-remediation-plan.md`.
 - Controlled Apache and NGINX connector source imports with file-level origin
   maps, documented minimal upstream file sets, and central attribution under
   `licenses/`.
-- First common refactor phase documented in `docs/refactor-phase-1-plan.md`,
+- First common refactor phase documented in `docs/architecture/refactor-phase-1-plan.md`,
   limited to connector-neutral data shapes and documentation.
 - Phase 1 connector-neutral common foundation for status, intervention, and
   origin metadata without Apache/NGINX hook or filter extraction.
@@ -79,6 +89,9 @@ Status: scaffolded
   designed.
 - Re-run SonarCloud after the next CI analysis and close any remaining issues
   that the source-level refactor did not resolve.
+- Reduce `connectors/*/upstream/` only after the equivalent behavior exists in
+  maintained project code, attribution remains under `licenses/` and
+  `ORIGIN.md`, and smoke-all still passes.
 
 ## Unknown
 
@@ -86,6 +99,9 @@ Status: scaffolded
 - Envoy integration path: native C++ filter, ext_authz, Lua, or Wasm.
 - Lighttpd integration path: native plugin or `mod_magnet`.
 - Traefik integration path: Yaegi middleware or Wasm middleware.
+
+These future connector decisions are intentionally deferred until Apache/NGINX
+Common metadata and harness behavior remain stable.
 
 ## Blocked
 
@@ -107,6 +123,8 @@ Status: scaffolded
 - Response-body blocking remains blocked/xfail for common import until both
   Apache and NGINX return stable HTTP 403 for the same YAML case. The NGINX
   reference test currently marks this behavior TODO.
+- RAW-ARGS cases remain mapped-only until the configured ModSecurity v3 source
+  contains PR #3564 behavior and both Apache and NGINX pass real HTTP smokes.
 - `v3_action_nolog_pass_no_audit` remains xfail/mapped-only for active common
   smoke status: local Apache/NGINX probes observed empty audit logs, but GitHub
   Actions observed unexpected audit output.

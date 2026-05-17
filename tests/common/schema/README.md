@@ -64,7 +64,7 @@ Stable audit-log expectations live in `expect.audit_log`; values are checked as
 substrings, so volatile IDs, timestamps, ports, and absolute generated paths
 must not be required.
 
-TODO:
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - Define a machine-readable JSON schema after the YAML shape settles.
 - Reject connector-specific fields in common schema validation.

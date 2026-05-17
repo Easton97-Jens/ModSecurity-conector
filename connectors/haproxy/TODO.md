@@ -1,6 +1,8 @@
-# HAProxy TODO
+# HAProxy Planning
 
 Status: unknown
+
+Tracked in `docs/roadmap/todo-inventory.md`.
 
 - Decide integration path: SPOE service, Lua, or native filter.
 - Determine whether request and response body inspection can meet

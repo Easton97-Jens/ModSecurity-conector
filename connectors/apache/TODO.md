@@ -1,6 +1,8 @@
-# Apache TODO
+# Apache Planning
 
 Status: scaffolded
+
+Tracked in `docs/roadmap/todo-inventory.md`.
 
 - Verify license requirements before importing or adapting any code.
 - Validate the PoC Autotools/APXS helper on a host with Apache development

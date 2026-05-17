@@ -53,7 +53,7 @@ make smoke-apache
 Result: pass. The built module path was under
 `/src/ModSecurity-conector-import-build/apache-build/output/apache/`.
 
-TODO:
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - Verify minimum Apache/APR/APR-util/PCRE build requirements.
 - Keep CI blocked-safe until those dependencies are explicitly provisioned.

@@ -16,7 +16,7 @@ Not allowed here:
 - Build glue for a specific runtime.
 - Includes from any connector implementation.
 
-TODO:
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - Add implementation files only after a concrete connector-neutral need is identified.
 - Keep Phase 1 status, intervention, and origin support header-only until a
