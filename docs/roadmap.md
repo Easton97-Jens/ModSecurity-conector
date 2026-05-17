@@ -55,6 +55,12 @@ Status: scaffolded
   limited to connector-neutral data shapes and documentation.
 - Phase 1 connector-neutral common foundation for status, intervention, and
   origin metadata without Apache/NGINX hook or filter extraction.
+- C-first connector design decision documented; C++ is limited to thin wrappers,
+  test/build tools, and optional helper programs.
+- Harness result metadata aligned with common status, origin, and intervention
+  models while preserving backward-compatible smoke summaries.
+- Apache and NGINX smoke harnesses hardened for generated-runtime pid cleanup
+  and deterministic localhost port selection.
 
 ## Planned
 

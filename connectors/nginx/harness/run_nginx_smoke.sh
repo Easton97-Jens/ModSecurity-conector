@@ -19,6 +19,8 @@ PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
 BASE_PORT="${PORT:-18081}"
 PORT="$BASE_PORT"
+PORT_SEARCH_LIMIT="${PORT_SEARCH_LIMIT:-100}"
+PORT_RETRY_LIMIT="${PORT_RETRY_LIMIT:-1}"
 TEMPLATE="$SCRIPT_DIR/nginx_smoke.conf"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
@@ -26,6 +28,12 @@ CASE_SCOPE="${CASE_SCOPE:-all}"
 CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
+CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-monorepo-upstream}"
+CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-ModSecurity-nginx}"
+CONNECTOR_ORIGIN_SOURCE_COMMIT="${CONNECTOR_ORIGIN_SOURCE_COMMIT:-9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846}"
+CONNECTOR_ORIGIN_SOURCE_VERSION="${CONNECTOR_ORIGIN_SOURCE_VERSION:-v1.0.4-14-g9eb44fd}"
+CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-Apache-2.0}"
+CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-$REPO_ROOT/connectors/nginx/upstream}"
 
 blocked() {
     echo "nginx_smoke: blocked $*"
@@ -181,7 +189,13 @@ run_all_cases() {
         --server nginx \
         --server-binary "$NGINX_BINARY" \
         --module "$NGINX_MODULE" \
-        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        --origin-source "$CONNECTOR_ORIGIN_SOURCE" \
+        --origin-source-repo "$CONNECTOR_ORIGIN_SOURCE_REPO" \
+        --origin-source-commit "$CONNECTOR_ORIGIN_SOURCE_COMMIT" \
+        --origin-source-version "$CONNECTOR_ORIGIN_SOURCE_VERSION" \
+        --origin-license "$CONNECTOR_ORIGIN_LICENSE" \
+        --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH"
     cp "$summary_file" "$connector_summary"
 
     if [ "$any_fail" -ne 0 ]; then
@@ -222,6 +236,134 @@ cleanup() {
         kill "$NGINX_PID" >/dev/null 2>&1 || true
         wait "$NGINX_PID" >/dev/null 2>&1 || true
     fi
+    if [ -n "${RUNTIME_PID_FILE:-}" ]; then
+        rm -f "$RUNTIME_PID_FILE"
+    fi
+}
+
+port_is_free() {
+    port_to_probe=$1
+    "$PYTHON_BIN" - "$port_to_probe" <<'PY'
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    sock.bind(("127.0.0.1", port))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+}
+
+select_free_port() {
+    start_port=$1
+    search_limit=$2
+    offset=0
+    while [ "$offset" -lt "$search_limit" ]; do
+        candidate=$((start_port + offset))
+        if port_is_free "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+        offset=$((offset + 1))
+    done
+    return 1
+}
+
+stop_stale_runtime_pid() {
+    pid_file=$1
+    [ -f "$pid_file" ] || return 0
+    case "$pid_file" in
+        "$BUILD_ROOT"/*) ;;
+        *) blocked "runtime pid file is outside BUILD_ROOT: $pid_file" ;;
+    esac
+    stale_pid=$(cat "$pid_file" 2>/dev/null || true)
+    case "$stale_pid" in
+        ""|*[!0-9]*)
+            rm -f "$pid_file"
+            return 0
+            ;;
+        *) ;;
+    esac
+    if ! kill -0 "$stale_pid" >/dev/null 2>&1; then
+        rm -f "$pid_file"
+        return 0
+    fi
+    stale_cmd=$(tr '\0' ' ' < "/proc/$stale_pid/cmdline" 2>/dev/null || true)
+    case "$stale_cmd" in
+        *"$RUNTIME_ROOT"*) ;;
+        *)
+            blocked "runtime pid file points to non-smoke process pid=$stale_pid command=$stale_cmd"
+            ;;
+    esac
+    echo "nginx_smoke: stopping stale runtime process pid=$stale_pid"
+    kill "$stale_pid" >/dev/null 2>&1 || true
+    wait_count=0
+    while kill -0 "$stale_pid" >/dev/null 2>&1 && [ "$wait_count" -lt 10 ]; do
+        wait_count=$((wait_count + 1))
+        sleep 1
+    done
+    if kill -0 "$stale_pid" >/dev/null 2>&1; then
+        blocked "stale runtime process did not stop pid=$stale_pid"
+    fi
+    rm -f "$pid_file"
+}
+
+bind_conflict_seen() {
+    grep -E "Address already in use|could not bind|bind\\(\\)" \
+        "$LOG_DIR/nginx-stdout.log" \
+        "$LOG_DIR/error.log" >/dev/null 2>&1
+}
+
+start_server() {
+    attempt=0
+    while :; do
+        selected_port=$(select_free_port "$PORT" "$PORT_SEARCH_LIMIT") || \
+            blocked "no free localhost port found from $PORT within $PORT_SEARCH_LIMIT attempts"
+        if [ "$selected_port" != "$PORT" ]; then
+            echo "nginx_smoke: selected free port=$selected_port after requested port=$PORT was unavailable"
+            echo "info: selected port $selected_port after requested port $PORT was unavailable" >> "$STATUS_FILE"
+        fi
+        PORT="$selected_port"
+        render_config
+
+        if ! "$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/configtest.log" 2>&1; then
+            fail "NGINX configtest failed; see $LOG_DIR/configtest.log"
+        fi
+
+        "$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/nginx-stdout.log" 2>&1 &
+        NGINX_PID=$!
+
+        ready=0
+        i=0
+        while [ "$i" -lt 30 ]; do
+            if ! kill -0 "$NGINX_PID" >/dev/null 2>&1; then
+                if [ "$attempt" -lt "$PORT_RETRY_LIMIT" ] && bind_conflict_seen; then
+                    cleanup
+                    attempt=$((attempt + 1))
+                    PORT=$((PORT + 1))
+                    echo "nginx_smoke: retrying after bind conflict attempt=$attempt"
+                    echo "info: retrying after bind conflict attempt=$attempt" >> "$STATUS_FILE"
+                    continue 2
+                fi
+                fail "NGINX exited before request; see $LOG_DIR/nginx-stdout.log and $LOG_DIR/error.log"
+            fi
+            if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/__modsec_smoke_ready" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+                ready=1
+                break
+            fi
+            i=$((i + 1))
+            sleep 1
+        done
+
+        if [ "$ready" -eq 1 ]; then
+            return 0
+        fi
+        fail "NGINX did not become ready on 127.0.0.1:$PORT"
+    done
 }
 
 send_case_request() {
@@ -269,10 +411,14 @@ require_absolute_generated_path "$NGINX_PREFIX" "NGINX_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 
+RUNTIME_PID_FILE="$RUNTIME_ROOT/nginx.pid"
+
 mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs" \
     "$RUNTIME_ROOT/client_body_temp" "$RUNTIME_ROOT/proxy_temp" \
     "$RUNTIME_ROOT/fastcgi_temp" "$RUNTIME_ROOT/uwsgi_temp" \
     "$RUNTIME_ROOT/scgi_temp"
+: > "$STATUS_FILE"
+stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$LOG_DIR/configtest.log" \
     "$LOG_DIR/curl-attack.err" \
     "$LOG_DIR/curl-ready.err" \
@@ -282,7 +428,6 @@ rm -f "$LOG_DIR/configtest.log" \
     "$LOG_DIR/audit.log" \
     "$RUNTIME_ROOT/nginx.pid"
 rm -f "$LOG_DIR/audit/"*
-: > "$STATUS_FILE"
 
 CURL_BIN=$(find_curl)
 
@@ -317,34 +462,11 @@ fi
 chmod go+r "$DOCROOT/index.html" "$DOCROOT/__modsec_smoke_ready" 2>/dev/null || true
 . "$CASE_ENV_FILE"
 
-render_config
-
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
 
-if ! "$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/configtest.log" 2>&1; then
-    fail "NGINX configtest failed; see $LOG_DIR/configtest.log"
-fi
-
 trap cleanup EXIT INT TERM
-"$NGINX_BINARY" -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/nginx-stdout.log" 2>&1 &
-NGINX_PID=$!
-
-ready=0
-i=0
-while [ "$i" -lt 30 ]; do
-    if ! kill -0 "$NGINX_PID" >/dev/null 2>&1; then
-        fail "NGINX exited before request; see $LOG_DIR/nginx-stdout.log and $LOG_DIR/error.log"
-    fi
-    if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/__modsec_smoke_ready" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
-        ready=1
-        break
-    fi
-    i=$((i + 1))
-    sleep 1
-done
-
-[ "$ready" -eq 1 ] || fail "NGINX did not become ready on 127.0.0.1:$PORT"
+start_server
 
 set +e
 http_status=$(send_case_request)

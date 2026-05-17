@@ -65,18 +65,43 @@ Each connector summary under `$BUILD_ROOT/results/` records:
 
 ```json
 {
+  "status_model": "msconnector_status",
+  "origin_model": "msconnector_origin",
+  "intervention_model": "msconnector_intervention",
   "connector_path": "real-world",
   "validation_mode": "real-world-connector-path",
   "server": "apache",
   "server_binary": "...",
   "module": "...",
   "libmodsecurity": "...",
+  "origin": {
+    "source": "monorepo-upstream",
+    "source_repo": "ModSecurity-apache",
+    "source_commit": "...",
+    "source_version": "...",
+    "license": "Apache-2.0",
+    "imported_path": "..."
+  },
   "verified_variables": ["ARGS", "REQUEST_BODY"]
 }
 ```
 
 `verified_variables` is computed only from active cases whose result is
 `pass`. Mapped-only, xfail, blocked, and failed cases do not add variables.
+
+## Runtime Port And PID Safety
+
+The harnesses choose ports deterministically from the requested base port and
+scan forward for a free `127.0.0.1` listener slot. If a generated runtime pid
+file remains from an earlier run, the harness only stops that process when the
+pid file is under `BUILD_ROOT` and the process command line points back to the
+same generated runtime directory.
+
+The harnesses do not kill unrelated Apache, NGINX, or system processes. A pid
+file that points outside the generated runtime is reported as `blocked`. If a
+bind conflict still races after the preflight port check, the case retries once
+on the next free port and keeps the normal `fail`/`blocked` distinction if the
+server still cannot run.
 
 ## Current Connector Status
 

@@ -22,6 +22,8 @@ PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
 BASE_PORT="${PORT:-18080}"
 PORT="$BASE_PORT"
+PORT_SEARCH_LIMIT="${PORT_SEARCH_LIMIT:-100}"
+PORT_RETRY_LIMIT="${PORT_RETRY_LIMIT:-1}"
 TEMPLATE="$SCRIPT_DIR/apache_smoke.conf"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
@@ -30,6 +32,12 @@ CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
 IFMODULE_END="</IfModule>"
+CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-monorepo-upstream}"
+CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-ModSecurity-apache}"
+CONNECTOR_ORIGIN_SOURCE_COMMIT="${CONNECTOR_ORIGIN_SOURCE_COMMIT:-0488c77f69669584324b70460614a382224b4883}"
+CONNECTOR_ORIGIN_SOURCE_VERSION="${CONNECTOR_ORIGIN_SOURCE_VERSION:-v0.0.9-beta1-26-g0488c77}"
+CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-Apache-2.0}"
+CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-$REPO_ROOT/connectors/apache/upstream}"
 
 blocked() {
     echo "apache_smoke: blocked $*"
@@ -184,7 +192,13 @@ run_all_cases() {
         --server apache \
         --server-binary "$APACHE_HTTPD_BIN" \
         --module "$APACHE_MODULE" \
-        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+        --libmodsecurity "$MODSECURITY_LIB_DIR/libmodsecurity.so" \
+        --origin-source "$CONNECTOR_ORIGIN_SOURCE" \
+        --origin-source-repo "$CONNECTOR_ORIGIN_SOURCE_REPO" \
+        --origin-source-commit "$CONNECTOR_ORIGIN_SOURCE_COMMIT" \
+        --origin-source-version "$CONNECTOR_ORIGIN_SOURCE_VERSION" \
+        --origin-license "$CONNECTOR_ORIGIN_LICENSE" \
+        --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH"
     cp "$summary_file" "$connector_summary"
 
     if [ "$any_fail" -ne 0 ]; then
@@ -295,6 +309,134 @@ cleanup() {
         kill "$HTTPD_PID" >/dev/null 2>&1 || true
         wait "$HTTPD_PID" >/dev/null 2>&1 || true
     fi
+    if [ -n "${RUNTIME_PID_FILE:-}" ]; then
+        rm -f "$RUNTIME_PID_FILE"
+    fi
+}
+
+port_is_free() {
+    port_to_probe=$1
+    "$PYTHON_BIN" - "$port_to_probe" <<'PY'
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    sock.bind(("127.0.0.1", port))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+}
+
+select_free_port() {
+    start_port=$1
+    search_limit=$2
+    offset=0
+    while [ "$offset" -lt "$search_limit" ]; do
+        candidate=$((start_port + offset))
+        if port_is_free "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+        offset=$((offset + 1))
+    done
+    return 1
+}
+
+stop_stale_runtime_pid() {
+    pid_file=$1
+    [ -f "$pid_file" ] || return 0
+    case "$pid_file" in
+        "$BUILD_ROOT"/*) ;;
+        *) blocked "runtime pid file is outside BUILD_ROOT: $pid_file" ;;
+    esac
+    stale_pid=$(cat "$pid_file" 2>/dev/null || true)
+    case "$stale_pid" in
+        ""|*[!0-9]*)
+            rm -f "$pid_file"
+            return 0
+            ;;
+        *) ;;
+    esac
+    if ! kill -0 "$stale_pid" >/dev/null 2>&1; then
+        rm -f "$pid_file"
+        return 0
+    fi
+    stale_cmd=$(tr '\0' ' ' < "/proc/$stale_pid/cmdline" 2>/dev/null || true)
+    case "$stale_cmd" in
+        *"$RUNTIME_ROOT"*) ;;
+        *)
+            blocked "runtime pid file points to non-smoke process pid=$stale_pid command=$stale_cmd"
+            ;;
+    esac
+    echo "apache_smoke: stopping stale runtime process pid=$stale_pid"
+    kill "$stale_pid" >/dev/null 2>&1 || true
+    wait_count=0
+    while kill -0 "$stale_pid" >/dev/null 2>&1 && [ "$wait_count" -lt 10 ]; do
+        wait_count=$((wait_count + 1))
+        sleep 1
+    done
+    if kill -0 "$stale_pid" >/dev/null 2>&1; then
+        blocked "stale runtime process did not stop pid=$stale_pid"
+    fi
+    rm -f "$pid_file"
+}
+
+bind_conflict_seen() {
+    grep -E "Address already in use|could not bind|make_sock.*could not bind" \
+        "$LOG_DIR/httpd.log" \
+        "$RUNTIME_ROOT/logs/error.log" >/dev/null 2>&1
+}
+
+start_server() {
+    attempt=0
+    while :; do
+        selected_port=$(select_free_port "$PORT" "$PORT_SEARCH_LIMIT") || \
+            blocked "no free localhost port found from $PORT within $PORT_SEARCH_LIMIT attempts"
+        if [ "$selected_port" != "$PORT" ]; then
+            echo "apache_smoke: selected free port=$selected_port after requested port=$PORT was unavailable"
+            echo "info: selected port $selected_port after requested port $PORT was unavailable" >> "$STATUS_FILE"
+        fi
+        PORT="$selected_port"
+        render_config
+
+        if ! "$APACHE_HTTPD_BIN" -t -f "$CONFIG_FILE" > "$LOG_DIR/configtest.log" 2>&1; then
+            fail "Apache configtest failed; see $LOG_DIR/configtest.log"
+        fi
+
+        "$APACHE_HTTPD_BIN" -X -f "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
+        HTTPD_PID=$!
+
+        ready=0
+        i=0
+        while [ "$i" -lt 30 ]; do
+            if ! kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
+                if [ "$attempt" -lt "$PORT_RETRY_LIMIT" ] && bind_conflict_seen; then
+                    cleanup
+                    attempt=$((attempt + 1))
+                    PORT=$((PORT + 1))
+                    echo "apache_smoke: retrying after bind conflict attempt=$attempt"
+                    echo "info: retrying after bind conflict attempt=$attempt" >> "$STATUS_FILE"
+                    continue 2
+                fi
+                fail "Apache exited before request; see $LOG_DIR/httpd.log"
+            fi
+            if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/__modsec_smoke_ready" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
+                ready=1
+                break
+            fi
+            i=$((i + 1))
+            sleep 1
+        done
+
+        if [ "$ready" -eq 1 ]; then
+            return 0
+        fi
+        fail "Apache did not become ready on 127.0.0.1:$PORT"
+    done
 }
 
 send_case_request() {
@@ -341,7 +483,11 @@ require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 
+RUNTIME_PID_FILE="$RUNTIME_ROOT/logs/httpd.pid"
+
 mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/logs" "$RUNTIME_ROOT/htdocs" "$RUNTIME_ROOT/run"
+: > "$STATUS_FILE"
+stop_stale_runtime_pid "$RUNTIME_PID_FILE"
 rm -f "$RUNTIME_ROOT/logs/"* \
     "$LOG_DIR/configtest.log" \
     "$LOG_DIR/curl-attack.err" \
@@ -350,7 +496,6 @@ rm -f "$RUNTIME_ROOT/logs/"* \
     "$LOG_DIR/response-body.txt" \
     "$LOG_DIR/audit.log"
 rm -f "$LOG_DIR/audit/"*
-: > "$STATUS_FILE"
 
 APACHE_HTTPD_BIN=$(find_apache)
 APXS_BIN=$(find_apxs)
@@ -410,34 +555,11 @@ if modules_dir=$(apache_modules_dir); then
     append_load_if_exists "mime_module" "mod_mime.so" "$modules_dir" "$MODULES_FILE"
 fi
 
-render_config
-
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
 
-if ! "$APACHE_HTTPD_BIN" -t -f "$CONFIG_FILE" > "$LOG_DIR/configtest.log" 2>&1; then
-    fail "Apache configtest failed; see $LOG_DIR/configtest.log"
-fi
-
 trap cleanup EXIT INT TERM
-"$APACHE_HTTPD_BIN" -X -f "$CONFIG_FILE" > "$LOG_DIR/httpd.log" 2>&1 &
-HTTPD_PID=$!
-
-ready=0
-i=0
-while [ "$i" -lt 30 ]; do
-    if ! kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
-        fail "Apache exited before request; see $LOG_DIR/httpd.log"
-    fi
-    if "$CURL_BIN" -sS -o /dev/null "http://127.0.0.1:$PORT/__modsec_smoke_ready" >/dev/null 2>"$LOG_DIR/curl-ready.err"; then
-        ready=1
-        break
-    fi
-    i=$((i + 1))
-    sleep 1
-done
-
-[ "$ready" -eq 1 ] || fail "Apache did not become ready on 127.0.0.1:$PORT"
+start_server
 
 set +e
 http_status=$(send_case_request)
