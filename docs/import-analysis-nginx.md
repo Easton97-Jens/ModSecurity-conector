@@ -7,9 +7,9 @@ Observed ref: `master`, `v1.0.4-14-g9eb44fd`
 
 ## Role
 
-This repository is an NGINX connector for libmodsecurity v3. It is a source of
-NGINX-specific module/filter concepts and test mapping, not a source to copy
-blindly.
+This repository is an NGINX connector for libmodsecurity v3. It is now a
+controlled source import under `connectors/nginx/upstream/`. Imported files are
+kept NGINX-specific and documented in `connectors/nginx/ORIGIN.md`.
 
 ## Build System
 
@@ -56,4 +56,11 @@ These are `connector-specific` and belong only under `connectors/nginx/`.
 | v3 C API phase sequence | v3 via connector | engine-specific | compatible | Document and adapt |
 | NGINX phase/filter registration | connector | connector-specific | compatible only for NGINX | NGINX docs/TODO |
 | nginx-tests cases | connector | connector-specific | partial | Map to `tests/nginx/` |
-| Source code files | connector | connector-specific | unknown | No import without license/proven need |
+| Source code files | connector | connector-specific | compatible only for NGINX | Imported under `connectors/nginx/upstream/` |
+
+## Import Decision
+
+The import is intentionally separated from `common/`. NGINX phase handlers,
+header/body filters, configuration merge logic, and NGINX module build metadata
+stay under `connectors/nginx/`. Future common extraction requires separate proof
+via real-world Apache and NGINX smoke tests.
