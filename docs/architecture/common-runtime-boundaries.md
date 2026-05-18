@@ -59,9 +59,9 @@ results prove compatibility.
 
 ## Phase 6 Adapter-Owned Boundary
 
-Phase 6 adds the first adapter-owned source skeletons under
-`connectors/apache/src/` and `connectors/nginx/src/`. These files are not Common
-runtime code and are not linked into the productive Apache or NGINX modules.
+Phase 6 adds the first adapter-owned metadata skeletons under
+`connectors/apache/` and `connectors/nginx/`. These files are not Common runtime
+code and are not linked into the productive Apache or NGINX modules.
 
 The adapter-owned metadata helpers:
 
@@ -73,11 +73,12 @@ The adapter-owned metadata helpers:
   lifecycle behavior;
 - are validated only by `ci/check-adapter-helpers.sh` under `$BUILD_ROOT`.
 
-Later phases moved productive connector build inputs into the same
-adapter-owned source trees: NGINX in Phase 9/10 and Apache in Phase 11. That
-does not make those sources Common-owned. Hooks, filters, bucket brigades,
-configuration parsing, request/response mapping, intervention finalization,
-and `RESPONSE_BODY` behavior remain connector-specific.
+Later phases moved productive connector build inputs into adapter-owned
+connector trees: NGINX in Phase 9/10 and Apache in Phase 11. Phase 13 then
+keeps `src/` limited to productive source, with metadata/provenance at the
+connector root. That does not make those sources Common-owned. Hooks, filters,
+bucket brigades, configuration parsing, request/response mapping, intervention
+finalization, and `RESPONSE_BODY` behavior remain connector-specific.
 
 This creates a place for future adapter-owned replacements without changing the
 current real-world connector path. Any production use still requires a separate

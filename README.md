@@ -83,17 +83,21 @@ builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
 
 ## Architecture Map
 
-- `connectors/apache/src/` is the adapter-owned Apache connector source tree.
-  It preserves the upstream Autotools/APXS layout and builds through
-  `$BUILD_ROOT/apache-build/connector-src`. It is a functional build/runtime
-  tree; license, authorship, and changelog attribution live outside it.
-- `connectors/nginx/src/` is the adapter-owned NGINX module source tree.
+- `connectors/apache/` is the adapter-owned Apache connector tree. Autotools
+  build files live at the connector root, productive C files live in
+  `connectors/apache/src/`, retained Autotools templates live under
+  `connectors/apache/tests/`, and builds run through
+  `$BUILD_ROOT/apache-build/connector-src`.
+- `connectors/nginx/` is the adapter-owned NGINX connector tree. Module
+  `config` lives at `connectors/nginx/config`, productive module source lives
+  in `connectors/nginx/src/`, and builds run through
+  `$BUILD_ROOT/nginx-build/connector-src`.
 - The former `connectors/apache/upstream/` and `connectors/nginx/upstream/`
   trees were removed after adapter-owned materialized builds and smokes passed.
 - Apache attribution now lives in `licenses/apache/`,
-  `connectors/apache/ORIGIN.md`, and `connectors/apache/src/SOURCE_MAP.json`.
+  `connectors/apache/ORIGIN.md`, and `connectors/apache/SOURCE_MAP.json`.
 - NGINX attribution now lives in `licenses/nginx/`,
-  `connectors/nginx/ORIGIN.md`, and `connectors/nginx/src/SOURCE_MAP.json`.
+  `connectors/nginx/ORIGIN.md`, and `connectors/nginx/SOURCE_MAP.json`.
 - `licenses/` is the durable attribution index for imported connector code and
   read-only ModSecurity engine references.
 - `common/` is the future connector-neutral basis. It currently contains
@@ -124,10 +128,11 @@ NGINX_RELEASE_TAG=latest
 When `NGINX_RELEASE_TAG=latest`, the actual tag is resolved at build time and
 recorded under `$BUILD_ROOT/logs/nginx/`.
 
-The monorepo-default NGINX connector source is `connectors/nginx/src`. It is
+The monorepo-default NGINX connector source root is `connectors/nginx`. It is
 materialized into `$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
-files only, plus generated manifests. Explicit `MODSECURITY_NGINX_SOURCE_DIR`
-overrides still use a sanitized external source copy.
+`config` and `src/` files only, plus generated manifests. Explicit
+`MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external source
+copy.
 
 ## Shared Smoke Targets
 

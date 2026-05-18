@@ -31,7 +31,7 @@ License: Apache-2.0
 ## Imported Source Map
 
 The full file-by-file source map remains in
-`connectors/apache/ORIGIN.md` and `connectors/apache/src/SOURCE_MAP.json`.
+`connectors/apache/ORIGIN.md` and `connectors/apache/SOURCE_MAP.json`.
 This central license directory is an attribution index and does not replace the
 functional Apache source files required by the adapter-owned Apache Autotools
 source tree.

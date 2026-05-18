@@ -14,7 +14,7 @@ runtime logic was merged across connectors.
 
 ## Apache Connector
 
-Adapter-owned build source: `connectors/apache/src/`
+Adapter-owned build source root: `connectors/apache/`
 
 Required for build and module creation:
 
@@ -44,9 +44,9 @@ layout references them:
 - `tests/regression/misc/60-pmfromfile-external.t.in`
 - `tests/regression/server_root/conf/httpd.conf.in`
 
-Provenance context retained in the functional source tree:
+Provenance context retained outside the functional source tree:
 
-- `SOURCE_MAP.json`
+- `connectors/apache/SOURCE_MAP.json`
 
 Durable attribution outside the source tree:
 
@@ -59,8 +59,9 @@ Materialized build input:
 
 - Monorepo-default Apache builds use
   `$BUILD_ROOT/apache-build/connector-src`.
-- The materializer copies adapter-owned `connectors/apache/src` files with
-  identity relative paths and writes `MATERIALIZED_SOURCE.md` plus
+- The materializer copies adapter-owned build files from `connectors/apache/`
+  according to `connectors/apache/SOURCE_MAP.json`, preserves the generated
+  Autotools layout, and writes `MATERIALIZED_SOURCE.md` plus
   `materialized-source.json`.
 - The generated manifest is expected to list Apache source, build files, and
   templates as `adapter-owned`, with no Apache `upstream-derived` entries.
@@ -76,11 +77,11 @@ confirmed in:
 - `licenses/nginx/CHANGES`
 - `licenses/nginx/ORIGIN.md`
 - `connectors/nginx/ORIGIN.md`
-- `connectors/nginx/src/SOURCE_MAP.json`
+- `connectors/nginx/SOURCE_MAP.json`
 
 Adapter-owned NGINX module build inputs:
 
-- `connectors/nginx/src/config`
+- `connectors/nginx/config`
 - `connectors/nginx/src/ngx_http_modsecurity_access.c`
 - `connectors/nginx/src/ngx_http_modsecurity_body_filter.c`
 - `connectors/nginx/src/ngx_http_modsecurity_common.h`
@@ -88,7 +89,7 @@ Adapter-owned NGINX module build inputs:
 - `connectors/nginx/src/ngx_http_modsecurity_log.c`
 - `connectors/nginx/src/ngx_http_modsecurity_module.c`
 - `connectors/nginx/src/ddebug.h`
-- `connectors/nginx/src/SOURCE_MAP.json`
+- `connectors/nginx/SOURCE_MAP.json`
 
 PR #377 provenance:
 
@@ -104,9 +105,9 @@ Materialized build input:
 
 - Monorepo-default NGINX builds use
   `$BUILD_ROOT/nginx-build/connector-src`.
-- The materializer copies adapter-owned `connectors/nginx/src` files, maps
-  adapter `config` to root `config`, and writes `MATERIALIZED_SOURCE.md` plus
-  `materialized-source.json`.
+- The materializer copies adapter-owned `connectors/nginx/config` and
+  `connectors/nginx/src` files according to `connectors/nginx/SOURCE_MAP.json`
+  and writes `MATERIALIZED_SOURCE.md` plus `materialized-source.json`.
 - External NGINX source builds still use a sanitized external-source copy; if
   the selected external source tree lacks `src/ddebug.h`,
   `ci/prepare-nginx-build.sh` overlays the repo-owned header into the generated
@@ -147,8 +148,8 @@ input depended on it and durable attribution stayed available elsewhere. Phase
 11 migrated Apache productive source and build inputs into adapter-owned files,
 proved a materialized Autotools/APXS build, and removed the former Apache
 upstream tree. Phase 12 reduced the Apache adapter-owned source tree to
-functional build/runtime inputs plus `SOURCE_MAP.json`; attribution-only files
-were moved to `licenses/apache/`.
+functional build/runtime inputs plus provenance metadata; attribution-only
+files were moved to `licenses/apache/`.
 
 ## Phase 8 Shadow Build Source
 
@@ -188,10 +189,26 @@ smoke-apache` passed.
 
 Phase 12 removed `AUTHORS`, `CHANGES`, `LICENSE`, and `README.md` from
 `connectors/apache/src/`. The Autoconf source anchor was changed from `LICENSE`
-to `src/mod_security3.c`, so the Apache build source tree now contains only
-functional build/runtime files plus `SOURCE_MAP.json`. Attribution remains in
-`licenses/apache/`, `connectors/apache/ORIGIN.md`, and the `relocated_files`
-section of `connectors/apache/src/SOURCE_MAP.json`.
+to `src/mod_security3.c`, so attribution-only files are outside the build
+source. Attribution remains in `licenses/apache/`, `connectors/apache/ORIGIN.md`,
+and the `relocated_files` section of `connectors/apache/SOURCE_MAP.json`.
+
+## Phase 13 Layout Simplification
+
+Phase 13 keeps the materialized build layout stable while simplifying the
+repository layout:
+
+- Apache Autotools/APXS files are under `connectors/apache/`.
+- Apache productive C files are directly under `connectors/apache/src/`.
+- Apache retained Autotools templates are under `connectors/apache/tests/` and
+  materialize back to `t/` and `tests/`.
+- Apache metadata and provenance are under `connectors/apache/metadata.*` and
+  `connectors/apache/SOURCE_MAP.json`, not in `src/`.
+- NGINX `config` is under `connectors/nginx/config` and materializes to root
+  `config`.
+- NGINX `src/` contains only productive module headers/sources plus `ddebug.h`.
+- NGINX metadata and provenance are under `connectors/nginx/metadata.*` and
+  `connectors/nginx/SOURCE_MAP.json`, not in `src/`.
 
 ## Phase 5 Review Result
 

@@ -10,10 +10,11 @@ Observed ref: `master`, `v0.0.9-beta1-26-g0488c77`
 
 This repository is an Apache connector for libmodsecurity v3. Its connector
 source and Autotools/APXS build inputs are now adapter-owned under
-`connectors/apache/src/`. The former `connectors/apache/upstream/` import was
+`connectors/apache/`, with productive C files under `connectors/apache/src/`.
+The former `connectors/apache/upstream/` import was
 removed after a materialized build and smoke proof. Files remain
 Apache-specific and are documented in `connectors/apache/ORIGIN.md` and
-`connectors/apache/src/SOURCE_MAP.json`.
+`connectors/apache/SOURCE_MAP.json`.
 
 ## Build System
 

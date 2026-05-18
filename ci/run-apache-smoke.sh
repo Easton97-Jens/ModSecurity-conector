@@ -9,7 +9,7 @@ APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
 APACHE_MODULE="${APACHE_MODULE:-$APACHE_BUILD_ROOT/output/apache/mod_security3.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$APACHE_BUILD_ROOT/output/modsecurity/lib}"
-DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache/src"
+DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache"
 MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$DEFAULT_APACHE_SOURCE_DIR}"
 APACHE_ORIGIN_SOURCE="${APACHE_ORIGIN_SOURCE:-}"
 APACHE_ORIGIN_SOURCE_REPO="${APACHE_ORIGIN_SOURCE_REPO:-}"
@@ -123,6 +123,12 @@ removed_from_source_tree = {
     "CHANGES",
     "LICENSE",
     "README.md",
+    "SOURCE_MAP.json",
+    "metadata.c",
+    "metadata.h",
+    "src/SOURCE_MAP.json",
+    "src/metadata.c",
+    "src/metadata.h",
 }
 
 with open(sys.argv[1], "r", encoding="utf-8") as handle:

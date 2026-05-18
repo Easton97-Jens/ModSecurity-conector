@@ -161,10 +161,12 @@ def load_source_map(adapter_root: Path) -> dict[str, Any]:
 
 def adapter_destination_relative(connector: str, relative_path: Path) -> Path:
     if connector == "apache":
+        if relative_path.parts[:2] == ("tests", "t"):
+            return Path(*relative_path.parts[1:])
         return relative_path
-    if connector == "nginx" and relative_path.as_posix() == "config":
-        return Path("config")
-    return Path("src") / relative_path
+    if connector == "nginx":
+        return relative_path
+    raise ValueError(f"unsupported connector: {connector}")
 
 
 def source_map_entry(
@@ -214,10 +216,15 @@ def copy_adapter_files(
 ) -> dict[str, ManifestEntry]:
     entries: dict[str, ManifestEntry] = {}
     source_map = load_source_map(adapter_root)
+    source_map_files = source_map.get("files", {})
+    if source_map and not isinstance(source_map_files, dict):
+        raise SystemExit(f"invalid SOURCE_MAP.json files map under {adapter_root}")
     base = source_map.get("base", {})
     source_url = str(base.get("url", "")) if isinstance(base, dict) else ""
     for relative_path in iter_files(adapter_root):
         destination_relative = adapter_destination_relative(connector, relative_path)
+        if source_map and destination_relative.as_posix() not in source_map_files:
+            continue
         destination = destination_root / destination_relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(adapter_root / relative_path, destination)

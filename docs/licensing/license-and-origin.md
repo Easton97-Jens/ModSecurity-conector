@@ -28,12 +28,11 @@ Observed source revision:
 
 The upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are retained in
 `licenses/apache/`. Apache source and Autotools/APXS build inputs are
-adapter-owned under `connectors/apache/src`, with source provenance recorded in
-`connectors/apache/src/SOURCE_MAP.json` and `connectors/apache/ORIGIN.md`. The
-former `connectors/apache/upstream/` tree was removed in phase 11. Phase 12
-removed duplicate attribution/history files from `connectors/apache/src`; the
-active source tree now contains only functional build/runtime inputs plus
-`SOURCE_MAP.json`.
+adapter-owned under `connectors/apache/`, with productive C files in
+`connectors/apache/src/` and source provenance recorded in
+`connectors/apache/SOURCE_MAP.json` and `connectors/apache/ORIGIN.md`. The
+former `connectors/apache/upstream/` tree was removed in phase 11. Phase 13
+keeps attribution and support metadata outside the strict product source tree.
 
 Central attribution copies:
 
@@ -56,10 +55,11 @@ Observed source revision:
 - license: Apache License 2.0
 
 The upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are retained in
-`licenses/nginx/`. The NGINX module `config` and source files are adapter-owned
-under `connectors/nginx/src`, with source provenance recorded in
-`connectors/nginx/src/SOURCE_MAP.json` and `connectors/nginx/ORIGIN.md`. The
-former `connectors/nginx/upstream/` tree was removed in phase 10.
+`licenses/nginx/`. The NGINX module `config` is adapter-owned at
+`connectors/nginx/config`, productive source files are under
+`connectors/nginx/src/`, and source provenance is recorded in
+`connectors/nginx/SOURCE_MAP.json` and `connectors/nginx/ORIGIN.md`. The former
+`connectors/nginx/upstream/` tree was removed in phase 10.
 
 ModSecurity-nginx PR #377
 (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) source
@@ -109,8 +109,10 @@ The current imported connector trees were reviewed in
 Later replace-and-reduce phases removed the imported NGINX debug helper,
 migrated NGINX `config`/`src/*` into adapter-owned source, and then removed the
 remaining NGINX upstream reference tree after smoke proof. Phase 11 migrated
-Apache source, Autotools/APXS inputs, and required `.in` templates into
-`connectors/apache/src`, proved a materialized build and smoke run, and removed
-the former Apache upstream tree. Any future reduction must be documented in the
+Apache source, Autotools/APXS inputs, and required `.in` templates into the
+adapter-owned Apache tree, proved a materialized build and smoke run, and
+removed the former Apache upstream tree. Phase 13 moved support metadata out of
+`src/` and kept `src/` focused on productive source. Any future reduction must
+be documented in the
 relevant `ORIGIN.md`, retain license and attribution coverage, and pass an
 isolated `$BUILD_ROOT` build/smoke probe before being committed.

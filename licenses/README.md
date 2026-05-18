@@ -10,8 +10,8 @@ reference tree is reduced or removed.
 
 | Area | Local reference | Upstream | Imported code in repo | License | Details |
 | --- | --- | --- | --- | --- | --- |
-| Apache connector | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `connectors/apache/src/` with attribution in `licenses/apache/` and `connectors/apache/src/SOURCE_MAP.json` | Apache-2.0 | `licenses/apache/ORIGIN.md` |
-| NGINX connector | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `connectors/nginx/src/` with attribution in `licenses/nginx/` and `connectors/nginx/src/SOURCE_MAP.json` | Apache-2.0 | `licenses/nginx/ORIGIN.md` |
+| Apache connector | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `connectors/apache/` with productive source in `connectors/apache/src/`, attribution in `licenses/apache/`, and provenance in `connectors/apache/SOURCE_MAP.json` | Apache-2.0 | `licenses/apache/ORIGIN.md` |
+| NGINX connector | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `connectors/nginx/` with productive source in `connectors/nginx/src/`, attribution in `licenses/nginx/`, and provenance in `connectors/nginx/SOURCE_MAP.json` | Apache-2.0 | `licenses/nginx/ORIGIN.md` |
 
 ## Read-only Reference Sources
 

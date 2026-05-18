@@ -8,8 +8,10 @@ code yet.
 
 ## Purpose
 
-`connectors/<name>/src/` is reserved for connector-owned code developed outside
-imported upstream reference trees:
+`connectors/<name>/` is reserved for connector-owned code developed outside
+imported upstream reference trees. After Phase 13, `src/` is strict product
+source only; metadata, build files, and provenance maps live beside it at the
+connector root:
 
 - stable connector metadata;
 - origin and license descriptors;
@@ -17,33 +19,33 @@ imported upstream reference trees:
 - future adapter-local helpers with explicit smoke evidence.
 
 For NGINX and Apache, this layer now also contains the adapter-owned module
-build source.
+build source while preserving server-specific source boundaries.
 
 The layer is separate from `common/`: Common remains connector-neutral, while
 adapter-owned helpers may name Apache or NGINX as components. The former
 Apache and NGINX upstream trees have been removed. Apache provenance remains in
 `licenses/apache/`, `connectors/apache/ORIGIN.md`, and
-`connectors/apache/src/SOURCE_MAP.json`; NGINX provenance remains in
+`connectors/apache/SOURCE_MAP.json`; NGINX provenance remains in
 `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
-`connectors/nginx/src/SOURCE_MAP.json`.
+`connectors/nginx/SOURCE_MAP.json`.
 
 ## Current Files
 
 | Path | Role | Runtime use |
 | --- | --- | --- |
-| `connectors/apache/src/metadata.h` | Apache adapter metadata API | Not linked into Apache module builds |
-| `connectors/apache/src/metadata.c` | Apache origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
-| `connectors/apache/src/autogen.sh`, `configure.ac`, `Makefile.am`, `build/*` | Adapter-owned Apache Autotools/APXS build inputs | Materialized to `$BUILD_ROOT/apache-build/connector-src` for monorepo-default Apache builds |
-| `connectors/apache/src/src/*.c`, `src/*.h` | Adapter-owned Apache module sources | Built through the generated Apache connector source tree |
-| `connectors/apache/src/tests/**/*.in`, `t/conf/extra.conf.in` | Apache configure templates retained from upstream layout | Materialized for Autotools compatibility |
-| `connectors/apache/src/SOURCE_MAP.json` | Apache base provenance map | Used by materialized-source manifests; not compiled |
-| `connectors/nginx/src/metadata.h` | NGINX adapter metadata API | Not linked into NGINX module builds |
-| `connectors/nginx/src/metadata.c` | NGINX origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
+| `connectors/apache/metadata.h` | Apache adapter metadata API | Not linked into Apache module builds |
+| `connectors/apache/metadata.c` | Apache origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
+| `connectors/apache/autogen.sh`, `configure.ac`, `Makefile.am`, `build/*` | Adapter-owned Apache Autotools/APXS build inputs | Materialized to `$BUILD_ROOT/apache-build/connector-src` for monorepo-default Apache builds |
+| `connectors/apache/src/*.c`, `src/*.h` | Adapter-owned Apache module sources | Built through the generated Apache connector source tree |
+| `connectors/apache/tests/**/*.in`, `connectors/apache/tests/t/conf/extra.conf.in` | Apache configure templates retained from upstream layout | Materialized for Autotools compatibility |
+| `connectors/apache/SOURCE_MAP.json` | Apache base provenance map | Used by materialized-source manifests; not compiled |
+| `connectors/nginx/metadata.h` | NGINX adapter metadata API | Not linked into NGINX module builds |
+| `connectors/nginx/metadata.c` | NGINX origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
 | `connectors/nginx/src/ddebug.h` | NGINX debug compatibility header | Overlaid into NGINX materialized build sources; still used as external-source fallback when needed |
-| `connectors/nginx/src/config` | NGINX dynamic module build metadata | Materialized to `$BUILD_ROOT/nginx-build/connector-src/config` for monorepo-default NGINX builds |
+| `connectors/nginx/config` | NGINX dynamic module build metadata | Materialized to `$BUILD_ROOT/nginx-build/connector-src/config` for monorepo-default NGINX builds |
 | `connectors/nginx/src/ngx_http_modsecurity_*.c` | Adapter-owned NGINX module sources | Built through the generated NGINX connector source tree |
 | `connectors/nginx/src/ngx_http_modsecurity_common.h` | Adapter-owned NGINX connector declarations | Built through the generated NGINX connector source tree |
-| `connectors/nginx/src/SOURCE_MAP.json` | NGINX base/PR provenance map | Used by materialized-source manifests; not compiled |
+| `connectors/nginx/SOURCE_MAP.json` | NGINX base/PR provenance map | Used by materialized-source manifests; not compiled |
 
 ## Boundaries
 
@@ -104,16 +106,23 @@ generated manifests only. The generated manifests identify the NGINX module
 sources as `adapter-owned` and record PR #377 patch provenance where
 applicable.
 
-Phase 11 migrates Apache source and Autotools/APXS inputs into
-`connectors/apache/src`. Phase 12 removes attribution/history/documentation-only
-files from that source tree after the Autoconf source anchor moves to
-`src/mod_security3.c`. For the monorepo-default Apache source,
+Phase 11 migrates Apache source and Autotools/APXS inputs into the
+adapter-owned Apache tree. Phase 12 removes attribution/history/documentation-only
+files from that tree after the Autoconf source anchor moves to
+`src/mod_security3.c`. Phase 13 flattens the layout so Autotools files live at
+`connectors/apache/`, productive C files live directly in
+`connectors/apache/src/`, and retained Autotools templates live under
+`connectors/apache/tests/`. For the monorepo-default Apache source,
 `ci/prepare-apache-build.sh` materializes
 `$BUILD_ROOT/apache-build/connector-src` from adapter-owned Apache source and
 generated manifests only. The generated manifest identifies Apache module
 sources, build inputs, and retained `.in` templates as `adapter-owned`; durable
 Apache attribution remains in `licenses/apache/`, `connectors/apache/ORIGIN.md`,
-and `connectors/apache/src/SOURCE_MAP.json`.
+and `connectors/apache/SOURCE_MAP.json`.
+
+Phase 13 also moves NGINX support files out of `src/`: `config` now lives at
+`connectors/nginx/config`, while metadata and provenance live at
+`connectors/nginx/metadata.*` and `connectors/nginx/SOURCE_MAP.json`.
 
 ## Reporting Precedence
 
@@ -123,7 +132,7 @@ Origin metadata used by build and runtime summaries follows this order:
 2. external connector source metadata from `git rev-parse` and `git describe`
    when `MODSECURITY_APACHE_SOURCE_DIR` or `MODSECURITY_NGINX_SOURCE_DIR` points
    outside the monorepo import;
-3. adapter-owned metadata from `connectors/<name>/src/metadata.c` for the
+3. adapter-owned metadata from `connectors/<name>/metadata.c` for the
    default monorepo adapter-owned source.
 
 This is report metadata only. It does not link adapter metadata into Apache or

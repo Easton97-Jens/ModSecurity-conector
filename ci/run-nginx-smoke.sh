@@ -10,7 +10,7 @@ NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$NGINX_BUILD_DIR/output/modsecurity/lib}"
-DEFAULT_NGINX_SOURCE_DIR="$REPO_ROOT/connectors/nginx/src"
+DEFAULT_NGINX_SOURCE_DIR="$REPO_ROOT/connectors/nginx"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_NGINX_SOURCE_DIR}"
 NGINX_ORIGIN_SOURCE="${NGINX_ORIGIN_SOURCE:-}"
 NGINX_ORIGIN_SOURCE_REPO="${NGINX_ORIGIN_SOURCE_REPO:-}"
@@ -105,6 +105,17 @@ required_adapter_owned = {
     "src/ngx_http_modsecurity_log.c",
     "src/ngx_http_modsecurity_module.c",
 }
+removed_from_build_source = {
+    "SOURCE_MAP.json",
+    "metadata.c",
+    "metadata.h",
+    "README.md",
+    "src/config",
+    "src/SOURCE_MAP.json",
+    "src/metadata.c",
+    "src/metadata.h",
+    "src/README.md",
+}
 
 with open(sys.argv[1], "r", encoding="utf-8") as handle:
     manifest = json.load(handle)
@@ -119,6 +130,8 @@ sources_by_path = {
     if isinstance(entry, dict)
 }
 if any(source == "upstream-derived" for source in sources_by_path.values()):
+    raise SystemExit(1)
+if any(path in sources_by_path for path in removed_from_build_source):
     raise SystemExit(1)
 for path in required_adapter_owned:
     if sources_by_path.get(path) != "adapter-owned":

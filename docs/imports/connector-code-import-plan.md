@@ -68,8 +68,8 @@ The following are intentionally not imported:
 adapter-owned monorepo sources by default when connector source env vars are
 not set:
 
-- `MODSECURITY_APACHE_SOURCE_DIR=connectors/apache/src`
-- `MODSECURITY_NGINX_SOURCE_DIR=connectors/nginx/src`
+- `MODSECURITY_APACHE_SOURCE_DIR=connectors/apache`
+- `MODSECURITY_NGINX_SOURCE_DIR=connectors/nginx`
 
 External sources remain supported by explicitly setting those env vars. The
 helpers still copy or materialize sources into `$BUILD_ROOT` before building.
@@ -93,8 +93,8 @@ Smoke summaries use connector origin metadata in this order:
    environment overrides;
 2. external connector source metadata from local git when an explicit external
    `MODSECURITY_APACHE_SOURCE_DIR` or `MODSECURITY_NGINX_SOURCE_DIR` is used;
-3. adapter-owned metadata parsed from `connectors/apache/src/metadata.c` or
-   `connectors/nginx/src/metadata.c` for the default monorepo imports.
+3. adapter-owned metadata parsed from `connectors/apache/metadata.c` or
+   `connectors/nginx/metadata.c` for the default monorepo imports.
 
 The adapter metadata is report/build-summary data only. It is not linked into
 the Apache or NGINX modules and does not change connector runtime behavior.

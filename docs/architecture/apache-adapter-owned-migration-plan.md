@@ -16,11 +16,11 @@ Attribution/history files were moved out of the source tree and retained under
 
 | Area | Current location | Decision |
 | --- | --- | --- |
-| Apache module sources | `connectors/apache/src/src/*.c`, `*.h` | Adapter-owned path ownership; no semantic edits |
-| Autotools entrypoints | `connectors/apache/src/autogen.sh`, `configure.ac`, `Makefile.am` | Adapter-owned build inputs, preserving upstream layout |
-| Build macros/templates | `connectors/apache/src/build/*.m4`, `.in` templates | Adapter-owned build inputs retained because `configure.ac` references them |
-| License/context files | `licenses/apache/`; `connectors/apache/ORIGIN.md`; `connectors/apache/src/SOURCE_MAP.json` | Durable attribution outside the functional build source tree |
-| Per-file provenance | `connectors/apache/src/SOURCE_MAP.json` | Machine-readable source map for materialized manifests |
+| Apache module sources | `connectors/apache/src/*.c`, `*.h` | Adapter-owned path ownership; no semantic edits |
+| Autotools entrypoints | `connectors/apache/autogen.sh`, `configure.ac`, `Makefile.am` | Adapter-owned build inputs, preserving upstream layout |
+| Build macros/templates | `connectors/apache/build/*.m4`, `.in` templates | Adapter-owned build inputs retained because `configure.ac` references them |
+| License/context files | `licenses/apache/`; `connectors/apache/ORIGIN.md`; `connectors/apache/SOURCE_MAP.json` | Durable attribution outside the functional build source tree |
+| Per-file provenance | `connectors/apache/SOURCE_MAP.json` | Machine-readable source map for materialized manifests |
 | Former upstream tree | `connectors/apache/upstream/` | Removed after materialized build and smoke proof |
 
 ## Proven Build Path
@@ -28,7 +28,7 @@ Attribution/history files were moved out of the source tree and retained under
 Monorepo-default Apache builds use:
 
 ```sh
-MODSECURITY_APACHE_SOURCE_DIR=connectors/apache/src
+MODSECURITY_APACHE_SOURCE_DIR=connectors/apache
 APACHE_CONNECTOR_BUILD_DIR=$BUILD_ROOT/apache-build/connector-src
 ```
 

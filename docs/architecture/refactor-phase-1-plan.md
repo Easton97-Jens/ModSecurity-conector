@@ -8,7 +8,7 @@ shapes visible while preserving the existing real-world smoke behavior.
 
 ## Inputs Reviewed
 
-- Apache connector source, now under adapter-owned `connectors/apache/src/src/`
+- Apache connector source, now under adapter-owned `connectors/apache/src/`
   after the Phase 11 migration.
 - NGINX upstream connector source under `connectors/nginx/upstream/src/` at the
   time of phase 1. Phase 9 later migrated those files to adapter-owned
