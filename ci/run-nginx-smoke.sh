@@ -26,6 +26,11 @@ BUILD_NGINX_FROM_SOURCE="${BUILD_NGINX_FROM_SOURCE:-1}"
 NGINX_BUILD_LOG_DIR="${NGINX_BUILD_LOG_DIR:-$BUILD_ROOT/logs/nginx}"
 NGINX_RUNTIME_LOG_DIR="${NGINX_RUNTIME_LOG_DIR:-$BUILD_ROOT/logs/nginx-runtime}"
 PYTHON_BIN="${PYTHON:-python3}"
+SMOKE_PREPARE_TIMEOUT_SECONDS="${SMOKE_PREPARE_TIMEOUT_SECONDS:-3600}"
+AUTO_REFRESH_STALE_BUILD="${AUTO_REFRESH_STALE_BUILD:-1}"
+SMOKE_LOCK_TIMEOUT_SECONDS="${SMOKE_LOCK_TIMEOUT_SECONDS:-900}"
+SMOKE_DISABLE_LOCK="${SMOKE_DISABLE_LOCK:-0}"
+SMOKE_LOCK_MODE="${SMOKE_LOCK_MODE:-wait}"
 
 git_value() {
     git_dir=$1
@@ -86,7 +91,64 @@ write_connector_result() {
     cp "$RESULTS_DIR/nginx-summary.txt" "$RESULTS_DIR/connector-summary.txt"
 }
 
+acquire_build_root_lock() {
+    if [ "$SMOKE_DISABLE_LOCK" = "1" ]; then
+        echo "run_nginx_smoke: lock disabled (SMOKE_DISABLE_LOCK=1)"
+        return 0
+    fi
+    lock_dir="$BUILD_ROOT/.smoke.lock"
+    echo "run_nginx_smoke: lock-acquire begin path=$lock_dir mode=$SMOKE_LOCK_MODE timeout=${SMOKE_LOCK_TIMEOUT_SECONDS}s"
+    if command -v flock >/dev/null 2>&1; then
+        mkdir -p "$BUILD_ROOT"
+        lock_file="$lock_dir.file"
+        : > "$lock_file"
+        exec 9>"$lock_file"
+        if [ "$SMOKE_LOCK_MODE" = "fail" ]; then
+            flock -n 9 || { echo "run_nginx_smoke: lock-busy path=$lock_file"; return 73; }
+        else
+            flock -w "$SMOKE_LOCK_TIMEOUT_SECONDS" 9 || { echo "run_nginx_smoke: lock-timeout path=$lock_file"; return 73; }
+        fi
+        echo "run_nginx_smoke: lock-acquire success path=$lock_file method=flock"
+        return 0
+    fi
+    start=$(date +%s)
+    while :; do
+        if mkdir "$lock_dir" 2>/dev/null; then
+            echo "$$" > "$lock_dir/pid"
+            echo "run_nginx_smoke: lock-acquire success path=$lock_dir method=mkdir"
+            return 0
+        fi
+        [ "$SMOKE_LOCK_MODE" = "fail" ] && { echo "run_nginx_smoke: lock-busy path=$lock_dir"; return 73; }
+        now=$(date +%s); elapsed=$((now - start))
+        [ "$elapsed" -ge "$SMOKE_LOCK_TIMEOUT_SECONDS" ] && { echo "run_nginx_smoke: lock-timeout path=$lock_dir"; return 73; }
+        echo "run_nginx_smoke: lock-wait path=$lock_dir elapsed=${elapsed}s"
+        sleep 2
+    done
+}
+
+release_build_root_lock() {
+    [ "$SMOKE_DISABLE_LOCK" = "1" ] && return 0
+    lock_dir="$BUILD_ROOT/.smoke.lock"
+    if command -v flock >/dev/null 2>&1; then
+        if [ -n "${lock_file:-}" ]; then
+            echo "run_nginx_smoke: lock-release path=$lock_file method=flock"
+            flock -u 9 || true
+            exec 9>&-
+        fi
+        return 0
+    fi
+    if [ -d "$lock_dir" ]; then
+        rm -rf "$lock_dir"
+        echo "run_nginx_smoke: lock-release path=$lock_dir method=mkdir"
+    fi
+}
+
 configure_nginx_origin
+if ! acquire_build_root_lock; then
+    write_connector_result blocked "build root lock unavailable: $BUILD_ROOT"
+    exit 73
+fi
+trap 'release_build_root_lock' EXIT INT TERM
 
 nginx_adapter_build_current() {
     manifest="$NGINX_BUILD_DIR/connector-src/materialized-source.json"
@@ -154,15 +216,32 @@ elif [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ] && ! ngin
 fi
 
 if [ "$needs_build" -eq 1 ]; then
+    if [ "$prepare_refresh" != "1" ] && [ "$AUTO_REFRESH_STALE_BUILD" = "1" ] && [ -e "$NGINX_BUILD_DIR" ]; then
+        echo "run_nginx_smoke: stale/incomplete build tree detected, forcing REFRESH=1 for prepare"
+        prepare_refresh=1
+    fi
+    echo "run_nginx_smoke: phase-begin prepare"
+    started=$(date +%s)
     echo "run_nginx_smoke: preparing NGINX PoC build"
     set +e
-    REFRESH="$prepare_refresh" \
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "$SMOKE_PREPARE_TIMEOUT_SECONDS" env REFRESH="$prepare_refresh" \
         MODSECURITY_NGINX_SOURCE_DIR="$MODSECURITY_NGINX_SOURCE_DIR" \
         LOG_DIR="$NGINX_BUILD_LOG_DIR" \
         BUILD_NGINX_FROM_SOURCE="$BUILD_NGINX_FROM_SOURCE" \
         sh "$REPO_ROOT/ci/prepare-nginx-build.sh"
+    else
+        REFRESH="$prepare_refresh" \
+            MODSECURITY_NGINX_SOURCE_DIR="$MODSECURITY_NGINX_SOURCE_DIR" \
+            LOG_DIR="$NGINX_BUILD_LOG_DIR" \
+            BUILD_NGINX_FROM_SOURCE="$BUILD_NGINX_FROM_SOURCE" \
+            sh "$REPO_ROOT/ci/prepare-nginx-build.sh"
+    fi
     rc=$?
     set -e
+    ended=$(date +%s)
+    elapsed=$((ended - started))
+    echo "run_nginx_smoke: phase-end prepare duration=${elapsed}s rc=$rc"
     if [ "$rc" -eq 77 ]; then
         write_connector_result blocked "prepare-nginx-build blocked; see $NGINX_BUILD_LOG_DIR"
         exit 77

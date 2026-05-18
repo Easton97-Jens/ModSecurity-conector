@@ -132,6 +132,13 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 #endif
 
     cnf->rules_set = msc_create_rules_set();
+    if (cnf->rules_set == NULL)
+    {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
+            "ModSecurity: Failed to create rules set for directory config");
+        return NULL;
+    }
+
     if (path != NULL)
     {
         cnf->name_for_debug = strdup(path);
@@ -151,7 +158,15 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
 {
     msc_conf_t *cnf_p = parent;
     msc_conf_t *cnf_c = child;
-    msc_conf_t *cnf_new = (msc_conf_t *)msc_hook_create_config_directory(mp, cnf_c->name_for_debug);
+    msc_conf_t *cnf_new = (msc_conf_t *)msc_hook_create_config_directory(mp,
+        (cnf_c != NULL) ? cnf_c->name_for_debug : NULL);
+
+    if (cnf_new == NULL)
+    {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
+            "ModSecurity: Failed to create merged directory config");
+        return NULL;
+    }
 
     if (cnf_p && cnf_c)
     {
