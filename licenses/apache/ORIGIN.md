@@ -3,7 +3,10 @@
 Status: implemented
 
 This directory mirrors the upstream license and attribution files for the
-controlled Apache connector source import.
+controlled Apache connector source import. Phase 11 migrated the active build
+source into `connectors/apache/src/` and removed the former
+`connectors/apache/upstream/` reference tree after a materialized Apache build
+and smoke run passed.
 
 Local reference: `/root/conecter/ModSecurity-apache`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
@@ -20,12 +23,13 @@ License: Apache-2.0
 
 | Central path | Source path | Purpose |
 | --- | --- | --- |
-| `licenses/apache/LICENSE` | `connectors/apache/upstream/LICENSE` | Apache-2.0 license text for imported Apache connector source |
-| `licenses/apache/AUTHORS` | `connectors/apache/upstream/AUTHORS` | Upstream attribution |
-| `licenses/apache/CHANGES` | `connectors/apache/upstream/CHANGES` | Upstream change context |
+| `licenses/apache/LICENSE` | `connectors/apache/src/LICENSE` | Apache-2.0 license text for adapter-owned Apache connector source |
+| `licenses/apache/AUTHORS` | `connectors/apache/src/AUTHORS` | Upstream attribution |
+| `licenses/apache/CHANGES` | `connectors/apache/src/CHANGES` | Upstream change context |
 
 ## Imported Source Map
 
 The full file-by-file source map remains in
-`connectors/apache/ORIGIN.md`. This central license directory is an attribution
-index and does not replace the upstream-adjacent files.
+`connectors/apache/ORIGIN.md` and `connectors/apache/src/SOURCE_MAP.json`.
+This central license directory is an attribution index and does not replace the
+license files required by the adapter-owned Apache Autotools source tree.

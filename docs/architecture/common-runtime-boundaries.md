@@ -73,6 +73,12 @@ The adapter-owned metadata helpers:
   lifecycle behavior;
 - are validated only by `ci/check-adapter-helpers.sh` under `$BUILD_ROOT`.
 
+Later phases moved productive connector build inputs into the same
+adapter-owned source trees: NGINX in Phase 9/10 and Apache in Phase 11. That
+does not make those sources Common-owned. Hooks, filters, bucket brigades,
+configuration parsing, request/response mapping, intervention finalization,
+and `RESPONSE_BODY` behavior remain connector-specific.
+
 This creates a place for future adapter-owned replacements without changing the
 current real-world connector path. Any production use still requires a separate
 replace-and-reduce phase and passing before/after smokes.
@@ -91,9 +97,9 @@ classification remain unchanged.
 ## Phase 8 Shadow Build Boundary
 
 Phase 8 lets NGINX build from a generated connector source tree under
-`$BUILD_ROOT`. The tree is assembled from imported upstream files plus
-adapter-owned overlays and contains local manifests. This changes only the build
-input location for the monorepo-default NGINX source.
+`$BUILD_ROOT`. At that point the tree was assembled from imported upstream
+files plus adapter-owned overlays and contained local manifests. This changed
+only the build input location for the monorepo-default NGINX source.
 
 The generated tree does not create Common ownership of NGINX filters, request
 mapping, body handling, transaction lifecycle, or intervention behavior. Apache
@@ -127,3 +133,20 @@ layout and attribution storage, not runtime semantics. NGINX hooks, filters,
 phase handlers, body handling, intervention behavior, and transaction ownership
 remain connector-specific adapter-owned code, and Common still does not own
 those paths.
+
+## Phase 11 Apache Adapter-Owned Source Boundary
+
+Phase 11 moves Apache productive source and Autotools/APXS build inputs into
+`connectors/apache/src` and builds the monorepo-default Apache module from
+`$BUILD_ROOT/apache-build/connector-src`. This is adapter-owned source
+ownership, not Common runtime ownership.
+
+Common still does not own:
+
+- Apache hook registration;
+- Apache input/output filters;
+- bucket brigade/error response helpers;
+- Apache config parsing;
+- intervention finalization;
+- libmodsecurity transaction lifetime;
+- `RESPONSE_BODY` behavior.

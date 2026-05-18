@@ -28,8 +28,9 @@ and how shared evidence maps to Common C-first data shapes.
 ## Current Boundary
 
 `common/` contains connector-neutral types, tiny metadata helpers, and docs
-only. `connectors/apache/src/` contains adapter-owned metadata helpers only.
-`connectors/nginx/src/` now owns the NGINX module source used by monorepo
-default builds through `$BUILD_ROOT/nginx-build/connector-src`. Apache hooks,
-NGINX filters, server-specific config parsing, and libmodsecurity transaction
-ownership are still connector-specific and are not Common-owned.
+only. `connectors/apache/src/` and `connectors/nginx/src/` now own the
+connector-specific module sources used by monorepo default builds through
+`$BUILD_ROOT/apache-build/connector-src` and
+`$BUILD_ROOT/nginx-build/connector-src`. Apache hooks, NGINX filters,
+server-specific config parsing, and libmodsecurity transaction ownership are
+still connector-specific and are not Common-owned.

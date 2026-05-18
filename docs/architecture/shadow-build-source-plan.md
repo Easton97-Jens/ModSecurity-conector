@@ -1,11 +1,11 @@
 # Shadow Build Source Plan
 
-Status: phase 10 NGINX adapter-owned implementation
+Status: phase 11 Apache and NGINX adapter-owned implementation
 
-The connector build should gradually stop treating `connectors/*/upstream/` as
-the direct build input. The imported upstream trees remain provenance and
-reference material, but the build harness can now generate a connector source
-tree under `$BUILD_ROOT`.
+The connector build no longer treats `connectors/*/upstream/` as the direct
+build input. The former imported upstream trees have been replaced by
+adapter-owned source trees plus durable attribution under `licenses/`, and the
+build harness generates disposable connector source trees under `$BUILD_ROOT`.
 
 ## Goal
 
@@ -14,19 +14,18 @@ Generated build sources live outside the checkout:
 - `$BUILD_ROOT/apache-build/connector-src/`
 - `$BUILD_ROOT/nginx-build/connector-src/`
 
-Each generated tree is disposable. It records which files are still
-upstream-derived and which files are repo-owned adapter files. This keeps
-attribution visible while allowing later replace-and-reduce phases to shrink the
-imported upstream surface.
+Each generated tree is disposable. It records repo-owned adapter files and
+generated overlays; explicit external-source builds remain documented by their
+sanitized build copies. This keeps attribution visible while allowing later
+replace-and-reduce phases to shrink adapter-owned source only when smokes prove
+the change.
 
 ## Source Precedence
 
 For monorepo-default connector sources, the materialized tree uses this order:
 
-1. copy remaining imported/reference files from `connectors/<name>/upstream/`
-   only for connectors that still retain such a tree;
-2. overlay or copy adapter-owned files from `connectors/<name>/src/`;
-3. write generated manifests.
+1. copy adapter-owned files from `connectors/<name>/src/`;
+2. write generated manifests.
 
 Explicit external connector sources still opt out of materialization. When
 `MODSECURITY_APACHE_SOURCE_DIR` or `MODSECURITY_NGINX_SOURCE_DIR` points outside
@@ -50,9 +49,10 @@ NGINX is switched first. Its previous low-risk `ddebug.h` replacement is already
 adapter-owned, and the NGINX module `config` explicitly lists the build inputs.
 The default NGINX build now uses `$BUILD_ROOT/nginx-build/connector-src`.
 
-Apache is materialized for evidence only. The Apache Autotools build still uses
-the existing sanitized upstream copy in this phase because the generated source
-tree has not yet been proven as the default APXS/Autotools input.
+Apache is materialized for evidence only in Phase 8. The Apache Autotools build
+still uses the existing sanitized upstream copy in that phase because the
+generated source tree has not yet been proven as the default APXS/Autotools
+input.
 
 ## Phase 9 NGINX Migration
 
@@ -84,6 +84,23 @@ module `config` and C sources as `adapter-owned`. In that case it refreshes only
 the generated NGINX build/runtime directories under `$BUILD_ROOT` before running
 smokes, so old modules cannot mask or break adapter-owned source validation.
 
+## Phase 11 Apache Migration
+
+Apache productive source is now adapter-owned. The monorepo default
+`MODSECURITY_APACHE_SOURCE_DIR` is `connectors/apache/src`, and
+`ci/prepare-apache-build.sh` materializes
+`$BUILD_ROOT/apache-build/connector-src` from adapter-owned Apache source,
+Autotools/APXS inputs, required `.in` templates, and generated manifests. The
+materializer keeps Apache paths unchanged so `./autogen.sh`, `./configure`, and
+`make` run from the generated connector source root.
+
+The former `connectors/apache/upstream/` tree was removed after
+`REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-apache-final-build make
+smoke-apache` passed. `ci/run-apache-smoke.sh` treats an existing
+monorepo-default Apache build as stale when the materialized-source manifest is
+missing, still references `upstream-derived` entries, or does not mark required
+Apache build/source/template files as `adapter-owned`.
+
 ## Non-Goals
 
 This phase does not change:
@@ -92,7 +109,7 @@ This phase does not change:
 - request, response, body, transaction, intervention, or `RESPONSE_BODY`
   behavior;
 - YAML cases or `verified_variables`;
-- Apache imported upstream files in the checkout.
+- adapter-owned Apache or NGINX source semantics.
 
 For NGINX, phase 9 changes the build input ownership but not the smoke semantics
 or verified variable model. `RESPONSE_BODY` remains xfail/mapped-only.

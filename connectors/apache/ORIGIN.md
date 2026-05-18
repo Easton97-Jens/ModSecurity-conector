@@ -1,71 +1,90 @@
 # Apache Connector Origin Map
 
-Status: implemented
+Status: adapter-owned source migration complete
 
 Local reference: `/root/conecter/ModSecurity-apache`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
 Source branch: `master`
 Source commit: `0488c77f69669584324b70460614a382224b4883`
 Source describe: `v0.0.9-beta1-26-g0488c77`
-License: Apache-2.0, imported as `connectors/apache/upstream/LICENSE`
+License: Apache-2.0, retained in `licenses/apache/` and in the
+adapter-owned build source at `connectors/apache/src/LICENSE`.
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
 | ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
 
 Central attribution: `licenses/apache/`
+Per-file provenance: `connectors/apache/src/SOURCE_MAP.json`
+Adapter-owned build source: `connectors/apache/src/`
+Materialized build source: `$BUILD_ROOT/apache-build/connector-src/`
 
-| Imported path | Original path | Repo | Commit | License | Import reason |
+## Phase 11 Status
+
+Phase 11 moved the Apache connector build input from the former
+`connectors/apache/upstream/` reference tree to adapter-owned
+`connectors/apache/src/`. A fresh materialized Autotools/APXS build and
+real-world Apache smoke run passed before the former upstream tree was removed.
+
+This was a source-location migration only. Apache hooks, filters, bucket
+brigades, intervention translation, transaction ownership, YAML smoke
+semantics, and `RESPONSE_BODY` classification were not changed.
+
+## Adapter-Owned Files
+
+| Adapter-owned path | Original path | Repo | Commit | License | Import reason |
 | --- | --- | --- | --- | --- | --- |
-| `connectors/apache/upstream/LICENSE` | `LICENSE` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | License text for imported Apache connector files |
-| `connectors/apache/upstream/AUTHORS` | `AUTHORS` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Upstream attribution |
-| `connectors/apache/upstream/CHANGES` | `CHANGES` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Upstream change context |
-| `connectors/apache/upstream/README.md` | `README.md` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Upstream build and usage context |
-| `connectors/apache/upstream/autogen.sh` | `autogen.sh` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools bootstrap |
-| `connectors/apache/upstream/configure.ac` | `configure.ac` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools configure source |
-| `connectors/apache/upstream/Makefile.am` | `Makefile.am` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Automake build source |
-| `connectors/apache/upstream/build/apxs-wrapper.in` | `build/apxs-wrapper.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS build wrapper template |
-| `connectors/apache/upstream/build/ax_prog_apache.m4` | `build/ax_prog_apache.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache detection macro |
-| `connectors/apache/upstream/build/find_apxs.m4` | `build/find_apxs.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS detection macro |
-| `connectors/apache/upstream/build/find_libmodsec.m4` | `build/find_libmodsec.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | libmodsecurity detection macro |
-| `connectors/apache/upstream/src/mod_security3.c` | `src/mod_security3.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache module entrypoint |
-| `connectors/apache/upstream/src/mod_security3.h` | `src/mod_security3.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache module header |
-| `connectors/apache/upstream/src/msc_config.c` | `src/msc_config.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector configuration |
-| `connectors/apache/upstream/src/msc_config.h` | `src/msc_config.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector configuration header |
-| `connectors/apache/upstream/src/msc_filters.c` | `src/msc_filters.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache input/output filters |
-| `connectors/apache/upstream/src/msc_filters.h` | `src/msc_filters.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache filter header |
-| `connectors/apache/upstream/src/msc_utils.c` | `src/msc_utils.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utilities |
-| `connectors/apache/upstream/src/msc_utils.h` | `src/msc_utils.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utility header |
-| `connectors/apache/upstream/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Minimal test template directory required by configure/build inputs |
-| `connectors/apache/upstream/tests/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/upstream/tests/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/upstream/tests/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/upstream/tests/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/upstream/tests/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/src/LICENSE` | `LICENSE` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | License text and `configure.ac` source anchor |
+| `connectors/apache/src/AUTHORS` | `AUTHORS` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Upstream attribution |
+| `connectors/apache/src/CHANGES` | `CHANGES` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Upstream change context |
+| `connectors/apache/src/autogen.sh` | `autogen.sh` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools bootstrap |
+| `connectors/apache/src/configure.ac` | `configure.ac` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools configure source |
+| `connectors/apache/src/Makefile.am` | `Makefile.am` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Automake build source |
+| `connectors/apache/src/build/apxs-wrapper.in` | `build/apxs-wrapper.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS build wrapper template |
+| `connectors/apache/src/build/ax_prog_apache.m4` | `build/ax_prog_apache.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache detection macro |
+| `connectors/apache/src/build/find_apxs.m4` | `build/find_apxs.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS detection macro |
+| `connectors/apache/src/build/find_libmodsec.m4` | `build/find_libmodsec.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | libmodsecurity detection macro |
+| `connectors/apache/src/src/mod_security3.c` | `src/mod_security3.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache module entrypoint |
+| `connectors/apache/src/src/mod_security3.h` | `src/mod_security3.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache module header |
+| `connectors/apache/src/src/msc_config.c` | `src/msc_config.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector configuration |
+| `connectors/apache/src/src/msc_config.h` | `src/msc_config.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector configuration header |
+| `connectors/apache/src/src/msc_filters.c` | `src/msc_filters.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache input/output filters |
+| `connectors/apache/src/src/msc_filters.h` | `src/msc_filters.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache filter header |
+| `connectors/apache/src/src/msc_utils.c` | `src/msc_utils.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utilities |
+| `connectors/apache/src/src/msc_utils.h` | `src/msc_utils.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utility header |
+| `connectors/apache/src/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Test-template layout referenced by configure/build inputs |
+| `connectors/apache/src/tests/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/src/tests/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/src/tests/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/src/tests/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/src/tests/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+
+## Repo-Owned Metadata Files
+
+| Path | Purpose |
+| --- | --- |
+| `connectors/apache/src/README.md` | Adapter-owned source tree overview |
+| `connectors/apache/src/metadata.c` | Summary/report origin metadata source |
+| `connectors/apache/src/metadata.h` | Summary/report origin metadata declarations |
+| `connectors/apache/src/SOURCE_MAP.json` | Machine-readable per-file provenance |
 
 ## Excluded Upstream Files
 
 The full Apache regression tree, `.git`, `.travis.yml`, release scripts,
-generated Autotools files, `.deps`, and build/runtime artifacts are not imported.
+generated Autotools files, `.deps`, and build/runtime artifacts are not
+imported. The former `connectors/apache/upstream/` tree was removed after
+Phase 11 build and smoke proof; it is no longer an active or required path.
 
 ## Central Attribution Copies
 
-The Apache upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are also mirrored
-under `licenses/apache/` for repository-level license review. The copies in this
-`upstream/` tree remain authoritative for the imported source layout and are not
-removed.
+The Apache upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are mirrored
+under `licenses/apache/` for repository-level license review. Those durable
+copies remain even though the local upstream reference tree was removed.
 
 ## Pruning Review
 
 Last reviewed in `docs/imports/upstream-pruning-analysis.md`.
 
-No imported Apache files were removed in the pruning pass. The imported tree is
-already limited to license/provenance files, Autotools build inputs, module
-source files, and `.in` templates referenced by `configure.ac` or the retained
-upstream test-template layout. Files with unclear build relevance are retained
-until an isolated `$BUILD_ROOT` probe proves they can be removed without
-breaking `make smoke-apache`, `make smoke-nginx`, and `make smoke-all`.
-
-`connectors/apache/upstream/` is a temporary reference/import basis. Future
-removal is allowed only after functional replacement, retained origin/license
-documentation, and passing real-world smoke evidence.
+Apache adapter-owned source may be reduced only after a functional replacement,
+updated origin/license documentation, and passing real-world `smoke-apache` and
+`smoke-all` evidence. Cosmetic deletion is not allowed.

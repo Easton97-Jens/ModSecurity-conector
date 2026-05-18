@@ -1,49 +1,75 @@
 # Apache Adapter-Owned Migration Plan
 
-Status: planned
+Status: implemented in Phase 11
 
-Apache remains on the controlled imported source tree in Phase 10. This plan
-defines the evidence required before Apache can follow the NGINX
-adapter-owned/materialized source path.
+Apache now follows the same materialized adapter-owned source model as NGINX.
+The migration preserves the upstream Autotools/APXS layout inside
+`connectors/apache/src/` and builds from a disposable generated source tree
+under `$BUILD_ROOT/apache-build/connector-src`.
 
 ## Current State
 
-| Area | Current location | Phase 10 decision |
+| Area | Current location | Phase 11 decision |
 | --- | --- | --- |
-| Apache module sources | `connectors/apache/upstream/src/*.c`, `*.h` | Keep in upstream import until adapter-owned copy builds and smokes pass |
-| Autotools entrypoints | `connectors/apache/upstream/autogen.sh`, `configure.ac`, `Makefile.am` | Keep; Autotools/APXS behavior is higher risk |
-| Build macros/templates | `connectors/apache/upstream/build/*.m4`, `.in` templates | Keep; referenced by `configure.ac` and generated build flow |
-| Adapter metadata | `connectors/apache/src/metadata.*` | Already adapter-owned, validation-only |
+| Apache module sources | `connectors/apache/src/src/*.c`, `*.h` | Adapter-owned path ownership; no semantic edits |
+| Autotools entrypoints | `connectors/apache/src/autogen.sh`, `configure.ac`, `Makefile.am` | Adapter-owned build inputs, preserving upstream layout |
+| Build macros/templates | `connectors/apache/src/build/*.m4`, `.in` templates | Adapter-owned build inputs retained because `configure.ac` references them |
+| License/context files | `licenses/apache/`; `connectors/apache/src/LICENSE`, `AUTHORS`, `CHANGES` | Durable attribution plus build-root source anchor |
+| Per-file provenance | `connectors/apache/src/SOURCE_MAP.json` | Machine-readable source map for materialized manifests |
+| Former upstream tree | `connectors/apache/upstream/` | Removed after materialized build and smoke proof |
 
-## Migration Groups
+## Proven Build Path
 
-| Group | Candidate files | Risk | Probe requirement |
-| --- | --- | --- | --- |
-| Source files | `src/mod_security3.*`, `src/msc_config.*`, `src/msc_filters.*`, `src/msc_utils.*` | High: hook registration, bucket brigades, filters, intervention handling, and Apache request metadata live here | Copy to `connectors/apache/src` only in a dedicated phase, materialize under `$BUILD_ROOT/apache-build/connector-src`, build, then run `smoke-apache` and `smoke-all` |
-| Autotools/APXS files | `autogen.sh`, `configure.ac`, `Makefile.am`, `build/*.m4`, `build/apxs-wrapper.in` | Medium/high: configure-generated paths and APXS discovery are fragile | First prove a disposable materialized Autotools tree with no checkout writes |
-| Test/config templates | `t/conf/*.in`, `tests/**/*.in` | Medium: kept because `configure.ac` references them | Keep until configure output is proven without the upstream layout |
-| License/context files | `LICENSE`, `AUTHORS`, `CHANGES`, `README.md` | Low if durable attribution remains | Keep in `licenses/apache/` and `connectors/apache/ORIGIN.md`; remove upstream-adjacent copies only after source tree is no longer retained |
-
-## Probe Criteria
-
-A future Apache migration phase may switch the default build only after all of
-these pass:
+Monorepo-default Apache builds use:
 
 ```sh
-REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-apache-adapter-build make smoke-apache
-BUILD_ROOT=/src/ModSecurity-conector-apache-adapter-build make smoke-all
+MODSECURITY_APACHE_SOURCE_DIR=connectors/apache/src
+APACHE_CONNECTOR_BUILD_DIR=$BUILD_ROOT/apache-build/connector-src
+```
+
+`ci/prepare-apache-build.sh` materializes the source tree, then runs the
+standard Autotools/APXS sequence from the generated directory:
+
+```sh
+./autogen.sh
+./configure --with-libmodsecurity=<BUILD_ROOT staging prefix> --with-apxs=<apxs>
+make
+```
+
+Evidence command:
+
+```sh
+REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-apache-final-build make smoke-apache
+```
+
+That proof built `mod_security3.so` through APXS and passed the current Apache
+real-world smoke suite before the former upstream tree was removed.
+
+## Boundaries
+
+The migration does not change:
+
+- Apache hook registration;
+- input/output filters;
+- bucket brigades or `send_error_bucket()`;
+- request/response metadata mapping;
+- libmodsecurity transaction ownership;
+- intervention runtime semantics;
+- YAML case behavior;
+- `RESPONSE_BODY` xfail/mapped-only status.
+
+## Remaining Risk
+
+Apache is still more fragile than NGINX because Autotools, APXS discovery,
+generated templates, and Apache filter/bucket behavior are tightly coupled.
+Future reductions inside `connectors/apache/src/` require a dedicated
+before/after proof:
+
+```sh
+REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-apache-reduce-build make smoke-apache
+BUILD_ROOT=/src/ModSecurity-conector-apache-reduce-build make smoke-all
 BUILD_ROOT=/src/ModSecurity-conector-build make smoke-all
 ```
 
-The materialized Apache source must live under
-`$BUILD_ROOT/apache-build/connector-src`, must not write generated Autotools
-files into the checkout, and must preserve `connectors/apache/ORIGIN.md` plus
-`licenses/apache/`.
-
-## Explicit Deferrals
-
-- No Apache source moves in Phase 10.
-- No Apache hook/filter/bucket/intervention behavior is rewritten.
-- No Apache common extraction is attempted.
-- No response-body behavior is promoted; `RESPONSE_BODY` remains
-  xfail/mapped-only.
+No source file should be removed merely because it looks unused; the
+materialized manifest and smoke evidence must prove the reduction.

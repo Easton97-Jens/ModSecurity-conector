@@ -13,7 +13,7 @@ entries. It intentionally excludes runtime status strings such as shell
 | Owned open/planned items | 23 | Common, schema, normalizer, connector, and future-connector planning |
 | Owned xfail/mapped evidence | 4 | `RESPONSE_BODY`, `v3_action_nolog_pass_no_audit`, RAW-ARGS, response-body pass-through caveat |
 | Resolved owned items | 1 | Common metadata helper implementations added in Refactor Phase 3 |
-| Imported/upstream-derived markers | 20 | Kept untouched in Apache upstream and NGINX adapter-owned source; classified as upstream-reference or adapter-owned-source |
+| Imported/upstream-derived markers | 22 | Kept untouched in adapter-owned Apache and NGINX source; classified as adapter-owned-source |
 | Obsolete/resolved markers cleaned | 11 | Owned `TODO:` headings replaced with tracked inventory references |
 
 ## Inventory
@@ -47,12 +47,9 @@ entries. It intentionally excludes runtime status strings such as shell
 | `docs/testing/response-body-blocking-investigation.md` | 1 | xfail | Response-body blocking probe | response-body | xfail | P1 | connectors | Do not promote until both connectors return stable HTTP 403 |
 | `tests/common/cases/xfail/response_body_basic_block.yaml` | 1 | xfail case | Shared response-body blocking probe | response-body | xfail | P1 | tests/common | Explicit probe only; excluded from normal discovery |
 | `tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml` | 1 | xfail case | `nolog,pass` audit absence differs locally vs CI | audit-log | xfail | P2 | tests/common | Keep probeable but not active common PASS |
-| `connectors/apache/upstream/README.md` | 104 | upstream TODO | Imported upstream README placeholder | docs | deferred | P3 | upstream-reference | Do not edit imported upstream docs |
-| `connectors/apache/upstream/README.md` | 119 | upstream TODO | Imported upstream README placeholder | docs | deferred | P3 | upstream-reference | Do not edit imported upstream docs |
-| `connectors/apache/upstream/README.md` | 157 | upstream TODO | Imported upstream TODO template marker | docs | deferred | P3 | upstream-reference | Do not edit imported upstream docs |
-| `connectors/apache/upstream/src/msc_filters.c` | 65 | upstream FIXME | Apache response/body filter sanity note | response-body | mapped | P2 | upstream-reference | Leave untouched; track during response-filter refactor |
-| `connectors/apache/upstream/tests/run-regression-tests.pl.in` | 482 | upstream TODO | Use `select()`/`poll()` in upstream harness | cleanup | deferred | P3 | upstream-reference | Not used by active smokes |
-| `connectors/apache/upstream/tests/regression/server_root/conf/httpd.conf.in` | 3 | upstream TODO | Upstream regression template configurability | cleanup | deferred | P3 | upstream-reference | Retained as configure template |
+| `connectors/apache/src/src/msc_filters.c` | 65 | upstream-derived FIXME | Apache response/body filter sanity note | response-body | mapped | P2 | adapter-owned-source | Leave untouched; track during response-filter refactor |
+| `connectors/apache/src/tests/run-regression-tests.pl.in` | 482 | upstream-derived TODO | Use `select()`/`poll()` in upstream harness | cleanup | deferred | P3 | adapter-owned-source | Not used by active smokes |
+| `connectors/apache/src/tests/regression/server_root/conf/httpd.conf.in` | 3 | upstream-derived TODO | Upstream regression template configurability | cleanup | deferred | P3 | adapter-owned-source | Retained as configure template |
 | `connectors/nginx/src/ngx_http_modsecurity_module.c` | 245 | upstream-derived FIXME | Audit log response-code accuracy | audit-log | mapped | P2 | adapter-owned-source | Relevant to audit metadata review; do not edit without a dedicated NGINX adapter change |
 | `connectors/nginx/src/ngx_http_modsecurity_module.c` | 826 | upstream-derived TODO | Log phase parity with Apache | audit-log | mapped | P2 | adapter-owned-source | Track before logging helper extraction |
 | `connectors/nginx/src/ngx_http_modsecurity_header_filter.c` | 423 | upstream-derived XXX | `NOT_MODIFIED` header-filter behavior | response-body | mapped | P2 | adapter-owned-source | Relevant to response-filter evidence |

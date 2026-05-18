@@ -1,13 +1,13 @@
 # Apache Connector
 
-Status: scaffolded
+Status: adapter-owned source migration complete
 
 This directory is reserved for an Apache adapter for libmodsecurity v3.
 
 Implemented now:
 
 - Documentation of observed local Apache connector concepts.
-- Directory layout for future source and connector-specific tests.
+- Adapter-owned Apache connector source under `connectors/apache/src/`.
 - A PoC build-preparation helper in `ci/prepare-apache-build.sh`.
 - A local runtime smoke harness under `connectors/apache/harness/`.
 - Use of all shared minimal cases under `tests/common/cases/minimal/`.
@@ -18,16 +18,20 @@ Implemented now:
 
 Not implemented:
 
-- No maintained Apache module rewrite beyond the controlled upstream import.
+- No maintained Apache module rewrite beyond path ownership and provenance
+  migration.
 - No claim that the Apache connector is complete beyond the documented shared
   minimal/imported smokes.
 
 Primary local reference: `/root/conecter/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
 
-The controlled imported source lives under `connectors/apache/upstream/` as a
-temporary reference/import basis. It may shrink only after equivalent project
-code exists, origin is still documented, and smokes keep passing.
+The Apache build source lives under `connectors/apache/src/` and is
+materialized to `$BUILD_ROOT/apache-build/connector-src` before Autotools/APXS
+builds run. The former `connectors/apache/upstream/` tree was removed after the
+Phase 11 materialized build and Apache smoke passed. Durable attribution lives
+in `licenses/apache/`, `connectors/apache/ORIGIN.md`, and
+`connectors/apache/src/SOURCE_MAP.json`.
 
 Build and runtime artifacts must stay under `BUILD_ROOT`, defaulting locally to
 `/src/ModSecurity-conector-build`.

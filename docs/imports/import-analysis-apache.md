@@ -8,9 +8,12 @@ Observed ref: `master`, `v0.0.9-beta1-26-g0488c77`
 
 ## Role
 
-This repository is an Apache connector for libmodsecurity v3. It is now a
-controlled source import under `connectors/apache/upstream/`. Imported files are
-kept Apache-specific and documented in `connectors/apache/ORIGIN.md`.
+This repository is an Apache connector for libmodsecurity v3. Its connector
+source and Autotools/APXS build inputs are now adapter-owned under
+`connectors/apache/src/`. The former `connectors/apache/upstream/` import was
+removed after a materialized build and smoke proof. Files remain
+Apache-specific and are documented in `connectors/apache/ORIGIN.md` and
+`connectors/apache/src/SOURCE_MAP.json`.
 
 ## Build System
 
@@ -66,7 +69,7 @@ These are `connector-specific` and belong only under `connectors/apache/`.
 | v3 C API phase sequence | v3 via connector | engine-specific | compatible | Document and adapt |
 | Apache hook registration | connector | connector-specific | compatible only for Apache | Tracked in `docs/roadmap/todo-inventory.md` |
 | Apache::Test files | connector | connector-specific | partial | Map to `tests/apache/` |
-| Source code files | connector | connector-specific | compatible only for Apache | Imported under `connectors/apache/upstream/` |
+| Source code files | connector | connector-specific | compatible only for Apache | Adapter-owned under `connectors/apache/src/` |
 
 ## Import Decision
 

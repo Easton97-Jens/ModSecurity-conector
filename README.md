@@ -83,14 +83,16 @@ builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
 
 ## Architecture Map
 
-- `connectors/apache/upstream/` is the current Apache reference/import basis.
+- `connectors/apache/src/` is the adapter-owned Apache connector source tree.
+  It preserves the upstream Autotools/APXS layout and builds through
+  `$BUILD_ROOT/apache-build/connector-src`.
 - `connectors/nginx/src/` is the adapter-owned NGINX module source tree.
-- The former `connectors/nginx/upstream/` tree was removed after NGINX
-  adapter-owned source builds and smokes passed. NGINX attribution now lives in
-  `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
-  `connectors/nginx/src/SOURCE_MAP.json`.
-- Remaining `upstream/` trees may shrink only after functionality has moved to
-  maintained project code, origin is still documented, and smokes still pass.
+- The former `connectors/apache/upstream/` and `connectors/nginx/upstream/`
+  trees were removed after adapter-owned materialized builds and smokes passed.
+- Apache attribution now lives in `licenses/apache/`,
+  `connectors/apache/ORIGIN.md`, and `connectors/apache/src/SOURCE_MAP.json`.
+- NGINX attribution now lives in `licenses/nginx/`,
+  `connectors/nginx/ORIGIN.md`, and `connectors/nginx/src/SOURCE_MAP.json`.
 - `licenses/` is the durable attribution index for imported connector code and
   read-only ModSecurity engine references.
 - `common/` is the future connector-neutral basis. It currently contains

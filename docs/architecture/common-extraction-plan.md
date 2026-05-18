@@ -10,7 +10,8 @@ it does not move Apache or NGINX hook/filter behavior.
 
 | Area | Role | Long-term direction |
 | --- | --- | --- |
-| `connectors/apache/upstream/` | Temporary Apache reference/import basis from https://github.com/owasp-modsecurity/ModSecurity-apache | Shrink only after functional replacement, retained attribution, and passing smokes |
+| `connectors/apache/src/` | Adapter-owned Apache source derived from https://github.com/owasp-modsecurity/ModSecurity-apache | Keep connector-specific; reduce only with dedicated Apache adapter proof |
+| former `connectors/apache/upstream/` | Removed Apache reference/import basis from https://github.com/owasp-modsecurity/ModSecurity-apache | Removed in Phase 11 after source migrated to `connectors/apache/src` and durable attribution moved to `licenses/apache/` |
 | `connectors/nginx/src/` | Adapter-owned NGINX module source derived from https://github.com/owasp-modsecurity/ModSecurity-nginx | Keep connector-specific; reduce only with dedicated NGINX adapter proof |
 | former `connectors/nginx/upstream/` | Removed NGINX reference/import basis from https://github.com/owasp-modsecurity/ModSecurity-nginx | Removed in Phase 10 after source migrated to `connectors/nginx/src` and durable attribution moved to `licenses/nginx/` |
 | `licenses/` | Durable license and origin attribution | Keep while imported code or source-derived evidence remains |

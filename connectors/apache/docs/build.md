@@ -1,6 +1,6 @@
 # Apache Build
 
-Status: scaffolded
+Status: adapter-owned source migration complete
 
 Observed local source uses Autotools and `apxs`:
 
@@ -8,7 +8,7 @@ Observed local source uses Autotools and `apxs`:
 - `Makefile.am`
 - `build/apxs-wrapper.in`
 
-The repository now provides a PoC helper, not a full connector build system:
+The repository provides a controlled adapter-owned build helper:
 
 ```sh
 REFRESH=1 \
@@ -17,9 +17,9 @@ BUILD_ROOT=/src/ModSecurity-conector-build \
 sh ci/prepare-apache-build.sh
 ```
 
-The helper copies libmodsecurity v3 and the Apache connector source into
-`BUILD_ROOT`, can build Apache httpd from source under `BUILD_ROOT`, and uses
-the observed upstream Autotools/APXS path:
+The helper copies libmodsecurity v3 and materializes the Apache connector
+source into `BUILD_ROOT`, can build Apache httpd from source under
+`BUILD_ROOT`, and uses the observed Autotools/APXS path:
 
 ```sh
 ./autogen.sh
@@ -33,13 +33,23 @@ Status `pass` is only a built module artifact. Runtime pass requires
 By default the connector source is the controlled monorepo import:
 
 ```sh
-MODSECURITY_APACHE_SOURCE_DIR=connectors/apache/upstream
+MODSECURITY_APACHE_SOURCE_DIR=connectors/apache/src
 ```
 
 Set `MODSECURITY_APACHE_SOURCE_DIR=/path/to/ModSecurity-apache` to rebuild from
 an external read-only checkout. The build helper sanitizes connector source
 copies into `BUILD_ROOT` and excludes `.git`, CI files, caches, and build
 artifacts.
+
+For the monorepo default, the productive build input is:
+
+```sh
+$BUILD_ROOT/apache-build/connector-src
+```
+
+The generated source tree includes `MATERIALIZED_SOURCE.md` and
+`materialized-source.json`; required Apache files must be marked
+`adapter-owned`, not `upstream-derived`.
 
 Observed import-source verification:
 
@@ -52,6 +62,17 @@ make smoke-apache
 
 Result: pass. The built module path was under
 `/src/ModSecurity-conector-import-build/apache-build/output/apache/`.
+
+Phase 11 materialized-source verification:
+
+```sh
+REFRESH=1 \
+BUILD_ROOT=/src/ModSecurity-conector-apache-final-build \
+make smoke-apache
+```
+
+Result: pass. The former `connectors/apache/upstream/` tree was removed after
+this proof.
 
 Open work is tracked in `docs/roadmap/todo-inventory.md`:
 

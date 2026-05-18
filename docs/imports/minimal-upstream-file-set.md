@@ -2,17 +2,18 @@
 
 Status: implemented
 
-This document defines the current minimal imported Apache connector source set
-and the adapter-owned NGINX source set used by the monorepo smoke builds. The
-files remain connector-specific. Phase 9 migrated the NGINX module source into
-adapter-owned `connectors/nginx/src`; Phase 10 removed the former NGINX
-`upstream/` reference tree after attribution was preserved in `licenses/nginx/`
-and `connectors/nginx/src/SOURCE_MAP.json`. No Apache hook, NGINX filter, body,
-transaction, or Common runtime logic was merged across connectors.
+This document defines the current adapter-owned Apache and NGINX source sets
+used by the monorepo smoke builds. The files remain connector-specific. Phase 9
+migrated the NGINX module source into adapter-owned `connectors/nginx/src`;
+Phase 10 removed the former NGINX `upstream/` reference tree. Phase 11 migrated
+Apache source and Autotools/APXS inputs into `connectors/apache/src`, proved the
+materialized Apache build, and removed the former Apache `upstream/` tree. No
+Apache hook, NGINX filter, body, transaction, or Common runtime logic was
+merged across connectors.
 
 ## Apache Connector
 
-Minimal imported tree: `connectors/apache/upstream/`
+Adapter-owned build source: `connectors/apache/src/`
 
 Required for build and module creation:
 
@@ -48,6 +49,17 @@ License and provenance context:
 - `AUTHORS`
 - `CHANGES`
 - `README.md`
+- `SOURCE_MAP.json`
+
+Materialized build input:
+
+- Monorepo-default Apache builds use
+  `$BUILD_ROOT/apache-build/connector-src`.
+- The materializer copies adapter-owned `connectors/apache/src` files with
+  identity relative paths and writes `MATERIALIZED_SOURCE.md` plus
+  `materialized-source.json`.
+- The generated manifest is expected to list Apache source, build files, and
+  templates as `adapter-owned`, with no Apache `upstream-derived` entries.
 
 ## NGINX Connector
 
@@ -115,8 +127,8 @@ real-world connector smokes after extraction.
 
 ## Pruning Rule
 
-Do not remove a file from an imported upstream tree unless all of the following
-are true:
+Do not remove a file from an adapter-owned source tree unless all of the
+following are true:
 
 - It is not referenced by build metadata or source includes.
 - It is not needed for license, attribution, or source-origin context.
@@ -127,7 +139,10 @@ are true:
 The phase-4 review found one safe replacement: the NGINX debug compatibility
 header. Phase 9 migrated NGINX productive source into adapter-owned files.
 Phase 10 removed the remaining NGINX upstream reference tree because no build
-input depended on it and durable attribution stayed available elsewhere.
+input depended on it and durable attribution stayed available elsewhere. Phase
+11 migrated Apache productive source and build inputs into adapter-owned files,
+proved a materialized Autotools/APXS build, and removed the former Apache
+upstream tree.
 
 ## Phase 8 Shadow Build Source
 
@@ -137,9 +152,8 @@ default NGINX build input from a direct sanitized upstream copy to
 manifests identifying `adapter-owned`, `upstream-derived`, and
 `generated-overlay` files.
 
-Apache also gets `$BUILD_ROOT/apache-build/connector-src` manifests, but its
-module build still uses `$BUILD_ROOT/apache-build/ModSecurity-apache` until a
-separate Autotools/APXS proof switches the default.
+Phase 11 supersedes the Apache phase-8 preparation: Apache now builds directly
+from `$BUILD_ROOT/apache-build/connector-src`.
 
 ## Phase 9 NGINX Source Migration
 
@@ -153,6 +167,16 @@ Phase 10 removes the remaining `connectors/nginx/upstream/` attribution-only
 tree. Monorepo-default NGINX builds now materialize from adapter-owned source
 only. The generated manifest is expected to list NGINX `config` and module
 sources as `adapter-owned`, with no NGINX `upstream-derived` entries.
+
+## Phase 11 Apache Source Migration
+
+Phase 11 moved Apache source, Autotools/APXS files, license/provenance files,
+and required `.in` templates into `connectors/apache/src/`. The monorepo
+default Apache source is now materialized to
+`$BUILD_ROOT/apache-build/connector-src` and built from that generated tree.
+The former `connectors/apache/upstream/` tree was removed after
+`REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-apache-final-build make
+smoke-apache` passed.
 
 ## Phase 5 Review Result
 
