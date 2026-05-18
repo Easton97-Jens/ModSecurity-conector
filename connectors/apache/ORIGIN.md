@@ -14,8 +14,9 @@ License: Apache-2.0, retained in `licenses/apache/`.
 | ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
 
 Central attribution: `licenses/apache/`
-Per-file provenance: `connectors/apache/src/SOURCE_MAP.json`
-Adapter-owned build source: `connectors/apache/src/`
+Per-file provenance: `connectors/apache/SOURCE_MAP.json`
+Adapter-owned build source root: `connectors/apache/`
+Productive source files: `connectors/apache/src/`
 Materialized build source: `$BUILD_ROOT/apache-build/connector-src/`
 
 ## Phase 11 Status
@@ -35,41 +36,50 @@ Phase 12 removed attribution/history/documentation-only files from
 `connectors/apache/src/` after changing the Autoconf source anchor from
 `LICENSE` to the functional source file `src/mod_security3.c`. The active
 Apache source tree is now a build/runtime tree; durable attribution stays in
-`licenses/apache/`, this origin map, and `connectors/apache/src/SOURCE_MAP.json`.
+`licenses/apache/`, this origin map, and `connectors/apache/SOURCE_MAP.json`.
+
+## Phase 13 Status
+
+Phase 13 simplified the adapter-owned layout without changing runtime
+semantics. Autotools/APXS files now live at `connectors/apache/`, productive
+Apache C sources live directly under `connectors/apache/src/`, and retained
+Autotools test templates live under `connectors/apache/tests/`. The materializer
+still writes the upstream-compatible build layout under
+`$BUILD_ROOT/apache-build/connector-src`.
 
 ## Adapter-Owned Files
 
 | Adapter-owned path | Original path | Repo | Commit | License | Import reason |
 | --- | --- | --- | --- | --- | --- |
-| `connectors/apache/src/autogen.sh` | `autogen.sh` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools bootstrap |
-| `connectors/apache/src/configure.ac` | `configure.ac` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools configure source; local source anchor now points at `src/mod_security3.c` |
-| `connectors/apache/src/Makefile.am` | `Makefile.am` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Automake build source |
-| `connectors/apache/src/build/apxs-wrapper.in` | `build/apxs-wrapper.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS build wrapper template |
-| `connectors/apache/src/build/ax_prog_apache.m4` | `build/ax_prog_apache.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache detection macro |
-| `connectors/apache/src/build/find_apxs.m4` | `build/find_apxs.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS detection macro |
-| `connectors/apache/src/build/find_libmodsec.m4` | `build/find_libmodsec.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | libmodsecurity detection macro |
-| `connectors/apache/src/src/mod_security3.c` | `src/mod_security3.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache module entrypoint |
-| `connectors/apache/src/src/mod_security3.h` | `src/mod_security3.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache module header |
-| `connectors/apache/src/src/msc_config.c` | `src/msc_config.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector configuration |
-| `connectors/apache/src/src/msc_config.h` | `src/msc_config.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector configuration header |
-| `connectors/apache/src/src/msc_filters.c` | `src/msc_filters.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache input/output filters |
-| `connectors/apache/src/src/msc_filters.h` | `src/msc_filters.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache filter header |
-| `connectors/apache/src/src/msc_utils.c` | `src/msc_utils.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utilities |
-| `connectors/apache/src/src/msc_utils.h` | `src/msc_utils.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utility header |
-| `connectors/apache/src/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Test-template layout referenced by configure/build inputs |
-| `connectors/apache/src/tests/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/src/tests/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/src/tests/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/src/tests/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/src/tests/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/autogen.sh` | `autogen.sh` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools bootstrap |
+| `connectors/apache/configure.ac` | `configure.ac` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools configure source; local source anchor now points at `src/mod_security3.c` |
+| `connectors/apache/Makefile.am` | `Makefile.am` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Automake build source |
+| `connectors/apache/build/apxs-wrapper.in` | `build/apxs-wrapper.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS build wrapper template |
+| `connectors/apache/build/ax_prog_apache.m4` | `build/ax_prog_apache.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache detection macro |
+| `connectors/apache/build/find_apxs.m4` | `build/find_apxs.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS detection macro |
+| `connectors/apache/build/find_libmodsec.m4` | `build/find_libmodsec.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | libmodsecurity detection macro |
+| `connectors/apache/src/mod_security3.c` | `src/mod_security3.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache module entrypoint |
+| `connectors/apache/src/mod_security3.h` | `src/mod_security3.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache module header |
+| `connectors/apache/src/msc_config.c` | `src/msc_config.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector configuration |
+| `connectors/apache/src/msc_config.h` | `src/msc_config.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector configuration header |
+| `connectors/apache/src/msc_filters.c` | `src/msc_filters.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache input/output filters |
+| `connectors/apache/src/msc_filters.h` | `src/msc_filters.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache filter header |
+| `connectors/apache/src/msc_utils.c` | `src/msc_utils.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utilities |
+| `connectors/apache/src/msc_utils.h` | `src/msc_utils.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utility header |
+| `connectors/apache/tests/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Test-template layout referenced by configure/build inputs |
+| `connectors/apache/tests/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/tests/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/tests/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/tests/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `connectors/apache/tests/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
 
 ## Repo-Owned Metadata Files
 
 | Path | Purpose |
 | --- | --- |
-| `connectors/apache/src/metadata.c` | Summary/report origin metadata source |
-| `connectors/apache/src/metadata.h` | Summary/report origin metadata declarations |
-| `connectors/apache/src/SOURCE_MAP.json` | Machine-readable per-file provenance |
+| `connectors/apache/metadata.c` | Summary/report origin metadata source |
+| `connectors/apache/metadata.h` | Summary/report origin metadata declarations |
+| `connectors/apache/SOURCE_MAP.json` | Machine-readable per-file provenance |
 
 ## Relocated Attribution Files
 
@@ -79,6 +89,20 @@ Apache source tree is now a build/runtime tree; durable attribution stays in
 | `connectors/apache/src/AUTHORS` | `licenses/apache/AUTHORS` | Upstream attribution is retained centrally |
 | `connectors/apache/src/CHANGES` | `licenses/apache/CHANGES` | Upstream change history is retained centrally |
 | `connectors/apache/src/README.md` | `connectors/apache/README.md` and docs under `docs/` | Source-tree overview belongs in connector documentation |
+
+## Phase 13 Layout Moves
+
+| Former path | Current path | Materialized path |
+| --- | --- | --- |
+| `connectors/apache/src/autogen.sh` | `connectors/apache/autogen.sh` | `autogen.sh` |
+| `connectors/apache/src/configure.ac` | `connectors/apache/configure.ac` | `configure.ac` |
+| `connectors/apache/src/Makefile.am` | `connectors/apache/Makefile.am` | `Makefile.am` |
+| `connectors/apache/src/build/` | `connectors/apache/build/` | `build/` |
+| `connectors/apache/src/src/*.c`, `*.h` | `connectors/apache/src/*.c`, `*.h` | `src/*.c`, `*.h` |
+| `connectors/apache/src/t/conf/extra.conf.in` | `connectors/apache/tests/t/conf/extra.conf.in` | `t/conf/extra.conf.in` |
+| `connectors/apache/src/tests/` | `connectors/apache/tests/` | `tests/` |
+| `connectors/apache/src/metadata.*` | `connectors/apache/metadata.*` | not materialized |
+| `connectors/apache/src/SOURCE_MAP.json` | `connectors/apache/SOURCE_MAP.json` | not materialized |
 
 ## Excluded Upstream Files
 

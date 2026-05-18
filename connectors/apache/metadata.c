@@ -10,7 +10,7 @@ static const msconnector_apache_adapter_metadata apache_metadata = {
         "Apache-2.0"
     },
     "adapter-owned",
-    "connectors/apache/src"
+    "connectors/apache"
 };
 
 msconnector_origin msconnector_apache_adapter_origin(void) {

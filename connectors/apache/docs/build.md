@@ -33,7 +33,7 @@ Status `pass` is only a built module artifact. Runtime pass requires
 By default the connector source is the controlled monorepo import:
 
 ```sh
-MODSECURITY_APACHE_SOURCE_DIR=connectors/apache/src
+MODSECURITY_APACHE_SOURCE_DIR=connectors/apache
 ```
 
 Set `MODSECURITY_APACHE_SOURCE_DIR=/path/to/ModSecurity-apache` to rebuild from
@@ -79,7 +79,12 @@ Phase 12 source-tree cleanup removed `AUTHORS`, `CHANGES`, `LICENSE`, and
 changed to `src/mod_security3.c`. The Apache module still builds from the
 materialized adapter-owned source tree; attribution remains in
 `licenses/apache/`, `connectors/apache/ORIGIN.md`, and
-`connectors/apache/src/SOURCE_MAP.json`.
+`connectors/apache/SOURCE_MAP.json`.
+
+Phase 13 simplified the repository layout while preserving the materialized
+Autotools build layout. Build files now live in `connectors/apache/`, productive
+C sources live directly in `connectors/apache/src/`, and retained Autotools
+test templates live under `connectors/apache/tests/`.
 
 Open work is tracked in `docs/roadmap/todo-inventory.md`:
 

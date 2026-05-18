@@ -16,11 +16,6 @@
       "license": "Apache-2.0",
       "reason": "Automake build source migrated without semantic changes."
     },
-    "SOURCE_MAP.json": {
-      "base_path": "connectors/apache/src/SOURCE_MAP.json",
-      "license": "Apache-2.0",
-      "reason": "Repo-owned per-file provenance manifest."
-    },
     "autogen.sh": {
       "base_path": "autogen.sh",
       "license": "Apache-2.0",
@@ -50,16 +45,6 @@
       "base_path": "configure.ac",
       "license": "Apache-2.0",
       "reason": "Autoconf source migrated without runtime semantic changes; phase 12 changed AC_CONFIG_SRCDIR from LICENSE to src/mod_security3.c so attribution files can live outside the build source tree."
-    },
-    "metadata.c": {
-      "base_path": "connectors/apache/src/metadata.c",
-      "license": "Apache-2.0",
-      "reason": "Repo-owned adapter metadata helper."
-    },
-    "metadata.h": {
-      "base_path": "connectors/apache/src/metadata.h",
-      "license": "Apache-2.0",
-      "reason": "Repo-owned adapter metadata helper."
     },
     "src/mod_security3.c": {
       "base_path": "src/mod_security3.c",
@@ -156,6 +141,35 @@
       "license": "Apache-2.0",
       "relocated_to": "connectors/apache/README.md",
       "reason": "Adapter source overview belongs in connector documentation, not the functional build source tree."
+    }
+  },
+  "layout": {
+    "phase13": "Strict source layout: connector src/ contains only productive Apache C sources; build and metadata files live at connector root, while Autotools regression templates live under connectors/apache/tests and materialize back to their upstream-compatible paths.",
+    "moved_files": {
+      "connectors/apache/src/autogen.sh": "connectors/apache/autogen.sh",
+      "connectors/apache/src/configure.ac": "connectors/apache/configure.ac",
+      "connectors/apache/src/Makefile.am": "connectors/apache/Makefile.am",
+      "connectors/apache/src/build/": "connectors/apache/build/",
+      "connectors/apache/src/src/": "connectors/apache/src/",
+      "connectors/apache/src/t/conf/extra.conf.in": "connectors/apache/tests/t/conf/extra.conf.in",
+      "connectors/apache/src/tests/": "connectors/apache/tests/",
+      "connectors/apache/src/metadata.c": "connectors/apache/metadata.c",
+      "connectors/apache/src/metadata.h": "connectors/apache/metadata.h",
+      "connectors/apache/src/SOURCE_MAP.json": "connectors/apache/SOURCE_MAP.json"
+    }
+  },
+  "support_files": {
+    "connectors/apache/metadata.c": {
+      "license": "Apache-2.0",
+      "reason": "Repo-owned adapter metadata helper; intentionally not materialized into the productive Apache connector build source."
+    },
+    "connectors/apache/metadata.h": {
+      "license": "Apache-2.0",
+      "reason": "Repo-owned adapter metadata declarations; intentionally not materialized into the productive Apache connector build source."
+    },
+    "connectors/apache/SOURCE_MAP.json": {
+      "license": "Apache-2.0",
+      "reason": "Repo-owned per-file provenance manifest; consumed by the materializer but not copied into connector-src."
     }
   }
 }
