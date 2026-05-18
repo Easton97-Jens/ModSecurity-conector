@@ -59,9 +59,9 @@ results prove compatibility.
 
 ## Phase 6 Adapter-Owned Boundary
 
-Phase 6 adds the first adapter-owned source skeletons under
-`connectors/apache/src/` and `connectors/nginx/src/`. These files are not Common
-runtime code and are not linked into the productive Apache or NGINX modules.
+Phase 6 adds the first adapter-owned metadata skeletons under
+`connectors/apache/` and `connectors/nginx/`. These files are not Common runtime
+code and are not linked into the productive Apache or NGINX modules.
 
 The adapter-owned metadata helpers:
 
@@ -72,6 +72,13 @@ The adapter-owned metadata helpers:
 - contain no request, response, body, filter, intervention, or transaction
   lifecycle behavior;
 - are validated only by `ci/check-adapter-helpers.sh` under `$BUILD_ROOT`.
+
+Later phases moved productive connector build inputs into adapter-owned
+connector trees: NGINX in Phase 9/10 and Apache in Phase 11. Phase 13 then
+keeps `src/` limited to productive source, with metadata/provenance at the
+connector root. That does not make those sources Common-owned. Hooks, filters,
+bucket brigades, configuration parsing, request/response mapping, intervention
+finalization, and `RESPONSE_BODY` behavior remain connector-specific.
 
 This creates a place for future adapter-owned replacements without changing the
 current real-world connector path. Any production use still requires a separate
@@ -91,9 +98,9 @@ classification remain unchanged.
 ## Phase 8 Shadow Build Boundary
 
 Phase 8 lets NGINX build from a generated connector source tree under
-`$BUILD_ROOT`. The tree is assembled from imported upstream files plus
-adapter-owned overlays and contains local manifests. This changes only the build
-input location for the monorepo-default NGINX source.
+`$BUILD_ROOT`. At that point the tree was assembled from imported upstream
+files plus adapter-owned overlays and contained local manifests. This changed
+only the build input location for the monorepo-default NGINX source.
 
 The generated tree does not create Common ownership of NGINX filters, request
 mapping, body handling, transaction lifecycle, or intervention behavior. Apache
@@ -127,3 +134,20 @@ layout and attribution storage, not runtime semantics. NGINX hooks, filters,
 phase handlers, body handling, intervention behavior, and transaction ownership
 remain connector-specific adapter-owned code, and Common still does not own
 those paths.
+
+## Phase 11 Apache Adapter-Owned Source Boundary
+
+Phase 11 moves Apache productive source and Autotools/APXS build inputs into
+`connectors/apache/src` and builds the monorepo-default Apache module from
+`$BUILD_ROOT/apache-build/connector-src`. This is adapter-owned source
+ownership, not Common runtime ownership.
+
+Common still does not own:
+
+- Apache hook registration;
+- Apache input/output filters;
+- bucket brigade/error response helpers;
+- Apache config parsing;
+- intervention finalization;
+- libmodsecurity transaction lifetime;
+- `RESPONSE_BODY` behavior.

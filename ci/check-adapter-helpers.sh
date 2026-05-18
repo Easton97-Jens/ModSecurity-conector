@@ -34,8 +34,8 @@ mkdir -p "$OUT_DIR"
     -I "$REPO_ROOT" \
     -I "$REPO_ROOT/common/include" \
     "$REPO_ROOT/common/src/origin.c" \
-    "$REPO_ROOT/connectors/apache/src/metadata.c" \
-    "$REPO_ROOT/connectors/nginx/src/metadata.c" \
+    "$REPO_ROOT/connectors/apache/metadata.c" \
+    "$REPO_ROOT/connectors/nginx/metadata.c" \
     "$SMOKE_C" \
     -o "$SMOKE_BIN"
 

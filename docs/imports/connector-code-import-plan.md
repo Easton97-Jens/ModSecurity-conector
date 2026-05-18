@@ -13,15 +13,17 @@ paths are examples; upstream GitHub repositories are the portable references:
 
 Imported and migrated connector code is kept in connector-specific areas:
 
-- `connectors/apache/upstream/`
+- `connectors/apache/src/`
 - `connectors/nginx/src/`
 
-No Apache or NGINX code is moved into `common/` in this step. The
-`upstream/` directories are temporary reference/import bases and may shrink only
-after functionality is replaced by maintained project code, origin remains
-documented, and the real-world smokes still pass. NGINX has reached that state:
-its module `config` and `src/*` files now live under `connectors/nginx/src`,
-and the former `connectors/nginx/upstream/` tree was removed in Phase 10.
+No Apache or NGINX code is moved into `common/` in this step. The former
+`upstream/` directories were temporary reference/import bases and were removed
+only after functionality moved to maintained project code, origin remained
+documented, and real-world smokes passed. NGINX reached that state in Phase 10.
+Apache reached that state in Phase 11: its module source, Autotools/APXS
+inputs, and required `.in` templates now live under `connectors/apache/src`,
+and the former `connectors/apache/upstream/` tree was removed after a fresh
+materialized build and smoke run passed.
 
 ## Source Revisions
 
@@ -32,7 +34,8 @@ and the former `connectors/nginx/upstream/` tree was removed in Phase 10.
 
 ## Import Boundary
 
-Apache import includes source and Autotools/APXS build inputs only:
+Apache adapter-owned source includes source and Autotools/APXS build inputs
+only:
 
 - `LICENSE`, `AUTHORS`, `CHANGES`, `README.md`
 - `autogen.sh`, `configure.ac`, `Makefile.am`
@@ -48,8 +51,9 @@ NGINX adapter-owned source includes source and NGINX module build inputs only:
 - `SOURCE_MAP.json` recording the base upstream commit and PR #377 patch
   provenance
 
-NGINX attribution files remain under `licenses/nginx/`; no local
-`connectors/nginx/upstream/` tree remains after Phase 10.
+Apache and NGINX attribution files remain under `licenses/apache/` and
+`licenses/nginx/`; no local `connectors/*/upstream/` tree remains after Phase
+11.
 
 The following are intentionally not imported:
 
@@ -60,11 +64,12 @@ The following are intentionally not imported:
 
 ## Build Harness Use
 
-`ci/prepare-apache-build.sh` and `ci/prepare-nginx-build.sh` use the monorepo
-imports by default when connector source env vars are not set:
+`ci/prepare-apache-build.sh` and `ci/prepare-nginx-build.sh` use the
+adapter-owned monorepo sources by default when connector source env vars are
+not set:
 
-- `MODSECURITY_APACHE_SOURCE_DIR=connectors/apache/upstream`
-- `MODSECURITY_NGINX_SOURCE_DIR=connectors/nginx/src`
+- `MODSECURITY_APACHE_SOURCE_DIR=connectors/apache`
+- `MODSECURITY_NGINX_SOURCE_DIR=connectors/nginx`
 
 External sources remain supported by explicitly setting those env vars. The
 helpers still copy or materialize sources into `$BUILD_ROOT` before building.
@@ -76,10 +81,9 @@ adapter-owned `connectors/nginx/src/` sources and generated manifests only. The
 NGINX `config` file materializes to root `config`; adapter source files
 materialize under `src/`.
 
-For monorepo-default Apache builds, phase 8 also generates
-`$BUILD_ROOT/apache-build/connector-src` and manifests it, but the productive
-Autotools/APXS build still uses the existing sanitized upstream copy at
-`$BUILD_ROOT/apache-build/ModSecurity-apache`.
+For monorepo-default Apache builds, Phase 11 generates
+`$BUILD_ROOT/apache-build/connector-src` from `connectors/apache/src` and uses
+that materialized tree as the productive Autotools/APXS build input.
 
 ## Report Metadata Precedence
 
@@ -89,8 +93,8 @@ Smoke summaries use connector origin metadata in this order:
    environment overrides;
 2. external connector source metadata from local git when an explicit external
    `MODSECURITY_APACHE_SOURCE_DIR` or `MODSECURITY_NGINX_SOURCE_DIR` is used;
-3. adapter-owned metadata parsed from `connectors/apache/src/metadata.c` or
-   `connectors/nginx/src/metadata.c` for the default monorepo imports.
+3. adapter-owned metadata parsed from `connectors/apache/metadata.c` or
+   `connectors/nginx/metadata.c` for the default monorepo imports.
 
 The adapter metadata is report/build-summary data only. It is not linked into
 the Apache or NGINX modules and does not change connector runtime behavior.

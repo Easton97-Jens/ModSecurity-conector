@@ -92,11 +92,12 @@ Status: scaffolded
   designed.
 - Re-run SonarCloud after the next CI analysis and close any remaining issues
   that the source-level refactor did not resolve.
-- Continue reducing the remaining Apache `connectors/apache/upstream/` import
-  only after the equivalent behavior exists in maintained project code,
-  attribution remains under `licenses/` and `ORIGIN.md`, and smoke-all still
-  passes. The former NGINX `upstream/` tree was removed in phase 10 after the
-  adapter-owned source and durable attribution paths were validated.
+- Continue reducing adapter-owned Apache and NGINX source only after the
+  equivalent behavior exists in maintained project code, attribution remains
+  under `licenses/`, `ORIGIN.md`, and `SOURCE_MAP.json`, and smoke-all still
+  passes. The former NGINX `upstream/` tree was removed in phase 10; the former
+  Apache `upstream/` tree was removed in phase 11 after materialized build and
+  smoke evidence.
 
 ## Unknown
 

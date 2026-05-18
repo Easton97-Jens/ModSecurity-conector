@@ -1,0 +1,85 @@
+name: test-full-smoke-sequential
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  full-smoke-sequential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MODSECURITY_V3_GIT_URL: https://github.com/owasp-modsecurity/ModSecurity.git
+      MODSECURITY_V3_GIT_REF: v3/master
+      BUILD_HTTPD_FROM_SOURCE: "1"
+      BUILD_PCRE2_FROM_SOURCE: "1"
+      BUILD_NGINX_FROM_SOURCE: "1"
+      NGINX_SOURCE_MODE: github-release
+      NGINX_GITHUB_REPO: https://github.com/nginx/nginx
+      NGINX_RELEASE_TAG: latest
+      SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
+      SMOKE_LOCK_MODE: wait
+      SMOKE_LOCK_TIMEOUT_SECONDS: "1800"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize paths
+        id: paths
+        run: |
+          set -eu
+          build_root="$RUNNER_TEMP/ModSecurity-conector-build"
+          build_root_apache="$RUNNER_TEMP/ModSecurity-conector-apache-build"
+          source_root="$RUNNER_TEMP/sources"
+          {
+            echo "SOURCE_ROOT=$source_root"
+            echo "BUILD_ROOT=$build_root"
+            echo "MODSECURITY_V3_SOURCE_DIR=$source_root/ModSecurity_V3"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+          echo "build_root=$build_root" >> "$GITHUB_OUTPUT"
+          echo "build_root_apache=$build_root_apache" >> "$GITHUB_OUTPUT"
+          echo "source_root=$source_root" >> "$GITHUB_OUTPUT"
+
+      - name: Restore smoke caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.paths.outputs.source_root }}/ModSecurity_V3
+            ${{ steps.paths.outputs.build_root }}/cache/pcre2/apache
+            ${{ steps.paths.outputs.build_root }}/cache/httpd/apache
+            ${{ steps.paths.outputs.build_root }}/cache/v3-stage/apache
+            ${{ steps.paths.outputs.build_root }}/cache/v3-stage/nginx
+            ${{ steps.paths.outputs.build_root }}/cache/nginx-build/nginx
+          key: >-
+            smoke-cache-${{ runner.os }}-${{ hashFiles(
+              'ci/prepare-apache-build.sh',
+              'ci/prepare-nginx-build.sh',
+              'ci/fetch-smoke-sources.sh',
+              'ci/run-apache-smoke.sh',
+              'ci/run-nginx-smoke.sh'
+            ) }}
+
+      - name: Lint and py-compile
+        run: |
+          make lint
+          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+          git diff --check
+
+      - name: Sequential full smoke
+        run: |
+          set -eu
+          SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 BUILD_ROOT="${{ steps.paths.outputs.build_root_apache }}" make smoke-apache
+          SMOKE_PREPARE_TIMEOUT_SECONDS=3600 BUILD_ROOT="${{ steps.paths.outputs.build_root_apache }}" make smoke-all
+          SMOKE_PREPARE_TIMEOUT_SECONDS=3600 BUILD_ROOT="${{ steps.paths.outputs.build_root }}" make smoke-all
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-smoke-sequential-artifacts
+          if-no-files-found: ignore
+          path: |
+            ${{ steps.paths.outputs.build_root_apache }}/logs
+            ${{ steps.paths.outputs.build_root_apache }}/results
+            ${{ steps.paths.outputs.build_root }}/logs
+            ${{ steps.paths.outputs.build_root }}/results

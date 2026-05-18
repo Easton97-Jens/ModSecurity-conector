@@ -10,7 +10,7 @@ static const msconnector_nginx_adapter_metadata nginx_metadata = {
         "Apache-2.0"
     },
     "adapter-owned",
-    "connectors/nginx/src"
+    "connectors/nginx"
 };
 
 msconnector_origin msconnector_nginx_adapter_origin(void) {

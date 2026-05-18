@@ -18,8 +18,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_PATHS = {
-    "apache": REPO_ROOT / "connectors/apache/src/metadata.c",
-    "nginx": REPO_ROOT / "connectors/nginx/src/metadata.c",
+    "apache": REPO_ROOT / "connectors/apache/metadata.c",
+    "nginx": REPO_ROOT / "connectors/nginx/metadata.c",
 }
 
 
@@ -115,8 +115,8 @@ def write_c_smoke() -> None:
     apache = load_metadata("apache")
     nginx = load_metadata("nginx")
     print(
-        f'''#include "connectors/apache/src/metadata.h"
-#include "connectors/nginx/src/metadata.h"
+        f'''#include "connectors/apache/metadata.h"
+#include "connectors/nginx/metadata.h"
 
 #include <assert.h>
 #include <string.h>

@@ -8,7 +8,7 @@ Source branch: `master`
 Source commit: `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`
 Source describe: `v1.0.4-14-g9eb44fd`
 License: Apache-2.0, retained in `licenses/nginx/LICENSE`
-Default imported path: `connectors/nginx/src`
+Default imported path: `connectors/nginx`
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
@@ -19,14 +19,15 @@ Central attribution: `licenses/nginx/`
 ## Adapter-Owned Source
 
 NGINX now builds from a materialized source tree generated under
-`$BUILD_ROOT/nginx-build/connector-src`. The productive module source is
-adapter-owned in `connectors/nginx/src/`. The former
+`$BUILD_ROOT/nginx-build/connector-src`. The module `config` is adapter-owned
+at `connectors/nginx/config`, and productive module source is adapter-owned in
+`connectors/nginx/src/`. The former
 `connectors/nginx/upstream/` reference tree was removed in phase 10 after the
 source migration, materialized-source build, and real NGINX smokes passed.
 
 | Adapter-owned path | Original upstream path | Repo | Base commit | Extra provenance | License | Import reason |
 | --- | --- | --- | --- | --- | --- | --- |
-| `connectors/nginx/src/config` | `config` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | none | Apache-2.0 | NGINX dynamic module build metadata |
+| `connectors/nginx/config` | `config` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | none | Apache-2.0 | NGINX dynamic module build metadata |
 | `connectors/nginx/src/ngx_http_modsecurity_access.c` | `src/ngx_http_modsecurity_access.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | none | Apache-2.0 | NGINX access phase integration |
 | `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | `src/ngx_http_modsecurity_body_filter.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac` | Apache-2.0 | NGINX response/body filter integration plus phase-4 late-intervention changes |
 | `connectors/nginx/src/ngx_http_modsecurity_common.h` | `src/ngx_http_modsecurity_common.h` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac` | Apache-2.0 | Shared NGINX connector declarations plus phase-4 mode/config fields |
@@ -34,10 +35,18 @@ source migration, materialized-source build, and real NGINX smokes passed.
 | `connectors/nginx/src/ngx_http_modsecurity_log.c` | `src/ngx_http_modsecurity_log.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | none | Apache-2.0 | NGINX log phase integration |
 | `connectors/nginx/src/ngx_http_modsecurity_module.c` | `src/ngx_http_modsecurity_module.c` | ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac` | Apache-2.0 | NGINX module entrypoint/config plus phase-4 directives |
 | `connectors/nginx/src/ddebug.h` | `src/ddebug.h` | repo-owned compatibility header | n/a | replaces imported upstream debug helper | Apache-2.0-compatible project code | Keeps the NGINX module build dependency satisfied without retaining the imported debug helper in `upstream/` |
-| `connectors/nginx/src/metadata.c` | n/a | repo-owned adapter metadata | n/a | none | Apache-2.0-compatible project code | Report/build-summary origin metadata |
-| `connectors/nginx/src/metadata.h` | n/a | repo-owned adapter metadata | n/a | none | Apache-2.0-compatible project code | Report/build-summary origin metadata |
-| `connectors/nginx/src/SOURCE_MAP.json` | n/a | repo-owned provenance manifest | n/a | records base and PR #377 provenance | Apache-2.0-compatible project metadata | Source migration and PR provenance map |
-| `connectors/nginx/src/README.md` | n/a | repo-owned documentation | n/a | none | Apache-2.0-compatible project documentation | Adapter-owned source boundary documentation |
+| `connectors/nginx/metadata.c` | n/a | repo-owned adapter metadata | n/a | none | Apache-2.0-compatible project code | Report/build-summary origin metadata |
+| `connectors/nginx/metadata.h` | n/a | repo-owned adapter metadata | n/a | none | Apache-2.0-compatible project code | Report/build-summary origin metadata |
+| `connectors/nginx/SOURCE_MAP.json` | n/a | repo-owned provenance manifest | n/a | records base and PR #377 provenance | Apache-2.0-compatible project metadata | Source migration and PR provenance map |
+
+## Phase 13 Layout Moves
+
+| Former path | Current path | Materialized path |
+| --- | --- | --- |
+| `connectors/nginx/src/config` | `connectors/nginx/config` | `config` |
+| `connectors/nginx/src/metadata.*` | `connectors/nginx/metadata.*` | not materialized |
+| `connectors/nginx/src/SOURCE_MAP.json` | `connectors/nginx/SOURCE_MAP.json` | not materialized |
+| `connectors/nginx/src/README.md` | `connectors/nginx/README.md` and docs | not materialized |
 
 ## PR #377 Intake
 
@@ -84,6 +93,6 @@ files relate to the adapter-owned source tree.
 Last reviewed in `docs/imports/upstream-pruning-analysis.md`.
 
 `connectors/nginx/upstream/` was removed in phase 10. Future NGINX source
-reductions should update `connectors/nginx/src/SOURCE_MAP.json`,
+reductions should update `connectors/nginx/SOURCE_MAP.json`,
 `licenses/nginx/`, and this origin map, then prove `smoke-nginx` and
 `smoke-all` still pass.

@@ -1,10 +1,11 @@
 # Apache Smoke Harness
 
-Status: scaffolded
+Status: adapter-owned source smoke harness
 
 This harness is a connector-specific proof-of-concept runner for the Apache
-module built from the read-only `ModSecurity-apache` source copy. It is not a
-full regression test suite.
+module built from the adapter-owned `connectors/apache/src` source materialized
+under `$BUILD_ROOT/apache-build/connector-src`. It is not a full regression
+test suite.
 
 Observed locally on 2026-05-15: source-built Apache httpd `2.4.67` returned
 the YAML-expected HTTP status for all current shared minimal cases.
@@ -13,7 +14,8 @@ the YAML-expected HTTP status for all current shared minimal cases.
 
 - Uses only artifacts under `BUILD_ROOT`.
 - Does not build or modify any `/root/conecter/*` repository.
-- Does not import Apache connector source into this monorepo.
+- Does not build or mutate the source checkout; all generated Autotools and
+  runtime files stay under `BUILD_ROOT`.
 - Reports `pass` only when Apache returns the YAML-expected HTTP status for a
   real local request.
 - Defaults to the source-built httpd under

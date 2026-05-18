@@ -12,7 +12,7 @@ These files moved from `connectors/nginx/upstream/` to `connectors/nginx/src/`:
 
 | Adapter-owned path | Base source | Extra provenance |
 | --- | --- | --- |
-| `connectors/nginx/src/config` | ModSecurity-nginx `config` at `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | none |
+| `connectors/nginx/config` | ModSecurity-nginx `config` at `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | none |
 | `connectors/nginx/src/ngx_http_modsecurity_access.c` | ModSecurity-nginx `src/ngx_http_modsecurity_access.c` | none |
 | `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | ModSecurity-nginx `src/ngx_http_modsecurity_body_filter.c` | PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac` |
 | `connectors/nginx/src/ngx_http_modsecurity_common.h` | ModSecurity-nginx `src/ngx_http_modsecurity_common.h` | PR #377 `3d72b004ff27a78ea19c6b945870e2cae62a97ac` |
@@ -23,7 +23,7 @@ These files moved from `connectors/nginx/upstream/` to `connectors/nginx/src/`:
 Phase 10 later removed the retained `connectors/nginx/upstream/` attribution
 tree after the build was proven from adapter-owned source and durable
 attribution remained in `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
-`connectors/nginx/src/SOURCE_MAP.json`.
+`connectors/nginx/SOURCE_MAP.json`.
 
 ## PR #377 Intake
 

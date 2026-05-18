@@ -9,10 +9,9 @@ code. The imported source files remain connector-specific and are documented in:
 - `connectors/nginx/ORIGIN.md`
 
 The central attribution index is stored under `licenses/`. It mirrors the
-upstream license and attribution files for quick review. For Apache it
-supplements the retained upstream-adjacent copies; for NGINX it is now the
-durable attribution location after the local upstream reference tree was
-removed.
+upstream license and attribution files for quick review. Apache and NGINX now
+build from adapter-owned source trees; their former local `upstream/` reference
+trees have been removed after materialized builds and real-world smoke proof.
 
 ## Apache Connector
 
@@ -27,9 +26,13 @@ Observed source revision:
 - describe: `v0.0.9-beta1-26-g0488c77`
 - license: Apache License 2.0
 
-The upstream `LICENSE` file is imported into
-`connectors/apache/upstream/LICENSE`. Source and build files are copied only
-into the Apache-specific `upstream/` area.
+The upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are retained in
+`licenses/apache/`. Apache source and Autotools/APXS build inputs are
+adapter-owned under `connectors/apache/`, with productive C files in
+`connectors/apache/src/` and source provenance recorded in
+`connectors/apache/SOURCE_MAP.json` and `connectors/apache/ORIGIN.md`. The
+former `connectors/apache/upstream/` tree was removed in phase 11. Phase 13
+keeps attribution and support metadata outside the strict product source tree.
 
 Central attribution copies:
 
@@ -52,10 +55,11 @@ Observed source revision:
 - license: Apache License 2.0
 
 The upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are retained in
-`licenses/nginx/`. The NGINX module `config` and source files are adapter-owned
-under `connectors/nginx/src`, with source provenance recorded in
-`connectors/nginx/src/SOURCE_MAP.json` and `connectors/nginx/ORIGIN.md`. The
-former `connectors/nginx/upstream/` tree was removed in phase 10.
+`licenses/nginx/`. The NGINX module `config` is adapter-owned at
+`connectors/nginx/config`, productive source files are under
+`connectors/nginx/src/`, and source provenance is recorded in
+`connectors/nginx/SOURCE_MAP.json` and `connectors/nginx/ORIGIN.md`. The former
+`connectors/nginx/upstream/` tree was removed in phase 10.
 
 ModSecurity-nginx PR #377
 (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) source
@@ -89,10 +93,12 @@ documented in `licenses/modsecurity/README.md`.
 - Keep origin maps updated whenever imported files are added, removed, or
   refreshed from upstream.
 - Keep `licenses/` synchronized with imported source origins and license files.
-- Treat `connectors/apache/upstream/` as a temporary import/reference basis. Do
-  not remove files from it for cosmetic cleanup; remove only after replacement,
-  retained attribution, and passing smoke evidence. NGINX no longer keeps a
-  local `upstream/` tree; its durable attribution lives under `licenses/nginx/`.
+- Keep attribution/history files out of functional adapter-owned source trees
+  unless a build system explicitly requires them.
+- Do not remove adapter-owned source files for cosmetic cleanup; reduce only
+  after replacement, retained attribution, and passing smoke evidence. Apache
+  and NGINX no longer keep local `upstream/` trees; durable attribution lives
+  under `licenses/apache/` and `licenses/nginx/`.
 
 ## Pruning Review
 
@@ -102,8 +108,11 @@ The current imported connector trees were reviewed in
 
 Later replace-and-reduce phases removed the imported NGINX debug helper,
 migrated NGINX `config`/`src/*` into adapter-owned source, and then removed the
-remaining NGINX upstream reference tree after smoke proof. The remaining Apache
-upstream files are classified as required, build-only, or documentation-only. A
-future removal must be documented in the relevant `ORIGIN.md`, retain license
-and attribution coverage, and pass
-an isolated `$BUILD_ROOT` build/smoke probe before being committed.
+remaining NGINX upstream reference tree after smoke proof. Phase 11 migrated
+Apache source, Autotools/APXS inputs, and required `.in` templates into the
+adapter-owned Apache tree, proved a materialized build and smoke run, and
+removed the former Apache upstream tree. Phase 13 moved support metadata out of
+`src/` and kept `src/` focused on productive source. Any future reduction must
+be documented in the
+relevant `ORIGIN.md`, retain license and attribution coverage, and pass an
+isolated `$BUILD_ROOT` build/smoke probe before being committed.

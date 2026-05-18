@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Check repository-owned Markdown relative links.
-
-Imported upstream Markdown files are intentionally skipped because the imported
-trees are pruned reference snapshots and may not contain every linked upstream
-asset.
-"""
+"""Check repository-owned Markdown relative links."""
 
 from __future__ import annotations
 
@@ -18,7 +13,6 @@ LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 SKIP_DIR_PARTS = {
     ".git",
     "__pycache__",
-    "connectors/apache/upstream",
 }
 REMOTE_PREFIXES = (
     "http://",

@@ -1,6 +1,6 @@
 # Replace-And-Reduce Plan
 
-Status: phase 10 NGINX upstream reference removed
+Status: phase 12 Apache source cleanup complete
 
 This plan records candidates for replacing small imported connector source
 pieces with repo-owned code. A replacement is allowed only when it avoids
@@ -11,9 +11,9 @@ server hook/filter/body/lifecycle semantics and keeps real-world smokes passing.
 | Candidate | Source | Risk | Smoke coverage | Replacement strategy | Decision |
 | --- | --- | --- | --- | --- | --- |
 | NGINX debug compatibility macros | `connectors/nginx/upstream/src/ddebug.h` | Low. The default behavior is no-op debug macros; it is listed as a build dependency but does not own request, response, transaction, or body semantics. | NGINX module compile plus full Apache/NGINX `smoke-all`; debug-enabled builds remain a future explicit probe. | Add repo-owned `connectors/nginx/src/ddebug.h`, copy it into the generated NGINX connector build tree only when the copied source lacks `src/ddebug.h`, then remove the imported upstream copy. | replace now |
-| Apache error bucket helper | `connectors/apache/upstream/src/msc_utils.c` `send_error_bucket()` | High. It creates Apache buckets, sets status line, and affects filter-chain response behavior. | Covered indirectly by blocking smokes, but replacement would touch Apache output semantics. | Keep upstream. Revisit only with a dedicated Apache adapter plan and before/after response/error smoke evidence. | defer |
-| Apache `id()` helper | `connectors/apache/upstream/src/msc_utils.c` | Low code risk but no functional replacement need; removal requires editing upstream C file. | Not meaningfully covered because it appears unused. | Leave as imported reference for now. Consider removing only when Apache sources are moved out of upstream into repo-owned adapter code. | defer / possibly obsolete |
-| Apache intervention handling | `connectors/apache/upstream/src/mod_security3.c` | High. Translates libmodsecurity intervention into Apache HTTP behavior and redirects. | Covered by many 403/401/302 smokes, but behavior is production path. | Document only. Extract data shape is already represented by Common metadata helpers. | defer |
+| Apache error bucket helper | `connectors/apache/src/msc_utils.c` `send_error_bucket()` | High. It creates Apache buckets, sets status line, and affects filter-chain response behavior. | Covered indirectly by blocking smokes, but replacement would touch Apache output semantics. | Keep adapter-owned but connector-specific. Revisit only with before/after response/error smoke evidence. | defer |
+| Apache `id()` helper | `connectors/apache/src/msc_utils.c` | Low code risk but no functional replacement need; removal would edit Apache utility code for no behavior gain. | Not meaningfully covered because it appears unused. | Leave in adapter-owned Apache source until a dedicated cleanup proof shows no build/runtime effect. | defer / possibly obsolete |
+| Apache intervention handling | `connectors/apache/src/mod_security3.c` | High. Translates libmodsecurity intervention into Apache HTTP behavior and redirects. | Covered by many 403/401/302 smokes, but behavior is production path. | Document only. Extract data shape is already represented by Common metadata helpers. | defer |
 | NGINX intervention handling | `connectors/nginx/src/ngx_http_modsecurity_module.c` | High. Tied to NGINX request finalization, redirect headers, early logging, and status updates. | Covered by many blocking/redirect smokes, but behavior is production path. | Keep adapter-owned but connector-specific. No Common extraction until a dedicated NGINX adapter design exists. | defer |
 | NGINX log callback | `connectors/nginx/src/ngx_http_modsecurity_log.c` | Medium to high. Connector-specific log phase and audit behavior are still under active evidence tracking. | Audit-log smokes cover stable fields, but `nolog` remains xfail. | Keep adapter-owned but connector-specific. | defer |
 | Rules/config loading | Apache `src/msc_config.*`, NGINX `src/ngx_http_modsecurity_module.c` | High. Server-specific configuration parsing and libmodsecurity ruleset ownership. | Build and smoke setup depend on it. | Keep connector-specific. | defer |
@@ -53,7 +53,33 @@ generated under `$BUILD_ROOT/nginx-build/connector-src`.
 
 | Candidate | Source | Risk | Test coverage | Replacement strategy | Decision |
 | --- | --- | --- | --- | --- | --- |
-| NGINX remaining upstream reference files | `connectors/nginx/upstream/{LICENSE,AUTHORS,CHANGES,README.md}` | Low if attribution remains complete. They are not build inputs after Phase 9. | NGINX materialized build, `smoke-nginx`, and combined `smoke-all`; manifest must have no NGINX `upstream-derived` entries. | Remove local upstream tree, retain durable attribution in `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and `connectors/nginx/src/SOURCE_MAP.json`. | remove now |
+| NGINX remaining upstream reference files | `connectors/nginx/upstream/{LICENSE,AUTHORS,CHANGES,README.md}` | Low if attribution remains complete. They are not build inputs after Phase 9. | NGINX materialized build, `smoke-nginx`, and combined `smoke-all`; manifest must have no NGINX `upstream-derived` entries. | Remove local upstream tree, retain durable attribution in `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and `connectors/nginx/SOURCE_MAP.json`. | remove now |
+
+## Phase 11 Apache Source Migration
+
+Phase 11 moves Apache source, Autotools/APXS inputs, and required `.in`
+templates from the upstream reference tree into adapter-owned
+`connectors/apache/src/`. This is a build-input ownership change, not a
+behavior rewrite. Apache hooks, filters, bucket brigades, request/response
+processing, intervention translation, transaction ownership, and
+`RESPONSE_BODY` behavior remain Apache-specific.
+
+| Candidate | Source | Risk | Test coverage | Replacement strategy | Decision |
+| --- | --- | --- | --- | --- | --- |
+| Apache module source and Autotools tree | `connectors/apache/upstream/{autogen.sh,configure.ac,Makefile.am,build/*,src/*,tests/**/*.in,t/conf/extra.conf.in,LICENSE,AUTHORS,CHANGES}` | Medium/high because Autotools/APXS layout and Apache filters are productive code, so the safe move is path ownership only. | Fresh materialized Apache build plus real-world Apache smoke; combined smoke remains required. | Move files to `connectors/apache/src`, keep provenance in `SOURCE_MAP.json`, materialize adapter-owned files into `$BUILD_ROOT/apache-build/connector-src`, and remove upstream copies only after smoke pass. | replace now |
+
+## Phase 12 Apache Source Cleanup
+
+Phase 12 removes only attribution/history/documentation-only files from
+`connectors/apache/src/`. The required Autoconf source check is preserved by
+moving `AC_CONFIG_SRCDIR` from `LICENSE` to the functional source file
+`src/mod_security3.c`. No Apache utility/runtime helper is replaced.
+
+| Candidate | Source | Risk | Test coverage | Replacement strategy | Decision |
+| --- | --- | --- | --- | --- | --- |
+| Apache attribution/history/docs files | `connectors/apache/src/{AUTHORS,CHANGES,LICENSE,README.md}` | Low after changing the Autoconf source anchor. These files are not compiled or loaded at runtime. | Fresh materialized Apache build plus `smoke-apache`; combined smoke remains required. Manifest must not include the removed files. | Remove source-tree duplicates and retain attribution in `licenses/apache/`, `connectors/apache/ORIGIN.md`, and `SOURCE_MAP.json` relocated metadata. | remove now |
+| Apache `id()` helper in `src/msc_utils.c/.h` | Low as code, but no behavior replacement need. | Existing smokes do not exercise it because no callers were found. | Document as obsolete/deferred. | Do not edit runtime source in this cleanup phase. | defer |
+| Apache `send_error_bucket()` in `src/msc_utils.c` | High. It owns Apache bucket/error response behavior. | Blocking smokes cover symptoms, not every output-filter edge. | Keep connector-specific. | No replacement in this phase. | defer |
 
 ## Phase 5 Review
 

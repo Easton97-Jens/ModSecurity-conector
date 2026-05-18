@@ -4,12 +4,31 @@
 
 int id(const char *fn, const char *format, ...)
 {
+    int rc = -1;
+    FILE *f = NULL;
     va_list args;
+
+    if (fn == NULL || format == NULL)
+    {
+        return -1;
+    }
+
+    f = fopen(fn, "a");
+    if (f == NULL)
+    {
+        return -1;
+    }
+
     va_start(args, format);
-    FILE *f = fopen(fn, "a"); 
-    vfprintf(f, format, args);
-    fclose(f);
+    rc = vfprintf(f, format, args);
     va_end(args);
+
+    if (fclose(f) != 0)
+    {
+        return -1;
+    }
+
+    return rc;
 }
 
 

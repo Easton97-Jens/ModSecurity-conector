@@ -9,14 +9,14 @@ productive Apache or NGINX connector path.
 
 | Area | Files | Reason |
 | --- | --- | --- |
-| Apache adapter metadata | `connectors/apache/src/metadata.h`, `connectors/apache/src/metadata.c` | Stable repo-owned descriptor for the Apache connector source and license origin |
-| NGINX adapter metadata | `connectors/nginx/src/metadata.h`, `connectors/nginx/src/metadata.c` | Stable repo-owned descriptor for the NGINX connector source and license origin |
+| Apache adapter metadata | `connectors/apache/metadata.h`, `connectors/apache/metadata.c` | Stable repo-owned descriptor for the Apache connector source and license origin |
+| NGINX adapter metadata | `connectors/nginx/metadata.h`, `connectors/nginx/metadata.c` | Stable repo-owned descriptor for the NGINX connector source and license origin |
 | Adapter helper validation | `ci/check-adapter-helpers.sh` | Compiles adapter metadata under `$BUILD_ROOT` and checks required fields |
 | Lint integration | `Makefile` | Runs the adapter helper smoke as part of `make lint` |
 
-The existing NGINX `connectors/nginx/src/ddebug.h` remains the only
-adapter-owned file that can participate in generated NGINX build copies, and
-only as the Phase 4 debug compatibility replacement.
+After Phase 13, adapter metadata lives at the connector roots while
+`connectors/nginx/src/ddebug.h` remains the debug compatibility header that
+participates in generated NGINX build copies.
 
 ## Deliberately Unchanged
 
