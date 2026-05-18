@@ -1,6 +1,6 @@
 # Replace-And-Reduce Plan
 
-Status: phase 11 Apache and NGINX upstream references removed
+Status: phase 12 Apache source cleanup complete
 
 This plan records candidates for replacing small imported connector source
 pieces with repo-owned code. A replacement is allowed only when it avoids
@@ -67,6 +67,19 @@ processing, intervention translation, transaction ownership, and
 | Candidate | Source | Risk | Test coverage | Replacement strategy | Decision |
 | --- | --- | --- | --- | --- | --- |
 | Apache module source and Autotools tree | `connectors/apache/upstream/{autogen.sh,configure.ac,Makefile.am,build/*,src/*,tests/**/*.in,t/conf/extra.conf.in,LICENSE,AUTHORS,CHANGES}` | Medium/high because Autotools/APXS layout and Apache filters are productive code, so the safe move is path ownership only. | Fresh materialized Apache build plus real-world Apache smoke; combined smoke remains required. | Move files to `connectors/apache/src`, keep provenance in `SOURCE_MAP.json`, materialize adapter-owned files into `$BUILD_ROOT/apache-build/connector-src`, and remove upstream copies only after smoke pass. | replace now |
+
+## Phase 12 Apache Source Cleanup
+
+Phase 12 removes only attribution/history/documentation-only files from
+`connectors/apache/src/`. The required Autoconf source check is preserved by
+moving `AC_CONFIG_SRCDIR` from `LICENSE` to the functional source file
+`src/mod_security3.c`. No Apache utility/runtime helper is replaced.
+
+| Candidate | Source | Risk | Test coverage | Replacement strategy | Decision |
+| --- | --- | --- | --- | --- | --- |
+| Apache attribution/history/docs files | `connectors/apache/src/{AUTHORS,CHANGES,LICENSE,README.md}` | Low after changing the Autoconf source anchor. These files are not compiled or loaded at runtime. | Fresh materialized Apache build plus `smoke-apache`; combined smoke remains required. Manifest must not include the removed files. | Remove source-tree duplicates and retain attribution in `licenses/apache/`, `connectors/apache/ORIGIN.md`, and `SOURCE_MAP.json` relocated metadata. | remove now |
+| Apache `id()` helper in `src/msc_utils.c/.h` | Low as code, but no behavior replacement need. | Existing smokes do not exercise it because no callers were found. | Document as obsolete/deferred. | Do not edit runtime source in this cleanup phase. | defer |
+| Apache `send_error_bucket()` in `src/msc_utils.c` | High. It owns Apache bucket/error response behavior. | Blocking smokes cover symptoms, not every output-filter edge. | Keep connector-specific. | No replacement in this phase. | defer |
 
 ## Phase 5 Review
 
