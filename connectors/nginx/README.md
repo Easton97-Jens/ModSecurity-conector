@@ -10,7 +10,8 @@ support claim.
 Implemented now:
 
 - Documentation of observed local NGINX connector concepts.
-- Adapter-owned source under `src/`, derived from ModSecurity-nginx base commit
+- Adapter-owned source under `src/`, plus root-level `config` and metadata,
+  derived from ModSecurity-nginx base commit
   `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`.
 - Selected source changes from ModSecurity-nginx PR #377
   (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) applied to
@@ -33,15 +34,19 @@ Not implemented:
 Primary local reference: `/root/conecter/ModSecurity-nginx`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx.
 
-The adapter-owned source lives under `connectors/nginx/src/`. The former
-`connectors/nginx/upstream/` directory was removed after materialized-source
-NGINX builds and smokes passed. Durable attribution stays in `licenses/nginx/`,
-`connectors/nginx/ORIGIN.md`, and `connectors/nginx/src/SOURCE_MAP.json`.
+The adapter-owned build layout lives under `connectors/nginx/`: module `config`
+is at `connectors/nginx/config`, productive sources are under
+`connectors/nginx/src/`, and support metadata is at the connector root. The
+former `connectors/nginx/upstream/` directory was removed after
+materialized-source NGINX builds and smokes passed. Durable attribution stays in
+`licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
+`connectors/nginx/SOURCE_MAP.json`.
 
 The build helper is `ci/prepare-nginx-build.sh`. For the monorepo default it
 materializes `$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
-`connectors/nginx/src` files only, then builds the connector as a dynamic NGINX
-module against an official `nginx/nginx` GitHub release archive. Explicit
+`connectors/nginx/config` and `connectors/nginx/src` files only, then builds the
+connector as a dynamic NGINX module against an official `nginx/nginx` GitHub
+release archive. Explicit
 `MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external source
 copy.
 

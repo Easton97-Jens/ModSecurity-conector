@@ -27,16 +27,6 @@
       "license": "Apache-2.0",
       "reason": "Repo-owned debug compatibility header replacing the imported upstream debug helper."
     },
-    "src/metadata.c": {
-      "base_path": "connectors/nginx/src/metadata.c",
-      "license": "Apache-2.0",
-      "reason": "Repo-owned adapter metadata helper."
-    },
-    "src/metadata.h": {
-      "base_path": "connectors/nginx/src/metadata.h",
-      "license": "Apache-2.0",
-      "reason": "Repo-owned adapter metadata helper."
-    },
     "src/ngx_http_modsecurity_access.c": {
       "base_path": "src/ngx_http_modsecurity_access.c",
       "license": "Apache-2.0",
@@ -45,13 +35,17 @@
     "src/ngx_http_modsecurity_body_filter.c": {
       "base_path": "src/ngx_http_modsecurity_body_filter.c",
       "license": "Apache-2.0",
-      "patches": ["pr377"],
+      "patches": [
+        "pr377"
+      ],
       "reason": "Migrated upstream body filter and applied PR #377 phase-4 late-intervention changes."
     },
     "src/ngx_http_modsecurity_common.h": {
       "base_path": "src/ngx_http_modsecurity_common.h",
       "license": "Apache-2.0",
-      "patches": ["pr377"],
+      "patches": [
+        "pr377"
+      ],
       "reason": "Migrated shared NGINX declarations and applied PR #377 phase-4 fields."
     },
     "src/ngx_http_modsecurity_header_filter.c": {
@@ -67,8 +61,34 @@
     "src/ngx_http_modsecurity_module.c": {
       "base_path": "src/ngx_http_modsecurity_module.c",
       "license": "Apache-2.0",
-      "patches": ["pr377"],
+      "patches": [
+        "pr377"
+      ],
       "reason": "Migrated module/config entrypoint and applied PR #377 phase-4 directives."
+    }
+  },
+  "layout": {
+    "phase13": "Strict source layout: connector src/ contains only productive NGINX source/header files; config and metadata live at connector root and materialize to the build layout expected by NGINX.",
+    "moved_files": {
+      "connectors/nginx/src/config": "connectors/nginx/config",
+      "connectors/nginx/src/metadata.c": "connectors/nginx/metadata.c",
+      "connectors/nginx/src/metadata.h": "connectors/nginx/metadata.h",
+      "connectors/nginx/src/SOURCE_MAP.json": "connectors/nginx/SOURCE_MAP.json",
+      "connectors/nginx/src/README.md": "connectors/nginx/README.md"
+    }
+  },
+  "support_files": {
+    "connectors/nginx/metadata.c": {
+      "license": "Apache-2.0",
+      "reason": "Repo-owned adapter metadata helper; intentionally not materialized into the productive NGINX connector build source."
+    },
+    "connectors/nginx/metadata.h": {
+      "license": "Apache-2.0",
+      "reason": "Repo-owned adapter metadata declarations; intentionally not materialized into the productive NGINX connector build source."
+    },
+    "connectors/nginx/SOURCE_MAP.json": {
+      "license": "Apache-2.0",
+      "reason": "Repo-owned per-file provenance manifest; consumed by the materializer but not copied into connector-src."
     }
   }
 }

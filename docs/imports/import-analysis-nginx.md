@@ -9,10 +9,11 @@ Observed ref: `master`, `v1.0.4-14-g9eb44fd`
 ## Role
 
 This repository is an NGINX connector for libmodsecurity v3. It is now a
-controlled adapter-owned source import under `connectors/nginx/src/`. The
+controlled adapter-owned source import under `connectors/nginx/`, with module
+`config` at the connector root and productive sources under `connectors/nginx/src/`. The
 former `connectors/nginx/upstream/` tree was removed in Phase 10 after durable
 attribution was retained under `licenses/nginx/`, `connectors/nginx/ORIGIN.md`,
-and `connectors/nginx/src/SOURCE_MAP.json`. Imported and migrated files are
+and `connectors/nginx/SOURCE_MAP.json`. Imported and migrated files are
 kept NGINX-specific.
 
 ## Build System
@@ -71,8 +72,8 @@ via real-world Apache and NGINX smoke tests.
 
 ## Phase 9 Source Status
 
-The NGINX module `config` and source files now live in
-`connectors/nginx/src/`. The adapter-owned source includes selected
+The NGINX module `config` now lives at `connectors/nginx/config`; productive
+source files live under `connectors/nginx/src/`. The adapter-owned source includes selected
 ModSecurity-nginx PR #377 source changes from
 `3d72b004ff27a78ea19c6b945870e2cae62a97ac`; this is not a `RESPONSE_BODY`
 promotion.
