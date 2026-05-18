@@ -160,6 +160,8 @@ def load_source_map(adapter_root: Path) -> dict[str, Any]:
 
 
 def adapter_destination_relative(connector: str, relative_path: Path) -> Path:
+    if connector == "apache":
+        return relative_path
     if connector == "nginx" and relative_path.as_posix() == "config":
         return Path("config")
     return Path("src") / relative_path

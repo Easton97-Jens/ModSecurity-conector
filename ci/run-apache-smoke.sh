@@ -9,7 +9,7 @@ APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
 APACHE_MODULE="${APACHE_MODULE:-$APACHE_BUILD_ROOT/output/apache/mod_security3.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$APACHE_BUILD_ROOT/output/modsecurity/lib}"
-DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache/upstream"
+DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache/src"
 MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$DEFAULT_APACHE_SOURCE_DIR}"
 APACHE_ORIGIN_SOURCE="${APACHE_ORIGIN_SOURCE:-}"
 APACHE_ORIGIN_SOURCE_REPO="${APACHE_ORIGIN_SOURCE_REPO:-}"
@@ -88,19 +88,76 @@ write_connector_result() {
 
 configure_apache_origin
 
+apache_adapter_build_current() {
+    manifest="$APACHE_BUILD_ROOT/connector-src/materialized-source.json"
+    [ -f "$manifest" ] || return 1
+    "$PYTHON_BIN" - "$manifest" <<'PY'
+import json
+import sys
+
+required_adapter_owned = {
+    "LICENSE",
+    "autogen.sh",
+    "configure.ac",
+    "Makefile.am",
+    "build/apxs-wrapper.in",
+    "build/ax_prog_apache.m4",
+    "build/find_apxs.m4",
+    "build/find_libmodsec.m4",
+    "src/mod_security3.c",
+    "src/mod_security3.h",
+    "src/msc_config.c",
+    "src/msc_config.h",
+    "src/msc_filters.c",
+    "src/msc_filters.h",
+    "src/msc_utils.c",
+    "src/msc_utils.h",
+    "t/conf/extra.conf.in",
+    "tests/run-regression-tests.pl.in",
+    "tests/regression/server_root/conf/httpd.conf.in",
+    "tests/regression/misc/40-secRemoteRules.t.in",
+    "tests/regression/misc/50-ipmatchfromfile-external.t.in",
+    "tests/regression/misc/60-pmfromfile-external.t.in",
+}
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    manifest = json.load(handle)
+
+entries = manifest.get("entries")
+if not isinstance(entries, list):
+    raise SystemExit(1)
+
+sources_by_path = {
+    entry.get("path"): entry.get("source")
+    for entry in entries
+    if isinstance(entry, dict)
+}
+if any(source == "upstream-derived" for source in sources_by_path.values()):
+    raise SystemExit(1)
+for path in required_adapter_owned:
+    if sources_by_path.get(path) != "adapter-owned":
+        raise SystemExit(1)
+PY
+}
+
 needs_build=0
+prepare_refresh="$REFRESH"
 if [ "$REFRESH" = "1" ]; then
     needs_build=1
 elif [ ! -x "$HTTPD_PREFIX/bin/httpd" ] || [ ! -x "$HTTPD_PREFIX/bin/apxs" ]; then
     needs_build=1
 elif [ ! -f "$APACHE_MODULE" ] || [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ]; then
     needs_build=1
+elif [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ] && ! apache_adapter_build_current; then
+    echo "run_apache_smoke: existing Apache build predates adapter-owned materialized source; refreshing build artifacts"
+    needs_build=1
+    prepare_refresh=1
 fi
 
 if [ "$needs_build" -eq 1 ]; then
     echo "run_apache_smoke: preparing Apache PoC build"
     set +e
-    REFRESH="$REFRESH" \
+    REFRESH="$prepare_refresh" \
         MODSECURITY_APACHE_SOURCE_DIR="$MODSECURITY_APACHE_SOURCE_DIR" \
         LOG_DIR="$APACHE_BUILD_LOG_DIR" \
         BUILD_HTTPD_FROM_SOURCE="$BUILD_HTTPD_FROM_SOURCE" \

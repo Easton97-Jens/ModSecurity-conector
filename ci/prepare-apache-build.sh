@@ -9,7 +9,7 @@ REFRESH="${REFRESH:-0}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-$APACHE_BUILD_ROOT/downloads}"
 V3_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity_V3"
-APACHE_CONNECTOR_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity-apache"
+APACHE_CONNECTOR_LEGACY_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity-apache"
 OUTPUT_DIR="$APACHE_BUILD_ROOT/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
 BUILD_HTTPD_FROM_SOURCE="${BUILD_HTTPD_FROM_SOURCE:-0}"
@@ -35,10 +35,16 @@ PCRE2_SOURCE_DIR="${PCRE2_SOURCE_DIR:-$APACHE_BUILD_ROOT/pcre2-src}"
 PCRE2_PREFIX="${PCRE2_PREFIX:-$OUTPUT_DIR/pcre2}"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache/upstream"
+DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache/src"
 MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$DEFAULT_APACHE_SOURCE_DIR}"
-APACHE_ADAPTER_SOURCE_DIR="${APACHE_ADAPTER_SOURCE_DIR:-$REPO_ROOT/connectors/apache/src}"
 APACHE_MATERIALIZED_SOURCE_DIR="${APACHE_MATERIALIZED_SOURCE_DIR:-$APACHE_BUILD_ROOT/connector-src}"
+if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
+    APACHE_ADAPTER_SOURCE_DIR="${APACHE_ADAPTER_SOURCE_DIR:-$MODSECURITY_APACHE_SOURCE_DIR}"
+    APACHE_CONNECTOR_BUILD_DIR="$APACHE_MATERIALIZED_SOURCE_DIR"
+else
+    APACHE_ADAPTER_SOURCE_DIR="${APACHE_ADAPTER_SOURCE_DIR:-$REPO_ROOT/connectors/apache/src}"
+    APACHE_CONNECTOR_BUILD_DIR="${APACHE_CONNECTOR_BUILD_DIR:-$APACHE_CONNECTOR_LEGACY_BUILD_DIR}"
+fi
 
 default_jobs() {
     if command -v nproc >/dev/null 2>&1; then
@@ -185,9 +191,36 @@ materialize_apache_connector_source() {
     run_logged materialize-apache-connector-source "$REPO_ROOT" \
         sh "$REPO_ROOT/ci/materialize-connector-source.sh" \
         --connector apache \
-        --upstream-dir "$MODSECURITY_APACHE_SOURCE_DIR" \
         --adapter-dir "$APACHE_ADAPTER_SOURCE_DIR" \
         --dest-dir "$APACHE_MATERIALIZED_SOURCE_DIR"
+    for required_file in \
+        LICENSE \
+        autogen.sh \
+        configure.ac \
+        Makefile.am \
+        build/apxs-wrapper.in \
+        build/ax_prog_apache.m4 \
+        build/find_apxs.m4 \
+        build/find_libmodsec.m4 \
+        src/mod_security3.c \
+        src/mod_security3.h \
+        src/msc_config.c \
+        src/msc_config.h \
+        src/msc_filters.c \
+        src/msc_filters.h \
+        src/msc_utils.c \
+        src/msc_utils.h \
+        t/conf/extra.conf.in \
+        tests/run-regression-tests.pl.in \
+        tests/regression/server_root/conf/httpd.conf.in \
+        tests/regression/misc/40-secRemoteRules.t.in \
+        tests/regression/misc/50-ipmatchfromfile-external.t.in \
+        tests/regression/misc/60-pmfromfile-external.t.in
+    do
+        if [ ! -f "$APACHE_MATERIALIZED_SOURCE_DIR/$required_file" ]; then
+            blocked "materialized Apache connector source is missing $required_file: $APACHE_MATERIALIZED_SOURCE_DIR"
+        fi
+    done
     {
         echo "apache_materialized_connector_source=$APACHE_MATERIALIZED_SOURCE_DIR"
         echo "apache_materialized_connector_source_manifest=$APACHE_MATERIALIZED_SOURCE_DIR/materialized-source.json"
@@ -504,8 +537,9 @@ run_logged copy-modsecurity-v3 "$APACHE_BUILD_ROOT" cp -a "$MODSECURITY_V3_SOURC
 if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
     materialize_apache_connector_source
     write_git_info "modsecurity-apache-materialized-source" "$APACHE_MATERIALIZED_SOURCE_DIR"
+else
+    copy_sanitized_source copy-modsecurity-apache "$MODSECURITY_APACHE_SOURCE_DIR" "$APACHE_CONNECTOR_BUILD_DIR"
 fi
-copy_sanitized_source copy-modsecurity-apache "$MODSECURITY_APACHE_SOURCE_DIR" "$APACHE_CONNECTOR_BUILD_DIR"
 write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
 write_git_info "modsecurity-apache-build-copy" "$APACHE_CONNECTOR_BUILD_DIR"
 
