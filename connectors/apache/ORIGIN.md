@@ -1,14 +1,13 @@
 # Apache Connector Origin Map
 
-Status: adapter-owned source migration complete
+Status: adapter-owned source cleanup complete
 
 Local reference: `/root/conecter/ModSecurity-apache`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
 Source branch: `master`
 Source commit: `0488c77f69669584324b70460614a382224b4883`
 Source describe: `v0.0.9-beta1-26-g0488c77`
-License: Apache-2.0, retained in `licenses/apache/` and in the
-adapter-owned build source at `connectors/apache/src/LICENSE`.
+License: Apache-2.0, retained in `licenses/apache/`.
 
 | Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
@@ -30,15 +29,20 @@ This was a source-location migration only. Apache hooks, filters, bucket
 brigades, intervention translation, transaction ownership, YAML smoke
 semantics, and `RESPONSE_BODY` classification were not changed.
 
+## Phase 12 Status
+
+Phase 12 removed attribution/history/documentation-only files from
+`connectors/apache/src/` after changing the Autoconf source anchor from
+`LICENSE` to the functional source file `src/mod_security3.c`. The active
+Apache source tree is now a build/runtime tree; durable attribution stays in
+`licenses/apache/`, this origin map, and `connectors/apache/src/SOURCE_MAP.json`.
+
 ## Adapter-Owned Files
 
 | Adapter-owned path | Original path | Repo | Commit | License | Import reason |
 | --- | --- | --- | --- | --- | --- |
-| `connectors/apache/src/LICENSE` | `LICENSE` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | License text and `configure.ac` source anchor |
-| `connectors/apache/src/AUTHORS` | `AUTHORS` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Upstream attribution |
-| `connectors/apache/src/CHANGES` | `CHANGES` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Upstream change context |
 | `connectors/apache/src/autogen.sh` | `autogen.sh` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools bootstrap |
-| `connectors/apache/src/configure.ac` | `configure.ac` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools configure source |
+| `connectors/apache/src/configure.ac` | `configure.ac` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Autotools configure source; local source anchor now points at `src/mod_security3.c` |
 | `connectors/apache/src/Makefile.am` | `Makefile.am` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Automake build source |
 | `connectors/apache/src/build/apxs-wrapper.in` | `build/apxs-wrapper.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | APXS build wrapper template |
 | `connectors/apache/src/build/ax_prog_apache.m4` | `build/ax_prog_apache.m4` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache detection macro |
@@ -63,10 +67,18 @@ semantics, and `RESPONSE_BODY` classification were not changed.
 
 | Path | Purpose |
 | --- | --- |
-| `connectors/apache/src/README.md` | Adapter-owned source tree overview |
 | `connectors/apache/src/metadata.c` | Summary/report origin metadata source |
 | `connectors/apache/src/metadata.h` | Summary/report origin metadata declarations |
 | `connectors/apache/src/SOURCE_MAP.json` | Machine-readable per-file provenance |
+
+## Relocated Attribution Files
+
+| Former source-tree path | Durable location | Reason |
+| --- | --- | --- |
+| `connectors/apache/src/LICENSE` | `licenses/apache/LICENSE` | License text is attribution metadata, not an Apache build input after the source anchor moved to `src/mod_security3.c` |
+| `connectors/apache/src/AUTHORS` | `licenses/apache/AUTHORS` | Upstream attribution is retained centrally |
+| `connectors/apache/src/CHANGES` | `licenses/apache/CHANGES` | Upstream change history is retained centrally |
+| `connectors/apache/src/README.md` | `connectors/apache/README.md` and docs under `docs/` | Source-tree overview belongs in connector documentation |
 
 ## Excluded Upstream Files
 
@@ -77,9 +89,10 @@ Phase 11 build and smoke proof; it is no longer an active or required path.
 
 ## Central Attribution Copies
 
-The Apache upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are mirrored
+The Apache upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are retained
 under `licenses/apache/` for repository-level license review. Those durable
-copies remain even though the local upstream reference tree was removed.
+copies remain even though the local upstream reference tree and source-tree
+duplicates were removed.
 
 ## Pruning Review
 

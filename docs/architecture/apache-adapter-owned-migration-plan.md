@@ -1,20 +1,25 @@
 # Apache Adapter-Owned Migration Plan
 
-Status: implemented in Phase 11
+Status: implemented through Phase 12
 
 Apache now follows the same materialized adapter-owned source model as NGINX.
 The migration preserves the upstream Autotools/APXS layout inside
 `connectors/apache/src/` and builds from a disposable generated source tree
 under `$BUILD_ROOT/apache-build/connector-src`.
 
+Phase 12 reduces `connectors/apache/src/` to functional build/runtime inputs.
+Attribution/history files were moved out of the source tree and retained under
+`licenses/apache/`; `configure.ac` now anchors `AC_CONFIG_SRCDIR` on
+`src/mod_security3.c`.
+
 ## Current State
 
-| Area | Current location | Phase 11 decision |
+| Area | Current location | Decision |
 | --- | --- | --- |
 | Apache module sources | `connectors/apache/src/src/*.c`, `*.h` | Adapter-owned path ownership; no semantic edits |
 | Autotools entrypoints | `connectors/apache/src/autogen.sh`, `configure.ac`, `Makefile.am` | Adapter-owned build inputs, preserving upstream layout |
 | Build macros/templates | `connectors/apache/src/build/*.m4`, `.in` templates | Adapter-owned build inputs retained because `configure.ac` references them |
-| License/context files | `licenses/apache/`; `connectors/apache/src/LICENSE`, `AUTHORS`, `CHANGES` | Durable attribution plus build-root source anchor |
+| License/context files | `licenses/apache/`; `connectors/apache/ORIGIN.md`; `connectors/apache/src/SOURCE_MAP.json` | Durable attribution outside the functional build source tree |
 | Per-file provenance | `connectors/apache/src/SOURCE_MAP.json` | Machine-readable source map for materialized manifests |
 | Former upstream tree | `connectors/apache/upstream/` | Removed after materialized build and smoke proof |
 

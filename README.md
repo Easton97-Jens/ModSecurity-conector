@@ -85,7 +85,8 @@ builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
 
 - `connectors/apache/src/` is the adapter-owned Apache connector source tree.
   It preserves the upstream Autotools/APXS layout and builds through
-  `$BUILD_ROOT/apache-build/connector-src`.
+  `$BUILD_ROOT/apache-build/connector-src`. It is a functional build/runtime
+  tree; license, authorship, and changelog attribution live outside it.
 - `connectors/nginx/src/` is the adapter-owned NGINX module source tree.
 - The former `connectors/apache/upstream/` and `connectors/nginx/upstream/`
   trees were removed after adapter-owned materialized builds and smokes passed.

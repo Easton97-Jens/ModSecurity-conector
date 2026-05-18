@@ -29,9 +29,10 @@ Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
 The Apache build source lives under `connectors/apache/src/` and is
 materialized to `$BUILD_ROOT/apache-build/connector-src` before Autotools/APXS
 builds run. The former `connectors/apache/upstream/` tree was removed after the
-Phase 11 materialized build and Apache smoke passed. Durable attribution lives
-in `licenses/apache/`, `connectors/apache/ORIGIN.md`, and
-`connectors/apache/src/SOURCE_MAP.json`.
+Phase 11 materialized build and Apache smoke passed. Phase 12 reduced
+`connectors/apache/src/` to functional build/runtime inputs plus
+`SOURCE_MAP.json`; durable attribution lives in `licenses/apache/`,
+`connectors/apache/ORIGIN.md`, and `connectors/apache/src/SOURCE_MAP.json`.
 
 Build and runtime artifacts must stay under `BUILD_ROOT`, defaulting locally to
 `/src/ModSecurity-conector-build`.

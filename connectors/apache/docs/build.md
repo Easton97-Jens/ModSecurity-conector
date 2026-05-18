@@ -74,6 +74,13 @@ make smoke-apache
 Result: pass. The former `connectors/apache/upstream/` tree was removed after
 this proof.
 
+Phase 12 source-tree cleanup removed `AUTHORS`, `CHANGES`, `LICENSE`, and
+`README.md` from `connectors/apache/src/` after the Autoconf source anchor was
+changed to `src/mod_security3.c`. The Apache module still builds from the
+materialized adapter-owned source tree; attribution remains in
+`licenses/apache/`, `connectors/apache/ORIGIN.md`, and
+`connectors/apache/src/SOURCE_MAP.json`.
+
 Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - Verify minimum Apache/APR/APR-util/PCRE build requirements.

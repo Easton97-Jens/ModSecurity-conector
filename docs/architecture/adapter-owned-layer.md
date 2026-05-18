@@ -105,11 +105,15 @@ sources as `adapter-owned` and record PR #377 patch provenance where
 applicable.
 
 Phase 11 migrates Apache source and Autotools/APXS inputs into
-`connectors/apache/src`. For the monorepo-default Apache source,
+`connectors/apache/src`. Phase 12 removes attribution/history/documentation-only
+files from that source tree after the Autoconf source anchor moves to
+`src/mod_security3.c`. For the monorepo-default Apache source,
 `ci/prepare-apache-build.sh` materializes
 `$BUILD_ROOT/apache-build/connector-src` from adapter-owned Apache source and
 generated manifests only. The generated manifest identifies Apache module
-sources, build inputs, and retained `.in` templates as `adapter-owned`.
+sources, build inputs, and retained `.in` templates as `adapter-owned`; durable
+Apache attribution remains in `licenses/apache/`, `connectors/apache/ORIGIN.md`,
+and `connectors/apache/src/SOURCE_MAP.json`.
 
 ## Reporting Precedence
 

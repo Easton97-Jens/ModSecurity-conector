@@ -7,9 +7,10 @@ used by the monorepo smoke builds. The files remain connector-specific. Phase 9
 migrated the NGINX module source into adapter-owned `connectors/nginx/src`;
 Phase 10 removed the former NGINX `upstream/` reference tree. Phase 11 migrated
 Apache source and Autotools/APXS inputs into `connectors/apache/src`, proved the
-materialized Apache build, and removed the former Apache `upstream/` tree. No
-Apache hook, NGINX filter, body, transaction, or Common runtime logic was
-merged across connectors.
+materialized Apache build, and removed the former Apache `upstream/` tree.
+Phase 12 removed Apache attribution/history/documentation-only files from the
+active source tree. No Apache hook, NGINX filter, body, transaction, or Common
+runtime logic was merged across connectors.
 
 ## Apache Connector
 
@@ -43,13 +44,16 @@ layout references them:
 - `tests/regression/misc/60-pmfromfile-external.t.in`
 - `tests/regression/server_root/conf/httpd.conf.in`
 
-License and provenance context:
+Provenance context retained in the functional source tree:
 
-- `LICENSE`
-- `AUTHORS`
-- `CHANGES`
-- `README.md`
 - `SOURCE_MAP.json`
+
+Durable attribution outside the source tree:
+
+- `licenses/apache/LICENSE`
+- `licenses/apache/AUTHORS`
+- `licenses/apache/CHANGES`
+- `connectors/apache/ORIGIN.md`
 
 Materialized build input:
 
@@ -142,7 +146,9 @@ Phase 10 removed the remaining NGINX upstream reference tree because no build
 input depended on it and durable attribution stayed available elsewhere. Phase
 11 migrated Apache productive source and build inputs into adapter-owned files,
 proved a materialized Autotools/APXS build, and removed the former Apache
-upstream tree.
+upstream tree. Phase 12 reduced the Apache adapter-owned source tree to
+functional build/runtime inputs plus `SOURCE_MAP.json`; attribution-only files
+were moved to `licenses/apache/`.
 
 ## Phase 8 Shadow Build Source
 
@@ -177,6 +183,15 @@ default Apache source is now materialized to
 The former `connectors/apache/upstream/` tree was removed after
 `REFRESH=1 BUILD_ROOT=/src/ModSecurity-conector-apache-final-build make
 smoke-apache` passed.
+
+## Phase 12 Apache Source Cleanup
+
+Phase 12 removed `AUTHORS`, `CHANGES`, `LICENSE`, and `README.md` from
+`connectors/apache/src/`. The Autoconf source anchor was changed from `LICENSE`
+to `src/mod_security3.c`, so the Apache build source tree now contains only
+functional build/runtime files plus `SOURCE_MAP.json`. Attribution remains in
+`licenses/apache/`, `connectors/apache/ORIGIN.md`, and the `relocated_files`
+section of `connectors/apache/src/SOURCE_MAP.json`.
 
 ## Phase 5 Review Result
 

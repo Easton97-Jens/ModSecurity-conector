@@ -30,7 +30,10 @@ The upstream `LICENSE`, `AUTHORS`, and `CHANGES` files are retained in
 `licenses/apache/`. Apache source and Autotools/APXS build inputs are
 adapter-owned under `connectors/apache/src`, with source provenance recorded in
 `connectors/apache/src/SOURCE_MAP.json` and `connectors/apache/ORIGIN.md`. The
-former `connectors/apache/upstream/` tree was removed in phase 11.
+former `connectors/apache/upstream/` tree was removed in phase 11. Phase 12
+removed duplicate attribution/history files from `connectors/apache/src`; the
+active source tree now contains only functional build/runtime inputs plus
+`SOURCE_MAP.json`.
 
 Central attribution copies:
 
@@ -90,6 +93,8 @@ documented in `licenses/modsecurity/README.md`.
 - Keep origin maps updated whenever imported files are added, removed, or
   refreshed from upstream.
 - Keep `licenses/` synchronized with imported source origins and license files.
+- Keep attribution/history files out of functional adapter-owned source trees
+  unless a build system explicitly requires them.
 - Do not remove adapter-owned source files for cosmetic cleanup; reduce only
   after replacement, retained attribution, and passing smoke evidence. Apache
   and NGINX no longer keep local `upstream/` trees; durable attribution lives

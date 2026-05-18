@@ -63,10 +63,10 @@ Source: former `connectors/apache/upstream/`; current adapter-owned source:
 
 | File | Classification | Evidence | Decision |
 | --- | --- | --- | --- |
-| `AUTHORS` | documentation-only | Upstream attribution required for controlled import | Removed from upstream tree; durable copy remains at `licenses/apache/AUTHORS` and adapter-owned copy at `connectors/apache/src/AUTHORS` |
-| `CHANGES` | documentation-only | Upstream change context retained with imported source | Removed from upstream tree; durable copy remains at `licenses/apache/CHANGES` and adapter-owned copy at `connectors/apache/src/CHANGES` |
-| `LICENSE` | required | License text for Apache-2.0 imported files and `AC_CONFIG_SRCDIR([LICENSE])` | Removed from upstream tree; adapter-owned source retains `connectors/apache/src/LICENSE` |
-| `README.md` | documentation-only | Upstream build context replaced by repo-owned adapter source documentation | Removed from upstream tree; current adapter README is `connectors/apache/src/README.md` |
+| `AUTHORS` | documentation-only | Upstream attribution required for controlled import | Removed from upstream tree in phase 11 and from `connectors/apache/src/` in phase 12; durable copy remains at `licenses/apache/AUTHORS` |
+| `CHANGES` | documentation-only | Upstream change context retained with imported source | Removed from upstream tree in phase 11 and from `connectors/apache/src/` in phase 12; durable copy remains at `licenses/apache/CHANGES` |
+| `LICENSE` | documentation-only after phase 12 | License text is retained centrally; `configure.ac` now uses `AC_CONFIG_SRCDIR([src/mod_security3.c])` | Removed from upstream tree in phase 11 and from `connectors/apache/src/` in phase 12; durable copy remains at `licenses/apache/LICENSE` |
+| `README.md` | documentation-only | Upstream build context replaced by repo-owned connector documentation | Removed from upstream tree in phase 11 and from `connectors/apache/src/` in phase 12; current overview is in `connectors/apache/README.md` and docs |
 | `Makefile.am` | required | Automake input for connector build | Moved to `connectors/apache/src/Makefile.am` |
 | `autogen.sh` | build-only | Bootstraps Autotools files in build copy | Moved to `connectors/apache/src/autogen.sh` |
 | `configure.ac` | required | Defines build checks and generated templates | Moved to `connectors/apache/src/configure.ac` |
