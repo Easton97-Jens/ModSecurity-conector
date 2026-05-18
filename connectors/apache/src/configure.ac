@@ -1,7 +1,7 @@
 
 AC_INIT([ModSecurity-Apache], [0.01],[support@modsecurity.org])
 AC_PREREQ(2.68)
-AC_CONFIG_SRCDIR([LICENSE])
+AC_CONFIG_SRCDIR([src/mod_security3.c])
 AC_CONFIG_MACRO_DIR([build])
 #AC_CONFIG_AUX_DIR([build])
 # Show erors and do not conform to GNU standards

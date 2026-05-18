@@ -194,7 +194,6 @@ materialize_apache_connector_source() {
         --adapter-dir "$APACHE_ADAPTER_SOURCE_DIR" \
         --dest-dir "$APACHE_MATERIALIZED_SOURCE_DIR"
     for required_file in \
-        LICENSE \
         autogen.sh \
         configure.ac \
         Makefile.am \

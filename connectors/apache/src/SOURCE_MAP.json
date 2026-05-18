@@ -11,30 +11,10 @@
   },
   "patches": {},
   "files": {
-    "AUTHORS": {
-      "base_path": "AUTHORS",
-      "license": "Apache-2.0",
-      "reason": "Upstream attribution retained in the adapter-owned source root."
-    },
-    "CHANGES": {
-      "base_path": "CHANGES",
-      "license": "Apache-2.0",
-      "reason": "Upstream change context retained in the adapter-owned source root."
-    },
-    "LICENSE": {
-      "base_path": "LICENSE",
-      "license": "Apache-2.0",
-      "reason": "Apache-2.0 license text retained because configure.ac uses AC_CONFIG_SRCDIR([LICENSE])."
-    },
     "Makefile.am": {
       "base_path": "Makefile.am",
       "license": "Apache-2.0",
       "reason": "Automake build source migrated without semantic changes."
-    },
-    "README.md": {
-      "base_path": "connectors/apache/src/README.md",
-      "license": "Apache-2.0",
-      "reason": "Repo-owned adapter source documentation."
     },
     "SOURCE_MAP.json": {
       "base_path": "connectors/apache/src/SOURCE_MAP.json",
@@ -69,7 +49,7 @@
     "configure.ac": {
       "base_path": "configure.ac",
       "license": "Apache-2.0",
-      "reason": "Autoconf source migrated without semantic changes."
+      "reason": "Autoconf source migrated without runtime semantic changes; phase 12 changed AC_CONFIG_SRCDIR from LICENSE to src/mod_security3.c so attribution files can live outside the build source tree."
     },
     "metadata.c": {
       "base_path": "connectors/apache/src/metadata.c",
@@ -150,6 +130,32 @@
       "base_path": "tests/run-regression-tests.pl.in",
       "license": "Apache-2.0",
       "reason": "Retained configure.ac output template."
+    }
+  },
+  "relocated_files": {
+    "AUTHORS": {
+      "base_path": "AUTHORS",
+      "license": "Apache-2.0",
+      "relocated_to": "licenses/apache/AUTHORS",
+      "reason": "Upstream attribution is durable repository metadata, not an Apache connector build input."
+    },
+    "CHANGES": {
+      "base_path": "CHANGES",
+      "license": "Apache-2.0",
+      "relocated_to": "licenses/apache/CHANGES",
+      "reason": "Upstream change context is durable repository metadata, not an Apache connector build input."
+    },
+    "LICENSE": {
+      "base_path": "LICENSE",
+      "license": "Apache-2.0",
+      "relocated_to": "licenses/apache/LICENSE",
+      "reason": "Apache-2.0 license text is retained centrally; configure.ac now anchors source validation on src/mod_security3.c."
+    },
+    "README.md": {
+      "base_path": "repo-owned Apache source README before phase 12 cleanup",
+      "license": "Apache-2.0",
+      "relocated_to": "connectors/apache/README.md",
+      "reason": "Adapter source overview belongs in connector documentation, not the functional build source tree."
     }
   }
 }

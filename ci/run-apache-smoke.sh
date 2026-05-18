@@ -96,7 +96,6 @@ import json
 import sys
 
 required_adapter_owned = {
-    "LICENSE",
     "autogen.sh",
     "configure.ac",
     "Makefile.am",
@@ -119,6 +118,12 @@ required_adapter_owned = {
     "tests/regression/misc/50-ipmatchfromfile-external.t.in",
     "tests/regression/misc/60-pmfromfile-external.t.in",
 }
+removed_from_source_tree = {
+    "AUTHORS",
+    "CHANGES",
+    "LICENSE",
+    "README.md",
+}
 
 with open(sys.argv[1], "r", encoding="utf-8") as handle:
     manifest = json.load(handle)
@@ -133,6 +138,8 @@ sources_by_path = {
     if isinstance(entry, dict)
 }
 if any(source == "upstream-derived" for source in sources_by_path.values()):
+    raise SystemExit(1)
+if any(path in sources_by_path for path in removed_from_source_tree):
     raise SystemExit(1)
 for path in required_adapter_owned:
     if sources_by_path.get(path) != "adapter-owned":
