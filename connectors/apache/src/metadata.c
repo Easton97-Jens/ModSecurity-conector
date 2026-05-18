@@ -9,8 +9,8 @@ static const msconnector_apache_adapter_metadata apache_metadata = {
         "v0.0.9-beta1-26-g0488c77",
         "Apache-2.0"
     },
-    "monorepo-upstream",
-    "connectors/apache/upstream"
+    "adapter-owned",
+    "connectors/apache/src"
 };
 
 msconnector_origin msconnector_apache_adapter_origin(void) {

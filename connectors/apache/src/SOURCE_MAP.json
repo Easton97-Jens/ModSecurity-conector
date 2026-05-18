@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "connector": "apache",
+  "base": {
+    "repo": "ModSecurity-apache",
+    "url": "https://github.com/owasp-modsecurity/ModSecurity-apache",
+    "branch": "master",
+    "commit": "0488c77f69669584324b70460614a382224b4883",
+    "version": "v0.0.9-beta1-26-g0488c77",
+    "license": "Apache-2.0"
+  },
+  "patches": {},
+  "files": {
+    "AUTHORS": {
+      "base_path": "AUTHORS",
+      "license": "Apache-2.0",
+      "reason": "Upstream attribution retained in the adapter-owned source root."
+    },
+    "CHANGES": {
+      "base_path": "CHANGES",
+      "license": "Apache-2.0",
+      "reason": "Upstream change context retained in the adapter-owned source root."
+    },
+    "LICENSE": {
+      "base_path": "LICENSE",
+      "license": "Apache-2.0",
+      "reason": "Apache-2.0 license text retained because configure.ac uses AC_CONFIG_SRCDIR([LICENSE])."
+    },
+    "Makefile.am": {
+      "base_path": "Makefile.am",
+      "license": "Apache-2.0",
+      "reason": "Automake build source migrated without semantic changes."
+    },
+    "README.md": {
+      "base_path": "connectors/apache/src/README.md",
+      "license": "Apache-2.0",
+      "reason": "Repo-owned adapter source documentation."
+    },
+    "SOURCE_MAP.json": {
+      "base_path": "connectors/apache/src/SOURCE_MAP.json",
+      "license": "Apache-2.0",
+      "reason": "Repo-owned per-file provenance manifest."
+    },
+    "autogen.sh": {
+      "base_path": "autogen.sh",
+      "license": "Apache-2.0",
+      "reason": "Autotools bootstrap entrypoint migrated without semantic changes."
+    },
+    "build/apxs-wrapper.in": {
+      "base_path": "build/apxs-wrapper.in",
+      "license": "Apache-2.0",
+      "reason": "APXS build wrapper template required by configure.ac."
+    },
+    "build/ax_prog_apache.m4": {
+      "base_path": "build/ax_prog_apache.m4",
+      "license": "Apache-2.0",
+      "reason": "Apache detection macro required by configure.ac."
+    },
+    "build/find_apxs.m4": {
+      "base_path": "build/find_apxs.m4",
+      "license": "Apache-2.0",
+      "reason": "APXS detection macro required by configure.ac."
+    },
+    "build/find_libmodsec.m4": {
+      "base_path": "build/find_libmodsec.m4",
+      "license": "Apache-2.0",
+      "reason": "libmodsecurity detection macro required by configure.ac."
+    },
+    "configure.ac": {
+      "base_path": "configure.ac",
+      "license": "Apache-2.0",
+      "reason": "Autoconf source migrated without semantic changes."
+    },
+    "metadata.c": {
+      "base_path": "connectors/apache/src/metadata.c",
+      "license": "Apache-2.0",
+      "reason": "Repo-owned adapter metadata helper."
+    },
+    "metadata.h": {
+      "base_path": "connectors/apache/src/metadata.h",
+      "license": "Apache-2.0",
+      "reason": "Repo-owned adapter metadata helper."
+    },
+    "src/mod_security3.c": {
+      "base_path": "src/mod_security3.c",
+      "license": "Apache-2.0",
+      "reason": "Migrated Apache module entrypoint to adapter-owned source without semantic changes."
+    },
+    "src/mod_security3.h": {
+      "base_path": "src/mod_security3.h",
+      "license": "Apache-2.0",
+      "reason": "Migrated Apache module header to adapter-owned source without semantic changes."
+    },
+    "src/msc_config.c": {
+      "base_path": "src/msc_config.c",
+      "license": "Apache-2.0",
+      "reason": "Migrated Apache connector configuration source without semantic changes."
+    },
+    "src/msc_config.h": {
+      "base_path": "src/msc_config.h",
+      "license": "Apache-2.0",
+      "reason": "Migrated Apache connector configuration header without semantic changes."
+    },
+    "src/msc_filters.c": {
+      "base_path": "src/msc_filters.c",
+      "license": "Apache-2.0",
+      "reason": "Migrated Apache input/output filter source without semantic changes."
+    },
+    "src/msc_filters.h": {
+      "base_path": "src/msc_filters.h",
+      "license": "Apache-2.0",
+      "reason": "Migrated Apache filter header without semantic changes."
+    },
+    "src/msc_utils.c": {
+      "base_path": "src/msc_utils.c",
+      "license": "Apache-2.0",
+      "reason": "Migrated Apache connector utilities without semantic changes."
+    },
+    "src/msc_utils.h": {
+      "base_path": "src/msc_utils.h",
+      "license": "Apache-2.0",
+      "reason": "Migrated Apache connector utility header without semantic changes."
+    },
+    "t/conf/extra.conf.in": {
+      "base_path": "t/conf/extra.conf.in",
+      "license": "Apache-2.0",
+      "reason": "Retained template path used by the upstream Autotools test layout."
+    },
+    "tests/regression/misc/40-secRemoteRules.t.in": {
+      "base_path": "tests/regression/misc/40-secRemoteRules.t.in",
+      "license": "Apache-2.0",
+      "reason": "Retained configure.ac output template."
+    },
+    "tests/regression/misc/50-ipmatchfromfile-external.t.in": {
+      "base_path": "tests/regression/misc/50-ipmatchfromfile-external.t.in",
+      "license": "Apache-2.0",
+      "reason": "Retained configure.ac output template."
+    },
+    "tests/regression/misc/60-pmfromfile-external.t.in": {
+      "base_path": "tests/regression/misc/60-pmfromfile-external.t.in",
+      "license": "Apache-2.0",
+      "reason": "Retained configure.ac output template."
+    },
+    "tests/regression/server_root/conf/httpd.conf.in": {
+      "base_path": "tests/regression/server_root/conf/httpd.conf.in",
+      "license": "Apache-2.0",
+      "reason": "Retained configure.ac output template."
+    },
+    "tests/run-regression-tests.pl.in": {
+      "base_path": "tests/run-regression-tests.pl.in",
+      "license": "Apache-2.0",
+      "reason": "Retained configure.ac output template."
+    }
+  }
+}
