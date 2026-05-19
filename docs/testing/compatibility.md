@@ -137,3 +137,119 @@ local runs in this workspace produced HTTP 200 and empty audit logs, but the
 current GitHub Actions run reported `expected audit log to be absent or empty`.
 It is not counted as a stable common PASS until local Apache, local NGINX, and
 GitHub Actions agree.
+
+## Reproducible Local Setup (Smoke + Lint)
+
+The smoke/lint tooling has explicit prerequisites and reports missing runtime inputs as **BLOCKED**.
+
+### Python dependencies
+
+Install dev dependencies before running `make lint`:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+```
+
+Currently required for lint helpers:
+
+- `PyYAML>=6,<7` (used by `ci/check-workflow-yaml.py`)
+
+If missing, lint prints a clear blocked message and installation hint instead of a Python traceback.
+
+
+### One-command dev bootstrap
+
+Create an isolated virtualenv and install dev deps:
+
+```bash
+make setup-dev
+# make now auto-prefers .venv/bin/python when present
+source .venv/bin/activate
+```
+
+Equivalent target names:
+
+- `make install-dev-deps`
+- `make setup-dev`
+
+### Environment doctor
+
+Check Python deps and ModSecurity v3 path detection:
+
+```bash
+make doctor
+```
+
+The doctor tries to auto-detect `MODSECURITY_V3_SOURCE_DIR` in this order:
+
+1. Explicit `MODSECURITY_V3_SOURCE_DIR` (if it exists)
+2. `../ModSecurity_V3` relative to repo root
+3. `../../ModSecurity_V3` relative to repo root
+4. `.deps/ModSecurity_V3` inside this repo
+5. `/root/conecter/ModSecurity_V3`
+
+If none exist, doctor exits BLOCKED and prints the exact export command needed.
+
+
+### Optional GitHub runtime fetch
+
+To bootstrap real external runtime prerequisites explicitly:
+
+```bash
+make fetch-deps
+```
+
+This uses `ci/fetch-smoke-sources.sh` and real public upstream repositories (see `docs/testing/bootstrap.md`).
+No network fetch is triggered automatically by `make setup-dev`, `make lint`, `make doctor`, or `make smoke-all`.
+
+If you only want to run dependency diagnostics first:
+
+```bash
+make doctor
+```
+
+### Runtime prerequisites for connector smokes
+
+`make smoke-all` requires a ModSecurity v3 source tree path. Default:
+
+- `MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3`
+
+Override in portable environments:
+
+```bash
+export MODSECURITY_V3_SOURCE_DIR=/absolute/path/to/ModSecurity_V3
+export BUILD_ROOT=/absolute/path/for/build-artifacts
+make smoke-all
+```
+
+If prerequisites are missing, smoke scripts now emit explicit blocked guidance that includes:
+
+- missing prerequisite path
+- affected env var name
+- remediation command/env hint
+- explicit statement that result is **BLOCKED**, not **FAIL**
+
+### Status meaning
+
+- **PASS**: expected behavior observed through the real connector path.
+- **FAIL**: harness ran and observed unexpected behavior or execution error.
+- **BLOCKED**: prerequisites (dependencies, source paths, build/runtime requirements) are missing, so execution could not start reliably.
+
+
+### Recommended fresh-environment flow
+
+```bash
+make setup-dev
+make lint
+make fetch-deps
+make doctor
+make smoke-all
+```
+
+Use a single consistent `BUILD_ROOT` across `fetch-deps`, `doctor`, and `smoke-all`.
+
+
+See also: `docs/testing/fast-checks.md` for quick/cached/full check boundaries.
+
+
+Quick CI/developer checks can use `make doctor-quick` and `make quick-all`; these are not full-smoke replacements and may return BLOCKED when runtime prerequisites are absent.

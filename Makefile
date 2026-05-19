@@ -1,7 +1,9 @@
+PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 BUILD_ROOT ?= /src/ModSecurity-conector-build
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
+export PYTHON
 export PYTHONDONTWRITEBYTECODE
 export REFRESH
 export SMOKE_CASES
@@ -19,7 +21,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix
+.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-cached smoke-installed doctor-install-hints
 
 smoke-common:
 	CASE_SCOPE=common sh ci/run-connector-smokes.sh
@@ -38,10 +40,11 @@ probe-response-body:
 
 lint:
 	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
-	python3 -m json.tool tests/import-status.json >/dev/null
-	python3 ci/check-workflow-yaml.py
-	python3 ci/check-doc-links.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+	$(PYTHON) -m json.tool tests/import-status.json >/dev/null
+	$(PYTHON) ci/check-python-deps.py
+	$(PYTHON) ci/check-workflow-yaml.py
+	$(PYTHON) ci/check-doc-links.py
 	sh ci/check-common-helpers.sh
 	sh ci/check-adapter-helpers.sh
 	sh ci/check-adapter-metadata-drift.sh
@@ -49,7 +52,60 @@ lint:
 	git diff --check
 
 summary:
-	python3 ci/summarize-results.py "$(BUILD_ROOT)/results/connector-summary.json"
+	$(PYTHON) ci/summarize-results.py "$(BUILD_ROOT)/results/connector-summary.json"
 
 case-matrix:
-	python3 ci/write-case-matrix.py "$(BUILD_ROOT)/results/connector-summary.json" docs/testing/case-matrix.md
+	$(PYTHON) ci/write-case-matrix.py "$(BUILD_ROOT)/results/connector-summary.json" docs/testing/case-matrix.md
+
+install-dev-deps:
+	sh ci/bootstrap-python.sh
+
+setup-dev: install-dev-deps
+	@echo "setup-dev: using PYTHON=$(PYTHON)"
+	@echo "setup-dev: next steps -> make lint; make fetch-deps; make doctor; make smoke-all"
+
+
+
+fetch-modsecurity-v3:
+	sh ci/fetch-smoke-sources.sh apache
+
+fetch-deps bootstrap-runtime:
+	sh ci/fetch-smoke-sources.sh all
+
+doctor env-check:
+	sh ci/doctor.sh
+
+
+print-python:
+	@echo "make: using PYTHON=$(PYTHON)"
+
+bootstrap-all: setup-dev fetch-deps doctor
+	@echo "bootstrap-all complete (smoke not run)"
+
+
+quick-check codex-check:
+	make lint
+	$(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+	git diff --check
+
+smoke-cached:
+	sh ci/smoke-cached.sh
+
+smoke-installed:
+	sh ci/smoke-installed.sh
+
+doctor-install-hints:
+	@echo "Install hints (Debian/Ubuntu example):"
+	@echo "  sudo apt-get update"
+	@echo "  sudo apt-get install -y git make gcc clang autoconf automake libtool pkg-config apache2-dev nginx libmodsecurity-dev"
+	@echo "Install hints (RHEL/Fedora example):"
+	@echo "  sudo dnf install -y git make gcc clang autoconf automake libtool pkgconf-pkg-config httpd-devel nginx mod_security"
+	@echo "Install hints (Alpine example):"
+	@echo "  sudo apk add git make gcc clang autoconf automake libtool pkgconf apache2-dev nginx modsecurity"
+
+
+doctor-quick:
+	DOCTOR_MODE=quick sh ci/doctor.sh
+
+quick-all:
+	sh ci/quick-all.sh
