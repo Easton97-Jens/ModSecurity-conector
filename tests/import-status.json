@@ -308,6 +308,86 @@
       "case": "tests/common/cases/xfail/response_headers_multi_value_runtime_gap.yaml",
       "source": "source-derived compatibility expansion",
       "reason": "runtime-gap coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/edge_missing_header_pass_through.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/edge_plus_vs_space_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/edge_semicolon_query_args_names.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/json_empty_body_future_compatibility.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/operator_beginswith_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/operator_contains_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/operator_endswith_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/operator_rx_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/operator_streq_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase1_vs_phase2_request_body_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase2_header_only_pass_through.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/tfn_compress_whitespace_runtime_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/tfn_lowercase_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/tfn_none_exact_block_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/tfn_trim_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/tfn_urldecodeuni_future_target_phase1.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
     }
   ],
   "v2_imported": [

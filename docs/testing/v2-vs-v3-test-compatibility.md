@@ -70,3 +70,9 @@ A new xfail compatibility wave adds source-derived but unverified candidates for
 - parser/runtime gap checks (malformed XML, invalid JSON)
 
 These cases are kept outside verified PASS accounting until reproducible Apache+NGINX runtime proof exists.
+
+## Additional pending operator/transformation coverage (2026-05-19)
+
+A follow-up xfail wave adds operator and transformation compatibility targets from V2/V3 source semantics, including no-match pass-through branches and normalization edge behavior.
+
+These remain non-verified until reproducible Apache+NGINX full-smoke runtime proof exists.

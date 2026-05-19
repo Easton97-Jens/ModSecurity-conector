@@ -300,3 +300,9 @@ It does not replace the authoritative full source-build smoke (`make smoke-all`)
 Added a larger source-derived xfail/pending set for connector-gap, runtime-difference, and future-compatibility targets. This extends long-term compatibility tracking without changing current verified PASS semantics.
 
 Notably, RESPONSE_BODY remains non-verified and is not promoted; response-body blocking evidence stays xfail/mapped-only until stable cross-connector HTTP 403 proof exists.
+
+## Pending operator/transformation/phase coverage (2026-05-19)
+
+The compatibility matrix now includes additional source-derived xfail targets for operators, transformations, phase ordering assumptions, and parser/edge behavior. This is roadmap-style coverage, not active verified connector parity.
+
+`RESPONSE_BODY` classification remains unchanged (xfail/mapped-only, non-verified).

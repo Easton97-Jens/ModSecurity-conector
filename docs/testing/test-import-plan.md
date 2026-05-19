@@ -216,3 +216,13 @@ Added 10 source-derived YAML compatibility candidates under `tests/common/cases/
 - response-header multi-value runtime-gap probe
 
 These are intentionally not promoted to active verified PASS coverage and remain xfail/pending runtime verification.
+
+## Operator/Transformation/Phase Expansion (2026-05-19)
+
+Added 16 additional source-derived `xfail` common cases for:
+- operators: `@contains`, `@beginsWith`, `@endsWith`, `@streq`, `@rx` (mostly no-match/pass-through targets)
+- transformations: `t:none`, `t:lowercase`, `t:trim`, `t:urlDecode`, `t:urlDecodeUni`, `t:compressWhitespace`
+- phase handling: phase-1 vs phase-2 behavior probes
+- edge/parser: semicolon query, missing header, plus-vs-space decode, empty JSON body
+
+These cases are intentionally tracked as pending/xfail compatibility targets and are not promoted to verified PASS without full runtime evidence.
