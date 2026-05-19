@@ -26,6 +26,8 @@ BUILD_PCRE2_FROM_SOURCE="${BUILD_PCRE2_FROM_SOURCE:-1}"
 APACHE_BUILD_LOG_DIR="${APACHE_BUILD_LOG_DIR:-$BUILD_ROOT/logs/apache}"
 APACHE_RUNTIME_LOG_DIR="${APACHE_RUNTIME_LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
 PYTHON_BIN="${PYTHON:-python3}"
+DEFAULT_MODSECURITY_V3_SOURCE_DIR="/root/conecter/ModSecurity_V3"
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-}"
 
 git_value() {
     git_dir=$1
@@ -87,6 +89,37 @@ write_connector_result() {
 }
 
 configure_apache_origin
+
+print_blocked_prereq() {
+    missing_path=$1
+    env_name=$2
+    default_path=$3
+    echo "blocked: missing runtime prerequisite for ${env_name}: ${missing_path}"
+    echo "blocked: set ${env_name} to a valid ModSecurity v3 source tree (current default: ${default_path})"
+    echo "blocked: smoke result is BLOCKED, not FAIL"
+}
+
+resolve_modsecurity_v3_source_dir() {
+    if [ -n "$MODSECURITY_V3_SOURCE_DIR" ] && [ -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
+        return
+    fi
+    if detected=$(sh "$REPO_ROOT/ci/find-modsecurity-v3.sh"); then
+        MODSECURITY_V3_SOURCE_DIR="$detected"
+        echo "info: auto-detected MODSECURITY_V3_SOURCE_DIR=$MODSECURITY_V3_SOURCE_DIR"
+        return
+    fi
+}
+
+preflight_runtime_prereqs() {
+    resolve_modsecurity_v3_source_dir
+    if [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
+        print_blocked_prereq "${MODSECURITY_V3_SOURCE_DIR:-<unset>}" MODSECURITY_V3_SOURCE_DIR "$DEFAULT_MODSECURITY_V3_SOURCE_DIR"
+        write_connector_result blocked "missing MODSECURITY_V3_SOURCE_DIR: $MODSECURITY_V3_SOURCE_DIR (set env var and retry)"
+        exit 77
+    fi
+}
+
+preflight_runtime_prereqs
 
 apache_adapter_build_current() {
     manifest="$APACHE_BUILD_ROOT/connector-src/materialized-source.json"

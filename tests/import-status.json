@@ -143,6 +143,14 @@
     {
       "case": "tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
       "reason": "V3-derived serial audit log field case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml",
+      "reason": "V3-derived REQUEST_COOKIES no-match pass-through observed PASS on Apache and NGINX. Runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
+    },
+    {
+      "case": "tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml",
+      "reason": "V3-derived REQUEST_HEADERS_NAMES no-match pass-through observed PASS on Apache and NGINX using a stable custom header. Runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
     }
   ],
   "connector_specific": [
