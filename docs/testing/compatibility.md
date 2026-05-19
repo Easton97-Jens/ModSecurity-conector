@@ -314,3 +314,7 @@ Compatibility tracking now includes additional source-derived xfail targets for 
 ## Multipart/files/unicode/parser pending coverage (2026-05-19)
 
 Compatibility tracking now includes additional xfail probes for FILES/multipart parsing, Unicode/encoding normalization, deeper JSON/XML structures, and benign XSS-like/SQLi-like transformation interactions. These remain non-verified roadmap coverage.
+
+## Outbound phase (3/4) pending coverage (2026-05-19)
+
+Coverage now includes explicit phase-3 response-header and phase-4 outbound/response-body probes as xfail/connector-gap/runtime-difference/future targets. This improves long-term compatibility tracking while keeping RESPONSE_BODY non-verified.

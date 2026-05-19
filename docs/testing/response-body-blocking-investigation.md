@@ -113,3 +113,7 @@ response-body access enabled; it does not prove response-body blocking.
   blocking probe at HTTP 200 instead of HTTP 403.
 - Try a connector-specific response fixture path only after documenting why the
   current static fixture path is insufficient.
+
+## Additional phase-4 experimental probes (2026-05-19)
+
+A dedicated xfail expansion added experimental phase-4 response-body probes (empty/unicode/chunk/compressed/html assumptions) plus outbound audit-log probes. These are compatibility tracking artifacts only and do not change the non-verified RESPONSE_BODY classification.

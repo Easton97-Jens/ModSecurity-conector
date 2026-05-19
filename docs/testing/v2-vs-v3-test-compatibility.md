@@ -84,3 +84,7 @@ A new xfail wave tracks audit-log and normalization edge behavior that often div
 ## Multipart/files and encoding probe expansion (2026-05-19)
 
 New source-derived xfail probes track multipart/files edge behavior plus Unicode/encoding and parser-structure differences likely to vary between connector runtimes. They are intentionally non-promoted until reproducible runtime proof exists.
+
+## Outbound phase compatibility probes (2026-05-19)
+
+New source-derived xfail probes track phase-3/phase-4 runtime differences around response headers, response-body visibility/buffering, and outbound audit logging semantics.

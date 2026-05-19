@@ -246,3 +246,12 @@ Added 16 additional source-derived xfail compatibility probes covering:
 - benign XSS-like and SQLi-like normalization/transformation compatibility probes
 
 All are tracked as pending runtime verification and are not promoted to verified PASS.
+
+## Phase-3/Phase-4 Expansion (2026-05-19)
+
+Added 12 source-derived xfail probes focused on outbound processing:
+- phase-3 response-header normalization/duplicate/multi-value/missing behavior
+- phase-4 response-body experimental probes (empty/unicode/chunk/compressed/html)
+- phase-4 outbound audit-log behavior probes (rule-id/message expectations)
+
+These remain non-verified compatibility probes. RESPONSE_BODY is intentionally not promoted to verified PASS.
