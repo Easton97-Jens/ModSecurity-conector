@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+PYTHON_BIN="${PYTHON:-python3}"
+
 status=0
 
 run_pass_fail() {
@@ -40,12 +42,12 @@ run_blockable() {
 }
 
 run_pass_fail "make lint" make lint
-run_pass_fail "make doctor-quick" make doctor-quick
+run_blockable "make doctor-quick" make doctor-quick
 run_pass_fail "make quick-check" make quick-check
 run_blockable "ci/smoke-cached.sh" sh ci/smoke-cached.sh
 run_blockable "ci/smoke-installed.sh" sh ci/smoke-installed.sh
-run_pass_fail "python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py" \
-  python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+run_pass_fail "$PYTHON_BIN -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py" \
+  "$PYTHON_BIN" -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
 run_pass_fail "git diff --check" git diff --check
 
 if [ "$status" -eq 0 ]; then

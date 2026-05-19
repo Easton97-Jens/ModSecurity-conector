@@ -253,3 +253,50 @@ See also: `docs/testing/fast-checks.md` for quick/cached/full check boundaries.
 
 
 Quick CI/developer checks can use `make doctor-quick` and `make quick-all`; these are not full-smoke replacements and may return BLOCKED when runtime prerequisites are absent.
+
+## Incremental Coverage Note (2026-05-19)
+
+Added source-derived negative/pass-through common cases for:
+
+- `REQUEST_COOKIES_NAMES` (`v3_request_cookies_names_pass_no_match`)
+- `ARGS_NAMES` (`v3_args_names_get_pass_no_match`)
+- `REQUEST_URI` with `t:urlDecode` no-match branch (`v2_transformation_url_decode_pass_no_match`)
+
+These additions improve matrix/documented coverage but are not claimed as new stable common PASS evidence until full runtime smoke (`make smoke-all`) runs with all prerequisites.
+
+
+## Installed runtime detection (non-authoritative)
+
+`make doctor` and `make smoke-installed` / `make installed-readiness` now report installed-component readiness using alternative binary names and explicit ModSecurity detection.
+
+Supported detection aliases:
+
+- Apache: `apache2` / `httpd` / `apachectl`
+- APXS: `apxs` / `apxs2`
+- NGINX: `nginx`
+- ModSecurity: `pkg-config` (`modsecurity` or `libmodsecurity`) or filesystem evidence (`libmodsecurity.so*` plus `modsecurity/modsecurity.h`)
+
+Supported override variables:
+
+- `APACHE_BIN`, `APXS_BIN`, `NGINX_BIN`
+- `MODSECURITY_PKG_CONFIG`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INCLUDE_DIR`
+
+This installed-path readiness is informative for quick diagnostics. Full compatibility evidence remains the source-build full-smoke path (`make smoke-all`).
+
+
+## Cloud reproducibility path
+
+For Codex Cloud / GitHub Actions, `.github/workflows/cloud-quick-smoke.yml` installs required Ubuntu packages explicitly and runs `make cloud-quick-check`.
+
+This path distinguishes:
+
+- Framework correctness failures (red): lint/schema/python/diff issues.
+- Runtime readiness limitations (BLOCKED): installed/cached smoke probes without full runtime wiring or artifacts.
+
+It does not replace the authoritative full source-build smoke (`make smoke-all`).
+
+## Expanded pending compatibility coverage (2026-05-19)
+
+Added a larger source-derived xfail/pending set for connector-gap, runtime-difference, and future-compatibility targets. This extends long-term compatibility tracking without changing current verified PASS semantics.
+
+Notably, RESPONSE_BODY remains non-verified and is not promoted; response-body blocking evidence stays xfail/mapped-only until stable cross-connector HTTP 403 proof exists.

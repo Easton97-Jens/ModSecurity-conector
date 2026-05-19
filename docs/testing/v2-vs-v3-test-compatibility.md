@@ -60,3 +60,13 @@ The following remain mapped until a future step adds dedicated support:
 - NUL, binary, non-ASCII, and invalid-input transformation branches.
 - API-only v3 tests that should run through a dedicated API smoke target rather
   than the Apache/NGINX connector smoke.
+
+## Pending Gap/Target Cases (2026-05-19)
+
+A new xfail compatibility wave adds source-derived but unverified candidates for:
+
+- V2 transformation edge behavior (`trim` control chars, `urlDecode` invalid encoding, `removeNulls`)
+- V3 collection-name runtime differences (header/cookie/ARGS names)
+- parser/runtime gap checks (malformed XML, invalid JSON)
+
+These cases are kept outside verified PASS accounting until reproducible Apache+NGINX runtime proof exists.

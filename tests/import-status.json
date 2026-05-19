@@ -151,6 +151,18 @@
     {
       "case": "tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml",
       "reason": "V3-derived REQUEST_HEADERS_NAMES no-match pass-through observed PASS on Apache and NGINX using a stable custom header. Runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
+    },
+    {
+      "case": "tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml",
+      "reason": "V3-derived REQUEST_COOKIES_NAMES no-match pass-through coverage is source-derived; runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
+    },
+    {
+      "case": "tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml",
+      "reason": "V3-derived ARGS_NAMES GET no-match pass-through coverage is source-derived; runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
+    },
+    {
+      "case": "tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml",
+      "reason": "V2-derived urlDecode no-match pass-through coverage is source-derived; runtime verification requires smoke prerequisites (ModSecurity v2/v3 compatible smoke environment)."
     }
   ],
   "connector_specific": [
@@ -246,6 +258,56 @@
       "case": "tests/nginx/cases/xfail/nginx_phase4_strict_connection_abort.yaml",
       "source": "ModSecurity-nginx PR #377 tests/modsecurity-phase4-modes.t",
       "reason": "Strict mode may abort the connection after headers are sent; current smoke schema asserts stable HTTP status and keeps this as NGINX-only xfail evidence."
+    },
+    {
+      "case": "tests/common/cases/xfail/v3_request_headers_names_lowercase_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/v3_request_headers_names_duplicate_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/v3_request_cookies_names_case_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/v3_args_names_duplicate_query_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/v2_transformation_trim_tab_future_compatibility.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "future-compatibility coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "mapped-only-candidate coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/v2_transformation_remove_nulls_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "future-compatibility coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/xml_request_body_malformed_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/request_body_json_invalid_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/response_headers_multi_value_runtime_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "runtime-gap coverage candidate; pending runtime verification and not counted as verified PASS."
     }
   ],
   "v2_imported": [

@@ -21,7 +21,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-cached smoke-installed doctor-install-hints
+.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-cached smoke-installed installed-readiness doctor-install-hints cloud-quick-check
 
 smoke-common:
 	CASE_SCOPE=common sh ci/run-connector-smokes.sh
@@ -91,7 +91,7 @@ quick-check codex-check:
 smoke-cached:
 	sh ci/smoke-cached.sh
 
-smoke-installed:
+smoke-installed installed-readiness:
 	sh ci/smoke-installed.sh
 
 doctor-install-hints:
@@ -109,3 +109,6 @@ doctor-quick:
 
 quick-all:
 	sh ci/quick-all.sh
+
+cloud-quick-check:
+	sh ci/cloud-quick-check.sh

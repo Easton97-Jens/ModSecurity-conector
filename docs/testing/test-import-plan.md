@@ -195,3 +195,24 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 | v3 regression JSON | imported | Multipart/XML/operator/action/cookie/header-name/ARGS_NAMES/audit cases are active common coverage; `issue-2196` nolog/pass is xfail due local/CI audit divergence |
 | external file operators | todo | Needs fixture-file materialization |
 | debug logs | mapped | Text is volatile and connector-specific |
+
+## Incremental Negative/Pass-through Additions (2026-05-19)
+
+Added source-derived portable negative/pass-through cases without changing connector runtime semantics:
+
+- `tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_COOKIES_NAMES.json`)
+- `tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-ARGS_NAMES.json`)
+- `tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml` (source: `ModSecurity_V2` `tests/tfn/urlDecode.t`)
+
+These cases are intentionally pass-through (`expect.status: 200`) and serve as negative-branch evidence for REQUEST_COOKIES/REQUEST_COOKIES_NAMES, ARGS_NAMES, and REQUEST_URI+t:urlDecode coverage. They are source-derived only until full runtime smoke prerequisites are available.
+
+## Compatibility Expansion Wave (2026-05-19, pending/xfail)
+
+Added 10 source-derived YAML compatibility candidates under `tests/common/cases/xfail/` for known gaps and future targets:
+
+- header/cookie/ARGS name runtime-difference or connector-gap probes
+- transformation edge probes (`trim` tab branch, `urlDecode` invalid sequence, `removeNulls`)
+- parser/runtime gap probes (invalid JSON, malformed XML)
+- response-header multi-value runtime-gap probe
+
+These are intentionally not promoted to active verified PASS coverage and remain xfail/pending runtime verification.

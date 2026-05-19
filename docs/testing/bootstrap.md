@@ -56,7 +56,7 @@ BUILD_ROOT=/tmp/modsec-build make smoke-all
 
 - Fast framework checks: `make quick-check`
 - Cached smoke: `make smoke-cached`
-- Installed runtime probe: `make smoke-installed`
+- Installed runtime probe: `make smoke-installed` / `make installed-readiness`
 - Full authoritative connector smoke: `make smoke-all`
 
 Use `REFRESH=1 make smoke-all` to force clean rebuild when cache/build trees are stale.
@@ -67,3 +67,14 @@ Use `REFRESH=1 make smoke-all` to force clean rebuild when cache/build trees are
 Use `make quick-all` for a fast, honest framework/smoke-basis run.
 It never triggers full source rebuilds by itself.
 If runtime artifacts are missing it reports BLOCKED, not PASS.
+
+
+## Cloud quick smoke workflow
+
+GitHub Actions workflow `.github/workflows/cloud-quick-smoke.yml` provides a reproducible cloud path:
+
+1. Install explicit Ubuntu packages (build toolchain + Apache + NGINX + libmodsecurity + JSON libs + AFL++ + parser deps).
+2. Detect Lua dev package dynamically (`liblua5.4-dev`, `liblua5.3-dev`, `liblua5.2-dev`, `liblua5.1-0-dev`, fallback `liblua-dev`).
+3. Run `make cloud-quick-check`.
+
+This workflow is intentionally quick/framework oriented and keeps runtime BLOCKED outcomes honest; it does not claim full connector compatibility.
