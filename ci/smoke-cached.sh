@@ -11,8 +11,21 @@ NGINX_MODULE="${NGINX_MODULE:-$BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_m
 NGINX_LIBMODSEC="${NGINX_LIBMODSEC:-$BUILD_ROOT/nginx-build/output/modsecurity/lib/libmodsecurity.so}"
 
 missing=0
-check_file(){ [ -e "$1" ] || { echo "blocked: missing cached artifact: $1"; missing=1; }; }
-check_exec(){ [ -x "$1" ] || { echo "blocked: missing executable cached artifact: $1"; missing=1; }; }
+check_file() {
+  artifact_path=$1
+  [ -e "$artifact_path" ] || {
+    echo "blocked: missing cached artifact: $artifact_path"
+    missing=1
+  }
+}
+
+check_exec() {
+  artifact_path=$1
+  [ -x "$artifact_path" ] || {
+    echo "blocked: missing executable cached artifact: $artifact_path"
+    missing=1
+  }
+}
 
 echo "smoke-cached: checking cached artifacts under BUILD_ROOT=$BUILD_ROOT"
 check_exec "$HTTPD_BIN"

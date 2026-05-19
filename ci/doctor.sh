@@ -11,10 +11,18 @@ DOCTOR_MODE="${DOCTOR_MODE:-full}"
 say() { echo "doctor: $*"; }
 blocked() { echo "BLOCKED: $*"; status=77; }
 warn() { echo "WARN: $*"; }
-check_cmd() { cmd=$1; if command -v "$cmd" >/dev/null 2>&1; then say "toolchain: $cmd ok"; else blocked "toolchain missing: $cmd"; fi; }
+check_cmd() {
+  cmd_name=$1
+  if command -v "$cmd_name" >/dev/null 2>&1; then
+    say "toolchain: $cmd_name ok"
+  else
+    blocked "toolchain missing: $cmd_name"
+  fi
+}
 
 find_bin() {
-  command -v "$1" 2>/dev/null || true
+  bin_name=$1
+  command -v "$bin_name" 2>/dev/null || true
 }
 
 show_component() {
