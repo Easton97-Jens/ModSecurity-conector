@@ -388,6 +388,66 @@
       "case": "tests/common/cases/xfail/tfn_urldecodeuni_future_target_phase1.yaml",
       "source": "source-derived compatibility expansion",
       "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/audit_log_empty_sections_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/audit_log_matched_var_encoded_value.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/audit_log_message_presence_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/audit_log_multiline_message_normalization.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/audit_log_rule_id_presence_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/duplicate_args_encoded_separator_edge.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/duplicate_cookie_name_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/duplicate_header_case_normalization_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/parser_json_partial_body_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/parser_xml_partial_body_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/tfn_chain_lowercase_trim_pass_through.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/tfn_chain_urldecode_compress_whitespace_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
     }
   ],
   "v2_imported": [

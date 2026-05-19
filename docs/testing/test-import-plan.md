@@ -226,3 +226,13 @@ Added 16 additional source-derived `xfail` common cases for:
 - edge/parser: semicolon query, missing header, plus-vs-space decode, empty JSON body
 
 These cases are intentionally tracked as pending/xfail compatibility targets and are not promoted to verified PASS without full runtime evidence.
+
+## Audit/Normalization/Parser Expansion (2026-05-19)
+
+Added 12 additional source-derived xfail compatibility probes for:
+- audit-log presence/normalization/multiline and matched-var evidence
+- duplicate collection/name normalization (headers/cookies/args)
+- parser partial-body edges (JSON/XML)
+- transformation-chain behavior (`lowercase+trim`, `urlDecode+compressWhitespace`)
+
+All remain pending runtime verification and are excluded from verified PASS accounting.

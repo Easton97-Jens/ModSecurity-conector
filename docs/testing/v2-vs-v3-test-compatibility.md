@@ -76,3 +76,7 @@ These cases are kept outside verified PASS accounting until reproducible Apache+
 A follow-up xfail wave adds operator and transformation compatibility targets from V2/V3 source semantics, including no-match pass-through branches and normalization edge behavior.
 
 These remain non-verified until reproducible Apache+NGINX full-smoke runtime proof exists.
+
+## Additional audit/normalization compatibility probes (2026-05-19)
+
+A new xfail wave tracks audit-log and normalization edge behavior that often diverges across connectors and runtimes. These probes are intentionally non-promoted until reproducible cross-connector runtime evidence exists.

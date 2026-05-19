@@ -306,3 +306,7 @@ Notably, RESPONSE_BODY remains non-verified and is not promoted; response-body b
 The compatibility matrix now includes additional source-derived xfail targets for operators, transformations, phase ordering assumptions, and parser/edge behavior. This is roadmap-style coverage, not active verified connector parity.
 
 `RESPONSE_BODY` classification remains unchanged (xfail/mapped-only, non-verified).
+
+## Audit/normalization/parser pending coverage (2026-05-19)
+
+Compatibility tracking now includes additional source-derived xfail targets for audit-log behavior, duplicate/normalization handling, parser partial-body edges, and transformation-chain interactions. These are roadmap probes and not active PASS parity claims.
