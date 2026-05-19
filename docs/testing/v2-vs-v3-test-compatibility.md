@@ -88,3 +88,7 @@ New source-derived xfail probes track multipart/files edge behavior plus Unicode
 ## Outbound phase compatibility probes (2026-05-19)
 
 New source-derived xfail probes track phase-3/phase-4 runtime differences around response headers, response-body visibility/buffering, and outbound audit logging semantics.
+
+## Outbound follow-up compatibility probes (2026-05-19)
+
+Added further source-derived xfail probes for phase-3/4 response and outbound audit behavior where Apache/NGINX/v2/v3 runtime differences are expected.

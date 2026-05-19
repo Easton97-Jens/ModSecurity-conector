@@ -117,3 +117,7 @@ response-body access enabled; it does not prove response-body blocking.
 ## Additional phase-4 experimental probes (2026-05-19)
 
 A dedicated xfail expansion added experimental phase-4 response-body probes (empty/unicode/chunk/compressed/html assumptions) plus outbound audit-log probes. These are compatibility tracking artifacts only and do not change the non-verified RESPONSE_BODY classification.
+
+## Follow-up phase-4 probe wave (2026-05-19)
+
+Additional phase-4 response-body and outbound audit probes were added as xfail/future/connector-gap tracking only. They do not alter the RESPONSE_BODY non-verified decision.

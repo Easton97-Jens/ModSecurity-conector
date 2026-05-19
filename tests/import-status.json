@@ -588,6 +588,56 @@
       "case": "tests/common/cases/xfail/phase4_response_body_unicode_runtime_difference.yaml",
       "source": "source-derived phase3/phase4 compatibility expansion",
       "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase3_response_headers_content_type_charset_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase3_response_headers_location_encoded_runtime_diff.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase3_response_headers_server_presence_pending.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase3_response_headers_set_cookie_multi_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase4_auditlog_outbound_escaped_value_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase4_auditlog_outbound_matched_var_future.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase4_auditlog_outbound_multiline_section_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase4_response_body_buffering_order_future_target.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase4_response_body_html_entity_decode_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+    },
+    {
+      "case": "tests/common/cases/xfail/phase4_response_body_pass_no_match_experimental.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
     }
   ],
   "v2_imported": [

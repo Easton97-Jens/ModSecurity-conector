@@ -318,3 +318,7 @@ Compatibility tracking now includes additional xfail probes for FILES/multipart 
 ## Outbound phase (3/4) pending coverage (2026-05-19)
 
 Coverage now includes explicit phase-3 response-header and phase-4 outbound/response-body probes as xfail/connector-gap/runtime-difference/future targets. This improves long-term compatibility tracking while keeping RESPONSE_BODY non-verified.
+
+## Additional outbound follow-up probes (2026-05-19)
+
+A follow-up wave extends phase-3/4 outbound coverage for response-header normalization and outbound audit assumptions. RESPONSE_BODY remains explicitly non-verified and non-promoted.

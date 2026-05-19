@@ -255,3 +255,12 @@ Added 12 source-derived xfail probes focused on outbound processing:
 - phase-4 outbound audit-log behavior probes (rule-id/message expectations)
 
 These remain non-verified compatibility probes. RESPONSE_BODY is intentionally not promoted to verified PASS.
+
+## Phase-3/4 follow-up expansion (2026-05-19)
+
+Added 10 additional source-derived xfail probes for:
+- phase-3 response header presence/charset/location/set-cookie behavior
+- phase-4 response-body no-match/buffering/entity-decode assumptions
+- phase-4 outbound audit matched-var/escaped/multiline assumptions
+
+These remain compatibility probes only and are not promoted to verified PASS.
