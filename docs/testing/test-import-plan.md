@@ -236,3 +236,13 @@ Added 12 additional source-derived xfail compatibility probes for:
 - transformation-chain behavior (`lowercase+trim`, `urlDecode+compressWhitespace`)
 
 All remain pending runtime verification and are excluded from verified PASS accounting.
+
+## Multipart/FILES/Unicode/Parser Expansion (2026-05-19)
+
+Added 16 additional source-derived xfail compatibility probes covering:
+- FILES/FILES_NAMES and multipart edge behavior (boundary, duplicate fields, filename normalization)
+- Unicode/encoding normalization and decode-chain behavior
+- complex JSON/XML structure and parser-edge probes
+- benign XSS-like and SQLi-like normalization/transformation compatibility probes
+
+All are tracked as pending runtime verification and are not promoted to verified PASS.

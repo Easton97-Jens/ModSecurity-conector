@@ -310,3 +310,7 @@ The compatibility matrix now includes additional source-derived xfail targets fo
 ## Audit/normalization/parser pending coverage (2026-05-19)
 
 Compatibility tracking now includes additional source-derived xfail targets for audit-log behavior, duplicate/normalization handling, parser partial-body edges, and transformation-chain interactions. These are roadmap probes and not active PASS parity claims.
+
+## Multipart/files/unicode/parser pending coverage (2026-05-19)
+
+Compatibility tracking now includes additional xfail probes for FILES/multipart parsing, Unicode/encoding normalization, deeper JSON/XML structures, and benign XSS-like/SQLi-like transformation interactions. These remain non-verified roadmap coverage.

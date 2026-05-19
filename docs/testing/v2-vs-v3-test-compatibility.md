@@ -80,3 +80,7 @@ These remain non-verified until reproducible Apache+NGINX full-smoke runtime pro
 ## Additional audit/normalization compatibility probes (2026-05-19)
 
 A new xfail wave tracks audit-log and normalization edge behavior that often diverges across connectors and runtimes. These probes are intentionally non-promoted until reproducible cross-connector runtime evidence exists.
+
+## Multipart/files and encoding probe expansion (2026-05-19)
+
+New source-derived xfail probes track multipart/files edge behavior plus Unicode/encoding and parser-structure differences likely to vary between connector runtimes. They are intentionally non-promoted until reproducible runtime proof exists.

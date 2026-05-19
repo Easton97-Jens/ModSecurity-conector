@@ -448,6 +448,86 @@
       "case": "tests/common/cases/xfail/tfn_chain_urldecode_compress_whitespace_gap.yaml",
       "source": "source-derived compatibility expansion",
       "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/files_empty_part_future_compatibility.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/files_names_mixed_case_filename_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/json_duplicate_keys_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/json_nested_object_future_compatibility.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/multipart_duplicate_field_names_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/multipart_empty_filename_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/multipart_encoded_filename_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/multipart_invalid_boundary_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/sqli_like_keyword_spacing_probe.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/sqli_like_quote_encoding_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/unicode_double_encoded_uri_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/unicode_whitespace_normalization_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/xml_deep_nesting_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/xml_namespace_edge_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/xss_like_encoded_angles_normalization_probe.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+    },
+    {
+      "case": "tests/common/cases/xfail/xss_like_mixed_case_script_token_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
     }
   ],
   "v2_imported": [
