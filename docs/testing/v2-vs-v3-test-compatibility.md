@@ -60,3 +60,35 @@ The following remain mapped until a future step adds dedicated support:
 - NUL, binary, non-ASCII, and invalid-input transformation branches.
 - API-only v3 tests that should run through a dedicated API smoke target rather
   than the Apache/NGINX connector smoke.
+
+## Pending Gap/Target Cases (2026-05-19)
+
+A new xfail compatibility wave adds source-derived but unverified candidates for:
+
+- V2 transformation edge behavior (`trim` control chars, `urlDecode` invalid encoding, `removeNulls`)
+- V3 collection-name runtime differences (header/cookie/ARGS names)
+- parser/runtime gap checks (malformed XML, invalid JSON)
+
+These cases are kept outside verified PASS accounting until reproducible Apache+NGINX runtime proof exists.
+
+## Additional pending operator/transformation coverage (2026-05-19)
+
+A follow-up xfail wave adds operator and transformation compatibility targets from V2/V3 source semantics, including no-match pass-through branches and normalization edge behavior.
+
+These remain non-verified until reproducible Apache+NGINX full-smoke runtime proof exists.
+
+## Additional audit/normalization compatibility probes (2026-05-19)
+
+A new xfail wave tracks audit-log and normalization edge behavior that often diverges across connectors and runtimes. These probes are intentionally non-promoted until reproducible cross-connector runtime evidence exists.
+
+## Multipart/files and encoding probe expansion (2026-05-19)
+
+New source-derived xfail probes track multipart/files edge behavior plus Unicode/encoding and parser-structure differences likely to vary between connector runtimes. They are intentionally non-promoted until reproducible runtime proof exists.
+
+## Outbound phase compatibility probes (2026-05-19)
+
+New source-derived xfail probes track phase-3/phase-4 runtime differences around response headers, response-body visibility/buffering, and outbound audit logging semantics.
+
+## Outbound follow-up compatibility probes (2026-05-19)
+
+Added further source-derived xfail probes for phase-3/4 response and outbound audit behavior where Apache/NGINX/v2/v3 runtime differences are expected.

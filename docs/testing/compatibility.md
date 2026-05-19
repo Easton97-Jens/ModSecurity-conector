@@ -137,3 +137,208 @@ local runs in this workspace produced HTTP 200 and empty audit logs, but the
 current GitHub Actions run reported `expected audit log to be absent or empty`.
 It is not counted as a stable common PASS until local Apache, local NGINX, and
 GitHub Actions agree.
+
+## Reproducible Local Setup (Smoke + Lint)
+
+The smoke/lint tooling has explicit prerequisites and reports missing runtime inputs as **BLOCKED**.
+
+### Python dependencies
+
+Install dev dependencies before running `make lint`:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+```
+
+Currently required for lint helpers:
+
+- `PyYAML>=6,<7` (used by `ci/check-workflow-yaml.py`)
+
+If missing, lint prints a clear blocked message and installation hint instead of a Python traceback.
+
+
+### One-command dev bootstrap
+
+Create an isolated virtualenv and install dev deps:
+
+```bash
+make setup-dev
+# make now auto-prefers .venv/bin/python when present
+source .venv/bin/activate
+```
+
+Equivalent target names:
+
+- `make install-dev-deps`
+- `make setup-dev`
+
+### Environment doctor
+
+Check Python deps and ModSecurity v3 path detection:
+
+```bash
+make doctor
+```
+
+The doctor tries to auto-detect `MODSECURITY_V3_SOURCE_DIR` in this order:
+
+1. Explicit `MODSECURITY_V3_SOURCE_DIR` (if it exists)
+2. `../ModSecurity_V3` relative to repo root
+3. `../../ModSecurity_V3` relative to repo root
+4. `.deps/ModSecurity_V3` inside this repo
+5. `/root/conecter/ModSecurity_V3`
+
+If none exist, doctor exits BLOCKED and prints the exact export command needed.
+
+
+### Optional GitHub runtime fetch
+
+To bootstrap real external runtime prerequisites explicitly:
+
+```bash
+make fetch-deps
+```
+
+This uses `ci/fetch-smoke-sources.sh` and real public upstream repositories (see `docs/testing/bootstrap.md`).
+No network fetch is triggered automatically by `make setup-dev`, `make lint`, `make doctor`, or `make smoke-all`.
+
+If you only want to run dependency diagnostics first:
+
+```bash
+make doctor
+```
+
+### Runtime prerequisites for connector smokes
+
+`make smoke-all` requires a ModSecurity v3 source tree path. Default:
+
+- `MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3`
+
+Override in portable environments:
+
+```bash
+export MODSECURITY_V3_SOURCE_DIR=/absolute/path/to/ModSecurity_V3
+export BUILD_ROOT=/absolute/path/for/build-artifacts
+make smoke-all
+```
+
+If prerequisites are missing, smoke scripts now emit explicit blocked guidance that includes:
+
+- missing prerequisite path
+- affected env var name
+- remediation command/env hint
+- explicit statement that result is **BLOCKED**, not **FAIL**
+
+### Status meaning
+
+- **PASS**: expected behavior observed through the real connector path.
+- **FAIL**: harness ran and observed unexpected behavior or execution error.
+- **BLOCKED**: prerequisites (dependencies, source paths, build/runtime requirements) are missing, so execution could not start reliably.
+
+
+### Recommended fresh-environment flow
+
+```bash
+make setup-dev
+make lint
+make fetch-deps
+make doctor
+make smoke-all
+```
+
+Use a single consistent `BUILD_ROOT` across `fetch-deps`, `doctor`, and `smoke-all`.
+
+
+See also: `docs/testing/fast-checks.md` for quick/cached/full check boundaries.
+
+
+Quick CI/developer checks can use `make doctor-quick` and `make quick-all`; these are not full-smoke replacements and may return BLOCKED when runtime prerequisites are absent.
+
+## Incremental Coverage Note (2026-05-19)
+
+Added source-derived negative/pass-through common cases for:
+
+- `REQUEST_COOKIES_NAMES` (`v3_request_cookies_names_pass_no_match`)
+- `ARGS_NAMES` (`v3_args_names_get_pass_no_match`)
+- `REQUEST_URI` with `t:urlDecode` no-match branch (`v2_transformation_url_decode_pass_no_match`)
+
+These additions improve matrix/documented coverage but are not claimed as new stable common PASS evidence until full runtime smoke (`make smoke-all`) runs with all prerequisites.
+
+
+## Installed runtime detection (non-authoritative)
+
+`make doctor` and `make smoke-installed` / `make installed-readiness` now report installed-component readiness using alternative binary names and explicit ModSecurity detection.
+
+Supported detection aliases:
+
+- Apache: `apache2` / `httpd` / `apachectl`
+- APXS: `apxs` / `apxs2`
+- NGINX: `nginx`
+- ModSecurity: `pkg-config` (`modsecurity` or `libmodsecurity`) or filesystem evidence (`libmodsecurity.so*` plus `modsecurity/modsecurity.h`)
+
+Supported override variables:
+
+- `APACHE_BIN`, `APXS_BIN`, `NGINX_BIN`
+- `MODSECURITY_PKG_CONFIG`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INCLUDE_DIR`
+
+This installed-path readiness is informative for quick diagnostics. Full compatibility evidence remains the source-build full-smoke path (`make smoke-all`).
+
+
+## Cloud reproducibility path
+
+For Codex Cloud / GitHub Actions, `.github/workflows/cloud-quick-smoke.yml` installs required Ubuntu packages explicitly and runs `make cloud-quick-check`.
+
+This path distinguishes:
+
+- Framework correctness failures (red): lint/schema/python/diff issues.
+- Runtime readiness limitations (BLOCKED): installed/cached smoke probes without full runtime wiring or artifacts.
+
+It does not replace the authoritative full source-build smoke (`make smoke-all`).
+
+## Expanded pending compatibility coverage (2026-05-19)
+
+Added a larger source-derived xfail/pending set for connector-gap, runtime-difference, and future-compatibility targets. This extends long-term compatibility tracking without changing current verified PASS semantics.
+
+Notably, RESPONSE_BODY remains non-verified and is not promoted; response-body blocking evidence stays xfail/mapped-only until stable cross-connector HTTP 403 proof exists.
+
+## Pending operator/transformation/phase coverage (2026-05-19)
+
+The compatibility matrix now includes additional source-derived xfail targets for operators, transformations, phase ordering assumptions, and parser/edge behavior. This is roadmap-style coverage, not active verified connector parity.
+
+`RESPONSE_BODY` classification remains unchanged (xfail/mapped-only, non-verified).
+
+## Audit/normalization/parser pending coverage (2026-05-19)
+
+Compatibility tracking now includes additional source-derived xfail targets for audit-log behavior, duplicate/normalization handling, parser partial-body edges, and transformation-chain interactions. These are roadmap probes and not active PASS parity claims.
+
+## Multipart/files/unicode/parser pending coverage (2026-05-19)
+
+Compatibility tracking now includes additional xfail probes for FILES/multipart parsing, Unicode/encoding normalization, deeper JSON/XML structures, and benign XSS-like/SQLi-like transformation interactions. These remain non-verified roadmap coverage.
+
+## Outbound phase (3/4) pending coverage (2026-05-19)
+
+Coverage now includes explicit phase-3 response-header and phase-4 outbound/response-body probes as xfail/connector-gap/runtime-difference/future targets. This improves long-term compatibility tracking while keeping RESPONSE_BODY non-verified.
+
+## Additional outbound follow-up probes (2026-05-19)
+
+A follow-up wave extends phase-3/4 outbound coverage for response-header normalization and outbound audit assumptions. RESPONSE_BODY remains explicitly non-verified and non-promoted.
+
+## Coverage Matrix Reporting
+
+For up-to-date repository coverage reporting, use:
+
+- `docs/testing/test-coverage-overview.md`
+- `docs/testing/generated/case-matrix.generated.md`
+- `docs/testing/generated/coverage-summary.generated.md`
+- `docs/testing/generated/xfail-summary.generated.md`
+- `docs/testing/generated/connector-gap-summary.generated.md`
+- `docs/testing/generated/phase-coverage.generated.md`
+
+Generation/check workflow:
+
+```sh
+make generate-test-matrix
+make check-test-matrix
+```
+
+These artifacts summarize declared case metadata and import status. They do not assert full runtime compatibility; `make smoke-all` remains the authoritative runtime-evidence path.

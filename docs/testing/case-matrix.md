@@ -56,3 +56,126 @@ Generated from repository YAML cases and, when present, connector summary result
 | nginx_tx_scoring_absolute_block | ModSecurity-nginx:tests/modsecurity-scoring.t | actions | collections, intervention, phase2, query-args, tx-collection | unknown | pass | connector-specific |  |
 | nginx_tx_scoring_iterative_block | ModSecurity-nginx:tests/modsecurity-scoring.t | actions | collections, intervention, phase2, query-args, tx-collection | unknown | pass | connector-specific |  |
 | nginx_phase4_strict_connection_abort | ModSecurity-nginx:tests/modsecurity-phase4-modes.t | response-body | intervention, logging, phase4, response-body | unknown | unknown | connector-specific | The current smoke harness expects stable HTTP status codes; strict mode may abort after headers are sent.; Kept outside normal discovery until a dedicated empty-reply assertion exists. |
+| v2_transformation_url_decode_pass_no_match | ModSecurity_V2:tests/tfn/urlDecode.t | transformations | pass-through, phase1, request-uri, transformations | unknown | unknown | common | Source-derived negative/pass-through branch for urlDecode via REQUEST_URI.; Runtime verification pending full smoke prerequisites. |
+| v3_args_names_get_pass_no_match | ModSecurity_V3:test/test-cases/regression/variable-ARGS_NAMES.json | collections | args-names, collections, pass-through, phase2, query-args | unknown | unknown | common | Source-derived negative/pass-through ARGS_NAMES branch using GET parameters.; Runtime verification pending full smoke prerequisites. |
+| v3_request_cookies_names_pass_no_match | ModSecurity_V3:test/test-cases/regression/variable-REQUEST_COOKIES_NAMES.json | collections | collections, pass-through, phase1, request-cookies | unknown | unknown | common | Source-derived negative/pass-through REQUEST_COOKIES_NAMES branch.; Runtime verification pending full smoke prerequisites. |
+| request_body_json_invalid_runtime_difference | ModSecurity-apache:tests/regression/rule/15-json.t | body-processors | intervention, json, phase2, request-body | unknown | unknown | xfail | Invalid JSON parser/runtime-difference probe; pending runtime verification. |
+| response_headers_multi_value_runtime_gap | ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json | response-headers | intervention, phase3, response-headers | unknown | unknown | xfail | Multi-value response-header runtime-gap probe; pending runtime verification. |
+| v2_transformation_remove_nulls_future_target | ModSecurity_V2:tests/tfn/removeNulls.t | transformations | intervention, phase1, request-uri, transformations | unknown | unknown | xfail | Future compatibility target for removeNulls on encoded NUL input. |
+| v2_transformation_trim_tab_future_compatibility | ModSecurity_V2:tests/tfn/trim.t | transformations | intervention, phase2, query-args, transformations | unknown | unknown | xfail | Future compatibility target for trim control-char branch. |
+| v2_transformation_url_decode_invalid_sequence_mapped_candidate | ModSecurity_V2:tests/tfn/urlDecode.t | transformations | intervention, phase1, request-uri, transformations | unknown | unknown | xfail | Invalid urlDecode sequence mapped-only candidate; pending runtime verification. |
+| v3_args_names_duplicate_query_connector_gap | ModSecurity_V3:test/test-cases/regression/variable-ARGS_NAMES.json | collections | args-names, collections, intervention, phase2, query-args | unknown | unknown | xfail | Duplicate ARGS_NAMES connector-gap probe. |
+| v3_request_cookies_names_case_runtime_difference | ModSecurity_V3:test/test-cases/regression/variable-REQUEST_COOKIES_NAMES.json | collections | collections, intervention, phase1, request-cookies | unknown | unknown | xfail | Cookie-name case runtime-difference probe. |
+| v3_request_headers_names_duplicate_connector_gap | ModSecurity_V3:test/test-cases/regression/variable-REQUEST_HEADERS_NAMES.json | collections | collections, intervention, phase1, request-headers | unknown | unknown | xfail | Duplicate header-name connector-gap probe. |
+| v3_request_headers_names_lowercase_runtime_difference | ModSecurity_V3:test/test-cases/regression/variable-REQUEST_HEADERS_NAMES.json | collections | collections, intervention, phase1, request-headers | unknown | unknown | xfail | Header-name lowercase runtime-difference probe. |
+| xml_request_body_malformed_connector_gap | ModSecurity-apache:tests/regression/rule/10-xml.t | body-processors | intervention, phase2, request-body, xml | unknown | unknown | xfail | Malformed XML parser connector-gap probe. |
+
+| operator_beginswith_pass_no_match_phase2 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| operator_contains_pass_no_match_phase2 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| operator_endswith_pass_no_match_phase2 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| operator_rx_pass_no_match_phase2 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| operator_streq_pass_no_match_phase2 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| tfn_compress_whitespace_runtime_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| tfn_lowercase_pass_no_match_phase2 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| tfn_none_exact_block_phase2 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| tfn_trim_pass_no_match_phase2 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| tfn_urldecodeuni_future_target_phase1 | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| phase1_vs_phase2_request_body_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| phase2_header_only_pass_through | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| edge_missing_header_pass_through | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| edge_plus_vs_space_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| edge_semicolon_query_args_names | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+| json_empty_body_future_compatibility | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived operator/transformation/phase/edge/parser compatibility candidate; runtime not verified. |
+
+| audit_log_rule_id_presence_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| audit_log_message_presence_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| audit_log_matched_var_encoded_value | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| audit_log_multiline_message_normalization | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| audit_log_empty_sections_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| duplicate_cookie_name_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| duplicate_header_case_normalization_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| duplicate_args_encoded_separator_edge | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| parser_json_partial_body_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| parser_xml_partial_body_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| tfn_chain_lowercase_trim_pass_through | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+| tfn_chain_urldecode_compress_whitespace_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived audit/normalization/parser/transformation-chain compatibility candidate; runtime not verified. |
+
+| multipart_duplicate_field_names_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| multipart_empty_filename_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| multipart_encoded_filename_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| multipart_invalid_boundary_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| files_empty_part_future_compatibility | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| files_names_mixed_case_filename_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| unicode_double_encoded_uri_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| unicode_whitespace_normalization_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| json_duplicate_keys_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| json_empty_body_future_compatibility | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| json_nested_object_future_compatibility | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| xml_deep_nesting_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| xml_namespace_edge_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| xml_request_body_malformed_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| xss_like_encoded_angles_normalization_probe | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| xss_like_mixed_case_script_token_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| sqli_like_keyword_spacing_probe | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+| sqli_like_quote_encoding_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived multipart/files/unicode/parser/XSS-like/SQLi-like compatibility candidate; runtime not verified. |
+
+| phase3_response_headers_duplicate_value_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_encoded_value_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_missing_pass_through | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_mixed_case_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_multi_value_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_auditlog_outbound_message_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_auditlog_outbound_rule_id_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_chunk_assumption_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_compressed_assumption_experimental | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_empty_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_html_text_normalization_probe | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_unicode_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+
+| phase3_response_headers_content_type_charset_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_duplicate_value_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_encoded_value_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_location_encoded_runtime_diff | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_missing_pass_through | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_mixed_case_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_multi_value_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_server_presence_pending | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase3_response_headers_set_cookie_multi_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_buffering_order_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_chunk_assumption_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_compressed_assumption_experimental | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_empty_future_target | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_html_entity_decode_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_html_text_normalization_probe | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_pass_no_match_experimental | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_response_body_unicode_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_auditlog_outbound_escaped_value_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_auditlog_outbound_matched_var_future | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_auditlog_outbound_message_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_auditlog_outbound_multiline_section_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+| phase4_auditlog_outbound_rule_id_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+
+## Generated Matrix Reports
+
+Use generated reports for current repository-wide coverage snapshots:
+
+- `docs/testing/test-coverage-overview.md`
+- `docs/testing/generated/case-matrix.generated.md`
+- `docs/testing/generated/coverage-summary.generated.md`
+- `docs/testing/generated/xfail-summary.generated.md`
+- `docs/testing/generated/connector-gap-summary.generated.md`
+- `docs/testing/generated/phase-coverage.generated.md`
+
+Regenerate with:
+
+```sh
+make generate-test-matrix
+```
+
+Validate freshness in CI/local checks with:
+
+```sh
+make check-test-matrix
+```
+
+These reports are documentation/reporting artifacts only and do not replace runtime evidence from `make smoke-all`.

@@ -195,3 +195,90 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 | v3 regression JSON | imported | Multipart/XML/operator/action/cookie/header-name/ARGS_NAMES/audit cases are active common coverage; `issue-2196` nolog/pass is xfail due local/CI audit divergence |
 | external file operators | todo | Needs fixture-file materialization |
 | debug logs | mapped | Text is volatile and connector-specific |
+
+## Incremental Negative/Pass-through Additions (2026-05-19)
+
+Added source-derived portable negative/pass-through cases without changing connector runtime semantics:
+
+- `tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_COOKIES_NAMES.json`)
+- `tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-ARGS_NAMES.json`)
+- `tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml` (source: `ModSecurity_V2` `tests/tfn/urlDecode.t`)
+
+These cases are intentionally pass-through (`expect.status: 200`) and serve as negative-branch evidence for REQUEST_COOKIES/REQUEST_COOKIES_NAMES, ARGS_NAMES, and REQUEST_URI+t:urlDecode coverage. They are source-derived only until full runtime smoke prerequisites are available.
+
+## Compatibility Expansion Wave (2026-05-19, pending/xfail)
+
+Added 10 source-derived YAML compatibility candidates under `tests/common/cases/xfail/` for known gaps and future targets:
+
+- header/cookie/ARGS name runtime-difference or connector-gap probes
+- transformation edge probes (`trim` tab branch, `urlDecode` invalid sequence, `removeNulls`)
+- parser/runtime gap probes (invalid JSON, malformed XML)
+- response-header multi-value runtime-gap probe
+
+These are intentionally not promoted to active verified PASS coverage and remain xfail/pending runtime verification.
+
+## Operator/Transformation/Phase Expansion (2026-05-19)
+
+Added 16 additional source-derived `xfail` common cases for:
+- operators: `@contains`, `@beginsWith`, `@endsWith`, `@streq`, `@rx` (mostly no-match/pass-through targets)
+- transformations: `t:none`, `t:lowercase`, `t:trim`, `t:urlDecode`, `t:urlDecodeUni`, `t:compressWhitespace`
+- phase handling: phase-1 vs phase-2 behavior probes
+- edge/parser: semicolon query, missing header, plus-vs-space decode, empty JSON body
+
+These cases are intentionally tracked as pending/xfail compatibility targets and are not promoted to verified PASS without full runtime evidence.
+
+## Audit/Normalization/Parser Expansion (2026-05-19)
+
+Added 12 additional source-derived xfail compatibility probes for:
+- audit-log presence/normalization/multiline and matched-var evidence
+- duplicate collection/name normalization (headers/cookies/args)
+- parser partial-body edges (JSON/XML)
+- transformation-chain behavior (`lowercase+trim`, `urlDecode+compressWhitespace`)
+
+All remain pending runtime verification and are excluded from verified PASS accounting.
+
+## Multipart/FILES/Unicode/Parser Expansion (2026-05-19)
+
+Added 16 additional source-derived xfail compatibility probes covering:
+- FILES/FILES_NAMES and multipart edge behavior (boundary, duplicate fields, filename normalization)
+- Unicode/encoding normalization and decode-chain behavior
+- complex JSON/XML structure and parser-edge probes
+- benign XSS-like and SQLi-like normalization/transformation compatibility probes
+
+All are tracked as pending runtime verification and are not promoted to verified PASS.
+
+## Phase-3/Phase-4 Expansion (2026-05-19)
+
+Added 12 source-derived xfail probes focused on outbound processing:
+- phase-3 response-header normalization/duplicate/multi-value/missing behavior
+- phase-4 response-body experimental probes (empty/unicode/chunk/compressed/html)
+- phase-4 outbound audit-log behavior probes (rule-id/message expectations)
+
+These remain non-verified compatibility probes. RESPONSE_BODY is intentionally not promoted to verified PASS.
+
+## Phase-3/4 follow-up expansion (2026-05-19)
+
+Added 10 additional source-derived xfail probes for:
+- phase-3 response header presence/charset/location/set-cookie behavior
+- phase-4 response-body no-match/buffering/entity-decode assumptions
+- phase-4 outbound audit matched-var/escaped/multiline assumptions
+
+These remain compatibility probes only and are not promoted to verified PASS.
+
+## Generated Coverage Reporting
+
+The repository now provides generated matrix/coverage reporting:
+
+- Human entry page: `docs/testing/test-coverage-overview.md`
+- Machine-generated detail pages under `docs/testing/generated/*.generated.md`
+
+Commands:
+
+```sh
+make generate-test-matrix
+make check-test-matrix
+```
+
+Data sources include test case YAML files under `tests/common/cases/`, `tests/apache/cases/`, `tests/nginx/cases/`, plus `tests/import-status.json`.
+
+Important: generated reports are **not** runtime PASS proof. Authoritative runtime verification remains `make smoke-all`.

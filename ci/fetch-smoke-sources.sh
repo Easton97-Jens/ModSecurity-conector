@@ -2,7 +2,7 @@
 set -eu
 
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-SOURCE_ROOT="${SOURCE_ROOT:-${RUNNER_TEMP:-$BUILD_ROOT}/sources}"
+SOURCE_ROOT="${SOURCE_ROOT:-$BUILD_ROOT/sources}"
 MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-https://github.com/owasp-modsecurity/ModSecurity.git}"
 MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-v3/master}"
 MODSECURITY_APACHE_GIT_URL="${MODSECURITY_APACHE_GIT_URL:-https://github.com/owasp-modsecurity/ModSecurity-apache.git}"
@@ -13,6 +13,8 @@ MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$SOURCE_ROOT/ModSecurity
 MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$SOURCE_ROOT/ModSecurity-apache}"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$SOURCE_ROOT/ModSecurity-nginx}"
 FETCH_SCOPE="${1:-all}"
+
+echo "fetch_smoke_sources: explicit fetch requested (no automatic background download)"
 
 notice() {
     message=$1
@@ -66,12 +68,13 @@ clone_source() {
     fi
     echo "fetch_smoke_sources: fetching $url ref=$ref into $dest"
     set +e
-    git clone --depth 1 --branch "$ref" "$url" "$dest"
+    git clone --branch "$ref" "$url" "$dest"
     rc=$?
     set -e
     if [ "$rc" -ne 0 ]; then
         notice "source fetch blocked for $url ref=$ref"
         rm -rf "$dest"
+        exit 77
     fi
 }
 
