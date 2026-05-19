@@ -154,3 +154,28 @@ Generated from repository YAML cases and, when present, connector summary result
 | phase4_auditlog_outbound_message_connector_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
 | phase4_auditlog_outbound_multiline_section_gap | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
 | phase4_auditlog_outbound_rule_id_runtime_difference | source-derived | compatibility-expansion | pending, xfail | unknown | unknown | xfail | Source-derived phase3/phase4 outbound compatibility candidate; runtime not verified. |
+
+## Generated Matrix Reports
+
+Use generated reports for current repository-wide coverage snapshots:
+
+- `docs/testing/test-coverage-overview.md`
+- `docs/testing/generated/case-matrix.generated.md`
+- `docs/testing/generated/coverage-summary.generated.md`
+- `docs/testing/generated/xfail-summary.generated.md`
+- `docs/testing/generated/connector-gap-summary.generated.md`
+- `docs/testing/generated/phase-coverage.generated.md`
+
+Regenerate with:
+
+```sh
+make generate-test-matrix
+```
+
+Validate freshness in CI/local checks with:
+
+```sh
+make check-test-matrix
+```
+
+These reports are documentation/reporting artifacts only and do not replace runtime evidence from `make smoke-all`.

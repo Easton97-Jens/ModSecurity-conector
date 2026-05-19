@@ -322,3 +322,23 @@ Coverage now includes explicit phase-3 response-header and phase-4 outbound/resp
 ## Additional outbound follow-up probes (2026-05-19)
 
 A follow-up wave extends phase-3/4 outbound coverage for response-header normalization and outbound audit assumptions. RESPONSE_BODY remains explicitly non-verified and non-promoted.
+
+## Coverage Matrix Reporting
+
+For up-to-date repository coverage reporting, use:
+
+- `docs/testing/test-coverage-overview.md`
+- `docs/testing/generated/case-matrix.generated.md`
+- `docs/testing/generated/coverage-summary.generated.md`
+- `docs/testing/generated/xfail-summary.generated.md`
+- `docs/testing/generated/connector-gap-summary.generated.md`
+- `docs/testing/generated/phase-coverage.generated.md`
+
+Generation/check workflow:
+
+```sh
+make generate-test-matrix
+make check-test-matrix
+```
+
+These artifacts summarize declared case metadata and import status. They do not assert full runtime compatibility; `make smoke-all` remains the authoritative runtime-evidence path.

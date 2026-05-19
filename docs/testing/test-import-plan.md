@@ -264,3 +264,21 @@ Added 10 additional source-derived xfail probes for:
 - phase-4 outbound audit matched-var/escaped/multiline assumptions
 
 These remain compatibility probes only and are not promoted to verified PASS.
+
+## Generated Coverage Reporting
+
+The repository now provides generated matrix/coverage reporting:
+
+- Human entry page: `docs/testing/test-coverage-overview.md`
+- Machine-generated detail pages under `docs/testing/generated/*.generated.md`
+
+Commands:
+
+```sh
+make generate-test-matrix
+make check-test-matrix
+```
+
+Data sources include test case YAML files under `tests/common/cases/`, `tests/apache/cases/`, `tests/nginx/cases/`, plus `tests/import-status.json`.
+
+Important: generated reports are **not** runtime PASS proof. Authoritative runtime verification remains `make smoke-all`.

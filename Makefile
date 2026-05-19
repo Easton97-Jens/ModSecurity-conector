@@ -21,7 +21,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-cached smoke-installed installed-readiness doctor-install-hints cloud-quick-check
+.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-cached smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 smoke-common:
 	CASE_SCOPE=common sh ci/run-connector-smokes.sh
@@ -112,3 +112,14 @@ quick-all:
 
 cloud-quick-check:
 	sh ci/cloud-quick-check.sh
+
+
+generate-test-matrix:
+	$(PYTHON) ci/generate-case-matrix.py
+
+check-test-matrix:
+	$(PYTHON) ci/generate-case-matrix.py
+	@git diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md >/dev/null || { \
+		echo "Generated test matrix docs are out of date. Run make generate-test-matrix"; \
+		exit 1; \
+	}
