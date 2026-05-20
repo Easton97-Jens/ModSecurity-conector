@@ -70,6 +70,7 @@ Generated file — do not edit manually.
 
 ## XFAIL / Known Gap Coverage
 - XFAIL/Pending/Future/Experimental Fälle sind in der XFAIL-Summary gelistet.
+- XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.
 
 ## Connector Gap / Runtime Difference Coverage
 - Connector-Gap und Runtime-Difference sind explizit separat ausgewiesen.
@@ -81,7 +82,12 @@ Generated file — do not edit manually.
 - RESPONSE_BODY bleibt nicht verified/promoted.
 
 ## Cloud/Quick/Full Smoke Bedeutung
-- Quick/Cloud Checks sind nützlich für frühes Signal, ersetzen aber keine vollständige Runtime-Verifikation.
+- Generated coverage != runtime evidence.
+- Full runtime validation is local.
+- GitHub/Codex checks are intentionally lightweight.
+- XFAIL/pending/gap cases need local runtime validation.
+- GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.
+- Full runtime validation ist lokal.
 - `make smoke-all` bleibt autoritativ für Runtime-Evidenz.
 
 ## Generated Artefakte

@@ -1,11 +1,10 @@
-name: test-full-smoke-sequential
+name: manual-heavy-runtime-validation
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
-  full-smoke-sequential:
+  manual-heavy-runtime-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:

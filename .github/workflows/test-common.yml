@@ -7,8 +7,6 @@ on:
 jobs:
   common-structure:
     runs-on: ubuntu-latest
-    env:
-      MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
     steps:
       - uses: actions/checkout@v4
       - name: Initialize runner temp paths
@@ -146,35 +144,3 @@ jobs:
             echo "common code contains connector-specific text or dependency"
             exit 1
           fi
-      - name: Check v3 API smoke prerequisites
-        run: |
-          set +e
-          sh ci/check-v3-api-smoke-prereqs.sh
-          rc=$?
-          set -e
-          if [ "$rc" -eq 77 ]; then
-            echo "v3 API smoke prerequisites blocked in this workflow"
-            exit 0
-          fi
-          exit "$rc"
-      - name: Run v3 API smoke when available
-        run: |
-          set +e
-          sh ci/run-v3-api-smoke.sh
-          rc=$?
-          set -e
-          if [ "$rc" -eq 77 ]; then
-            echo "v3 API smoke run blocked in this workflow"
-            exit 0
-          fi
-          exit "$rc"
-      - name: Upload common smoke artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: common-smoke-artifacts
-          if-no-files-found: ignore
-          path: |
-            ${{ steps.paths.outputs.build_root }}/case-runner
-            ${{ steps.paths.outputs.build_root }}/logs
-            ${{ steps.paths.outputs.build_root }}/results

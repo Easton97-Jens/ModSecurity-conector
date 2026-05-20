@@ -119,7 +119,7 @@ generate-test-matrix:
 
 check-test-matrix:
 	$(PYTHON) ci/generate-case-matrix.py
-	@git diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md >/dev/null || { \
+	@git diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md TEST-COVERAGE-SUMMARY.md >/dev/null || { \
 		echo "Generated test matrix docs are out of date. Run make generate-test-matrix"; \
 		exit 1; \
 	}

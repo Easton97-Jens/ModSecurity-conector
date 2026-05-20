@@ -252,7 +252,11 @@ Use a single consistent `BUILD_ROOT` across `fetch-deps`, `doctor`, and `smoke-a
 See also: `docs/testing/fast-checks.md` for quick/cached/full check boundaries.
 
 
-Quick CI/developer checks can use `make doctor-quick` and `make quick-all`; these are not full-smoke replacements and may return BLOCKED when runtime prerequisites are absent.
+Quick local developer checks can use `make doctor-quick` and `make quick-all`;
+these are not full-smoke replacements and may return BLOCKED when runtime
+prerequisites are absent. GitHub/Codex CI uses the lighter
+`make cloud-quick-check` framework/generator path and intentionally avoids
+runtime probes.
 
 ## Incremental Coverage Note (2026-05-19)
 
@@ -284,16 +288,20 @@ Supported override variables:
 This installed-path readiness is informative for quick diagnostics. Full compatibility evidence remains the source-build full-smoke path (`make smoke-all`).
 
 
-## Cloud reproducibility path
+## Cloud/GitHub lightweight path
 
-For Codex Cloud / GitHub Actions, `.github/workflows/cloud-quick-smoke.yml` installs required Ubuntu packages explicitly and runs `make cloud-quick-check`.
+For Codex Cloud / GitHub Actions, `.github/workflows/quick-framework-check.yml`
+runs lightweight framework, lint, generator, and documentation consistency
+checks. It does not run connector Runtime-Smokes, source fetches, installed
+runtime probes, or cached runtime probes.
 
 This path distinguishes:
 
-- Framework correctness failures (red): lint/schema/python/diff issues.
-- Runtime readiness limitations (BLOCKED): installed/cached smoke probes without full runtime wiring or artifacts.
+- Framework correctness failures (red): lint/schema/python/generated-doc/diff issues.
+- Runtime compatibility evidence: local-only via full connector smoke targets.
 
-It does not replace the authoritative full source-build smoke (`make smoke-all`).
+It does not replace the authoritative local full source-build smoke
+(`make smoke-all`).
 
 ## Expanded pending compatibility coverage (2026-05-19)
 
@@ -341,4 +349,6 @@ make generate-test-matrix
 make check-test-matrix
 ```
 
-These artifacts summarize declared case metadata and import status. They do not assert full runtime compatibility; `make smoke-all` remains the authoritative runtime-evidence path.
+These artifacts summarize declared case metadata and import status. They do not
+assert full runtime compatibility; `make smoke-all` remains the authoritative
+local runtime-evidence path.

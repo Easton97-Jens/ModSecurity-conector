@@ -7,7 +7,7 @@ Fast checks provide rapid feedback for Codex/developer iterations without preten
 ## Targets
 
 - `make quick-all`
-  - orchestration target for fast checks
+  - local-preferred orchestration target for fast checks
   - combines lint, doctor-quick, quick-check, smoke-cached, smoke-installed, py_compile, diff-check
   - returns QUICK PASS / QUICK BLOCKED / QUICK FAIL
 - `make quick-check` / `make codex-check`
@@ -75,10 +75,15 @@ Even with `READY`, `smoke-installed` remains non-authoritative until installed-r
 
 ## Cloud/GitHub Actions quick path
 
-Use `make cloud-quick-check` for CI environments where runtime probes may be BLOCKED but framework checks must stay strict.
+Use `make cloud-quick-check` for GitHub/Codex CI environments where checks must
+stay lightweight and deterministic.
 
-- Required/pass-fail: `setup-dev`, `lint`, `doctor-quick`, `quick-check`, Python compile, `git diff --check`.
-- Blockable: `installed-readiness` and `quick-all` (`exit 77` is reported as BLOCKED, not framework FAIL).
-- This does **not** replace `make smoke-all`; full smoke remains authoritative.
+- Required/pass-fail: `setup-dev`, `lint`, `generate-test-matrix`,
+  `check-test-matrix`, `quick-check`, Python compile, `git diff --check`.
+- Runtime probes are intentionally excluded: no `quick-all`, no
+  `smoke-cached`, no `installed-readiness`, and no full connector smoke.
+- This does **not** replace `make smoke-all`; full runtime validation remains
+  local and authoritative.
 
-Workflow: `.github/workflows/cloud-quick-smoke.yml` installs explicit Ubuntu packages before running the cloud quick path.
+Workflow: `.github/workflows/quick-framework-check.yml` runs the lightweight
+framework/generator path on `push` and `pull_request`.

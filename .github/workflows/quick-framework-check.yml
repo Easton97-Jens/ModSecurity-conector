@@ -14,7 +14,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Quick framework and smoke-basis checks
+      - name: Lightweight framework and generated-doc checks
         run: |
           make setup-dev
-          make quick-all
+          make generate-test-matrix
+          make check-test-matrix
+          make quick-check
+          .venv/bin/python -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+          git diff --check

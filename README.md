@@ -64,6 +64,33 @@ Not implemented:
 - No claim that the NGINX PoC is complete beyond the documented shared minimal
   HTTP `403` smokes.
 
+## Test Coverage Summary
+
+The generated root-level test coverage overview is available at
+`TEST-COVERAGE-SUMMARY.md`.
+
+## Local Runtime Validation
+
+This repository is primarily validated through local runtime and connector
+smoke runs. GitHub Actions and Codex Cloud checks are intentionally lightweight:
+they cover framework, generator, lint, syntax, and documentation consistency,
+but they do not prove connector runtime compatibility.
+
+Authoritative runtime evidence comes from local runs of:
+
+```sh
+make smoke-all
+make smoke-apache
+make smoke-nginx
+```
+
+Generated coverage documentation is reporting only. It summarizes declared YAML
+case metadata, known xfail/pending/connector-gap coverage, and import status; it
+is not a Runtime-PASS proof. Many xfail, pending, and connector-gap cases remain
+tracked precisely because they need local Apache/NGINX runtime evidence before
+promotion. RESPONSE_BODY remains not verified/promoted without stable local
+full-smoke evidence.
+
 ## Source References
 
 Local paths are examples from the current workspace. The upstream repositories

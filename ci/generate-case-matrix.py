@@ -20,6 +20,45 @@ TRANS_RE = re.compile(r"t:(\w+)")
 GAP_TAG_RE = re.compile(r"(connector[_-]?gap|runtime[_-]?difference|future|experimental|pending|mapped[_-]?only)", re.I)
 TABLE_SEPARATOR_2COL = "|---|---|"
 
+ROOT_COLLECTIONS = [
+    "ARGS",
+    "ARGS_NAMES",
+    "REQUEST_HEADERS",
+    "REQUEST_HEADERS_NAMES",
+    "REQUEST_COOKIES",
+    "REQUEST_COOKIES_NAMES",
+    "REQUEST_URI",
+    "REQUEST_BODY",
+    "FILES",
+    "FILES_NAMES",
+    "XML",
+    "RESPONSE_HEADERS",
+    "RESPONSE_BODY",
+    "AUDIT_LOG",
+]
+
+ROOT_COMMANDS = [
+    "make quick-check",
+    "make quick-all",
+    "make cloud-quick-check",
+    "make installed-readiness",
+    "make smoke-cached",
+    "make smoke-all",
+    "make generate-test-matrix",
+    "make check-test-matrix",
+]
+
+ROOT_DETAIL_DOCS = [
+    "docs/testing/test-coverage-overview.md",
+    "docs/testing/generated/case-matrix.generated.md",
+    "docs/testing/generated/coverage-summary.generated.md",
+    "docs/testing/generated/xfail-summary.generated.md",
+    "docs/testing/generated/connector-gap-summary.generated.md",
+    "docs/testing/generated/phase-coverage.generated.md",
+    "docs/testing/response-body-blocking-investigation.md",
+    "docs/testing/compatibility.md",
+]
+
 
 def warn(message: str) -> None:
     print(f"[matrix-generator] WARN: {message}", file=sys.stderr)
@@ -206,6 +245,159 @@ def render_phase_coverage(cases: list[dict]) -> str:
     return "\n".join(rows)
 
 
+def root_summary_metrics(cases: list[dict], by_status: Counter, by_runtime: Counter) -> dict[str, int]:
+    return {
+        "total": len(cases),
+        "verified": by_runtime.get("true", 0),
+        "xfail": by_status.get("xfail", 0),
+        "pending_false": by_runtime.get("false", 0),
+        "pending_unknown": by_runtime.get("unknown", 0),
+        "connector_gap": sum(1 for case in cases if "connector-gap" in case["tags"] or case["status"] == "connector-gap"),
+        "runtime_difference": sum(1 for case in cases if "runtime-difference" in case["tags"] or case["status"] == "runtime-difference"),
+        "future_experimental": sum(
+            1
+            for case in cases
+            if "future" in case["tags"] or "experimental" in case["tags"] or case["status"] in {"future", "experimental"}
+        ),
+        "response_body": sum(1 for case in cases if case["response_body"]),
+    }
+
+
+def normalized_collection_counts(cases: list[dict]) -> Counter:
+    counts: Counter = Counter()
+    for case in cases:
+        for variable in case["variables"]:
+            base = variable.split(":", 1)[0]
+            if base in ROOT_COLLECTIONS:
+                counts[base] += 1
+    return counts
+
+
+def case_text(case: dict) -> str:
+    parts = [
+        case["id"],
+        case["path"],
+        case["category"],
+        case["source"],
+        case["notes"],
+        " ".join(case["tags"]),
+        " ".join(case["variables"]),
+    ]
+    return " ".join(parts).lower()
+
+
+def count_cases_matching(cases: list[dict], *needles: str) -> int:
+    return sum(1 for case in cases if any(needle in case_text(case) for needle in needles))
+
+
+def topic_counts(cases: list[dict]) -> dict[str, int]:
+    return {
+        "Operators": sum(1 for case in cases if case["operators"]),
+        "Transformations": sum(1 for case in cases if case["transformations"]),
+        "Multipart / FILES": count_cases_matching(cases, "multipart", "files", "multipart_filename"),
+        "JSON": count_cases_matching(cases, "json"),
+        "XML": count_cases_matching(cases, "xml"),
+        "Unicode / Encoding": count_cases_matching(cases, "unicode", "encoding", "encoded", "urldecode", "url_decode"),
+        "XSS-like compatibility probes": count_cases_matching(cases, "xss_like", "xss-like"),
+        "SQLi-like compatibility probes": count_cases_matching(cases, "sqli_like", "sqli-like"),
+        "Audit-log probes": count_cases_matching(cases, "audit_log", "audit-log", "auditlog"),
+        "Response header probes": count_cases_matching(cases, "response_headers", "response header", "phase3_response_headers"),
+        "Response body experimental probes": sum(
+            1
+            for case in cases
+            if case["response_body"] and ("experimental" in case["tags"] or "experimental" in case_text(case))
+        ),
+    }
+
+
+def render_root_summary(
+    cases: list[dict],
+    import_status: dict,
+    by_scope: Counter,
+    by_status: Counter,
+    by_runtime: Counter,
+    by_phase: Counter,
+) -> str:
+    metrics = root_summary_metrics(cases, by_status, by_runtime)
+    collection_counts = normalized_collection_counts(cases)
+    mapped_only_count = len(import_status.get("mapped_only", []))
+    topics = topic_counts(cases)
+
+    lines = [
+        "# ModSecurity Connector Test Coverage Summary",
+        "",
+        "## Kurzstatus",
+        f"- Gesamtzahl aller YAML Cases: **{metrics['total']}**",
+        f"- verified/pass (`runtime_verified=true`): **{metrics['verified']}**",
+        f"- xfail: **{metrics['xfail']}**",
+        f"- pending-runtime-verification (`runtime_verified=false`): **{metrics['pending_false']}**",
+        f"- pending-runtime-verification (`runtime_verified=unknown`): **{metrics['pending_unknown']}**",
+        f"- connector-gap: **{metrics['connector_gap']}**",
+        f"- runtime-difference: **{metrics['runtime_difference']}**",
+        f"- future/experimental: **{metrics['future_experimental']}**",
+        f"- RESPONSE_BODY Cases: **{metrics['response_body']}**",
+        "",
+        "**RESPONSE_BODY ist nicht verified/promoted.** Diese Datei ist generiertes Reporting und keine Runtime-Evidenz.",
+        "",
+        "## Testarten",
+        f"- Common YAML Cases: **{by_scope.get('common', 0)}**",
+        f"- Apache-specific Cases: **{by_scope.get('apache', 0)}**",
+        f"- NGINX-specific Cases: **{by_scope.get('nginx', 0)}**",
+        f"- xfail Cases: **{metrics['xfail']}**",
+        f"- mapped-only import inventory entries: **{mapped_only_count}** (nicht als runnable YAML Cases gezählt)",
+        f"- pending/future compatibility Cases: **{metrics['future_experimental']}** future/experimental; "
+        f"**{metrics['pending_false'] + metrics['pending_unknown']}** nicht runtime-verified",
+        "",
+        "## Statusklassen",
+        "| Status | Count |",
+        "|---|---:|",
+    ]
+    lines.extend(f"| {status} | {count} |" for status, count in sorted(by_status.items()))
+    lines.extend(["", "## Scope", "| Scope | Count |", "|---|---:|"])
+    lines.extend(f"| {scope} | {by_scope.get(scope, 0)} |" for scope in ["common", "apache", "nginx", "unknown"])
+    lines.extend(["", "## Coverage nach Variablen/Collections", "| Variable / Collection | Count |", "|---|---:|"])
+    lines.extend(f"| `{name}` | {collection_counts.get(name, 0)} |" for name in ROOT_COLLECTIONS)
+    lines.extend(["", "## Coverage nach Phase", "| Phase | Count |", "|---|---:|"])
+    lines.extend(f"| Phase {phase} | {by_phase.get(phase, 0)} |" for phase in [1, 2, 3, 4])
+    lines.extend(["", "## Coverage nach Themen", "| Topic | Count |", "|---|---:|"])
+    lines.extend(f"| {topic} | {count} |" for topic, count in topics.items())
+    lines.extend(
+        [
+            "",
+            "## Offene Bereiche / Gaps",
+            "- Runtime verification pending: Cases mit `runtime_verified=false` oder `runtime_verified=unknown` sind nicht als Runtime-PASS zu lesen.",
+            "- RESPONSE_BODY non-verified: RESPONSE_BODY bleibt nicht promoted, auch wenn Reporting Cases erfasst.",
+            "- GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.",
+            "- XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.",
+            "- `installed-readiness` ist Komponenten-Erkennung/Readiness, keine Runtime-Ausführung.",
+            "- `smoke-cached` hängt von vorhandenen Build-Artefakten ab.",
+            "- `make smoke-all` bleibt die autoritative Quelle für echte Runtime-PASS-Zahlen.",
+            "",
+            "## Kommandos",
+        ]
+    )
+    lines.extend(f"- `{command}`" for command in ROOT_COMMANDS)
+    lines.extend(["", "## Detaildokumente"])
+    lines.extend(f"- `{doc}`" for doc in ROOT_DETAIL_DOCS)
+    lines.extend(
+        [
+            "",
+            "## Wichtiger Hinweis",
+            "Generated coverage != runtime evidence.",
+            "Full runtime validation is local.",
+            "GitHub/Codex checks are intentionally lightweight.",
+            "XFAIL/pending/gap cases need local runtime validation.",
+            "Die generierte Coverage-Dokumentation ist Reporting. Sie ersetzt keine Runtime-Evidenz.",
+            "Full runtime validation ist lokal; GitHub/Codex checks sind absichtlich leichtgewichtig.",
+            "XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.",
+            "`make smoke-all` bleibt die autoritative Quelle für echte PASS-Zahlen.",
+            "Keine PASS-Zahlen werden aus dieser Datei abgeleitet, wenn `make smoke-all` nicht vollständig lief.",
+            "Keine RESPONSE_BODY-Promotion ohne stabile Full-Smoke-Runtime-Evidenz.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def render_overview(cases: list[dict], by_scope: Counter, by_status: Counter, by_runtime: Counter, by_phase: Counter, by_var: Counter, response_body_count: int) -> str:
     connector_gap_count = sum(1 for case in cases if "connector-gap" in case["tags"] or case["status"] == "connector-gap")
     runtime_diff_count = sum(1 for case in cases if "runtime-difference" in case["tags"] or case["status"] == "runtime-difference")
@@ -219,7 +411,7 @@ def render_overview(cases: list[dict], by_scope: Counter, by_status: Counter, by
     lines.extend(f"| {status} | {count} |" for status, count in sorted(by_status.items()))
     lines.extend(["", "## Coverage nach Scope", "| Scope | Count |", "|---|---:|"])
     lines.extend(f"| {scope} | {by_scope.get(scope, 0)} |" for scope in ["common", "apache", "nginx", "unknown"])
-    lines.extend(["", "## Top offene Gaps", "- Siehe `docs/testing/generated/connector-gap-summary.generated.md` für detaillierte Einträge.", "", "## Verified Runtime Coverage", "- Runtime-verified ist nur das, was als `runtime_verified=true` klassifiziert ist.", "", "## Pending Runtime Verification", "- Fälle mit `runtime_verified=false/unknown` sind nicht als Runtime-PASS zu lesen.", "", "## XFAIL / Known Gap Coverage", "- XFAIL/Pending/Future/Experimental Fälle sind in der XFAIL-Summary gelistet.", "", "## Connector Gap / Runtime Difference Coverage", "- Connector-Gap und Runtime-Difference sind explizit separat ausgewiesen.", "", "## Phase 3/4 Outbound Coverage", "- Phase 3/4 Fälle sind in `phase-coverage.generated.md` und der Matrix enthalten.", "", "## RESPONSE_BODY Status", "- RESPONSE_BODY bleibt nicht verified/promoted.", "", "## Cloud/Quick/Full Smoke Bedeutung", "- Quick/Cloud Checks sind nützlich für frühes Signal, ersetzen aber keine vollständige Runtime-Verifikation.", "- `make smoke-all` bleibt autoritativ für Runtime-Evidenz.", "", "## Generated Artefakte", "- `docs/testing/generated/case-matrix.generated.md`", "- `docs/testing/generated/coverage-summary.generated.md`", "- `docs/testing/generated/xfail-summary.generated.md`", "- `docs/testing/generated/connector-gap-summary.generated.md`", "- `docs/testing/generated/phase-coverage.generated.md`", "", "## Hinweis", "- Generated summaries ersetzen keine Full-Smoke Runtime-Evidenz.", "- Keine RESPONSE_BODY-Promotion ohne stabile Vollbelege."])
+    lines.extend(["", "## Top offene Gaps", "- Siehe `docs/testing/generated/connector-gap-summary.generated.md` für detaillierte Einträge.", "", "## Verified Runtime Coverage", "- Runtime-verified ist nur das, was als `runtime_verified=true` klassifiziert ist.", "", "## Pending Runtime Verification", "- Fälle mit `runtime_verified=false/unknown` sind nicht als Runtime-PASS zu lesen.", "", "## XFAIL / Known Gap Coverage", "- XFAIL/Pending/Future/Experimental Fälle sind in der XFAIL-Summary gelistet.", "- XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.", "", "## Connector Gap / Runtime Difference Coverage", "- Connector-Gap und Runtime-Difference sind explizit separat ausgewiesen.", "", "## Phase 3/4 Outbound Coverage", "- Phase 3/4 Fälle sind in `phase-coverage.generated.md` und der Matrix enthalten.", "", "## RESPONSE_BODY Status", "- RESPONSE_BODY bleibt nicht verified/promoted.", "", "## Cloud/Quick/Full Smoke Bedeutung", "- Generated coverage != runtime evidence.", "- Full runtime validation is local.", "- GitHub/Codex checks are intentionally lightweight.", "- XFAIL/pending/gap cases need local runtime validation.", "- GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.", "- Full runtime validation ist lokal.", "- `make smoke-all` bleibt autoritativ für Runtime-Evidenz.", "", "## Generated Artefakte", "- `docs/testing/generated/case-matrix.generated.md`", "- `docs/testing/generated/coverage-summary.generated.md`", "- `docs/testing/generated/xfail-summary.generated.md`", "- `docs/testing/generated/connector-gap-summary.generated.md`", "- `docs/testing/generated/phase-coverage.generated.md`", "", "## Hinweis", "- Generated summaries ersetzen keine Full-Smoke Runtime-Evidenz.", "- Keine RESPONSE_BODY-Promotion ohne stabile Vollbelege."])
     return "\n".join(lines)
 
 
@@ -240,6 +432,7 @@ def main() -> int:
     write(OUT / "connector-gap-summary.generated.md", render_gap_summary(cases, import_status))
     write(OUT / "phase-coverage.generated.md", render_phase_coverage(cases))
     write(ROOT / "docs/testing/test-coverage-overview.md", render_overview(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
+    write(ROOT / "TEST-COVERAGE-SUMMARY.md", render_root_summary(cases, import_status, by_scope, by_status, by_runtime, by_phase))
     return 0
 
 
