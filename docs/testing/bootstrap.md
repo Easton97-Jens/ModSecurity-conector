@@ -92,6 +92,13 @@ BUILD_ROOT=/tmp/modsec-build make doctor
 BUILD_ROOT=/tmp/modsec-build make smoke-all
 ```
 
+NGINX worker-facing runtime files are staged under `NGINX_HARNESS_WORK_ROOT`
+by `make smoke-nginx`. In root-run environments the default is a temp directory
+such as `/tmp/ModSecurity-conector-nginx-runtime-0`; non-root runs prefer
+`RUNNER_TEMP` when available. Permission adjustments stay inside that generated
+harness work root. No global NGINX install, system NGINX configuration change,
+or broad chmod is required.
+
 
 ## Fast and full targets
 

@@ -60,82 +60,63 @@ Generated file — do not edit manually.
 | unknown | 0 |
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-20** (2026-05-20 13:29:32 CEST)
-- Git: branch `master`, commit `efe2dfb`
+- Snapshot: **2026-05-21** (2026-05-21 00:17:33 CEST)
+- Git: branch `master`, commit `1b2264d`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
-- Framework command statuses are from the local shell exit codes in this run.
+- Framework command statuses are from the local shell exit codes in this permission-fix run.
 - Runtime smoke counts are from /root/.local/state/ModSecurity-conector-build/results/*-summary.json.
-- The GitHub common-structure metadata failure was fixed by quoting known_limitations Classification entries so they parse as strings.
-- The NGINX smoke failed, so make smoke-all was not run and no full-smoke PASS count is claimed.
-- RESPONSE_BODY remains not verified/promoted by this snapshot.
-- Follow-up log triage classified the 11 NGINX 403 results as harness filesystem permission blocked: NGINX error.log reports generated htdocs/index.html forbidden (13: Permission denied). They are not connector-gap, runtime-difference, or bug proof.
+- The NGINX harness stages worker-facing runtime files under /tmp/ModSecurity-conector-nginx-runtime-0 in this root-run environment, avoiding unreadable /root parent directories without global chmods or system NGINX changes.
+- A REFRESH=1 make smoke-nginx retry rebuilt NGINX artifacts but did not complete the runtime phase because prepare-nginx-build reported a post-build shell parse error; the subsequent make smoke-nginx runtime pass used those freshly produced artifacts.
+- make smoke-nginx passed all 54 active NGINX runtime cases after the harness permission fix; the 11 previously blocked expected-200 cases now returned HTTP 200.
+- response_body_pass is request/runtime pass-through evidence only; RESPONSE_BODY remains non-verified/non-promoted.
+- make smoke-all was not run in this snapshot; no full-smoke PASS count is claimed.
 
 ## Framework Check Status
 | Command | Status | Details |
 |---|---|---|
-| git status --short --branch | PASS | Branch at start: ## master...origin/master [ahead 1] |
-| git diff --check | PASS | No whitespace errors reported |
-| git diff --exit-code -- connectors/apache/src connectors/nginx/src | PASS | No connector source changes |
-| rg "write-expected-audit-log.py|expected-audit-log" . | PASS | No stale expected audit log helper references found |
-| PyYAML parse and known_limitations audit | PASS | All tests/**/*.yaml parsed; known_limitations and case_known_limitations lists contain only strings |
-| local common-structure materialize/list/write-case-matrix reproduction | PASS | tests/runners/case_cli.py and ci/write-case-matrix.py completed without the case_known_limitations validation exception |
 | make setup-dev | PASS | Development dependencies available in .venv |
-| make lint | PASS | actionlint unavailable message was non-fatal |
-| make generate-test-matrix | PASS | Generated coverage docs refreshed |
-| make check-test-matrix | PASS | Generated coverage docs matched generator output |
+| make lint | PASS | Repository lint checks passed |
+| make generate-test-matrix | PASS | Generated coverage docs refreshed from current metadata |
+| make check-test-matrix | PASS | Generated coverage docs matched generator output after staging generated docs |
 | make quick-check | PASS | Lightweight framework checks passed |
 | make cloud-quick-check | PASS | Framework/generator-only cloud check passed |
 | .venv/bin/python -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py | PASS | Python files compiled |
 | sh -n ci/*.sh | PASS | POSIX shell syntax check passed for ci shell scripts |
 | bash -n ci/*.sh | PASS | Bash syntax check passed for ci shell scripts |
+| git diff --check | PASS | No whitespace errors reported |
+| diff -u /tmp/pre-connector.diff /tmp/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
+| git diff --exit-code -- connectors/apache/src connectors/nginx/src | BLOCKED | Non-zero because connectors/apache/src/mod_security3.c had a pre-existing unrelated local change before this fix; the pre/post connector diff snapshot is unchanged |
+| git ls-files .venv | PASS | No tracked .venv files |
 
 ## Readiness / Fetch Status
 | Command | Status | Details |
 |---|---|---|
-| make doctor-quick (before fetch-deps) | PASS | Source-build readiness ran with warnings because ModSecurity_V3 sources were not present yet |
-| optional installed readiness | BLOCKED | System Apache/APXS/NGINX/libmodsecurity were not found; this is diagnostic only and does not block source-build smokes |
-| make fetch-deps | PASS | Fetched ModSecurity core from configured source; Apache/NGINX connector sources remained repo-local |
-| make doctor-quick (after fetch-deps) | PASS | Source-build readiness found /root/.local/state/ModSecurity-conector-build/sources/ModSecurity_V3; optional installed readiness still BLOCKED |
+| make fetch-deps | NOT_RUN | Not rerun in this permission-fix pass; existing ModSecurity source tree from prior source-build smoke was reused for REFRESH=1 make smoke-nginx |
+| optional installed readiness | BLOCKED | System Apache/APXS/NGINX/libmodsecurity readiness remains diagnostic only and is not required for source-build smokes |
+| REFRESH=1 make smoke-nginx rebuild retry | BLOCKED | The rebuild produced NGINX artifacts, then prepare-nginx-build reported a post-build shell parse error before runtime cases; runtime validation was completed separately with make smoke-nginx using the freshly produced artifacts. |
 
 ## Runtime Smoke Status
 | Command | Status | Exit | PASS | FAIL | BLOCKED | XFAIL | Evidence |
 |---|---|---|---|---|---|---|---|
 | REFRESH=1 make smoke-apache | PASS | 0 | 48 | 0 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/apache-summary.json |
-| REFRESH=1 make smoke-nginx | FAIL | 2 | 43 | 11 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/nginx-summary.json |
+| make smoke-nginx | PASS | 0 | 54 | 0 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/nginx-summary.json |
 | REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
 
-## Runtime FAIL Details
-| Connector | Case | Expected | Actual | Assessment |
-|---|---|---|---|---|
-| nginx | phase2_args_pass | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
-| nginx | action_allow_phase1_pass | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
-| nginx | response_body_pass | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification; RESPONSE_BODY remains non-verified/non-promoted |
-| nginx | v2_transformation_url_decode_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
-| nginx | v3_args_names_get_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
-| nginx | v3_request_cookies_names_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
-| nginx | v3_request_cookies_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
-| nginx | v3_request_headers_names_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
-| nginx | nginx_phase4_content_type_out_of_scope | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion |
-| nginx | nginx_phase4_minimal_log_only | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion |
-| nginx | nginx_phase4_safe_log_only | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion |
-
 ## Runtime Verified Status
-- Apache source-build smoke passed 48 runtime cases with 0 failures.
-- NGINX source-build smoke executed 54 runtime cases; 43 passed and 11 expected-200 cases are blocked by generated docroot permissions, so NGINX is not fully runtime-verified by this snapshot.
-- The 11 NGINX 403 results are classified as harness/filesystem blocked, not as connector-gap, runtime-difference, or likely bug evidence.
-- No pass promotion, xfail promotion, or import PASS claim was made from the blocked NGINX cases.
-- The YAML coverage metadata still reports runtime_verified=true as 0 because no generated metadata was promoted from this local run.
-- Apache and NGINX summaries both list exercised variables ARGS, ARGS_NAMES, AUDIT_LOG, FILES, REQUEST_BODY, REQUEST_COOKIES, REQUEST_HEADERS, REQUEST_URI, RESPONSE_HEADERS, and XML; RESPONSE_BODY is not promoted.
-- make smoke-all was not run after the NGINX failure; full-smoke PASS counts remain unknown.
+- NGINX source-build smoke passed 54 runtime cases with 0 failures and 0 blocked after the harness permission fix.
+- The 11 cases previously classified as NGINX harness filesystem permission blocked now pass in the current local NGINX smoke run.
+- Apache latest available source-build summary remains 48 PASS, 0 FAIL, 0 BLOCKED; Apache connector source was not changed by this patch.
+- The generated metadata still separates local runtime evidence from runtime_verified=true promotion; no YAML case was promoted solely from this run.
+- Apache and NGINX summaries list exercised variables ARGS, ARGS_NAMES, AUDIT_LOG, FILES, REQUEST_BODY, REQUEST_COOKIES, REQUEST_HEADERS, REQUEST_URI, RESPONSE_HEADERS, and XML.
+- response_body_pass is pass-through evidence only; RESPONSE_BODY remains non-verified/non-promoted and no full phase-4 compatibility claim is made.
+- make smoke-all was not run; full-smoke PASS counts remain unknown.
 
 ## Offene Runtime-Probleme
-- Optional installed-readiness remains BLOCKED because system Apache/APXS/NGINX/libmodsecurity are not installed.
-- NGINX pass-through/no-match runtime classification is blocked by generated docroot permission denial in this local run.
-- NGINX phase 4 response-body/log-only runtime classification is blocked by generated docroot permission denial and missing/empty phase4.log in this local run.
-- The blocked NGINX cases need rerun with an NGINX-readable BUILD_ROOT or harness permission fix before any PASS, xfail, connector-gap, runtime-difference, or bug classification.
-- RESPONSE_BODY remains non-verified/non-promoted.
+- Optional installed-readiness remains diagnostic only and may be BLOCKED on systems without Apache/APXS/NGINX/libmodsecurity packages.
+- RESPONSE_BODY remains non-verified/non-promoted; response-body blocking support remains xfail/mapped until stable local full-smoke evidence exists.
 - XFAIL, pending, connector-gap, runtime-difference, and future/experimental YAML cases still require separate local runtime validation before promotion.
+- A pre-existing unrelated local diff remains under connectors/apache/src/mod_security3.c and was intentionally not staged or modified.
 
 ## Top offene Gaps
 - Siehe `docs/testing/generated/connector-gap-summary.generated.md` für detaillierte Einträge.

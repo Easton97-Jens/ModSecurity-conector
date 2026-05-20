@@ -33,13 +33,13 @@ The active V2/V3 imports are common connector tests, not copied upstream tests.
 Each YAML includes provenance metadata and is executed through the same Apache
 and NGINX harnesses as other common cases.
 
-Observed locally on 2026-05-15, then refined by the 2026-05-20 runtime-log
-classification:
+Observed locally on 2026-05-15, then rerun after the 2026-05-21 NGINX harness
+permission fix:
 
 | Source family | Imported active cases | Apache | NGINX |
 | --- | ---: | --- | --- |
-| V2 operators/transformations | 10 | pass | pass for blocking branches; latest `urlDecode` no-match pass-through is runtime-blocked by docroot permissions |
-| V3 multipart FILES/XML/operator/action/collections/audit | 14 | pass | pass for blocking branches; latest no-match pass-through subset is runtime-blocked by docroot permissions |
+| V2 operators/transformations | 10 | pass | pass, including the `urlDecode` no-match pass-through branch in the latest NGINX run |
+| V3 multipart FILES/XML/operator/action/collections/audit | 14 | pass | pass, including the latest no-match pass-through subset |
 
 The second compatibility import wave intentionally used source-confirmed
 values from the V2/V3 fixtures. For example, `urlDecode` uses `Test+Case` ->
@@ -50,13 +50,12 @@ The V3 `issue-2196` `nolog,pass` case is no longer counted as an active
 common import because GitHub Actions observed audit-log output while local
 Apache and NGINX runs observed empty audit logs.
 
-## Latest NGINX No-Match Classification (2026-05-20)
+## Latest NGINX No-Match Classification (2026-05-21)
 
-The latest local NGINX source-built smoke returned HTTP 403 for the V2/V3
-no-match pass-through cases listed below, but the NGINX `error.log` reports the
-generated `htdocs/index.html` as forbidden with `Permission denied`. The cases
-are therefore runtime-blocked by the harness/filesystem and are not classified
-as connector gaps, runtime differences, likely bugs, or PASS evidence:
+The 2026-05-20 local NGINX source-built smoke returned HTTP 403 for the V2/V3
+no-match pass-through cases listed below because NGINX could not traverse the
+generated docroot path. After the harness permission fix, the 2026-05-21
+`REFRESH=1 make smoke-nginx` rerun returned HTTP 200 for each case:
 
 - `v2_transformation_url_decode_pass_no_match`
 - `v3_args_names_get_pass_no_match`
@@ -64,9 +63,9 @@ as connector gaps, runtime differences, likely bugs, or PASS evidence:
 - `v3_request_cookies_pass_no_match`
 - `v3_request_headers_names_pass_no_match`
 
-Apache passed the corresponding cases. Rerun NGINX with an NGINX-readable
-`BUILD_ROOT` or a harness permission fix before promoting or reclassifying
-these cases.
+Apache passed the corresponding cases as well. This is current local runtime
+pass-through evidence for those no-match branches, not a promotion of any
+separate xfail/future edge cases.
 
 ## Mapped Only
 

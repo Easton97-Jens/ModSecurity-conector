@@ -104,8 +104,9 @@ It is not promoted to:
 `RESPONSE_BODY` remains excluded from `verified_variables`. Active
 `response_body_pass.yaml` is only a pass-through probe with response-body access
 enabled; it does not prove response-body blocking. In the latest NGINX runtime
-snapshot, even that pass-through classification is blocked by generated docroot
-permissions and must be rerun before claiming NGINX pass-through evidence.
+snapshot, that pass-through probe returned HTTP 200 after the harness
+permission fix. This is request/runtime pass-through evidence only; it does not
+promote `RESPONSE_BODY` support or response-body blocking compatibility.
 
 ## Next Steps
 
