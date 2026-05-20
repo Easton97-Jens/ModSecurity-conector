@@ -3,7 +3,8 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+. "$SCRIPT_DIR/common.sh"
+
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
@@ -40,7 +41,7 @@ run_connector nginx "$REPO_ROOT/ci/run-nginx-smoke.sh"
     fi
 } > "$RESULTS_DIR/connector-summary.txt"
 
-python3 - "$RESULTS_DIR" <<'PY'
+"$(ci_python)" - "$RESULTS_DIR" <<'PY'
 import json
 import sys
 from pathlib import Path

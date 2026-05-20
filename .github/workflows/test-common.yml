@@ -7,8 +7,6 @@ on:
 jobs:
   common-structure:
     runs-on: ubuntu-latest
-    env:
-      MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
     steps:
       - uses: actions/checkout@v4
       - name: Initialize runner temp paths
@@ -86,7 +84,9 @@ jobs:
             else
               : > "$out/response-body.txt"
             fi
-            python3 ci/write-expected-audit-log.py "$case_file" "$out/audit.log"
+            python3 tests/runners/case_cli.py write-audit-log-fixture \
+              --case "$case_file" \
+              --audit-log-file "$out/audit.log"
             python3 tests/runners/case_cli.py assert-status \
               --case "$case_file" \
               --actual-status "$EXPECT_STATUS" \
@@ -131,7 +131,10 @@ jobs:
             --server-binary "$BUILD_ROOT/apache-runtime/httpd/bin/httpd" \
             --module "$BUILD_ROOT/apache-build/output/apache/mod_security3.so" \
             --libmodsecurity "$BUILD_ROOT/apache-build/output/modsecurity/lib/libmodsecurity.so"
-          python3 ci/check-real-world-summary-schema.py "$BUILD_ROOT/schema-check/apache-summary.json"
+          python3 tests/runners/case_cli.py validate-real-world-summary \
+            --summary-json "$BUILD_ROOT/schema-check/apache-summary.json" \
+            --connector apache \
+            --server apache
       - name: Check make smoke targets and boundaries
         run: |
           set -eu
@@ -146,35 +149,3 @@ jobs:
             echo "common code contains connector-specific text or dependency"
             exit 1
           fi
-      - name: Check v3 API smoke prerequisites
-        run: |
-          set +e
-          sh ci/check-v3-api-smoke-prereqs.sh
-          rc=$?
-          set -e
-          if [ "$rc" -eq 77 ]; then
-            echo "v3 API smoke prerequisites blocked in this workflow"
-            exit 0
-          fi
-          exit "$rc"
-      - name: Run v3 API smoke when available
-        run: |
-          set +e
-          sh ci/run-v3-api-smoke.sh
-          rc=$?
-          set -e
-          if [ "$rc" -eq 77 ]; then
-            echo "v3 API smoke run blocked in this workflow"
-            exit 0
-          fi
-          exit "$rc"
-      - name: Upload common smoke artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: common-smoke-artifacts
-          if-no-files-found: ignore
-          path: |
-            ${{ steps.paths.outputs.build_root }}/case-runner
-            ${{ steps.paths.outputs.build_root }}/logs
-            ${{ steps.paths.outputs.build_root }}/results

@@ -5,6 +5,6 @@ Generated file — do not edit manually.
 | phase | case_count | top_variables | status_distribution |
 |---|---:|---|---|
 | 1 | 35 | REQUEST_URI(7), REQUEST_HEADERS_NAMES(5), REQUEST_COOKIES_NAMES(4), ARGS:a(4), ARGS(2) | imported:16, unknown:2, xfail:17 |
-| 2 | 60 | ARGS:q(13), ARGS_NAMES(7), REQUEST_BODY(6), ARGS:test(6), ARGS:probe(4) | imported:28, unknown:4, xfail:28 |
+| 2 | 69 | ARGS:q(18), REQUEST_BODY(9), ARGS_NAMES(7), ARGS:test(6), ARGS:probe(4) | imported:28, unknown:4, xfail:37 |
 | 3 | 11 | RESPONSE_HEADERS:Set-Cookie(4), RESPONSE_HEADERS:Location(2), RESPONSE_HEADERS:Content-Type(1), RESPONSE_HEADERS:X-Missing(1), RESPONSE_HEADERS:content-type(1) | unknown:1, xfail:10 |
-| 4 | 18 | RESPONSE_BODY(18) | imported:4, xfail:14 |
+| 4 | 19 | RESPONSE_BODY(19) | imported:4, xfail:15 |

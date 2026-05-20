@@ -1,12 +1,12 @@
 origin:
   - repo: ModSecurity_V2
     path: tests/op/streq.t
-    reason: @streq no-match pass-through future compatibility.
+    reason: "@streq no-match pass-through future compatibility."
 category: operators
 portable: true
 status: xfail
 known_limitations:
-  - Classification: pending-runtime-verification.
+  - "Classification: pending-runtime-verification."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: operator_streq_pass_no_match_phase2
 capabilities:

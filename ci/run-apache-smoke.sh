@@ -3,7 +3,8 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+. "$SCRIPT_DIR/common.sh"
+
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
@@ -25,22 +26,13 @@ BUILD_HTTPD_FROM_SOURCE="${BUILD_HTTPD_FROM_SOURCE:-1}"
 BUILD_PCRE2_FROM_SOURCE="${BUILD_PCRE2_FROM_SOURCE:-1}"
 APACHE_BUILD_LOG_DIR="${APACHE_BUILD_LOG_DIR:-$BUILD_ROOT/logs/apache}"
 APACHE_RUNTIME_LOG_DIR="${APACHE_RUNTIME_LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
-PYTHON_BIN="${PYTHON:-python3}"
-DEFAULT_MODSECURITY_V3_SOURCE_DIR="/root/conecter/ModSecurity_V3"
+PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-}"
 SMOKE_PREPARE_TIMEOUT_SECONDS="${SMOKE_PREPARE_TIMEOUT_SECONDS:-3600}"
 AUTO_REFRESH_STALE_BUILD="${AUTO_REFRESH_STALE_BUILD:-1}"
 SMOKE_LOCK_TIMEOUT_SECONDS="${SMOKE_LOCK_TIMEOUT_SECONDS:-900}"
 SMOKE_DISABLE_LOCK="${SMOKE_DISABLE_LOCK:-0}"
 SMOKE_LOCK_MODE="${SMOKE_LOCK_MODE:-wait}"
-
-git_value() {
-    git_dir=$1
-    shift
-    if git -C "$git_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        git -C "$git_dir" "$@" 2>/dev/null || true
-    fi
-}
 
 load_apache_adapter_metadata() {
     eval "$("$PYTHON_BIN" "$REPO_ROOT/ci/adapter_metadata.py" shell apache --prefix APACHE_ADAPTER)"
@@ -61,8 +53,8 @@ configure_apache_origin() {
     APACHE_ORIGIN_SOURCE="${APACHE_ORIGIN_SOURCE:-external}"
     APACHE_ORIGIN_SOURCE_REPO="${APACHE_ORIGIN_SOURCE_REPO:-$APACHE_ADAPTER_SOURCE_REPO}"
     APACHE_ORIGIN_SOURCE_URL="${APACHE_ORIGIN_SOURCE_URL:-$APACHE_ADAPTER_SOURCE_URL}"
-    APACHE_ORIGIN_SOURCE_COMMIT="${APACHE_ORIGIN_SOURCE_COMMIT:-$(git_value "$MODSECURITY_APACHE_SOURCE_DIR" rev-parse HEAD)}"
-    APACHE_ORIGIN_SOURCE_VERSION="${APACHE_ORIGIN_SOURCE_VERSION:-$(git_value "$MODSECURITY_APACHE_SOURCE_DIR" describe --tags --always --dirty)}"
+    APACHE_ORIGIN_SOURCE_COMMIT="${APACHE_ORIGIN_SOURCE_COMMIT:-$(ci_git_value "$MODSECURITY_APACHE_SOURCE_DIR" rev-parse HEAD)}"
+    APACHE_ORIGIN_SOURCE_VERSION="${APACHE_ORIGIN_SOURCE_VERSION:-$(ci_git_value "$MODSECURITY_APACHE_SOURCE_DIR" describe --tags --always --dirty)}"
     APACHE_ORIGIN_LICENSE="${APACHE_ORIGIN_LICENSE:-$APACHE_ADAPTER_LICENSE}"
     APACHE_ORIGIN_IMPORTED_PATH="${APACHE_ORIGIN_IMPORTED_PATH:-$MODSECURITY_APACHE_SOURCE_DIR}"
 }
@@ -155,9 +147,9 @@ trap 'release_build_root_lock' EXIT INT TERM
 print_blocked_prereq() {
     missing_path=$1
     env_name=$2
-    default_path=$3
     echo "blocked: missing runtime prerequisite for ${env_name}: ${missing_path}"
-    echo "blocked: set ${env_name} to a valid ModSecurity v3 source tree (current default: ${default_path})"
+    echo "blocked: set MODSECURITY_SOURCE_DIR or MODSECURITY_V3_SOURCE_DIR to a valid ModSecurity v3 source tree"
+    echo "blocked: or run make fetch-deps with the intended BUILD_ROOT/SOURCE_ROOT"
     echo "blocked: smoke result is BLOCKED, not FAIL"
 }
 
@@ -175,7 +167,7 @@ resolve_modsecurity_v3_source_dir() {
 preflight_runtime_prereqs() {
     resolve_modsecurity_v3_source_dir
     if [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
-        print_blocked_prereq "${MODSECURITY_V3_SOURCE_DIR:-<unset>}" MODSECURITY_V3_SOURCE_DIR "$DEFAULT_MODSECURITY_V3_SOURCE_DIR"
+    print_blocked_prereq "${MODSECURITY_V3_SOURCE_DIR:-<unset>}" MODSECURITY_V3_SOURCE_DIR
         write_connector_result blocked "missing MODSECURITY_V3_SOURCE_DIR: $MODSECURITY_V3_SOURCE_DIR (set env var and retry)"
         exit 77
     fi

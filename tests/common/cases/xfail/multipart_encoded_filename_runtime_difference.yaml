@@ -6,7 +6,7 @@ category: multipart
 portable: true
 status: xfail
 known_limitations:
-  - Classification: runtime-difference.
+  - "Classification: runtime-difference."
   - Runtime verification pending; not counted as verified PASS.
 name: multipart_encoded_filename_runtime_difference
 capabilities:

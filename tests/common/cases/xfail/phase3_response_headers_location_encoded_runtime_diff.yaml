@@ -6,7 +6,7 @@ category: response-headers
 portable: true
 status: xfail
 known_limitations:
-  - Classification: runtime-difference.
+  - "Classification: runtime-difference."
   - RESPONSE_BODY remains non-verified and non-promoted.
 name: phase3_response_headers_location_encoded_runtime_diff
 capabilities:

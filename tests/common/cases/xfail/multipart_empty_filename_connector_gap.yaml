@@ -6,7 +6,7 @@ category: multipart
 portable: true
 status: xfail
 known_limitations:
-  - Classification: connector-gap.
+  - "Classification: connector-gap."
   - Runtime verification pending; not counted as verified PASS.
 name: multipart_empty_filename_connector_gap
 capabilities:

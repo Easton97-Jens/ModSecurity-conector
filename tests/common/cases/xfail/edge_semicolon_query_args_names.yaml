@@ -6,7 +6,7 @@ category: collections
 portable: true
 status: xfail
 known_limitations:
-  - Classification: runtime-difference.
+  - "Classification: runtime-difference."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: edge_semicolon_query_args_names
 capabilities:

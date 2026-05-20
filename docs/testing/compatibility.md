@@ -13,8 +13,8 @@ architecture for new connectors.
 | --- | --- | --- |
 | Common headers | implemented | Connector-neutral C-compatible data shapes only |
 | libmodsecurity v3 API mapping | planned | Public API sequence documented, not wrapped |
-| Apache connector | scaffolded | Local source-built PoC observed expected HTTP behavior for all current shared minimal cases |
-| NGINX connector | scaffolded | Local source-built PoC observed expected HTTP behavior for all current shared minimal cases |
+| Apache connector | scaffolded | Latest local source-built smoke passed 48/48 active runtime cases |
+| NGINX connector | scaffolded | Latest local source-built smoke passed 43/54 active runtime cases; 11 expected-200 cases are blocked by generated docroot permissions, not yet connector-classified |
 | Apache real-world connector path | implemented | Smoke summaries record source-built httpd, `mod_security3.so`, libmodsecurity, and verified variables |
 | NGINX real-world connector path | implemented | Smoke summaries record source-built NGINX, dynamic module, libmodsecurity, and verified variables |
 | HAProxy connector | unknown | SPOE/Lua/native options documented, implementation undecided |
@@ -22,8 +22,8 @@ architecture for new connectors.
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
 | Traefik connector | unknown | Yaegi/Wasm plugin options documented, implementation undecided |
 | v2 regression reuse | planned | Only portable rule/engine semantics may enter `tests/common/` |
-| v2-derived common imports | implemented | Operator and transformation cases including `@streq`, `@contains`, `@beginsWith`, `@endsWith`, `@pm`, `@containsWord`, `t:lowercase`, `t:trim`, `t:urlDecode`, and `t:htmlEntityDecode` pass locally on Apache and NGINX |
-| v3-derived common imports | implemented | Multipart FILES, XML body processor, operator, transformation, action, cookie/header-name/ARGS_NAMES, and stable audit cases pass locally on Apache and NGINX |
+| v2-derived common imports | implemented | Blocking operator/transformation cases pass locally on Apache and NGINX; latest NGINX `t:urlDecode` no-match pass-through classification is blocked by docroot permissions |
+| v3-derived common imports | implemented | Blocking multipart/FILES/XML/operator/action/collection/audit cases pass locally on Apache and NGINX; latest NGINX no-match pass-through classification for cookies/header names/ARGS_NAMES is blocked by docroot permissions |
 | Source-derived Apache/NGINX test import | implemented | Imported YAML cases are derived, not copied; origin and portability are documented |
 
 ## Capability Rule
@@ -38,14 +38,14 @@ The files under `tests/common/cases/minimal/` are portable rule/request models.
 They are not proof that a connector supports the behavior until that
 connector's runtime harness observes the expected HTTP response.
 
-Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
+Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`:
 
 | Case | Capability area | Apache | NGINX |
 | --- | --- | --- | --- |
 | `audit_log_phase1_block.yaml` | query args, phase 1, audit log | pass, HTTP 403 plus audit fields | pass, HTTP 403 plus audit fields |
 | `phase1_header_block.yaml` | request headers, phase 1 | pass, HTTP 403 | pass, HTTP 403 |
 | `phase2_args_block.yaml` | query args, phase 2 | pass, HTTP 403 | pass, HTTP 403 |
-| `phase2_args_pass.yaml` | query args, phase 2, pass-through | pass, HTTP 200 plus origin body | pass, HTTP 200 plus origin body |
+| `phase2_args_pass.yaml` | query args, phase 2, pass-through | pass, HTTP 200 plus origin body | blocked in latest run: HTTP 403 from generated docroot permission denial |
 | `request_body_json_block.yaml` | request body, JSON content type, raw body match | pass, HTTP 403 | pass, HTTP 403 |
 | `request_body_urlencoded_block.yaml` | form body, `ARGS_POST` | pass, HTTP 403 | pass, HTTP 403 |
 | `response_header_basic.yaml` | response headers, phase 3 | pass, HTTP 403 | pass, HTTP 403 |
@@ -69,11 +69,12 @@ Mapped-only categories include HTTP/2, proxy, multipart parser edge cases,
 response-body blocking, external-file operators, debug logs, and connector
 config inheritance.
 
-Observed locally on 2026-05-15, the current imported common cases all passed on
-Apache and NGINX through `make smoke-all`; the NGINX-specific imported cases
-passed only on NGINX and remain `portable: false`. Phase 10 added three
-NGINX-only PR #377 phase-4 log/pass-through probes after 3/3 targeted NGINX
-PASS runs; those are connector-specific evidence, not common compatibility.
+Earlier local runs imported common cases after Apache and NGINX evidence, but
+the latest local source-built NGINX smoke needs a narrower classification: 11
+expected-200 pass-through/phase-4 cases returned 403 because NGINX could not
+read the generated `htdocs/index.html` under the active local build root. Those
+cases are listed in `docs/testing/nginx-runtime-failure-classification.md` as
+runtime-blocked harness evidence, not connector-gap/runtime-difference proof.
 
 ## Body And Filter Compatibility
 
@@ -81,10 +82,10 @@ PASS runs; those are connector-specific evidence, not common compatibility.
 | --- | --- | --- | --- |
 | `json_request_body_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| `response_body_pass.yaml` | pass, HTTP 200 | pass, HTTP 200 | fully-imported-common |
+| `response_body_pass.yaml` | pass, HTTP 200 | blocked in latest run: HTTP 403 from generated docroot permission denial | runtime-blocked; RESPONSE_BODY non-promoted |
 | `response_body_basic_block` | fail, HTTP 200 | fail, HTTP 200 | xfail/mapped-only |
-| PR #377 minimal/safe phase-4 log-only probes | n/a | pass, HTTP 200 plus phase4 log evidence | NGINX connector-specific |
-| PR #377 content-type out-of-scope phase-4 probe | n/a | pass, HTTP 200 plus phase4 log evidence | NGINX connector-specific |
+| PR #377 minimal/safe phase-4 log-only probes | n/a | blocked in latest run: HTTP 403 from generated docroot permission denial; `phase4.log` missing/empty | runtime-blocked; NGINX behavior unclassified |
+| PR #377 content-type out-of-scope phase-4 probe | n/a | blocked in latest run: HTTP 403 from generated docroot permission denial; `phase4.log` missing/empty | runtime-blocked; NGINX behavior unclassified |
 
 The response-body block row is intentionally not an active smoke. The NGINX
 reference test marks the behavior TODO, and ModSecurity-nginx PR #377 source
@@ -94,16 +95,16 @@ documents the evidence without claiming connector parity.
 
 ## V2/V3-Derived Compatibility
 
-Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
+Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`:
 
 | Case group | Apache | NGINX | Status |
 | --- | --- | --- | --- |
 | V2 operator semantics (`@streq`, `@contains`, `@beginsWith`, `@endsWith`, `@pm`, `@containsWord`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| V2 transformation semantics (`t:lowercase`, `t:trim`, `t:urlDecode`, `t:htmlEntityDecode`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V2 transformation semantics (`t:lowercase`, `t:trim`, `t:urlDecode`, `t:htmlEntityDecode`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common for blocking branches; `t:urlDecode` no-match pass-through is runtime-blocked in latest NGINX run |
 | V3 multipart FILES variables | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 XML body processor basic case | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 `@rx`, trim, and `SecAction` basics | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| V3 `@pm`, cookies, header names, ARGS_NAMES, and serial audit basics | pass | pass | fully-imported-common |
+| V3 `@pm`, cookies, header names, ARGS_NAMES, and serial audit basics | pass | pass for blocking branches; no-match pass-through subset is runtime-blocked in latest NGINX run | mixed: blocking branches fully imported, no-match pass-through requires NGINX rerun |
 | V3 `nolog,pass` audit absence (`issue-2196`) | pass locally, empty audit log | pass locally, empty audit log | xfail because GitHub Actions observed a non-empty audit log |
 
 The active cases prove only the minimal YAML scenarios. V2 Perl harness
@@ -128,9 +129,25 @@ runtime.
 
 Current active passing cases verify `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
 `REQUEST_HEADERS`, `REQUEST_URI`, `REQUEST_BODY`, `FILES`, `XML`, `AUDIT_LOG`,
-and `RESPONSE_HEADERS` through both Apache and NGINX in this workspace.
-`RESPONSE_BODY` remains mapped/xfail until an active response-body
-variable/blocking case passes on both connectors.
+and `RESPONSE_HEADERS` through both Apache and the passing subset of the NGINX
+runtime in this workspace. The latest NGINX expected-200 pass-through subset is
+blocked by generated docroot permissions and must be rerun before it can verify
+connector behavior. `RESPONSE_BODY` remains mapped/xfail until an active
+response-body variable/blocking case passes on both connectors.
+
+## Latest NGINX Runtime Classification (2026-05-20)
+
+`REFRESH=1 make smoke-nginx` ran 54 active cases: 43 PASS, 11 FAIL, 0 BLOCKED.
+All 11 failures expected HTTP 200 and observed HTTP 403. The case-level NGINX
+`error.log` entries report generated `htdocs/index.html` as forbidden with
+`Permission denied`; phase-4 cases also lacked the expected `phase4.log`
+evidence.
+
+These 11 cases are therefore classified as **runtime-blocked by the NGINX
+harness/filesystem**, not as connector-gap, runtime-difference, or likely-bug
+evidence. See `docs/testing/nginx-runtime-failure-classification.md` for the
+per-case table. No PASS promotion, XFAIL promotion, or RESPONSE_BODY promotion
+is made from this run.
 
 `v3_action_nolog_pass_no_audit` is also classified as xfail/mapped for now:
 local runs in this workspace produced HTTP 200 and empty audit logs, but the
@@ -141,6 +158,38 @@ GitHub Actions agree.
 ## Reproducible Local Setup (Smoke + Lint)
 
 The smoke/lint tooling has explicit prerequisites and reports missing runtime inputs as **BLOCKED**.
+
+Shell helper defaults are centralized in `ci/common.sh`. Override variables in
+the environment rather than editing scripts:
+
+```bash
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build
+SOURCE_ROOT=$BUILD_ROOT/sources
+MODSECURITY_GIT_REF=v3/master
+MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_V3_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_V3_ROOT=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_APACHE_SOURCE_DIR=$PWD/connectors/apache
+MODSECURITY_NGINX_SOURCE_DIR=$PWD/connectors/nginx
+APACHE_BIN=/path/to/apache2
+APACHECTL_BIN=/path/to/apachectl
+APXS_BIN=/path/to/apxs
+NGINX_BIN=/path/to/nginx
+MODSECURITY_PKG_CONFIG=modsecurity
+MODSECURITY_LIB_DIR=/path/to/lib
+MODSECURITY_INCLUDE_DIR=/path/to/include
+HTTPD_VERSION=2.4.67
+APR_VERSION=1.7.6
+APR_UTIL_VERSION=1.6.3
+PCRE2_VERSION=10.47
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=latest
+```
+
+`ci/common.sh` is passive and does not run checks, fetch sources, or create
+artifacts by itself. Connector source is repo-local by default; external
+Apache/NGINX connector repositories require explicit opt-in and are not runtime
+defaults.
 
 ### Python dependencies
 
@@ -180,15 +229,12 @@ Check Python deps and ModSecurity v3 path detection:
 make doctor
 ```
 
-The doctor tries to auto-detect `MODSECURITY_V3_SOURCE_DIR` in this order:
-
-1. Explicit `MODSECURITY_V3_SOURCE_DIR` (if it exists)
-2. `../ModSecurity_V3` relative to repo root
-3. `../../ModSecurity_V3` relative to repo root
-4. `.deps/ModSecurity_V3` inside this repo
-5. `/root/conecter/ModSecurity_V3`
-
-If none exist, doctor exits BLOCKED and prints the exact export command needed.
+The doctor output separates source-build readiness from optional installed
+readiness. Source-build readiness uses the configured source aliases from
+`ci/common.sh`; installed Apache/NGINX/libmodsecurity detection is diagnostic
+only and does not make system installations a standard prerequisite. If no
+ModSecurity v3 source tree is available, doctor exits BLOCKED and prints the
+exact export or `make fetch-deps` remediation command.
 
 
 ### Optional GitHub runtime fetch
@@ -199,7 +245,10 @@ To bootstrap real external runtime prerequisites explicitly:
 make fetch-deps
 ```
 
-This uses `ci/fetch-smoke-sources.sh` and real public upstream repositories (see `docs/testing/bootstrap.md`).
+This uses `ci/fetch-smoke-sources.sh` and fetches the ModSecurity core engine
+source from the configured `MODSECURITY_REPO_URL` / `MODSECURITY_GIT_REF` (see
+`docs/testing/bootstrap.md`). Apache and NGINX connector source remains
+repo-local by default.
 No network fetch is triggered automatically by `make setup-dev`, `make lint`, `make doctor`, or `make smoke-all`.
 
 If you only want to run dependency diagnostics first:
@@ -210,15 +259,17 @@ make doctor
 
 ### Runtime prerequisites for connector smokes
 
-`make smoke-all` requires a ModSecurity v3 source tree path. Default:
+`make smoke-all` requires a ModSecurity v3 source tree path. The portable
+source-build default is derived from:
 
-- `MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3`
+- `SOURCE_ROOT=$BUILD_ROOT/sources`
+- `MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3`
 
 Override in portable environments:
 
 ```bash
-export MODSECURITY_V3_SOURCE_DIR=/absolute/path/to/ModSecurity_V3
 export BUILD_ROOT=/absolute/path/for/build-artifacts
+export MODSECURITY_SOURCE_DIR=$BUILD_ROOT/sources/ModSecurity_V3
 make smoke-all
 ```
 
@@ -249,10 +300,14 @@ make smoke-all
 Use a single consistent `BUILD_ROOT` across `fetch-deps`, `doctor`, and `smoke-all`.
 
 
-See also: `docs/testing/fast-checks.md` for quick/cached/full check boundaries.
+See also: `docs/testing/fast-checks.md` for quick/full check boundaries.
 
 
-Quick CI/developer checks can use `make doctor-quick` and `make quick-all`; these are not full-smoke replacements and may return BLOCKED when runtime prerequisites are absent.
+Quick local developer checks can use `make doctor-quick` and `make quick-all`;
+these are not full-smoke replacements and may return BLOCKED when runtime
+prerequisites are absent. GitHub/Codex CI uses the lighter
+`make cloud-quick-check` framework/generator path and intentionally avoids
+runtime probes.
 
 ## Incremental Coverage Note (2026-05-19)
 
@@ -267,7 +322,7 @@ These additions improve matrix/documented coverage but are not claimed as new st
 
 ## Installed runtime detection (non-authoritative)
 
-`make doctor` and `make smoke-installed` / `make installed-readiness` now report installed-component readiness using alternative binary names and explicit ModSecurity detection.
+`make doctor` and `make smoke-installed` / `make installed-readiness` report installed-component readiness using alternative binary names and explicit ModSecurity detection. This is optional diagnostic output, not a required source-build prerequisite.
 
 Supported detection aliases:
 
@@ -279,21 +334,29 @@ Supported detection aliases:
 Supported override variables:
 
 - `APACHE_BIN`, `APXS_BIN`, `NGINX_BIN`
+- `APACHECTL_BIN`
 - `MODSECURITY_PKG_CONFIG`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INCLUDE_DIR`
+- `CI_APACHE_BIN_CANDIDATES`, `CI_APXS_BIN_CANDIDATES`,
+  `CI_NGINX_BIN_CANDIDATES`
+- `CI_INSTALLED_LIB_SEARCH_DIRS`, `CI_INSTALLED_INCLUDE_SEARCH_DIRS`
 
 This installed-path readiness is informative for quick diagnostics. Full compatibility evidence remains the source-build full-smoke path (`make smoke-all`).
 
 
-## Cloud reproducibility path
+## Cloud/GitHub lightweight path
 
-For Codex Cloud / GitHub Actions, `.github/workflows/cloud-quick-smoke.yml` installs required Ubuntu packages explicitly and runs `make cloud-quick-check`.
+For Codex Cloud / GitHub Actions, `.github/workflows/quick-framework-check.yml`
+runs lightweight framework, lint, generator, and documentation consistency
+checks. It does not run connector Runtime-Smokes, source fetches, installed
+runtime probes.
 
 This path distinguishes:
 
-- Framework correctness failures (red): lint/schema/python/diff issues.
-- Runtime readiness limitations (BLOCKED): installed/cached smoke probes without full runtime wiring or artifacts.
+- Framework correctness failures (red): lint/schema/python/generated-doc/diff issues.
+- Runtime compatibility evidence: local-only via full connector smoke targets.
 
-It does not replace the authoritative full source-build smoke (`make smoke-all`).
+It does not replace the authoritative local full source-build smoke
+(`make smoke-all`).
 
 ## Expanded pending compatibility coverage (2026-05-19)
 
@@ -341,4 +404,6 @@ make generate-test-matrix
 make check-test-matrix
 ```
 
-These artifacts summarize declared case metadata and import status. They do not assert full runtime compatibility; `make smoke-all` remains the authoritative runtime-evidence path.
+These artifacts summarize declared case metadata and import status. They do not
+assert full runtime compatibility; `make smoke-all` remains the authoritative
+local runtime-evidence path.

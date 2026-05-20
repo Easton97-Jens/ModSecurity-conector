@@ -1,23 +1,23 @@
 #!/bin/sh
 set -eu
 
-MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-SOURCE_ROOT="${SOURCE_ROOT:-${RUNNER_TEMP:-$BUILD_ROOT}/sources}"
-MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$SOURCE_ROOT/ModSecurity_V3}"
-LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/nginx}"
-REFRESH="${REFRESH:-0}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
+if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
+    SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
+    DEFAULT_MODSECURITY_V3_SOURCE_DIR="$SOURCE_ROOT/ModSecurity_V3"
+fi
 
 AUTO_FETCH_SMOKE_SOURCES="${AUTO_FETCH_SMOKE_SOURCES:-1}"
-MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-https://github.com/owasp-modsecurity/ModSecurity.git}"
-MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-v3/master}"
+MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-}"
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_SOURCE_DIR}"
+LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/nginx}"
+REFRESH="${REFRESH:-0}"
+PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 BUILD_NGINX_FROM_SOURCE="${BUILD_NGINX_FROM_SOURCE:-1}"
-NGINX_SOURCE_MODE="${NGINX_SOURCE_MODE:-github-release}"
-NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO:-https://github.com/nginx/nginx}"
-NGINX_RELEASE_TAG="${NGINX_RELEASE_TAG:-latest}"
-NGINX_SHA256="${NGINX_SHA256:-}"
 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
-CACHE_ROOT="${CACHE_ROOT:-$BUILD_ROOT/cache}"
 NGINX_SOURCE_DIR="${NGINX_SOURCE_DIR:-$NGINX_BUILD_DIR/nginx-src}"
 NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
@@ -27,8 +27,6 @@ V3_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity_V3"
 NGINX_CONNECTOR_LEGACY_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
 OUTPUT_DIR="$NGINX_BUILD_DIR/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 DEFAULT_NGINX_SOURCE_DIR="$REPO_ROOT/connectors/nginx"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_NGINX_SOURCE_DIR}"
 NGINX_ADAPTER_SOURCE_DIR="${NGINX_ADAPTER_SOURCE_DIR:-$MODSECURITY_NGINX_SOURCE_DIR}"
@@ -40,15 +38,7 @@ else
 fi
 NGINX_DDEBUG_REPLACEMENT="${NGINX_DDEBUG_REPLACEMENT:-$REPO_ROOT/connectors/nginx/src/ddebug.h}"
 
-default_jobs() {
-    if command -v nproc >/dev/null 2>&1; then
-        nproc
-    else
-        getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
-    fi
-}
-
-MAKE_JOBS="${MAKE_JOBS:-$(default_jobs)}"
+MAKE_JOBS="${MAKE_JOBS:-$(ci_default_jobs)}"
 STATUS_FILE="$LOG_DIR/status.txt"
 COMMANDS_FILE="$LOG_DIR/commands.txt"
 SOURCE_INFO_FILE="$LOG_DIR/source-info.txt"
@@ -71,15 +61,6 @@ fail() {
     exit 1
 }
 
-canonical_existing() {
-    target_path=$1
-    if [ -e "$target_path" ]; then
-        (cd "$target_path" 2>/dev/null && pwd -P)
-    else
-        return 1
-    fi
-}
-
 require_absolute_generated_path() {
     path=$1
     label=$2
@@ -88,7 +69,7 @@ require_absolute_generated_path() {
         *) blocked "$label must be an absolute generated path: $path" ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
         *) ;;
@@ -97,9 +78,9 @@ require_absolute_generated_path() {
 
 safe_remove_dir() {
     target=$1
-    real_target=$(canonical_existing "$target")
+    real_target=$(ci_canonical_existing "$target")
     case "$real_target" in
-        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT"|/root/conecter/*)
+        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT")
             blocked "unsafe REFRESH target: $real_target"
             ;;
         *) ;;
@@ -276,7 +257,7 @@ materialize_nginx_connector_source() {
 }
 
 github_repo_path() {
-    repo=$NGINX_GITHUB_REPO
+    repo=$NGINX_SOURCE_REPO_URL
     case "$repo" in
         https://github.com/*) repo=${repo#https://github.com/} ;;
         http://github.com/*) repo=${repo#http://github.com/} ;;
@@ -287,7 +268,7 @@ github_repo_path() {
     repo=${repo%/}
     case "$repo" in
         */*) printf '%s\n' "$repo" ;;
-        *) blocked "NGINX_GITHUB_REPO is not a GitHub owner/repo URL or path: $NGINX_GITHUB_REPO" ;;
+        *) blocked "NGINX_SOURCE_REPO_URL is not a GitHub owner/repo URL or path: $NGINX_SOURCE_REPO_URL" ;;
     esac
 }
 
@@ -299,12 +280,12 @@ resolve_nginx_release_tag() {
         return 0
     fi
 
-    require_command python3 "parse GitHub latest release response"
+    require_command "$PYTHON_BIN" "parse GitHub latest release response"
     latest_json="$DOWNLOAD_DIR/nginx-latest-release.json"
     api_url="https://api.github.com/repos/$repo_path/releases/latest"
     run_blocked nginx-github-latest-release "$DOWNLOAD_DIR" \
         curl -fsSL -H "Accept: application/vnd.github+json" -o "$latest_json" "$api_url"
-    if ! RESOLVED_NGINX_RELEASE_TAG=$(python3 - "$latest_json" 2>"$LOG_DIR/nginx-latest-release-parse.log" <<'PY'
+    if ! RESOLVED_NGINX_RELEASE_TAG=$("$PYTHON_BIN" - "$latest_json" 2>"$LOG_DIR/nginx-latest-release-parse.log" <<'PY'
 import json
 import sys
 
@@ -336,8 +317,10 @@ download_nginx_source() {
     echo "nginx_poc: nginx archive sha256(local)=$local_sha"
     {
         echo "nginx_source_mode=$NGINX_SOURCE_MODE"
-        echo "nginx_github_repo=$NGINX_GITHUB_REPO"
+        echo "nginx_source_repo_url=$NGINX_SOURCE_REPO_URL"
+        echo "nginx_github_repo_compat=$NGINX_GITHUB_REPO"
         echo "nginx_release_tag_requested=$NGINX_RELEASE_TAG"
+        echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
         echo "nginx_release_tag_resolved=$RESOLVED_NGINX_RELEASE_TAG"
         echo "nginx_archive_url=$NGINX_ARCHIVE_URL"
         echo "nginx_archive=$NGINX_ARCHIVE"
@@ -406,43 +389,6 @@ stage_modsecurity() {
     } >> "$ARTIFACTS_FILE"
 }
 
-v3_cache_key() {
-    v3_commit=$(git -C "$MODSECURITY_V3_SOURCE_DIR" rev-parse HEAD 2>/dev/null || echo "nogit")
-    printf 'v3=%s\n' "$v3_commit"
-}
-
-try_restore_v3_stage_cache() {
-    cache_key=$(v3_cache_key)
-    V3_STAGE_CACHE_DIR="$CACHE_ROOT/v3-stage/nginx"
-    V3_STAGE_CACHE_MARKER="$V3_STAGE_CACHE_DIR/marker.txt"
-    if [ ! -f "$V3_STAGE_CACHE_MARKER" ]; then
-        echo "nginx_poc: cache-miss v3-stage marker-missing"
-        return 1
-    fi
-    if [ "$(cat "$V3_STAGE_CACHE_MARKER" 2>/dev/null)" != "$cache_key" ]; then
-        echo "nginx_poc: cache-invalid v3-stage marker-mismatch"
-        return 1
-    fi
-    if [ ! -f "$V3_STAGE_CACHE_DIR/include/modsecurity/modsecurity.h" ] || [ ! -f "$V3_STAGE_CACHE_DIR/lib/libmodsecurity.so" ]; then
-        echo "nginx_poc: cache-invalid v3-stage artifact-missing"
-        return 1
-    fi
-    mkdir -p "$MODSECURITY_STAGE"
-    run_blocked v3-stage-cache-restore "$CACHE_ROOT" cp -a "$V3_STAGE_CACHE_DIR/include" "$V3_STAGE_CACHE_DIR/lib" "$MODSECURITY_STAGE/"
-    echo "nginx_poc: cache-hit v3-stage key=$cache_key"
-    return 0
-}
-
-save_v3_stage_cache() {
-    cache_key=$(v3_cache_key)
-    V3_STAGE_CACHE_DIR="$CACHE_ROOT/v3-stage/nginx"
-    rm -rf "$V3_STAGE_CACHE_DIR"
-    mkdir -p "$V3_STAGE_CACHE_DIR"
-    run_blocked v3-stage-cache-save "$MODSECURITY_STAGE" cp -a "$MODSECURITY_STAGE/include" "$MODSECURITY_STAGE/lib" "$V3_STAGE_CACHE_DIR/"
-    printf '%s\n' "$cache_key" > "$V3_STAGE_CACHE_DIR/marker.txt"
-    echo "nginx_poc: rebuild v3-stage cache key=$cache_key"
-}
-
 nginx_configure_script() {
     if [ -x "$NGINX_SOURCE_DIR/configure" ]; then
         printf '%s\n' "./configure"
@@ -458,21 +404,6 @@ nginx_configure_script() {
 build_nginx_from_source() {
     [ "$NGINX_SOURCE_MODE" = "github-release" ] || blocked "unsupported NGINX_SOURCE_MODE=$NGINX_SOURCE_MODE"
     [ "$BUILD_NGINX_FROM_SOURCE" = "1" ] || blocked "BUILD_NGINX_FROM_SOURCE must be 1 for this PoC unless a later explicit binary/module mode is implemented"
-
-    nginx_cache_dir="$CACHE_ROOT/nginx-build/nginx"
-    nginx_marker="$nginx_cache_dir/marker.txt"
-    nginx_key="repo=$NGINX_GITHUB_REPO|tag=$NGINX_RELEASE_TAG|mode=$NGINX_SOURCE_MODE|sha=$NGINX_SHA256|prefix=$NGINX_PREFIX|module_path=$NGINX_MODULE|cc=${CC:-}|cflags=${CFLAGS:-}|connector=$NGINX_CONNECTOR_BUILD_DIR"
-    if [ "$REFRESH" != "1" ] && [ -f "$nginx_marker" ] && [ "$(cat "$nginx_marker" 2>/dev/null)" = "$nginx_key" ] && [ -x "$NGINX_BINARY" ] && [ -f "$NGINX_MODULE" ]; then
-        echo "nginx_poc: cache-hit nginx-build key=$nginx_key"
-        return 0
-    fi
-    if [ "$REFRESH" = "1" ]; then
-        echo "nginx_poc: rebuild nginx-build refresh=1"
-    elif [ -f "$nginx_marker" ]; then
-        echo "nginx_poc: cache-invalid nginx-build marker-mismatch"
-    else
-        echo "nginx_poc: cache-miss nginx-build marker-missing"
-    fi
 
     download_nginx_source
     configure_script=$(nginx_configure_script)
@@ -519,8 +450,6 @@ build_nginx_from_source() {
         echo "nginx_module=$NGINX_MODULE"
         echo "nginx_prefix=$NGINX_PREFIX"
     } >> "$ARTIFACTS_FILE"
-    mkdir -p "$nginx_cache_dir"
-    printf '%s\n' "$nginx_key" > "$nginx_marker"
 }
 
 echo "nginx_poc: MODSECURITY_V3_SOURCE_DIR=$MODSECURITY_V3_SOURCE_DIR"
@@ -529,8 +458,9 @@ echo "nginx_poc: BUILD_ROOT=$BUILD_ROOT"
 echo "nginx_poc: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
 echo "nginx_poc: LOG_DIR=$LOG_DIR"
 echo "nginx_poc: NGINX_SOURCE_MODE=$NGINX_SOURCE_MODE"
-echo "nginx_poc: NGINX_GITHUB_REPO=$NGINX_GITHUB_REPO"
+echo "nginx_poc: NGINX_SOURCE_REPO_URL=$NGINX_SOURCE_REPO_URL"
 echo "nginx_poc: NGINX_RELEASE_TAG=$NGINX_RELEASE_TAG"
+echo "nginx_poc: NGINX_SOURCE_GIT_REF=$NGINX_SOURCE_GIT_REF"
 
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
@@ -581,14 +511,11 @@ fi
 write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
 write_git_info "modsecurity-nginx-build-copy" "$NGINX_CONNECTOR_BUILD_DIR"
 
-if ! try_restore_v3_stage_cache; then
-    run_blocked v3-git-submodule-update "$V3_BUILD_DIR" git submodule update --init --recursive
-    run_blocked v3-build-sh "$V3_BUILD_DIR" ./build.sh
-    run_blocked v3-configure "$V3_BUILD_DIR" ./configure
-    run_blocked v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"
-    stage_modsecurity
-    save_v3_stage_cache
-fi
+run_blocked v3-git-submodule-update "$V3_BUILD_DIR" git submodule update --init --recursive
+run_blocked v3-build-sh "$V3_BUILD_DIR" ./build.sh
+run_blocked v3-configure "$V3_BUILD_DIR" ./configure
+run_blocked v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"
+stage_modsecurity
 build_nginx_from_source
 
 echo "pass: nginx connector dynamic module built" >> "$STATUS_FILE"

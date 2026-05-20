@@ -6,7 +6,7 @@ category: response-headers
 portable: true
 status: xfail
 known_limitations:
-  - Classification: future-compatibility.
+  - "Classification: future-compatibility."
   - Phase-4/response behavior remains non-verified; no verified PASS claim.
 name: phase3_response_headers_encoded_value_future_target
 capabilities:

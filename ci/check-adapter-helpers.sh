@@ -3,9 +3,10 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+. "$SCRIPT_DIR/common.sh"
+
 CC_BIN="${CC:-cc}"
-PYTHON_BIN="${PYTHON:-python3}"
+PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 OUT_DIR="$BUILD_ROOT/adapter-helper-smoke"
 SMOKE_C="$OUT_DIR/adapter_helper_smoke.c"
 SMOKE_BIN="$OUT_DIR/adapter_helper_smoke"

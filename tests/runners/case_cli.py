@@ -16,6 +16,7 @@ from runner_core import (
     assert_case_artifacts,
     case_info as build_case_info,
     discover_case_files,
+    expected_audit_log,
     load_case,
     write_body_file,
     write_headers_file,
@@ -74,6 +75,20 @@ def assert_status(args: argparse.Namespace) -> int:
         with status_file.open("a", encoding="utf-8") as handle:
             handle.write(f"pass: {case['name']} HTTP {expected} observed\n")
     print(f"pass: {case['name']} HTTP {expected} observed")
+    return 0
+
+
+def write_audit_log_fixture(args: argparse.Namespace) -> int:
+    case = load_case(args.case)
+    audit_log = expected_audit_log(case)
+    content = "\n".join(
+        str(value)
+        for key, value in audit_log.items()
+        if key != "required" and value not in (None, "")
+    )
+    output = Path(args.audit_log_file)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(content + ("\n" if content else ""), encoding="utf-8")
     return 0
 
 
@@ -202,6 +217,38 @@ def summarize_empty(args: argparse.Namespace) -> int:
     return 0
 
 
+def validate_real_world_summary(args: argparse.Namespace) -> int:
+    data = json.loads(Path(args.summary_json).read_text(encoding="utf-8"))
+    summary = data.get(args.connector)
+    errors: list[str] = []
+    if not isinstance(summary, dict):
+        errors.append(f"missing connector summary: {args.connector}")
+    else:
+        expected_fields = {
+            "connector_path": args.connector_path,
+            "validation_mode": args.validation_mode,
+            "server": args.server,
+        }
+        for key, expected in expected_fields.items():
+            if summary.get(key) != expected:
+                errors.append(f"{key} expected {expected!r}, got {summary.get(key)!r}")
+        environment = summary.get("environment")
+        if not (environment in {"local", "github-actions"} or environment):
+            errors.append("environment is empty")
+        if summary.get("audit_behavior") not in {"stable", "unstable", "unexpected"}:
+            errors.append(f"unexpected audit_behavior: {summary.get('audit_behavior')!r}")
+        if summary.get("verified_variables") != []:
+            errors.append(f"verified_variables expected [], got {summary.get('verified_variables')!r}")
+        for key in ("server_binary", "module", "libmodsecurity", "summary", "cases"):
+            if key not in summary:
+                errors.append(f"missing summary key: {key}")
+    if errors:
+        print("; ".join(errors), file=sys.stderr)
+        return 1
+    print(f"pass: {args.connector} real-world summary schema")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -234,6 +281,14 @@ def build_parser() -> argparse.ArgumentParser:
     assert_parser.add_argument("--audit-log-file")
     assert_parser.add_argument("--nginx-phase4-log-file")
     assert_parser.set_defaults(func=assert_status)
+
+    audit_parser = subparsers.add_parser(
+        "write-audit-log-fixture",
+        help="write audit-log fixture content from a shared YAML case",
+    )
+    audit_parser.add_argument("--case", required=True)
+    audit_parser.add_argument("--audit-log-file", required=True)
+    audit_parser.set_defaults(func=write_audit_log_fixture)
 
     list_parser = subparsers.add_parser(
         "list-cases",
@@ -281,6 +336,17 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--origin-license")
     summarize_parser.add_argument("--origin-imported-path")
     summarize_parser.set_defaults(func=summarize_results)
+
+    validate_parser = subparsers.add_parser(
+        "validate-real-world-summary",
+        help="validate the lightweight real-world connector summary schema",
+    )
+    validate_parser.add_argument("--summary-json", required=True)
+    validate_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    validate_parser.add_argument("--connector-path", default="real-world")
+    validate_parser.add_argument("--validation-mode", default="real-world-connector-path")
+    validate_parser.add_argument("--server", required=True)
+    validate_parser.set_defaults(func=validate_real_world_summary)
 
     empty_parser = subparsers.add_parser(
         "summarize-empty",

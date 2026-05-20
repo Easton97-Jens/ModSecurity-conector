@@ -1,27 +1,65 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
-BUILD_ROOT ?= /src/ModSecurity-conector-build
+STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
+BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
+export SOURCE_ROOT
 export PYTHON
 export PYTHONDONTWRITEBYTECODE
+export DEFAULT_BRANCH
 export REFRESH
 export SMOKE_CASES
 export CASE_SCOPE
+export MODSECURITY_REPO_URL
+export MODSECURITY_GIT_REF
+export MODSECURITY_APACHE_REPO_URL
+export MODSECURITY_NGINX_REPO_URL
+export ALLOW_EXTERNAL_CONNECTOR_REPOS
+export MODSECURITY_SOURCE_DIR
 export MODSECURITY_V3_SOURCE_DIR
+export MODSECURITY_V3_ROOT
 export MODSECURITY_APACHE_SOURCE_DIR
 export MODSECURITY_NGINX_SOURCE_DIR
+export MODSECURITY_V3_GIT_URL
+export MODSECURITY_V3_GIT_REF
+export MODSECURITY_APACHE_GIT_URL
+export MODSECURITY_APACHE_GIT_REF
+export MODSECURITY_NGINX_GIT_URL
+export MODSECURITY_NGINX_GIT_REF
 export BUILD_HTTPD_FROM_SOURCE
 export BUILD_PCRE2_FROM_SOURCE
 export BUILD_NGINX_FROM_SOURCE
 export NGINX_SOURCE_MODE
+export NGINX_SOURCE_REPO_URL
+export NGINX_SOURCE_GIT_REF
 export NGINX_GITHUB_REPO
 export NGINX_RELEASE_TAG
+export HTTPD_VERSION
+export HTTPD_SOURCE_URL
+export HTTPD_SHA256
+export HTTPD_SHA256_URL
+export APR_VERSION
+export APR_SOURCE_URL
+export APR_SHA256
+export APR_SHA256_URL
+export APR_UTIL_VERSION
+export APR_UTIL_SOURCE_URL
+export APR_UTIL_SHA256
+export APR_UTIL_SHA256_URL
+export PCRE2_VERSION
+export PCRE2_SOURCE_URL
+export PCRE2_SHA256
+export PCRE2_SHA256_URL
+export APACHE_BIN
+export APACHECTL_BIN
+export APXS_BIN
+export NGINX_BIN
 export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-cached smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
+.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 smoke-common:
 	CASE_SCOPE=common sh ci/run-connector-smokes.sh
@@ -40,6 +78,7 @@ probe-response-body:
 
 lint:
 	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh
+	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
 	$(PYTHON) -m json.tool tests/import-status.json >/dev/null
 	$(PYTHON) ci/check-python-deps.py
@@ -67,7 +106,7 @@ setup-dev: install-dev-deps
 
 
 fetch-modsecurity-v3:
-	sh ci/fetch-smoke-sources.sh apache
+	sh ci/fetch-smoke-sources.sh v3
 
 fetch-deps bootstrap-runtime:
 	sh ci/fetch-smoke-sources.sh all
@@ -87,9 +126,6 @@ quick-check codex-check:
 	make lint
 	$(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
 	git diff --check
-
-smoke-cached:
-	sh ci/smoke-cached.sh
 
 smoke-installed installed-readiness:
 	sh ci/smoke-installed.sh
@@ -119,7 +155,7 @@ generate-test-matrix:
 
 check-test-matrix:
 	$(PYTHON) ci/generate-case-matrix.py
-	@git diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md >/dev/null || { \
+	@git diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md TEST-COVERAGE-SUMMARY.md >/dev/null || { \
 		echo "Generated test matrix docs are out of date. Run make generate-test-matrix"; \
 		exit 1; \
 	}

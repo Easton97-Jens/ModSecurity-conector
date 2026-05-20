@@ -6,7 +6,7 @@ category: audit-log
 portable: true
 status: xfail
 known_limitations:
-  - Classification: future-compatibility.
+  - "Classification: future-compatibility."
   - Runtime verification pending; not counted as verified PASS.
 name: audit_log_empty_sections_future_target
 capabilities:

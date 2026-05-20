@@ -6,7 +6,7 @@ category: collections
 portable: true
 status: xfail
 known_limitations:
-  - Classification: connector-gap.
+  - "Classification: connector-gap."
   - Runtime verification pending; not counted as verified PASS.
 name: duplicate_header_case_normalization_gap
 capabilities:

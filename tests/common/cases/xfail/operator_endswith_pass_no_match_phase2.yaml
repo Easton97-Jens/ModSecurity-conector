@@ -1,12 +1,12 @@
 origin:
   - repo: ModSecurity_V2
     path: tests/op/endsWith.t
-    reason: @endsWith no-match pass-through future compatibility.
+    reason: "@endsWith no-match pass-through future compatibility."
 category: operators
 portable: true
 status: xfail
 known_limitations:
-  - Classification: pending-runtime-verification.
+  - "Classification: pending-runtime-verification."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: operator_endswith_pass_no_match_phase2
 capabilities:

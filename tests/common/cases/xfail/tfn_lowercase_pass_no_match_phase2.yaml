@@ -6,7 +6,7 @@ category: transformations
 portable: true
 status: xfail
 known_limitations:
-  - Classification: pending-runtime-verification.
+  - "Classification: pending-runtime-verification."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: tfn_lowercase_pass_no_match_phase2
 capabilities:

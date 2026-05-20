@@ -3,7 +3,7 @@ Generated file — do not edit manually.
 # Generated Coverage Summary
 
 - Total cases: 133
-- RESPONSE_BODY cases: 18
+- RESPONSE_BODY cases: 19
 - Verified runtime cases: 0
 - Non-verified runtime cases: 133
 
@@ -15,14 +15,14 @@ Generated file — do not edit manually.
 
 ## By status
 - imported: 47
-- unknown: 17
-- xfail: 69
+- unknown: 7
+- xfail: 79
 
 ## By variable/collection
-- `RESPONSE_BODY`: 18
-- `ARGS:q`: 13
+- `RESPONSE_BODY`: 19
+- `ARGS:q`: 18
+- `REQUEST_BODY`: 10
 - `ARGS_NAMES`: 7
-- `REQUEST_BODY`: 7
 - `REQUEST_URI`: 7
 - `ARGS:test`: 6
 - `REQUEST_HEADERS_NAMES`: 5
@@ -31,9 +31,9 @@ Generated file — do not edit manually.
 - `ARGS:probe`: 4
 - `ARGS:param1`: 4
 - `ARGS:a`: 4
+- `XML`: 4
 - `RESPONSE_HEADERS:Set-Cookie`: 4
 - `MULTIPART_FILENAME`: 3
-- `XML`: 3
 - `REQUEST_COOKIES:USER_TOKEN`: 2
 - `FILES_NAMES`: 2
 - `RESPONSE_HEADERS:Location`: 2
@@ -60,9 +60,9 @@ Generated file — do not edit manually.
 
 ## By phase
 - phase 1: 35
-- phase 2: 60
+- phase 2: 69
 - phase 3: 11
-- phase 4: 18
+- phase 4: 19
 
 ## Verification note
 - Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.

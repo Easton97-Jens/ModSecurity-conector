@@ -6,7 +6,7 @@ category: audit-log
 portable: true
 status: xfail
 known_limitations:
-  - Classification: runtime-difference.
+  - "Classification: runtime-difference."
   - Phase-4/response behavior remains non-verified; no verified PASS claim.
 name: phase4_auditlog_outbound_rule_id_runtime_difference
 capabilities:
