@@ -6,7 +6,7 @@ category: body-processors
 portable: true
 status: xfail
 known_limitations:
-  - Classification: runtime-difference.
+  - "Classification: runtime-difference."
   - Runtime verification pending; not counted as verified PASS.
 name: json_duplicate_keys_runtime_difference
 capabilities:

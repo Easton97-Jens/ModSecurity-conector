@@ -6,7 +6,7 @@ category: response-body
 portable: true
 status: xfail
 known_limitations:
-  - Classification: experimental.
+  - "Classification: experimental."
   - Phase-4/response behavior remains non-verified; no verified PASS claim.
 name: phase4_response_body_compressed_assumption_experimental
 capabilities:

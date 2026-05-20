@@ -6,7 +6,7 @@ category: audit-log
 portable: true
 status: xfail
 known_limitations:
-  - Classification: future-compatibility.
+  - "Classification: future-compatibility."
   - RESPONSE_BODY remains non-verified and non-promoted.
 name: phase4_auditlog_outbound_matched_var_future
 capabilities:

@@ -6,7 +6,7 @@ category: collections
 portable: true
 status: xfail
 known_limitations:
-  - Classification: runtime-difference.
+  - "Classification: runtime-difference."
   - Runtime verification pending; not counted as verified PASS.
 name: duplicate_args_encoded_separator_edge
 capabilities:

@@ -6,7 +6,7 @@ category: body-processors
 portable: true
 status: xfail
 known_limitations:
-  - Classification: future-compatibility.
+  - "Classification: future-compatibility."
   - Runtime verification pending; not counted as verified PASS.
 name: json_nested_object_future_compatibility
 capabilities:

@@ -6,7 +6,7 @@ category: operators
 portable: true
 status: xfail
 known_limitations:
-  - Classification: pending-runtime-verification.
+  - "Classification: pending-runtime-verification."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: operator_beginswith_pass_no_match_phase2
 capabilities:

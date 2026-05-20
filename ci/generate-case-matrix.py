@@ -425,13 +425,20 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
                     "case": failed.get("case", "-"),
                     "expected": failed.get("expected", "-"),
                     "actual": failed.get("actual", "-"),
+                    "assessment": failed.get("assessment", "-"),
                 }
             )
     lines.extend(
         render_status_table(
             "Runtime FAIL Details",
             failed_rows,
-            [("Connector", "connector"), ("Case", "case"), ("Expected", "expected"), ("Actual", "actual")],
+            [
+                ("Connector", "connector"),
+                ("Case", "case"),
+                ("Expected", "expected"),
+                ("Actual", "actual"),
+                ("Assessment", "assessment"),
+            ],
         )
     )
 
@@ -538,7 +545,16 @@ def render_root_summary(
     return "\n".join(lines)
 
 
-def render_overview(cases: list[dict], by_scope: Counter, by_status: Counter, by_runtime: Counter, by_phase: Counter, by_var: Counter, response_body_count: int) -> str:
+def render_overview(
+    cases: list[dict],
+    runtime_snapshot: dict,
+    by_scope: Counter,
+    by_status: Counter,
+    by_runtime: Counter,
+    by_phase: Counter,
+    by_var: Counter,
+    response_body_count: int,
+) -> str:
     connector_gap_count = sum(1 for case in cases if "connector-gap" in case["tags"] or case["status"] == "connector-gap")
     runtime_diff_count = sum(1 for case in cases if "runtime-difference" in case["tags"] or case["status"] == "runtime-difference")
     future_exp_count = sum(1 for case in cases if "future" in case["tags"] or "experimental" in case["tags"] or case["status"] in {"future", "experimental"})
@@ -551,6 +567,7 @@ def render_overview(cases: list[dict], by_scope: Counter, by_status: Counter, by
     lines.extend(f"| {status} | {count} |" for status, count in sorted(by_status.items()))
     lines.extend(["", "## Coverage nach Scope", "| Scope | Count |", "|---|---:|"])
     lines.extend(f"| {scope} | {by_scope.get(scope, 0)} |" for scope in ["common", "apache", "nginx", "unknown"])
+    lines.extend(render_runtime_snapshot(runtime_snapshot))
     lines.extend(["", "## Top offene Gaps", "- Siehe `docs/testing/generated/connector-gap-summary.generated.md` für detaillierte Einträge.", "", "## Verified Runtime Coverage", "- Runtime-verified ist nur das, was als `runtime_verified=true` klassifiziert ist.", "", "## Pending Runtime Verification", "- Fälle mit `runtime_verified=false/unknown` sind nicht als Runtime-PASS zu lesen.", "", "## XFAIL / Known Gap Coverage", "- XFAIL/Pending/Future/Experimental Fälle sind in der XFAIL-Summary gelistet.", "- XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.", "", "## Connector Gap / Runtime Difference Coverage", "- Connector-Gap und Runtime-Difference sind explizit separat ausgewiesen.", "", "## Phase 3/4 Outbound Coverage", "- Phase 3/4 Fälle sind in `phase-coverage.generated.md` und der Matrix enthalten.", "", "## RESPONSE_BODY Status", "- RESPONSE_BODY bleibt nicht verified/promoted.", "", "## Cloud/Quick/Full Smoke Bedeutung", "- Generated coverage != runtime evidence.", "- Full runtime validation is local.", "- GitHub/Codex checks are intentionally lightweight.", "- XFAIL/pending/gap cases need local runtime validation.", "- GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.", "- Full runtime validation ist lokal.", "- `make smoke-all` bleibt autoritativ für Runtime-Evidenz.", "", "## Generated Artefakte", "- `docs/testing/generated/case-matrix.generated.md`", "- `docs/testing/generated/coverage-summary.generated.md`", "- `docs/testing/generated/xfail-summary.generated.md`", "- `docs/testing/generated/connector-gap-summary.generated.md`", "- `docs/testing/generated/phase-coverage.generated.md`", "", "## Hinweis", "- Generated summaries ersetzen keine Full-Smoke Runtime-Evidenz.", "- Keine RESPONSE_BODY-Promotion ohne stabile Vollbelege."])
     return "\n".join(lines)
 
@@ -572,7 +589,10 @@ def main() -> int:
     write(OUT / "xfail-summary.generated.md", render_xfail(cases))
     write(OUT / "connector-gap-summary.generated.md", render_gap_summary(cases, import_status))
     write(OUT / "phase-coverage.generated.md", render_phase_coverage(cases))
-    write(ROOT / "docs/testing/test-coverage-overview.md", render_overview(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
+    write(
+        ROOT / "docs/testing/test-coverage-overview.md",
+        render_overview(cases, runtime_snapshot, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count),
+    )
     write(ROOT / "TEST-COVERAGE-SUMMARY.md", render_root_summary(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase))
     return 0
 

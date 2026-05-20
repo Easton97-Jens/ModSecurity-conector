@@ -6,7 +6,7 @@ category: phase-handling
 portable: true
 status: xfail
 known_limitations:
-  - Classification: connector-gap.
+  - "Classification: connector-gap."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: phase1_vs_phase2_request_body_gap
 capabilities:

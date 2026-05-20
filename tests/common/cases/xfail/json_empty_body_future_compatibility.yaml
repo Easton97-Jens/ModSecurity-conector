@@ -6,7 +6,7 @@ category: body-processors
 portable: true
 status: xfail
 known_limitations:
-  - Classification: future-compatibility.
+  - "Classification: future-compatibility."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: json_empty_body_future_compatibility
 capabilities:

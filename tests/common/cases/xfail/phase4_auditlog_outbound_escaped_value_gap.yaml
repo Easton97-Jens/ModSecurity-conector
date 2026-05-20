@@ -6,7 +6,7 @@ category: audit-log
 portable: true
 status: xfail
 known_limitations:
-  - Classification: connector-gap.
+  - "Classification: connector-gap."
   - RESPONSE_BODY remains non-verified and non-promoted.
 name: phase4_auditlog_outbound_escaped_value_gap
 capabilities:

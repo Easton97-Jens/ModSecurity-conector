@@ -6,7 +6,7 @@ category: response-headers
 portable: true
 status: xfail
 known_limitations:
-  - Classification: pending-runtime-verification.
+  - "Classification: pending-runtime-verification."
   - RESPONSE_BODY remains non-verified and non-promoted.
 name: phase3_response_headers_server_presence_pending
 capabilities:

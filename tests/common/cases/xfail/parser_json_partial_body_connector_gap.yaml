@@ -6,7 +6,7 @@ category: body-processors
 portable: true
 status: xfail
 known_limitations:
-  - Classification: connector-gap.
+  - "Classification: connector-gap."
   - Runtime verification pending; not counted as verified PASS.
 name: parser_json_partial_body_connector_gap
 capabilities:

@@ -80,22 +80,25 @@ Generated file — do not edit manually.
 | Response body experimental probes | 2 |
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-20** (2026-05-20 12:56:33 CEST)
-- Git: branch `master`, commit `63ae69b`
+- Snapshot: **2026-05-20** (2026-05-20 13:29:32 CEST)
+- Git: branch `master`, commit `efe2dfb`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Framework command statuses are from the local shell exit codes in this run.
 - Runtime smoke counts are from /root/.local/state/ModSecurity-conector-build/results/*-summary.json.
+- The GitHub common-structure metadata failure was fixed by quoting known_limitations Classification entries so they parse as strings.
 - The NGINX smoke failed, so make smoke-all was not run and no full-smoke PASS count is claimed.
 - RESPONSE_BODY remains not verified/promoted by this snapshot.
 
 ## Framework Check Status
 | Command | Status | Details |
 |---|---|---|
-| git status --short --branch | PASS | Clean branch at start: ## master...origin/master |
+| git status --short --branch | PASS | Branch at start: ## master...origin/master [ahead 1] |
 | git diff --check | PASS | No whitespace errors reported |
 | git diff --exit-code -- connectors/apache/src connectors/nginx/src | PASS | No connector source changes |
 | rg "write-expected-audit-log.py|expected-audit-log" . | PASS | No stale expected audit log helper references found |
+| PyYAML parse and known_limitations audit | PASS | All tests/**/*.yaml parsed; known_limitations and case_known_limitations lists contain only strings |
+| local common-structure materialize/list/write-case-matrix reproduction | PASS | tests/runners/case_cli.py and ci/write-case-matrix.py completed without the case_known_limitations validation exception |
 | make setup-dev | PASS | Development dependencies available in .venv |
 | make lint | PASS | actionlint unavailable message was non-fatal |
 | make generate-test-matrix | PASS | Generated coverage docs refreshed |
@@ -122,23 +125,24 @@ Generated file — do not edit manually.
 | REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
 
 ## Runtime FAIL Details
-| Connector | Case | Expected | Actual |
-|---|---|---|---|
-| nginx | phase2_args_pass | 200 | 403 |
-| nginx | action_allow_phase1_pass | 200 | 403 |
-| nginx | response_body_pass | 200 | 403 |
-| nginx | v2_transformation_url_decode_pass_no_match | 200 | 403 |
-| nginx | v3_args_names_get_pass_no_match | 200 | 403 |
-| nginx | v3_request_cookies_names_pass_no_match | 200 | 403 |
-| nginx | v3_request_cookies_pass_no_match | 200 | 403 |
-| nginx | v3_request_headers_names_pass_no_match | 200 | 403 |
-| nginx | nginx_phase4_content_type_out_of_scope | 200 | 403 |
-| nginx | nginx_phase4_minimal_log_only | 200 | 403 |
-| nginx | nginx_phase4_safe_log_only | 200 | 403 |
+| Connector | Case | Expected | Actual | Assessment |
+|---|---|---|---|---|
+| nginx | phase2_args_pass | 200 | 403 | NGINX pass-through failure; runtime-difference candidate, not reclassified |
+| nginx | action_allow_phase1_pass | 200 | 403 | NGINX allow/pass-through failure; runtime-difference candidate, not reclassified |
+| nginx | response_body_pass | 200 | 403 | RESPONSE_BODY pass-through failure; RESPONSE_BODY remains non-promoted |
+| nginx | v2_transformation_url_decode_pass_no_match | 200 | 403 | NGINX transformation no-match pass-through failure; runtime-difference candidate |
+| nginx | v3_args_names_get_pass_no_match | 200 | 403 | NGINX ARGS_NAMES no-match pass-through failure; runtime-difference candidate |
+| nginx | v3_request_cookies_names_pass_no_match | 200 | 403 | NGINX REQUEST_COOKIES_NAMES no-match pass-through failure; runtime-difference candidate |
+| nginx | v3_request_cookies_pass_no_match | 200 | 403 | NGINX REQUEST_COOKIES no-match pass-through failure; runtime-difference candidate |
+| nginx | v3_request_headers_names_pass_no_match | 200 | 403 | NGINX REQUEST_HEADERS_NAMES no-match pass-through failure; runtime-difference candidate |
+| nginx | nginx_phase4_content_type_out_of_scope | 200 | 403 | NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate |
+| nginx | nginx_phase4_minimal_log_only | 200 | 403 | NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate |
+| nginx | nginx_phase4_safe_log_only | 200 | 403 | NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate |
 
 ## Runtime Verified Status
 - Apache source-build smoke passed 48 runtime cases with 0 failures.
 - NGINX source-build smoke executed 54 runtime cases but failed 11, so NGINX is not fully runtime-verified by this snapshot.
+- NGINX failures are treated as observed runtime failures/candidates for later xfail or runtime-difference classification; no pass promotion was made.
 - The YAML coverage metadata still reports runtime_verified=true as 0 because no generated metadata was promoted from this local run.
 - Apache and NGINX summaries both list exercised variables ARGS, ARGS_NAMES, AUDIT_LOG, FILES, REQUEST_BODY, REQUEST_COOKIES, REQUEST_HEADERS, REQUEST_URI, RESPONSE_HEADERS, and XML; RESPONSE_BODY is not promoted.
 - make smoke-all was not run after the NGINX failure; full-smoke PASS counts remain unknown.
@@ -147,6 +151,7 @@ Generated file — do not edit manually.
 - Optional installed-readiness remains BLOCKED because system Apache/APXS/NGINX/libmodsecurity are not installed.
 - NGINX pass-through/no-match cases returned 403 instead of 200 in this local run.
 - NGINX phase 4 response-body/log-only cases returned 403 instead of 200 in this local run.
+- The NGINX failures need follow-up triage before any import-status or YAML classification change.
 - RESPONSE_BODY remains non-verified/non-promoted.
 - XFAIL, pending, connector-gap, runtime-difference, and future/experimental YAML cases still require separate local runtime validation before promotion.
 

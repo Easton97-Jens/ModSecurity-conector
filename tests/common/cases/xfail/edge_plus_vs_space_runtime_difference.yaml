@@ -6,7 +6,7 @@ category: transformations
 portable: true
 status: xfail
 known_limitations:
-  - Classification: runtime-difference.
+  - "Classification: runtime-difference."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: edge_plus_vs_space_runtime_difference
 capabilities:

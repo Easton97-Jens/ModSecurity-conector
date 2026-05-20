@@ -6,7 +6,7 @@ category: transformations
 portable: true
 status: xfail
 known_limitations:
-  - Classification: future-compatibility.
+  - "Classification: future-compatibility."
   - Pending cross-connector runtime verification; not counted as verified PASS.
 name: tfn_urldecodeuni_future_target_phase1
 capabilities:

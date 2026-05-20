@@ -6,7 +6,7 @@ category: transformations
 portable: true
 status: xfail
 known_limitations:
-  - Classification: runtime-difference.
+  - "Classification: runtime-difference."
   - Runtime verification pending; not counted as verified PASS.
 name: unicode_double_encoded_uri_runtime_difference
 capabilities:

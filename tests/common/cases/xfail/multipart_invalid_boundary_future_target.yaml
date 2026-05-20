@@ -6,7 +6,7 @@ category: multipart
 portable: true
 status: xfail
 known_limitations:
-  - Classification: future-compatibility.
+  - "Classification: future-compatibility."
   - Runtime verification pending; not counted as verified PASS.
 name: multipart_invalid_boundary_future_target
 capabilities:

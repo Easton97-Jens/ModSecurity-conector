@@ -6,7 +6,7 @@ category: response-headers
 portable: true
 status: xfail
 known_limitations:
-  - Classification: connector-gap.
+  - "Classification: connector-gap."
   - RESPONSE_BODY remains non-verified and non-promoted.
 name: phase3_response_headers_content_type_charset_gap
 capabilities:
