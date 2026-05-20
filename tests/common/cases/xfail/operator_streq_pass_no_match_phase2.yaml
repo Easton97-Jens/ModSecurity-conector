@@ -1,7 +1,7 @@
 origin:
   - repo: ModSecurity_V2
     path: tests/op/streq.t
-    reason: @streq no-match pass-through future compatibility.
+    reason: "@streq no-match pass-through future compatibility."
 category: operators
 portable: true
 status: xfail

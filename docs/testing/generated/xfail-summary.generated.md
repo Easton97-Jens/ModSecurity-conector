@@ -17,12 +17,19 @@ Generated file — do not edit manually.
 | edge_semicolon_query_args_names | `tests/common/cases/xfail/edge_semicolon_query_args_names.yaml` | xfail | 2 | ARGS_NAMES | - |
 | files_empty_part_future_compatibility | `tests/common/cases/xfail/files_empty_part_future_compatibility.yaml` | xfail | 2 | FILES | - |
 | files_names_mixed_case_filename_gap | `tests/common/cases/xfail/files_names_mixed_case_filename_gap.yaml` | xfail | 2 | FILES_NAMES | - |
+| json_duplicate_keys_runtime_difference | `tests/common/cases/xfail/json_duplicate_keys_runtime_difference.yaml` | xfail | 2 | REQUEST_BODY | - |
 | json_empty_body_future_compatibility | `tests/common/cases/xfail/json_empty_body_future_compatibility.yaml` | xfail | 2 | REQUEST_BODY | - |
-| json_nested_object_future_compatibility | `tests/common/cases/xfail/json_nested_object_future_compatibility.yaml` | unknown | - | - | - |
+| json_nested_object_future_compatibility | `tests/common/cases/xfail/json_nested_object_future_compatibility.yaml` | xfail | 2 | REQUEST_BODY | - |
 | multipart_duplicate_field_names_gap | `tests/common/cases/xfail/multipart_duplicate_field_names_gap.yaml` | xfail | 2 | ARGS_NAMES | - |
 | multipart_empty_filename_connector_gap | `tests/common/cases/xfail/multipart_empty_filename_connector_gap.yaml` | xfail | 2 | MULTIPART_FILENAME | - |
 | multipart_encoded_filename_runtime_difference | `tests/common/cases/xfail/multipart_encoded_filename_runtime_difference.yaml` | xfail | 2 | MULTIPART_FILENAME | - |
 | multipart_invalid_boundary_future_target | `tests/common/cases/xfail/multipart_invalid_boundary_future_target.yaml` | xfail | 2 | REQUEST_BODY | - |
+| operator_beginswith_pass_no_match_phase2 | `tests/common/cases/xfail/operator_beginswith_pass_no_match_phase2.yaml` | xfail | 2 | ARGS:q | - |
+| operator_contains_pass_no_match_phase2 | `tests/common/cases/xfail/operator_contains_pass_no_match_phase2.yaml` | xfail | 2 | ARGS:q | - |
+| operator_endswith_pass_no_match_phase2 | `tests/common/cases/xfail/operator_endswith_pass_no_match_phase2.yaml` | xfail | 2 | ARGS:q | - |
+| operator_rx_pass_no_match_phase2 | `tests/common/cases/xfail/operator_rx_pass_no_match_phase2.yaml` | xfail | 2 | ARGS:q | - |
+| operator_streq_pass_no_match_phase2 | `tests/common/cases/xfail/operator_streq_pass_no_match_phase2.yaml` | xfail | 2 | ARGS:q | - |
+| parser_json_partial_body_connector_gap | `tests/common/cases/xfail/parser_json_partial_body_connector_gap.yaml` | xfail | 2 | REQUEST_BODY | - |
 | parser_xml_partial_body_future_target | `tests/common/cases/xfail/parser_xml_partial_body_future_target.yaml` | xfail | 2 | XML | - |
 | phase1_vs_phase2_request_body_gap | `tests/common/cases/xfail/phase1_vs_phase2_request_body_gap.yaml` | xfail | 1 | REQUEST_BODY | - |
 | phase2_header_only_pass_through | `tests/common/cases/xfail/phase2_header_only_pass_through.yaml` | xfail | 2 | REQUEST_HEADERS:X-Phase | - |
@@ -38,6 +45,7 @@ Generated file — do not edit manually.
 | phase4_auditlog_outbound_escaped_value_gap | `tests/common/cases/xfail/phase4_auditlog_outbound_escaped_value_gap.yaml` | xfail | 4 | RESPONSE_BODY | - |
 | phase4_auditlog_outbound_matched_var_future | `tests/common/cases/xfail/phase4_auditlog_outbound_matched_var_future.yaml` | xfail | 4 | RESPONSE_BODY | - |
 | phase4_auditlog_outbound_message_connector_gap | `tests/common/cases/xfail/phase4_auditlog_outbound_message_connector_gap.yaml` | xfail | 4 | RESPONSE_BODY | - |
+| phase4_auditlog_outbound_multiline_section_gap | `tests/common/cases/xfail/phase4_auditlog_outbound_multiline_section_gap.yaml` | xfail | 4 | RESPONSE_BODY | - |
 | phase4_auditlog_outbound_rule_id_runtime_difference | `tests/common/cases/xfail/phase4_auditlog_outbound_rule_id_runtime_difference.yaml` | xfail | 4 | RESPONSE_BODY | - |
 | phase4_response_body_buffering_order_future_target | `tests/common/cases/xfail/phase4_response_body_buffering_order_future_target.yaml` | xfail | 4 | RESPONSE_BODY | - |
 | phase4_response_body_chunk_assumption_connector_gap | `tests/common/cases/xfail/phase4_response_body_chunk_assumption_connector_gap.yaml` | xfail | 4 | RESPONSE_BODY | - |
@@ -70,6 +78,7 @@ Generated file — do not edit manually.
 | v3_request_headers_names_duplicate_connector_gap | `tests/common/cases/xfail/v3_request_headers_names_duplicate_connector_gap.yaml` | xfail | 1 | REQUEST_HEADERS_NAMES | - |
 | v3_request_headers_names_lowercase_runtime_difference | `tests/common/cases/xfail/v3_request_headers_names_lowercase_runtime_difference.yaml` | xfail | 1 | REQUEST_HEADERS_NAMES | - |
 | xml_deep_nesting_future_target | `tests/common/cases/xfail/xml_deep_nesting_future_target.yaml` | xfail | 2 | XML | - |
+| xml_namespace_edge_connector_gap | `tests/common/cases/xfail/xml_namespace_edge_connector_gap.yaml` | xfail | 2 | XML | - |
 | xml_request_body_malformed_connector_gap | `tests/common/cases/xfail/xml_request_body_malformed_connector_gap.yaml` | xfail | 2 | XML | - |
 | xss_like_encoded_angles_normalization_probe | `tests/common/cases/xfail/xss_like_encoded_angles_normalization_probe.yaml` | xfail | 2 | ARGS:q | - |
 | xss_like_mixed_case_script_token_gap | `tests/common/cases/xfail/xss_like_mixed_case_script_token_gap.yaml` | xfail | 2 | ARGS:q | - |

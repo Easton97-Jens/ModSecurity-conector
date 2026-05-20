@@ -1,7 +1,7 @@
 origin:
   - repo: ModSecurity_V2
     path: tests/op/beginsWith.t
-    reason: @beginsWith no-match pass-through future compatibility.
+    reason: "@beginsWith no-match pass-through future compatibility."
 category: operators
 portable: true
 status: xfail

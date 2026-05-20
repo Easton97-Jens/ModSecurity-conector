@@ -279,6 +279,33 @@ Implemented status:
   location, installed-readiness is optional diagnostics, and `make smoke-all`
   remains the local authoritative runtime-evidence path.
 
+## XFAIL YAML And CI Helper Follow-Up
+
+The next conservative cleanup fixed malformed XFAIL YAML syntax only. The
+repaired cases were previously unreadable by the matrix generator, which caused
+them to appear as `unknown` reporting rows despite their source files declaring
+`status: xfail`.
+
+Syntax-only repairs:
+
+- JSON request bodies with embedded quotes now use YAML-safe scalars.
+- XML request bodies with embedded attribute quotes now use YAML-safe scalars.
+- `origin.reason` values beginning with `@operator` are quoted.
+- The outbound multiline audit-log probe body is indented as one YAML block
+  scalar.
+
+No test status, expected HTTP result, intervention expectation, runtime
+verification claim, or RESPONSE_BODY classification was changed.
+
+The `ci/` script audit found most helpers still referenced by Makefile targets,
+runtime smoke scripts, docs, or compatibility wrappers. Two self-referential
+Python helpers for stale real-world summary schema checking and expected
+audit-log fixture generation were removed because `rg` found no callers outside
+the files themselves.
+
+Runtime/build/fetch/debug helpers were deliberately kept unless the reference
+audit proved them dead. Full runtime validation remains local.
+
 ## Changes That Should Be Separate
 
 These remain separate follow-ups:

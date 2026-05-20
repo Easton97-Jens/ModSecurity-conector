@@ -5,20 +5,20 @@ Generated file — do not edit manually.
 ## Kurzzusammenfassung
 - Gesamtzahl Cases: **133**
 - verified/pass count (runtime_verified=true): **0**
-- xfail count: **69**
+- xfail count: **79**
 - pending-runtime-verification count: **86**
 - connector-gap count: **11**
 - runtime-difference count: **13**
 - future/experimental count: **16**
-- RESPONSE_BODY cases: **18** (weiterhin **nicht verified/promoted**)
+- RESPONSE_BODY cases: **19** (weiterhin **nicht verified/promoted**)
 
 ## Coverage nach Variable/Collection
 | Variable | Count |
 |---|---:|
-| `RESPONSE_BODY` | 18 |
-| `ARGS:q` | 13 |
+| `RESPONSE_BODY` | 19 |
+| `ARGS:q` | 18 |
+| `REQUEST_BODY` | 10 |
 | `ARGS_NAMES` | 7 |
-| `REQUEST_BODY` | 7 |
 | `REQUEST_URI` | 7 |
 | `ARGS:test` | 6 |
 | `REQUEST_HEADERS_NAMES` | 5 |
@@ -27,9 +27,9 @@ Generated file — do not edit manually.
 | `ARGS:probe` | 4 |
 | `ARGS:param1` | 4 |
 | `ARGS:a` | 4 |
+| `XML` | 4 |
 | `RESPONSE_HEADERS:Set-Cookie` | 4 |
 | `MULTIPART_FILENAME` | 3 |
-| `XML` | 3 |
 | `REQUEST_COOKIES:USER_TOKEN` | 2 |
 | `FILES_NAMES` | 2 |
 | `RESPONSE_HEADERS:Location` | 2 |
@@ -40,16 +40,16 @@ Generated file — do not edit manually.
 | Phase | Count |
 |---|---:|
 | 1 | 35 |
-| 2 | 60 |
+| 2 | 69 |
 | 3 | 11 |
-| 4 | 18 |
+| 4 | 19 |
 
 ## Coverage nach Status
 | Status | Count |
 |---|---:|
 | imported | 47 |
-| unknown | 17 |
-| xfail | 69 |
+| unknown | 7 |
+| xfail | 79 |
 
 ## Coverage nach Scope
 | Scope | Count |

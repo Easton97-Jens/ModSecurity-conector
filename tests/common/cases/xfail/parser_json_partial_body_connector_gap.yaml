@@ -27,7 +27,7 @@ request:
   path: "/"
   headers:
     Content-Type: application/json
-  body: "{"partial": "
+  body: '{"partial": '
 expect:
   status: 403
   intervention: deny

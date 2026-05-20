@@ -5,13 +5,13 @@ Generated file — do not edit manually.
 ## Kurzstatus
 - Gesamtzahl aller YAML Cases: **133**
 - verified/pass (`runtime_verified=true`): **0**
-- xfail: **69**
+- xfail: **79**
 - pending-runtime-verification (`runtime_verified=false`): **86**
 - pending-runtime-verification (`runtime_verified=unknown`): **47**
 - connector-gap: **11**
 - runtime-difference: **13**
 - future/experimental: **16**
-- RESPONSE_BODY Cases: **18**
+- RESPONSE_BODY Cases: **19**
 
 **RESPONSE_BODY ist nicht verified/promoted.** Diese Datei ist generiertes Reporting und keine Runtime-Evidenz.
 
@@ -19,7 +19,7 @@ Generated file — do not edit manually.
 - Common YAML Cases: **126**
 - Apache-specific Cases: **0**
 - NGINX-specific Cases: **7**
-- xfail Cases: **69**
+- xfail Cases: **79**
 - mapped-only import inventory entries: **10** (nicht als runnable YAML Cases gezählt)
 - pending/future compatibility Cases: **16** future/experimental; **133** nicht runtime-verified
 
@@ -27,8 +27,8 @@ Generated file — do not edit manually.
 | Status | Count |
 |---|---:|
 | imported | 47 |
-| unknown | 17 |
-| xfail | 69 |
+| unknown | 7 |
+| xfail | 79 |
 
 ## Scope
 | Scope | Count |
@@ -41,33 +41,33 @@ Generated file — do not edit manually.
 ## Coverage nach Variablen/Collections
 | Variable / Collection | Count |
 |---|---:|
-| `ARGS` | 38 |
+| `ARGS` | 43 |
 | `ARGS_NAMES` | 7 |
 | `REQUEST_HEADERS` | 4 |
 | `REQUEST_HEADERS_NAMES` | 5 |
 | `REQUEST_COOKIES` | 2 |
 | `REQUEST_COOKIES_NAMES` | 4 |
 | `REQUEST_URI` | 7 |
-| `REQUEST_BODY` | 7 |
+| `REQUEST_BODY` | 10 |
 | `FILES` | 2 |
 | `FILES_NAMES` | 2 |
-| `XML` | 4 |
+| `XML` | 5 |
 | `RESPONSE_HEADERS` | 10 |
-| `RESPONSE_BODY` | 18 |
+| `RESPONSE_BODY` | 19 |
 | `AUDIT_LOG` | 0 |
 
 ## Coverage nach Phase
 | Phase | Count |
 |---|---:|
 | Phase 1 | 35 |
-| Phase 2 | 60 |
+| Phase 2 | 69 |
 | Phase 3 | 11 |
-| Phase 4 | 18 |
+| Phase 4 | 19 |
 
 ## Coverage nach Themen
 | Topic | Count |
 |---|---:|
-| Operators | 118 |
+| Operators | 128 |
 | Transformations | 28 |
 | Multipart / FILES | 11 |
 | JSON | 7 |

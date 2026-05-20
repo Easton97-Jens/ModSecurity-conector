@@ -8,10 +8,10 @@ Generated file — do not edit manually.
 | audit_log_rule_id_presence_runtime_difference | `tests/common/cases/xfail/audit_log_rule_id_presence_runtime_difference.yaml` | xfail | runtime-difference | ARGS:a | unknown | - |
 | duplicate_cookie_name_runtime_difference | `tests/common/cases/xfail/duplicate_cookie_name_runtime_difference.yaml` | xfail | runtime-difference | REQUEST_COOKIES_NAMES | unknown | - |
 | edge_plus_vs_space_runtime_difference | `tests/common/cases/xfail/edge_plus_vs_space_runtime_difference.yaml` | xfail | runtime-difference | REQUEST_URI | unknown | - |
-| json_duplicate_keys_runtime_difference | `tests/common/cases/xfail/json_duplicate_keys_runtime_difference.yaml` | unknown | runtime-difference | - | unknown | - |
+| json_duplicate_keys_runtime_difference | `tests/common/cases/xfail/json_duplicate_keys_runtime_difference.yaml` | xfail | runtime-difference | REQUEST_BODY | unknown | - |
 | multipart_empty_filename_connector_gap | `tests/common/cases/xfail/multipart_empty_filename_connector_gap.yaml` | xfail | connector-gap | MULTIPART_FILENAME | unknown | - |
 | multipart_encoded_filename_runtime_difference | `tests/common/cases/xfail/multipart_encoded_filename_runtime_difference.yaml` | xfail | runtime-difference | MULTIPART_FILENAME | unknown | - |
-| parser_json_partial_body_connector_gap | `tests/common/cases/xfail/parser_json_partial_body_connector_gap.yaml` | unknown | connector-gap | - | unknown | - |
+| parser_json_partial_body_connector_gap | `tests/common/cases/xfail/parser_json_partial_body_connector_gap.yaml` | xfail | connector-gap | REQUEST_BODY | unknown | - |
 | phase3_response_headers_duplicate_value_runtime_difference | `tests/common/cases/xfail/phase3_response_headers_duplicate_value_runtime_difference.yaml` | xfail | runtime-difference | RESPONSE_HEADERS:Set-Cookie | unknown | - |
 | phase3_response_headers_mixed_case_connector_gap | `tests/common/cases/xfail/phase3_response_headers_mixed_case_connector_gap.yaml` | xfail | connector-gap | RESPONSE_HEADERS:content-type | unknown | - |
 | phase3_response_headers_multi_value_connector_gap | `tests/common/cases/xfail/phase3_response_headers_multi_value_connector_gap.yaml` | xfail | connector-gap | RESPONSE_HEADERS:Set-Cookie | unknown | - |
@@ -26,7 +26,7 @@ Generated file — do not edit manually.
 | v3_request_cookies_names_case_runtime_difference | `tests/common/cases/xfail/v3_request_cookies_names_case_runtime_difference.yaml` | xfail | runtime-difference | REQUEST_COOKIES_NAMES | unknown | - |
 | v3_request_headers_names_duplicate_connector_gap | `tests/common/cases/xfail/v3_request_headers_names_duplicate_connector_gap.yaml` | xfail | connector-gap | REQUEST_HEADERS_NAMES | unknown | - |
 | v3_request_headers_names_lowercase_runtime_difference | `tests/common/cases/xfail/v3_request_headers_names_lowercase_runtime_difference.yaml` | xfail | runtime-difference | REQUEST_HEADERS_NAMES | unknown | - |
-| xml_namespace_edge_connector_gap | `tests/common/cases/xfail/xml_namespace_edge_connector_gap.yaml` | unknown | connector-gap | - | unknown | - |
+| xml_namespace_edge_connector_gap | `tests/common/cases/xfail/xml_namespace_edge_connector_gap.yaml` | xfail | connector-gap | XML | unknown | - |
 | xml_request_body_malformed_connector_gap | `tests/common/cases/xfail/xml_request_body_malformed_connector_gap.yaml` | xfail | connector-gap | XML | unknown | - |
 | tests/nginx/cases/imported/nginx_redirect_phase1_302.yaml | `tests/import-status.json` | connector_specific | - | - | unknown | NGINX redirect behavior is not yet proven against Apache. |
 | tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml | `tests/import-status.json` | connector_specific | - | - | unknown | NGINX TX scoring import is not yet proven against Apache. |

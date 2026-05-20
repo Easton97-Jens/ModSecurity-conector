@@ -1,7 +1,7 @@
 origin:
   - repo: ModSecurity_V3
     path: test/test-cases/regression/operator-rx.json
-    reason: @rx no-match pass-through future compatibility.
+    reason: "@rx no-match pass-through future compatibility."
 category: operators
 portable: true
 status: xfail

@@ -31,7 +31,7 @@ request:
 response:
   body: |
     lineA
-lineB
+    lineB
 expect:
   status: 403
   intervention: deny

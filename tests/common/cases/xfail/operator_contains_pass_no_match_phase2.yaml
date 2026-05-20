@@ -1,7 +1,7 @@
 origin:
   - repo: ModSecurity_V2
     path: tests/op/contains.t
-    reason: @contains no-match pass-through future compatibility.
+    reason: "@contains no-match pass-through future compatibility."
 category: operators
 portable: true
 status: xfail
