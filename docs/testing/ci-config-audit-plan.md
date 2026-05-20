@@ -296,10 +296,11 @@ No test status, expected HTTP result, intervention expectation, runtime
 verification claim, or RESPONSE_BODY classification was changed.
 
 The `ci/` script audit found most helpers still referenced by Makefile targets,
-runtime smoke scripts, docs, or compatibility wrappers. Two self-referential
-Python helpers for stale real-world summary schema checking and expected
-audit-log fixture generation were removed because `rg` found no callers outside
-the files themselves.
+runtime smoke scripts, docs, or compatibility wrappers. Two stale standalone
+Python helpers for real-world summary schema checking and expected audit-log
+fixture generation were removed. The lightweight common workflow now uses the
+shared case runner CLI for those checks instead of calling deleted `ci/`
+helpers.
 
 Runtime/build/fetch/debug helpers were deliberately kept unless the reference
 audit proved them dead. Full runtime validation remains local.

@@ -84,7 +84,9 @@ jobs:
             else
               : > "$out/response-body.txt"
             fi
-            python3 ci/write-expected-audit-log.py "$case_file" "$out/audit.log"
+            python3 tests/runners/case_cli.py write-audit-log-fixture \
+              --case "$case_file" \
+              --audit-log-file "$out/audit.log"
             python3 tests/runners/case_cli.py assert-status \
               --case "$case_file" \
               --actual-status "$EXPECT_STATUS" \
@@ -129,7 +131,10 @@ jobs:
             --server-binary "$BUILD_ROOT/apache-runtime/httpd/bin/httpd" \
             --module "$BUILD_ROOT/apache-build/output/apache/mod_security3.so" \
             --libmodsecurity "$BUILD_ROOT/apache-build/output/modsecurity/lib/libmodsecurity.so"
-          python3 ci/check-real-world-summary-schema.py "$BUILD_ROOT/schema-check/apache-summary.json"
+          python3 tests/runners/case_cli.py validate-real-world-summary \
+            --summary-json "$BUILD_ROOT/schema-check/apache-summary.json" \
+            --connector apache \
+            --server apache
       - name: Check make smoke targets and boundaries
         run: |
           set -eu
