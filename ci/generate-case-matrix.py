@@ -11,6 +11,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 IMPORT_STATUS = ROOT / "tests/import-status.json"
+RUNTIME_SNAPSHOT = ROOT / "docs/testing/runtime-validation-snapshot.json"
 OUT = ROOT / "docs/testing/generated"
 
 RULE_RE = re.compile(r'^\s*SecRule\s+([^\s]+)\s+"(@[^\s"]+)')
@@ -56,6 +57,7 @@ ROOT_DETAIL_DOCS = [
     "docs/testing/generated/xfail-summary.generated.md",
     "docs/testing/generated/connector-gap-summary.generated.md",
     "docs/testing/generated/phase-coverage.generated.md",
+    "docs/testing/runtime-validation-snapshot.json",
     "docs/testing/response-body-blocking-investigation.md",
     "docs/testing/compatibility.md",
 ]
@@ -181,6 +183,20 @@ def load_import_status() -> dict:
     except Exception as exc:
         warn(f"failed to parse {IMPORT_STATUS}: {exc}")
         return {}
+
+
+def load_runtime_snapshot() -> dict:
+    if not RUNTIME_SNAPSHOT.exists():
+        return {}
+    try:
+        raw = json.loads(RUNTIME_SNAPSHOT.read_text(encoding="utf-8"))
+    except Exception as exc:
+        warn(f"failed to parse {RUNTIME_SNAPSHOT}: {exc}")
+        return {}
+    if not isinstance(raw, dict):
+        warn(f"{RUNTIME_SNAPSHOT} root is not an object; ignoring runtime snapshot")
+        return {}
+    return raw
 
 
 def write(path: Path, body: str) -> None:
@@ -311,9 +327,131 @@ def topic_counts(cases: list[dict]) -> dict[str, int]:
     }
 
 
+def render_status_table(title: str, rows: list[dict], columns: list[tuple[str, str]]) -> list[str]:
+    if not rows:
+        return []
+    out = ["", f"## {title}", "| " + " | ".join(header for header, _ in columns) + " |", "|" + "|".join("---" for _ in columns) + "|"]
+    for row in rows:
+        out.append("| " + " | ".join(str(row.get(key, "-")) for _, key in columns) + " |")
+    return out
+
+
+def render_runtime_snapshot(snapshot: dict) -> list[str]:
+    if not snapshot:
+        return [
+            "",
+            "## Latest Local Runtime Validation Snapshot",
+            "- No local runtime snapshot is recorded in `docs/testing/runtime-validation-snapshot.json`.",
+            "- Do not infer runtime PASS counts from generated coverage metadata.",
+        ]
+
+    lines = [
+        "",
+        "## Latest Local Runtime Validation Snapshot",
+        f"- Snapshot: **{snapshot.get('snapshot_date', 'unknown')}** ({snapshot.get('captured_at', 'unknown')})",
+        f"- Git: branch `{snapshot.get('branch', 'unknown')}`, commit `{snapshot.get('commit', 'unknown')}`",
+        f"- BUILD_ROOT: `{snapshot.get('build_root', 'unknown')}`",
+        "- This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.",
+    ]
+    notes = snapshot.get("notes", [])
+    if isinstance(notes, list) and notes:
+        lines.extend(f"- {note}" for note in notes)
+
+    framework_rows = snapshot.get("framework_checks", [])
+    if isinstance(framework_rows, list):
+        lines.extend(
+            render_status_table(
+                "Framework Check Status",
+                framework_rows,
+                [("Command", "command"), ("Status", "status"), ("Details", "details")],
+            )
+        )
+
+    readiness_rows = snapshot.get("readiness_checks", [])
+    if isinstance(readiness_rows, list):
+        lines.extend(
+            render_status_table(
+                "Readiness / Fetch Status",
+                readiness_rows,
+                [("Command", "command"), ("Status", "status"), ("Details", "details")],
+            )
+        )
+
+    smoke_rows = []
+    for item in snapshot.get("runtime_smokes", []):
+        if not isinstance(item, dict):
+            continue
+        counts = item.get("counts") if isinstance(item.get("counts"), dict) else {}
+        smoke_rows.append(
+            {
+                "command": item.get("command", "-"),
+                "status": item.get("status", "-"),
+                "exit_code": item.get("exit_code", "-"),
+                "pass": counts.get("pass", "unknown"),
+                "fail": counts.get("fail", "unknown"),
+                "blocked": counts.get("blocked", "unknown"),
+                "xfail": counts.get("xfail", "unknown"),
+                "summary_path": item.get("summary_path", item.get("details", "-")),
+            }
+        )
+    lines.extend(
+        render_status_table(
+            "Runtime Smoke Status",
+            smoke_rows,
+            [
+                ("Command", "command"),
+                ("Status", "status"),
+                ("Exit", "exit_code"),
+                ("PASS", "pass"),
+                ("FAIL", "fail"),
+                ("BLOCKED", "blocked"),
+                ("XFAIL", "xfail"),
+                ("Evidence", "summary_path"),
+            ],
+        )
+    )
+
+    failed_rows = []
+    for item in snapshot.get("runtime_smokes", []):
+        if not isinstance(item, dict):
+            continue
+        connector = item.get("connector", item.get("command", "-"))
+        for failed in item.get("failed_cases", []):
+            if not isinstance(failed, dict):
+                continue
+            failed_rows.append(
+                {
+                    "connector": connector,
+                    "case": failed.get("case", "-"),
+                    "expected": failed.get("expected", "-"),
+                    "actual": failed.get("actual", "-"),
+                }
+            )
+    lines.extend(
+        render_status_table(
+            "Runtime FAIL Details",
+            failed_rows,
+            [("Connector", "connector"), ("Case", "case"), ("Expected", "expected"), ("Actual", "actual")],
+        )
+    )
+
+    verification = snapshot.get("runtime_verified_status", [])
+    if isinstance(verification, list) and verification:
+        lines.extend(["", "## Runtime Verified Status"])
+        lines.extend(f"- {entry}" for entry in verification)
+
+    open_issues = snapshot.get("open_issues", [])
+    if isinstance(open_issues, list) and open_issues:
+        lines.extend(["", "## Offene Runtime-Probleme"])
+        lines.extend(f"- {issue}" for issue in open_issues)
+
+    return lines
+
+
 def render_root_summary(
     cases: list[dict],
     import_status: dict,
+    runtime_snapshot: dict,
     by_scope: Counter,
     by_status: Counter,
     by_runtime: Counter,
@@ -362,6 +500,7 @@ def render_root_summary(
     lines.extend(f"| Phase {phase} | {by_phase.get(phase, 0)} |" for phase in [1, 2, 3, 4])
     lines.extend(["", "## Coverage nach Themen", "| Topic | Count |", "|---|---:|"])
     lines.extend(f"| {topic} | {count} |" for topic, count in topics.items())
+    lines.extend(render_runtime_snapshot(runtime_snapshot))
     lines.extend(
         [
             "",
@@ -419,6 +558,7 @@ def render_overview(cases: list[dict], by_scope: Counter, by_status: Counter, by
 def main() -> int:
     cases = gather_cases()
     import_status = load_import_status()
+    runtime_snapshot = load_runtime_snapshot()
 
     by_scope = Counter(case["scope"] for case in cases)
     by_status = Counter(case["status"] for case in cases)
@@ -433,7 +573,7 @@ def main() -> int:
     write(OUT / "connector-gap-summary.generated.md", render_gap_summary(cases, import_status))
     write(OUT / "phase-coverage.generated.md", render_phase_coverage(cases))
     write(ROOT / "docs/testing/test-coverage-overview.md", render_overview(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
-    write(ROOT / "TEST-COVERAGE-SUMMARY.md", render_root_summary(cases, import_status, by_scope, by_status, by_runtime, by_phase))
+    write(ROOT / "TEST-COVERAGE-SUMMARY.md", render_root_summary(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase))
     return 0
 
 

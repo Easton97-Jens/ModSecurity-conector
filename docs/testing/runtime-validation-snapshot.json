@@ -1,0 +1,248 @@
+{
+  "snapshot_date": "2026-05-20",
+  "captured_at": "2026-05-20 12:56:33 CEST",
+  "branch": "master",
+  "commit": "63ae69b",
+  "build_root": "/root/.local/state/ModSecurity-conector-build",
+  "notes": [
+    "Framework command statuses are from the local shell exit codes in this run.",
+    "Runtime smoke counts are from /root/.local/state/ModSecurity-conector-build/results/*-summary.json.",
+    "The NGINX smoke failed, so make smoke-all was not run and no full-smoke PASS count is claimed.",
+    "RESPONSE_BODY remains not verified/promoted by this snapshot."
+  ],
+  "framework_checks": [
+    {
+      "command": "git status --short --branch",
+      "status": "PASS",
+      "details": "Clean branch at start: ## master...origin/master"
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS",
+      "details": "No whitespace errors reported"
+    },
+    {
+      "command": "git diff --exit-code -- connectors/apache/src connectors/nginx/src",
+      "status": "PASS",
+      "details": "No connector source changes"
+    },
+    {
+      "command": "rg \"write-expected-audit-log.py|expected-audit-log\" .",
+      "status": "PASS",
+      "details": "No stale expected audit log helper references found"
+    },
+    {
+      "command": "make setup-dev",
+      "status": "PASS",
+      "details": "Development dependencies available in .venv"
+    },
+    {
+      "command": "make lint",
+      "status": "PASS",
+      "details": "actionlint unavailable message was non-fatal"
+    },
+    {
+      "command": "make generate-test-matrix",
+      "status": "PASS",
+      "details": "Generated coverage docs refreshed"
+    },
+    {
+      "command": "make check-test-matrix",
+      "status": "PASS",
+      "details": "Generated coverage docs matched generator output"
+    },
+    {
+      "command": "make quick-check",
+      "status": "PASS",
+      "details": "Lightweight framework checks passed"
+    },
+    {
+      "command": "make cloud-quick-check",
+      "status": "PASS",
+      "details": "Framework/generator-only cloud check passed"
+    },
+    {
+      "command": ".venv/bin/python -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py",
+      "status": "PASS",
+      "details": "Python files compiled"
+    },
+    {
+      "command": "sh -n ci/*.sh",
+      "status": "PASS",
+      "details": "POSIX shell syntax check passed for ci shell scripts"
+    },
+    {
+      "command": "bash -n ci/*.sh",
+      "status": "PASS",
+      "details": "Bash syntax check passed for ci shell scripts"
+    }
+  ],
+  "readiness_checks": [
+    {
+      "command": "make doctor-quick (before fetch-deps)",
+      "status": "PASS",
+      "details": "Source-build readiness ran with warnings because ModSecurity_V3 sources were not present yet"
+    },
+    {
+      "command": "optional installed readiness",
+      "status": "BLOCKED",
+      "details": "System Apache/APXS/NGINX/libmodsecurity were not found; this is diagnostic only and does not block source-build smokes"
+    },
+    {
+      "command": "make fetch-deps",
+      "status": "PASS",
+      "details": "Fetched ModSecurity core from configured source; Apache/NGINX connector sources remained repo-local"
+    },
+    {
+      "command": "make doctor-quick (after fetch-deps)",
+      "status": "PASS",
+      "details": "Source-build readiness found /root/.local/state/ModSecurity-conector-build/sources/ModSecurity_V3; optional installed readiness still BLOCKED"
+    }
+  ],
+  "runtime_smokes": [
+    {
+      "command": "REFRESH=1 make smoke-apache",
+      "connector": "apache",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary_path": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json",
+      "text_summary_path": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.txt",
+      "counts": {
+        "pass": 48,
+        "fail": 0,
+        "blocked": 0,
+        "skipped": 0,
+        "xfail": 0
+      },
+      "verified_variables": [
+        "ARGS",
+        "ARGS_NAMES",
+        "AUDIT_LOG",
+        "FILES",
+        "REQUEST_BODY",
+        "REQUEST_COOKIES",
+        "REQUEST_HEADERS",
+        "REQUEST_URI",
+        "RESPONSE_HEADERS",
+        "XML"
+      ],
+      "failed_cases": [],
+      "details": "Fresh source-build Apache smoke completed successfully"
+    },
+    {
+      "command": "REFRESH=1 make smoke-nginx",
+      "connector": "nginx",
+      "status": "FAIL",
+      "exit_code": 2,
+      "summary_path": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json",
+      "text_summary_path": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.txt",
+      "counts": {
+        "pass": 43,
+        "fail": 11,
+        "blocked": 0,
+        "skipped": 0,
+        "xfail": 0
+      },
+      "verified_variables": [
+        "ARGS",
+        "ARGS_NAMES",
+        "AUDIT_LOG",
+        "FILES",
+        "REQUEST_BODY",
+        "REQUEST_COOKIES",
+        "REQUEST_HEADERS",
+        "REQUEST_URI",
+        "RESPONSE_HEADERS",
+        "XML"
+      ],
+      "failed_cases": [
+        {
+          "case": "phase2_args_pass",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "action_allow_phase1_pass",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "response_body_pass",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "v2_transformation_url_decode_pass_no_match",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "v3_args_names_get_pass_no_match",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "v3_request_cookies_names_pass_no_match",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "v3_request_cookies_pass_no_match",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "v3_request_headers_names_pass_no_match",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "nginx_phase4_content_type_out_of_scope",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "nginx_phase4_minimal_log_only",
+          "expected": 200,
+          "actual": 403
+        },
+        {
+          "case": "nginx_phase4_safe_log_only",
+          "expected": 200,
+          "actual": 403
+        }
+      ],
+      "details": "Fresh source-build NGINX smoke built and ran, but failed pass-through and response-body/phase4 cases"
+    },
+    {
+      "command": "REFRESH=1 make smoke-all",
+      "connector": "all",
+      "status": "NOT_RUN",
+      "exit_code": "not_run",
+      "summary_path": "not available",
+      "counts": {
+        "pass": "unknown",
+        "fail": "unknown",
+        "blocked": "unknown",
+        "skipped": "unknown",
+        "xfail": "unknown"
+      },
+      "failed_cases": [],
+      "details": "Not run after REFRESH=1 make smoke-nginx failed; no full-smoke PASS numbers claimed"
+    }
+  ],
+  "runtime_verified_status": [
+    "Apache source-build smoke passed 48 runtime cases with 0 failures.",
+    "NGINX source-build smoke executed 54 runtime cases but failed 11, so NGINX is not fully runtime-verified by this snapshot.",
+    "The YAML coverage metadata still reports runtime_verified=true as 0 because no generated metadata was promoted from this local run.",
+    "Apache and NGINX summaries both list exercised variables ARGS, ARGS_NAMES, AUDIT_LOG, FILES, REQUEST_BODY, REQUEST_COOKIES, REQUEST_HEADERS, REQUEST_URI, RESPONSE_HEADERS, and XML; RESPONSE_BODY is not promoted.",
+    "make smoke-all was not run after the NGINX failure; full-smoke PASS counts remain unknown."
+  ],
+  "open_issues": [
+    "Optional installed-readiness remains BLOCKED because system Apache/APXS/NGINX/libmodsecurity are not installed.",
+    "NGINX pass-through/no-match cases returned 403 instead of 200 in this local run.",
+    "NGINX phase 4 response-body/log-only cases returned 403 instead of 200 in this local run.",
+    "RESPONSE_BODY remains non-verified/non-promoted.",
+    "XFAIL, pending, connector-gap, runtime-difference, and future/experimental YAML cases still require separate local runtime validation before promotion."
+  ]
+}
