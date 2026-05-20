@@ -1,18 +1,55 @@
 # Runtime Bootstrap (Optional)
 
 This project can optionally fetch real upstream smoke prerequisites from GitHub.
+Apache and NGINX connector source is repo-local by default; external connector
+repositories are not part of the default runtime bootstrap.
+
+Shared shell defaults are centralized in `ci/common.sh`. That file is passive:
+it only defines variables and helper functions when sourced, and it does not
+fetch, install, validate, or create directories by itself.
 
 ## Repositories used
 
 - ModSecurity v3: `https://github.com/owasp-modsecurity/ModSecurity.git` (ref: `v3/master` by default)
-- ModSecurity-apache: `https://github.com/owasp-modsecurity/ModSecurity-apache.git` (ref: `master`)
-- ModSecurity-nginx: `https://github.com/owasp-modsecurity/ModSecurity-nginx.git` (ref: `master`)
+- Apache connector source: `connectors/apache` in this repository
+- NGINX connector source: `connectors/nginx` in this repository
+- Apache/httpd, APR/APR-util, PCRE2, and NGINX server sources are separate
+  runtime-build dependencies configured through `ci/common.sh`.
+
+Central override variables:
+
+- `BUILD_ROOT`
+- `SOURCE_ROOT`
+- `MODSECURITY_REPO_URL` / `MODSECURITY_GIT_REF`
+- compatibility aliases: `MODSECURITY_V3_GIT_URL`, `MODSECURITY_V3_GIT_REF`
+- source aliases: `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`,
+  `MODSECURITY_V3_ROOT`
+- connector source aliases: `MODSECURITY_APACHE_SOURCE_DIR`,
+  `MODSECURITY_NGINX_SOURCE_DIR` (repo-local by default)
+- optional external connector fetch: `ALLOW_EXTERNAL_CONNECTOR_REPOS=1` plus
+  explicit `MODSECURITY_APACHE_REPO_URL` / `MODSECURITY_NGINX_REPO_URL` and
+  explicit source destinations under `SOURCE_ROOT`
+- server source variables: `HTTPD_VERSION`, `HTTPD_SOURCE_URL`, `APR_VERSION`,
+  `APR_SOURCE_URL`, `APR_UTIL_VERSION`, `APR_UTIL_SOURCE_URL`,
+  `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `NGINX_SOURCE_REPO_URL`,
+  `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_TAG`
+- optional installed-runtime hints: `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`,
+  `NGINX_BIN`, `MODSECURITY_PKG_CONFIG`, `MODSECURITY_LIB_DIR`,
+  `MODSECURITY_INCLUDE_DIR`
+
+Example:
+
+```bash
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build \
+MODSECURITY_GIT_REF=v3/master \
+make fetch-deps
+```
 
 ## Commands
 
-- Fetch all smoke dependencies:
+- Fetch the ModSecurity core source used by smoke dependencies:
   - `make fetch-deps`
-- Fetch minimal Apache runtime prerequisite set (includes ModSecurity v3 + apache repo):
+- Fetch only ModSecurity core explicitly:
   - `make fetch-modsecurity-v3`
 
 ## Behavior and safety
@@ -30,18 +67,21 @@ Default fetch root is under build temp:
 
 You can override destination paths with:
 
+- `MODSECURITY_SOURCE_DIR`
 - `MODSECURITY_V3_SOURCE_DIR`
-- `MODSECURITY_APACHE_SOURCE_DIR`
-- `MODSECURITY_NGINX_SOURCE_DIR`
 
-These destination paths must be absolute and under `SOURCE_ROOT` to avoid destructive behavior.
+These destination paths must be absolute and under `SOURCE_ROOT` for fetches to
+avoid destructive behavior. Connector source paths normally point at
+`connectors/apache` and `connectors/nginx` in this repository and are not
+fetched.
 
 
 ## BUILD_ROOT consistency
 
-`make fetch-deps`, `make doctor`, and `make smoke-all` are intended to use the same `BUILD_ROOT` (default `/src/ModSecurity-conector-build`).
+`make fetch-deps`, `make doctor`, and `make smoke-all` are intended to use the same `BUILD_ROOT`.
 Fetched sources live under `BUILD_ROOT/sources`.
-If you override `BUILD_ROOT`, use the same value for all commands in the flow.
+The default build root is a portable cache location. If you override
+`BUILD_ROOT`, use the same absolute path for all commands in the flow.
 
 Example:
 
@@ -61,6 +101,11 @@ BUILD_ROOT=/tmp/modsec-build make smoke-all
 
 Use `REFRESH=1 make smoke-all` to force clean rebuild when cache/build trees are stale.
 
+`make smoke-installed` / `make installed-readiness` is optional diagnostic
+readiness for already-installed system components. Missing system Apache,
+NGINX, APXS, or libmodsecurity packages do not block the source-build smoke
+path; `make smoke-all` remains the authoritative local runtime evidence.
+
 
 ## Quick orchestration
 
@@ -69,12 +114,10 @@ It never triggers full source rebuilds by itself.
 If runtime artifacts are missing it reports BLOCKED, not PASS.
 
 
-## Cloud quick smoke workflow
+## Cloud/GitHub lightweight path
 
-GitHub Actions workflow `.github/workflows/cloud-quick-smoke.yml` provides a reproducible cloud path:
-
-1. Install explicit Ubuntu packages (build toolchain + Apache + NGINX + libmodsecurity + JSON libs + AFL++ + parser deps).
-2. Detect Lua dev package dynamically (`liblua5.4-dev`, `liblua5.3-dev`, `liblua5.2-dev`, `liblua5.1-0-dev`, fallback `liblua-dev`).
-3. Run `make cloud-quick-check`.
-
-This workflow is intentionally quick/framework oriented and keeps runtime BLOCKED outcomes honest; it does not claim full connector compatibility.
+GitHub/Codex CI intentionally runs lightweight framework, generator, lint, and
+documentation checks only. It does not fetch runtime sources, build Apache or
+NGINX, run installed probes, or execute connector smokes. Full runtime evidence
+remains local via `make smoke-all`, `make smoke-apache`, and
+`make smoke-nginx`.

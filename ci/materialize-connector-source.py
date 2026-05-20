@@ -83,12 +83,6 @@ def validate_destination(path: Path) -> Path:
         pass
     else:
         raise SystemExit(f"dest-dir must not be inside the checkout: {resolved}")
-    try:
-        resolved.relative_to(Path("/root/conecter"))
-    except ValueError:
-        pass
-    else:
-        raise SystemExit(f"dest-dir must not be inside /root/conecter: {resolved}")
     if resolved.exists() and any(resolved.iterdir()):
         raise SystemExit(f"dest-dir must be empty or absent: {resolved}")
     return resolved

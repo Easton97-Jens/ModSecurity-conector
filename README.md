@@ -20,7 +20,7 @@ Implemented now:
 - A shared YAML case runner used by Apache and NGINX PoC smokes.
 - A connector-free libmodsecurity v3 C API smoke probe build harness under
   `src/v3-api-smoke/`; see `docs/testing/v3-api-smoke-test.md`.
-- A local `/src` default v3 smoke run has observed `primary_args_phase2`
+- A local explicit-build-root v3 smoke run has observed `primary_args_phase2`
   returning intervention status `403`.
 - Explicit `real-world-connector-path` validation metadata for Apache and
   NGINX smoke summaries; see `docs/connectors/real-world-connector-validation.md`.
@@ -93,20 +93,62 @@ full-smoke evidence.
 
 ## Source References
 
-Local paths are examples from the current workspace. The upstream repositories
-are the portable references for GitHub, CI, pull requests, and external
-maintainers.
+Historical local paths are not required build locations. The upstream
+repositories are attribution/reference sources; runtime connector source for
+Apache and NGINX comes from this repository by default.
 
-| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| Repository | Historical reference role | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity v2 | `/root/conecter/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
-| ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
-| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
+| ModSecurity v2 | read-only semantics reference | https://github.com/owasp-modsecurity/ModSecurity | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 |
+| ModSecurity v3 | runtime engine reference/source | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
+| ModSecurity-apache | historical import/reference only | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+| ModSecurity-nginx | historical import/reference only | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
-These paths are read-only references, not required build locations. Smoke
-builds use `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and
-`LOG_DIR`; local defaults build under `/src`, while CI can use `$RUNNER_TEMP`.
+Smoke builds use `MODSECURITY_SOURCE_DIR` / `MODSECURITY_V3_SOURCE_DIR`,
+`MODSECURITY_V3_DIR`, `BUILD_ROOT`, and `LOG_DIR`. The default build root is a
+portable cache location, and any explicit absolute path outside this checkout
+can be used. CI can use `$RUNNER_TEMP`.
+
+## CI Helper Configuration
+
+Shared shell defaults live in `ci/common.sh`. The file is intentionally passive:
+it only defines variables and helper functions when sourced.
+
+Common override variables:
+
+```sh
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build
+SOURCE_ROOT=$BUILD_ROOT/sources
+MODSECURITY_GIT_REF=v3/master
+MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_V3_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_V3_ROOT=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_APACHE_SOURCE_DIR=$PWD/connectors/apache
+MODSECURITY_NGINX_SOURCE_DIR=$PWD/connectors/nginx
+APACHE_BIN=/path/to/apache2
+APACHECTL_BIN=/path/to/apachectl
+APXS_BIN=/path/to/apxs
+NGINX_BIN=/path/to/nginx
+MODSECURITY_PKG_CONFIG=modsecurity
+MODSECURITY_LIB_DIR=/path/to/lib
+MODSECURITY_INCLUDE_DIR=/path/to/include
+HTTPD_VERSION=2.4.67
+APR_VERSION=1.7.6
+APR_UTIL_VERSION=1.6.3
+PCRE2_VERSION=10.47
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=latest
+```
+
+The older `MODSECURITY_V3_GIT_URL` / `MODSECURITY_V3_GIT_REF` names still work;
+`MODSECURITY_REPO_URL` / `MODSECURITY_GIT_REF` are the central aliases for new
+usage. `MODSECURITY_V3_SOURCE_DIR` and `MODSECURITY_V3_ROOT` remain compatible
+aliases for `MODSECURITY_SOURCE_DIR`. Installed-component hints are optional
+diagnostics; the source-build smoke path does not require system Apache, NGINX,
+or libmodsecurity packages. Apache and NGINX connector code is repo-local by
+default. External connector repositories are not fetched unless explicitly
+enabled with `ALLOW_EXTERNAL_CONNECTOR_REPOS=1` and user-provided repo URLs and
+source destinations. Keep build and source roots outside this checkout.
 
 ## Architecture Map
 
@@ -148,7 +190,7 @@ NGINX PoC source-build defaults are overrideable:
 ```sh
 BUILD_NGINX_FROM_SOURCE=1
 NGINX_SOURCE_MODE=github-release
-NGINX_GITHUB_REPO=https://github.com/nginx/nginx
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
 NGINX_RELEASE_TAG=latest
 ```
 
@@ -167,16 +209,16 @@ The connector smoke targets reuse build artifacts under `BUILD_ROOT` unless
 `REFRESH=1` is set. They never write generated files into this checkout.
 
 ```sh
-BUILD_ROOT=/src/ModSecurity-conector-build make smoke-apache
-BUILD_ROOT=/src/ModSecurity-conector-build make smoke-nginx
-BUILD_ROOT=/src/ModSecurity-conector-build make smoke-common
-BUILD_ROOT=/src/ModSecurity-conector-build make smoke-all
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make smoke-apache
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make smoke-nginx
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make smoke-common
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make smoke-all
 ```
 
 `SMOKE_CASES` can restrict the run by case name or file path:
 
 ```sh
-BUILD_ROOT=/src/ModSecurity-conector-build \
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build \
 SMOKE_CASES="phase1_header_block phase2_args_block request_body_json_block" \
 make smoke-all
 ```
@@ -193,16 +235,16 @@ Current shared minimal cases:
 | `request_body_urlencoded_block.yaml` | Apache `ARGS_POST` and NGINX request-body/ARGS_POST tests | pass, HTTP 403 | pass, HTTP 403 |
 | `response_header_basic.yaml` | Apache phase tests and NGINX header-filter path | pass, HTTP 403 | pass, HTTP 403 |
 
-These pass observations were made locally on 2026-05-15 with
-`BUILD_ROOT=/src/ModSecurity-conector-build`. Other environments must run the
-same targets before claiming pass there.
+These pass observations were made locally on 2026-05-15 with an explicit
+external `BUILD_ROOT`. Other environments must run the same targets before
+claiming pass there.
 
 Useful maintenance commands:
 
 ```sh
-BUILD_ROOT=/src/ModSecurity-conector-build make lint
-BUILD_ROOT=/src/ModSecurity-conector-build make summary
-BUILD_ROOT=/src/ModSecurity-conector-build make case-matrix
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make lint
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make summary
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make case-matrix
 ```
 
 Imported source-derived cases are split by scope:

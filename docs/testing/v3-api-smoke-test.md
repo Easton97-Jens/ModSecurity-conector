@@ -1,7 +1,7 @@
 # libmodsecurity v3 API Smoke Test
 
-Status: implemented portable build harness. Local default run observed
-`primary_args_phase2` pass after building libmodsecurity in `/src`.
+Status: implemented portable build harness. A local explicit-build-root run
+observed `primary_args_phase2` pass after building libmodsecurity.
 
 This document describes a minimal connector-free probe for the public
 libmodsecurity v3 C API.
@@ -26,21 +26,23 @@ tree does not duplicate implementation logic.
 
 ## Path Model
 
-`/root/conecter` and `/src` are local defaults only. Every relevant path is
-overridable:
+Every relevant path is configurable. The current defaults come from
+`ci/common.sh` and use a portable cache build root plus `SOURCE_ROOT`:
 
 ```sh
-MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
-MODSECURITY_V3_DIR=/src/ModSecurity_V3_build
-BUILD_ROOT=/src/ModSecurity-conector-build
-LOG_DIR=/src/ModSecurity-conector-build/logs
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build
+SOURCE_ROOT=$BUILD_ROOT/sources
+MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_V3_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_V3_DIR=$BUILD_ROOT/ModSecurity_V3_build
+LOG_DIR=$BUILD_ROOT/logs
 ```
 
 The local v3 source checkout corresponds to the public ModSecurity repository:
 
-| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| Repository | Reference role | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
+| ModSecurity v3 | configured engine source checkout | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
 
 Meaning:
 
@@ -49,8 +51,8 @@ Meaning:
 - `BUILD_ROOT`: writable root for smoke object files, binary, and caches.
 - `LOG_DIR`: writable directory for helper logs.
 
-No build step may write generated files into `/root/conecter/*` or any other
-source checkout.
+No build step may write generated files into this repository checkout or any
+other source checkout.
 
 Generated paths (`MODSECURITY_V3_DIR`, `BUILD_ROOT`, `LOG_DIR`, and
 `BUILD_DIR`) should be absolute and outside the Git checkout. The helper and
@@ -173,7 +175,7 @@ GNU Make itself exits with its own failure code.
 
 ## Building The v3 Copy
 
-Local default build under `/src`:
+Default configured build:
 
 ```sh
 sh ci/build-v3-under-src.sh
@@ -222,44 +224,45 @@ Observed local build command:
 sh ci/build-v3-under-src.sh
 ```
 
-Observed generated artifacts:
+Observed generated artifacts, with paths generalized to the configured
+variables:
 
-- build copy: `/src/ModSecurity_V3_build`
-- built library: `/src/ModSecurity_V3_build/src/.libs/libmodsecurity.so`
+- build copy: `$MODSECURITY_V3_DIR`
+- built library: `$MODSECURITY_V3_DIR/src/.libs/libmodsecurity.so`
 - helper logs:
-  - `/src/ModSecurity-conector-build/logs/copy-source.log`
-  - `/src/ModSecurity-conector-build/logs/git-submodule-update.log`
-  - `/src/ModSecurity-conector-build/logs/build-sh.log`
-  - `/src/ModSecurity-conector-build/logs/configure.log`
-  - `/src/ModSecurity-conector-build/logs/make.log`
+  - `$LOG_DIR/copy-source.log`
+  - `$LOG_DIR/git-submodule-update.log`
+  - `$LOG_DIR/build-sh.log`
+  - `$LOG_DIR/configure.log`
+  - `$LOG_DIR/make.log`
 - smoke build output:
-  - `/src/ModSecurity-conector-build/v3-api-smoke/v3_api_smoke.o`
-  - `/src/ModSecurity-conector-build/v3-api-smoke/v3_api_smoke`
+  - `$BUILD_ROOT/v3-api-smoke/v3_api_smoke.o`
+  - `$BUILD_ROOT/v3-api-smoke/v3_api_smoke`
 
 Observed on this workspace via `sh ci/check-v3-api-smoke-prereqs.sh`:
 
 ```text
-v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
-v3_api_smoke: MODSECURITY_V3_DIR=/src/ModSecurity_V3_build
-v3_api_smoke: BUILD_ROOT=/src/ModSecurity-conector-build
-v3_api_smoke: LOG_DIR=/src/ModSecurity-conector-build/logs
+v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<configured ModSecurity source>
+v3_api_smoke: MODSECURITY_V3_DIR=<configured build copy>
+v3_api_smoke: BUILD_ROOT=<configured build root>
+v3_api_smoke: LOG_DIR=<configured log dir>
 v3_api_smoke: v3 branch=v3/master
 v3_api_smoke: v3 version=v3.0.15
-v3_api_smoke: header present: /src/ModSecurity_V3_build/headers/modsecurity/modsecurity.h
-v3_api_smoke: library present: /src/ModSecurity_V3_build/src/.libs/libmodsecurity.so
+v3_api_smoke: header present: <configured build copy>/headers/modsecurity/modsecurity.h
+v3_api_smoke: library present: <configured build copy>/src/.libs/libmodsecurity.so
 ```
 
 Observed on this workspace via `sh ci/run-v3-api-smoke.sh`:
 
 ```text
-v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
-v3_api_smoke: MODSECURITY_V3_DIR=/src/ModSecurity_V3_build
-v3_api_smoke: BUILD_ROOT=/src/ModSecurity-conector-build
-v3_api_smoke: LOG_DIR=/src/ModSecurity-conector-build/logs
+v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<configured ModSecurity source>
+v3_api_smoke: MODSECURITY_V3_DIR=<configured build copy>
+v3_api_smoke: BUILD_ROOT=<configured build root>
+v3_api_smoke: LOG_DIR=<configured log dir>
 v3_api_smoke: v3 branch=v3/master
 v3_api_smoke: v3 version=v3.0.15
-v3_api_smoke: header present: /src/ModSecurity_V3_build/headers/modsecurity/modsecurity.h
-v3_api_smoke: library present: /src/ModSecurity_V3_build/src/.libs/libmodsecurity.so
+v3_api_smoke: header present: <configured build copy>/headers/modsecurity/modsecurity.h
+v3_api_smoke: library present: <configured build copy>/src/.libs/libmodsecurity.so
 primary_args_phase2: pass status=403 phase=request_body
 fallback_request_uri_phase1: skipped primary_passed
 ```

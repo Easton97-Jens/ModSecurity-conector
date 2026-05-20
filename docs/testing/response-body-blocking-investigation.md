@@ -56,14 +56,14 @@ response-body blocking.
 Command:
 
 ```sh
-BUILD_ROOT=/src/ModSecurity-conector-build make probe-response-body || true
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make probe-response-body || true
 ```
 
 Probe defaults:
 
 - `RESPONSE_BODY_PROBE_REPEAT=3`
-- Probe root: `/src/ModSecurity-conector-build/response-body-probe`
-- Summary: `/src/ModSecurity-conector-build/response-body-probe/results/response-body-probe-summary.json`
+- Probe root: `$BUILD_ROOT/response-body-probe`
+- Summary: `$BUILD_ROOT/response-body-probe/results/response-body-probe-summary.json`
 
 The probe case enables serial audit logging and requires the ModSecurity audit
 entry for rule `1801`. This prevents a server-generated 403 from being counted
@@ -84,12 +84,12 @@ phase-4 match. The current PR #377 source intake changes that observed symptom,
 but it still does not provide the required real HTTP 403. That is not a
 connector PASS under this repository's rules.
 
-Relevant logs:
+Relevant logs, under the configured `BUILD_ROOT`:
 
 - Apache repeat 1:
-  `/src/ModSecurity-conector-build/response-body-probe/logs/apache/repeat-1/response_body_basic_block/`
+  `$BUILD_ROOT/response-body-probe/logs/apache/repeat-1/response_body_basic_block/`
 - NGINX repeat 1:
-  `/src/ModSecurity-conector-build/response-body-probe/logs/nginx/repeat-1/response_body_basic_block/`
+  `$BUILD_ROOT/response-body-probe/logs/nginx/repeat-1/response_body_basic_block/`
 
 ## Decision
 

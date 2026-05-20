@@ -1,21 +1,22 @@
 #!/bin/sh
 set -eu
 
-MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-SOURCE_ROOT="${SOURCE_ROOT:-${RUNNER_TEMP:-$BUILD_ROOT}/sources}"
-MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$SOURCE_ROOT/ModSecurity_V3}"
-LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/nginx}"
-REFRESH="${REFRESH:-0}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
+if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
+    SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
+    DEFAULT_MODSECURITY_V3_SOURCE_DIR="$SOURCE_ROOT/ModSecurity_V3"
+fi
 
 AUTO_FETCH_SMOKE_SOURCES="${AUTO_FETCH_SMOKE_SOURCES:-1}"
-MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-https://github.com/owasp-modsecurity/ModSecurity.git}"
-MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-v3/master}"
+MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-}"
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_SOURCE_DIR}"
+LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/nginx}"
+REFRESH="${REFRESH:-0}"
+PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 BUILD_NGINX_FROM_SOURCE="${BUILD_NGINX_FROM_SOURCE:-1}"
-NGINX_SOURCE_MODE="${NGINX_SOURCE_MODE:-github-release}"
-NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO:-https://github.com/nginx/nginx}"
-NGINX_RELEASE_TAG="${NGINX_RELEASE_TAG:-latest}"
-NGINX_SHA256="${NGINX_SHA256:-}"
 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
 CACHE_ROOT="${CACHE_ROOT:-$BUILD_ROOT/cache}"
 NGINX_SOURCE_DIR="${NGINX_SOURCE_DIR:-$NGINX_BUILD_DIR/nginx-src}"
@@ -27,8 +28,6 @@ V3_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity_V3"
 NGINX_CONNECTOR_LEGACY_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
 OUTPUT_DIR="$NGINX_BUILD_DIR/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 DEFAULT_NGINX_SOURCE_DIR="$REPO_ROOT/connectors/nginx"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_NGINX_SOURCE_DIR}"
 NGINX_ADAPTER_SOURCE_DIR="${NGINX_ADAPTER_SOURCE_DIR:-$MODSECURITY_NGINX_SOURCE_DIR}"
@@ -40,15 +39,7 @@ else
 fi
 NGINX_DDEBUG_REPLACEMENT="${NGINX_DDEBUG_REPLACEMENT:-$REPO_ROOT/connectors/nginx/src/ddebug.h}"
 
-default_jobs() {
-    if command -v nproc >/dev/null 2>&1; then
-        nproc
-    else
-        getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
-    fi
-}
-
-MAKE_JOBS="${MAKE_JOBS:-$(default_jobs)}"
+MAKE_JOBS="${MAKE_JOBS:-$(ci_default_jobs)}"
 STATUS_FILE="$LOG_DIR/status.txt"
 COMMANDS_FILE="$LOG_DIR/commands.txt"
 SOURCE_INFO_FILE="$LOG_DIR/source-info.txt"
@@ -71,15 +62,6 @@ fail() {
     exit 1
 }
 
-canonical_existing() {
-    target_path=$1
-    if [ -e "$target_path" ]; then
-        (cd "$target_path" 2>/dev/null && pwd -P)
-    else
-        return 1
-    fi
-}
-
 require_absolute_generated_path() {
     path=$1
     label=$2
@@ -88,7 +70,7 @@ require_absolute_generated_path() {
         *) blocked "$label must be an absolute generated path: $path" ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
         *) ;;
@@ -97,9 +79,9 @@ require_absolute_generated_path() {
 
 safe_remove_dir() {
     target=$1
-    real_target=$(canonical_existing "$target")
+    real_target=$(ci_canonical_existing "$target")
     case "$real_target" in
-        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT"|/root/conecter/*)
+        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT")
             blocked "unsafe REFRESH target: $real_target"
             ;;
         *) ;;
@@ -276,7 +258,7 @@ materialize_nginx_connector_source() {
 }
 
 github_repo_path() {
-    repo=$NGINX_GITHUB_REPO
+    repo=$NGINX_SOURCE_REPO_URL
     case "$repo" in
         https://github.com/*) repo=${repo#https://github.com/} ;;
         http://github.com/*) repo=${repo#http://github.com/} ;;
@@ -287,7 +269,7 @@ github_repo_path() {
     repo=${repo%/}
     case "$repo" in
         */*) printf '%s\n' "$repo" ;;
-        *) blocked "NGINX_GITHUB_REPO is not a GitHub owner/repo URL or path: $NGINX_GITHUB_REPO" ;;
+        *) blocked "NGINX_SOURCE_REPO_URL is not a GitHub owner/repo URL or path: $NGINX_SOURCE_REPO_URL" ;;
     esac
 }
 
@@ -299,12 +281,12 @@ resolve_nginx_release_tag() {
         return 0
     fi
 
-    require_command python3 "parse GitHub latest release response"
+    require_command "$PYTHON_BIN" "parse GitHub latest release response"
     latest_json="$DOWNLOAD_DIR/nginx-latest-release.json"
     api_url="https://api.github.com/repos/$repo_path/releases/latest"
     run_blocked nginx-github-latest-release "$DOWNLOAD_DIR" \
         curl -fsSL -H "Accept: application/vnd.github+json" -o "$latest_json" "$api_url"
-    if ! RESOLVED_NGINX_RELEASE_TAG=$(python3 - "$latest_json" 2>"$LOG_DIR/nginx-latest-release-parse.log" <<'PY'
+    if ! RESOLVED_NGINX_RELEASE_TAG=$("$PYTHON_BIN" - "$latest_json" 2>"$LOG_DIR/nginx-latest-release-parse.log" <<'PY'
 import json
 import sys
 
@@ -336,8 +318,10 @@ download_nginx_source() {
     echo "nginx_poc: nginx archive sha256(local)=$local_sha"
     {
         echo "nginx_source_mode=$NGINX_SOURCE_MODE"
-        echo "nginx_github_repo=$NGINX_GITHUB_REPO"
+        echo "nginx_source_repo_url=$NGINX_SOURCE_REPO_URL"
+        echo "nginx_github_repo_compat=$NGINX_GITHUB_REPO"
         echo "nginx_release_tag_requested=$NGINX_RELEASE_TAG"
+        echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
         echo "nginx_release_tag_resolved=$RESOLVED_NGINX_RELEASE_TAG"
         echo "nginx_archive_url=$NGINX_ARCHIVE_URL"
         echo "nginx_archive=$NGINX_ARCHIVE"
@@ -461,7 +445,7 @@ build_nginx_from_source() {
 
     nginx_cache_dir="$CACHE_ROOT/nginx-build/nginx"
     nginx_marker="$nginx_cache_dir/marker.txt"
-    nginx_key="repo=$NGINX_GITHUB_REPO|tag=$NGINX_RELEASE_TAG|mode=$NGINX_SOURCE_MODE|sha=$NGINX_SHA256|prefix=$NGINX_PREFIX|module_path=$NGINX_MODULE|cc=${CC:-}|cflags=${CFLAGS:-}|connector=$NGINX_CONNECTOR_BUILD_DIR"
+    nginx_key="repo=$NGINX_SOURCE_REPO_URL|ref=$NGINX_SOURCE_GIT_REF|tag=$NGINX_RELEASE_TAG|mode=$NGINX_SOURCE_MODE|sha=$NGINX_SHA256|prefix=$NGINX_PREFIX|module_path=$NGINX_MODULE|cc=${CC:-}|cflags=${CFLAGS:-}|connector=$NGINX_CONNECTOR_BUILD_DIR"
     if [ "$REFRESH" != "1" ] && [ -f "$nginx_marker" ] && [ "$(cat "$nginx_marker" 2>/dev/null)" = "$nginx_key" ] && [ -x "$NGINX_BINARY" ] && [ -f "$NGINX_MODULE" ]; then
         echo "nginx_poc: cache-hit nginx-build key=$nginx_key"
         return 0
@@ -529,8 +513,9 @@ echo "nginx_poc: BUILD_ROOT=$BUILD_ROOT"
 echo "nginx_poc: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
 echo "nginx_poc: LOG_DIR=$LOG_DIR"
 echo "nginx_poc: NGINX_SOURCE_MODE=$NGINX_SOURCE_MODE"
-echo "nginx_poc: NGINX_GITHUB_REPO=$NGINX_GITHUB_REPO"
+echo "nginx_poc: NGINX_SOURCE_REPO_URL=$NGINX_SOURCE_REPO_URL"
 echo "nginx_poc: NGINX_RELEASE_TAG=$NGINX_RELEASE_TAG"
+echo "nginx_poc: NGINX_SOURCE_GIT_REF=$NGINX_SOURCE_GIT_REF"
 
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"

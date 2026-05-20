@@ -38,7 +38,7 @@ The files under `tests/common/cases/minimal/` are portable rule/request models.
 They are not proof that a connector supports the behavior until that
 connector's runtime harness observes the expected HTTP response.
 
-Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
+Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`:
 
 | Case | Capability area | Apache | NGINX |
 | --- | --- | --- | --- |
@@ -94,7 +94,7 @@ documents the evidence without claiming connector parity.
 
 ## V2/V3-Derived Compatibility
 
-Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-conector-build`:
+Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`:
 
 | Case group | Apache | NGINX | Status |
 | --- | --- | --- | --- |
@@ -142,6 +142,38 @@ GitHub Actions agree.
 
 The smoke/lint tooling has explicit prerequisites and reports missing runtime inputs as **BLOCKED**.
 
+Shell helper defaults are centralized in `ci/common.sh`. Override variables in
+the environment rather than editing scripts:
+
+```bash
+BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build
+SOURCE_ROOT=$BUILD_ROOT/sources
+MODSECURITY_GIT_REF=v3/master
+MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_V3_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_V3_ROOT=$SOURCE_ROOT/ModSecurity_V3
+MODSECURITY_APACHE_SOURCE_DIR=$PWD/connectors/apache
+MODSECURITY_NGINX_SOURCE_DIR=$PWD/connectors/nginx
+APACHE_BIN=/path/to/apache2
+APACHECTL_BIN=/path/to/apachectl
+APXS_BIN=/path/to/apxs
+NGINX_BIN=/path/to/nginx
+MODSECURITY_PKG_CONFIG=modsecurity
+MODSECURITY_LIB_DIR=/path/to/lib
+MODSECURITY_INCLUDE_DIR=/path/to/include
+HTTPD_VERSION=2.4.67
+APR_VERSION=1.7.6
+APR_UTIL_VERSION=1.6.3
+PCRE2_VERSION=10.47
+NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
+NGINX_RELEASE_TAG=latest
+```
+
+`ci/common.sh` is passive and does not run checks, fetch sources, or create
+artifacts by itself. Connector source is repo-local by default; external
+Apache/NGINX connector repositories require explicit opt-in and are not runtime
+defaults.
+
 ### Python dependencies
 
 Install dev dependencies before running `make lint`:
@@ -180,15 +212,12 @@ Check Python deps and ModSecurity v3 path detection:
 make doctor
 ```
 
-The doctor tries to auto-detect `MODSECURITY_V3_SOURCE_DIR` in this order:
-
-1. Explicit `MODSECURITY_V3_SOURCE_DIR` (if it exists)
-2. `../ModSecurity_V3` relative to repo root
-3. `../../ModSecurity_V3` relative to repo root
-4. `.deps/ModSecurity_V3` inside this repo
-5. `/root/conecter/ModSecurity_V3`
-
-If none exist, doctor exits BLOCKED and prints the exact export command needed.
+The doctor output separates source-build readiness, optional installed
+readiness, and cache readiness. Source-build readiness uses the configured
+source aliases from `ci/common.sh`; installed Apache/NGINX/libmodsecurity
+detection is diagnostic only and does not make system installations a standard
+prerequisite. If no ModSecurity v3 source tree is available, doctor exits
+BLOCKED and prints the exact export or `make fetch-deps` remediation command.
 
 
 ### Optional GitHub runtime fetch
@@ -199,7 +228,10 @@ To bootstrap real external runtime prerequisites explicitly:
 make fetch-deps
 ```
 
-This uses `ci/fetch-smoke-sources.sh` and real public upstream repositories (see `docs/testing/bootstrap.md`).
+This uses `ci/fetch-smoke-sources.sh` and fetches the ModSecurity core engine
+source from the configured `MODSECURITY_REPO_URL` / `MODSECURITY_GIT_REF` (see
+`docs/testing/bootstrap.md`). Apache and NGINX connector source remains
+repo-local by default.
 No network fetch is triggered automatically by `make setup-dev`, `make lint`, `make doctor`, or `make smoke-all`.
 
 If you only want to run dependency diagnostics first:
@@ -210,15 +242,17 @@ make doctor
 
 ### Runtime prerequisites for connector smokes
 
-`make smoke-all` requires a ModSecurity v3 source tree path. Default:
+`make smoke-all` requires a ModSecurity v3 source tree path. The portable
+source-build default is derived from:
 
-- `MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3`
+- `SOURCE_ROOT=$BUILD_ROOT/sources`
+- `MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3`
 
 Override in portable environments:
 
 ```bash
-export MODSECURITY_V3_SOURCE_DIR=/absolute/path/to/ModSecurity_V3
 export BUILD_ROOT=/absolute/path/for/build-artifacts
+export MODSECURITY_SOURCE_DIR=$BUILD_ROOT/sources/ModSecurity_V3
 make smoke-all
 ```
 
@@ -271,7 +305,7 @@ These additions improve matrix/documented coverage but are not claimed as new st
 
 ## Installed runtime detection (non-authoritative)
 
-`make doctor` and `make smoke-installed` / `make installed-readiness` now report installed-component readiness using alternative binary names and explicit ModSecurity detection.
+`make doctor` and `make smoke-installed` / `make installed-readiness` report installed-component readiness using alternative binary names and explicit ModSecurity detection. This is optional diagnostic output, not a required source-build prerequisite.
 
 Supported detection aliases:
 
@@ -283,7 +317,11 @@ Supported detection aliases:
 Supported override variables:
 
 - `APACHE_BIN`, `APXS_BIN`, `NGINX_BIN`
+- `APACHECTL_BIN`
 - `MODSECURITY_PKG_CONFIG`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INCLUDE_DIR`
+- `CI_APACHE_BIN_CANDIDATES`, `CI_APXS_BIN_CANDIDATES`,
+  `CI_NGINX_BIN_CANDIDATES`
+- `CI_INSTALLED_LIB_SEARCH_DIRS`, `CI_INSTALLED_INCLUDE_SEARCH_DIRS`
 
 This installed-path readiness is informative for quick diagnostics. Full compatibility evidence remains the source-build full-smoke path (`make smoke-all`).
 

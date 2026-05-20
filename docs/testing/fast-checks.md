@@ -4,6 +4,9 @@
 
 Fast checks provide rapid feedback for Codex/developer iterations without pretending to be full connector validation.
 
+Shared defaults for these shell helpers live in `ci/common.sh`. The file only
+defines variables/functions when sourced; scripts perform actions explicitly.
+
 ## Targets
 
 - `make quick-all`
@@ -42,6 +45,8 @@ make smoke-all
 ## Installed smoke detection
 
 `make smoke-installed` / `make installed-readiness` is a **detection/readiness** probe for already-installed system components; it is not a replacement for `make smoke-all`.
+It is optional diagnostic output only: source-built connector smokes do not
+require system Apache, NGINX, APXS, or libmodsecurity installations.
 
 Recognized binary names:
 
@@ -58,11 +63,17 @@ Recognized ModSecurity signals:
 Optional override environment variables:
 
 - `APACHE_BIN`
+- `APACHECTL_BIN`
 - `APXS_BIN`
 - `NGINX_BIN`
 - `MODSECURITY_PKG_CONFIG`
 - `MODSECURITY_LIB_DIR`
 - `MODSECURITY_INCLUDE_DIR`
+- `CI_APACHE_BIN_CANDIDATES`
+- `CI_APXS_BIN_CANDIDATES`
+- `CI_NGINX_BIN_CANDIDATES`
+- `CI_INSTALLED_LIB_SEARCH_DIRS`
+- `CI_INSTALLED_INCLUDE_SEARCH_DIRS`
 
 Readiness semantics:
 
@@ -87,3 +98,12 @@ stay lightweight and deterministic.
 
 Workflow: `.github/workflows/quick-framework-check.yml` runs the lightweight
 framework/generator path on `push` and `pull_request`.
+
+For version and path changes, prefer environment overrides consumed through
+`ci/common.sh`, for example `BUILD_ROOT`, `SOURCE_ROOT`,
+`MODSECURITY_GIT_REF`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`,
+`APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, and `NGINX_BIN`. Apache and NGINX
+connector source is repo-local by default; server source versions are configured
+with `HTTPD_VERSION`, `PCRE2_VERSION`, `NGINX_SOURCE_REPO_URL`, and
+`NGINX_RELEASE_TAG`. Build-artifact locations can be replaced with any explicit
+absolute `BUILD_ROOT`.

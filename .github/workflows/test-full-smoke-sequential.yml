@@ -8,13 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      MODSECURITY_V3_GIT_URL: https://github.com/owasp-modsecurity/ModSecurity.git
-      MODSECURITY_V3_GIT_REF: v3/master
+      MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
+      MODSECURITY_GIT_REF: v3/master
       BUILD_HTTPD_FROM_SOURCE: "1"
       BUILD_PCRE2_FROM_SOURCE: "1"
       BUILD_NGINX_FROM_SOURCE: "1"
       NGINX_SOURCE_MODE: github-release
-      NGINX_GITHUB_REPO: https://github.com/nginx/nginx
+      NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
       NGINX_RELEASE_TAG: latest
       SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
       SMOKE_LOCK_MODE: wait
@@ -32,6 +32,7 @@ jobs:
           {
             echo "SOURCE_ROOT=$source_root"
             echo "BUILD_ROOT=$build_root"
+            echo "MODSECURITY_SOURCE_DIR=$source_root/ModSecurity_V3"
             echo "MODSECURITY_V3_SOURCE_DIR=$source_root/ModSecurity_V3"
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"

@@ -4,7 +4,7 @@ Status: implemented
 
 This document maps ModSecurity-nginx PR #377 tests to this repository's
 source-derived YAML probes. The PR was reviewed from a temporary checkout under
-`$BUILD_ROOT`, not by changing `/root/conecter/ModSecurity-nginx`.
+`$BUILD_ROOT`, not by changing any parent-workspace reference checkout.
 
 Upstream PR: https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377
 

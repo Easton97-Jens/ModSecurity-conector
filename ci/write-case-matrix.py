@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -85,7 +86,13 @@ def row(path: Path, results: dict[str, object]) -> str:
 
 
 def main(argv: list[str]) -> int:
-    results_path = Path(argv[1]) if len(argv) > 1 else Path("/src/ModSecurity-conector-build/results/connector-summary.json")
+    default_build_root = Path(
+        os.environ.get(
+            "BUILD_ROOT",
+            str(Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "ModSecurity-conector-build"),
+        )
+    )
+    results_path = Path(argv[1]) if len(argv) > 1 else default_build_root / "results" / "connector-summary.json"
     output_path = Path(argv[2]) if len(argv) > 2 else REPO_ROOT / "docs" / "testing" / "case-matrix.md"
     results = load_results(results_path)
     lines = [

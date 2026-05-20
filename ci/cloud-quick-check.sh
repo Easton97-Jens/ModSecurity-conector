@@ -1,23 +1,28 @@
 #!/bin/sh
 set -eu
 
-PYTHON_BIN="${PYTHON:-.venv/bin/python}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
+PYTHON_BIN="${PYTHON_BIN:-}"
 status=0
 
 run_required() {
   label=$1
   shift
-  echo "cloud-quick-check: running $label"
+  ci_info "cloud-quick-check running $label"
   if "$@"; then
-    echo "cloud-quick-check: PASS $label"
+    ci_info "cloud-quick-check PASS $label"
     return
   fi
   rc=$?
-  echo "cloud-quick-check: FAIL $label (exit=$rc)"
+  ci_error "cloud-quick-check FAIL $label (exit=$rc)"
   status=1
 }
 
 run_required "make setup-dev" make setup-dev
+PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 run_required "make lint" make lint
 run_required "make generate-test-matrix" make generate-test-matrix
 run_required "make check-test-matrix" make check-test-matrix
@@ -27,9 +32,9 @@ run_required "$PYTHON_BIN -m py_compile tests/normalizers/*.py tests/runners/*.p
 run_required "git diff --check" git diff --check
 
 if [ "$status" -eq 0 ]; then
-  echo "cloud-quick-check: PASS (framework/generator only; not runtime compatibility evidence)"
+  ci_info "Cloud check is framework/generator only and not runtime compatibility evidence."
 else
-  echo "cloud-quick-check: FAIL"
+  ci_error "cloud-quick-check FAIL"
 fi
 
 exit "$status"

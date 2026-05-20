@@ -3,7 +3,8 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+. "$SCRIPT_DIR/common.sh"
+
 CC_BIN="${CC:-cc}"
 OUT_DIR="$BUILD_ROOT/common-helper-smoke"
 SMOKE_C="$OUT_DIR/common_helper_smoke.c"

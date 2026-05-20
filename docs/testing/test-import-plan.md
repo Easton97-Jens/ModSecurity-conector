@@ -2,21 +2,22 @@
 
 Status: implemented
 
-This document records the current import policy for connector tests. Local
-source repositories under `/root/conecter/*` are read-only references; upstream
-GitHub repositories are the portable references for reviews and CI. No upstream
-Apache or NGINX test file is copied verbatim into this repository.
+This document records the current import policy for connector tests. Historical
+local source repositories were read-only references during import; upstream
+GitHub repositories remain the portable attribution references for reviews. No
+upstream Apache or NGINX test file is copied verbatim into this repository, and
+runtime connector source now comes from this repository by default.
 
 ## Inventory
 
 Observed local source inventory on 2026-05-15:
 
-| Source | Local reference | Upstream | Relevant files analyzed | Notes |
+| Source | Reference role | Upstream | Relevant files analyzed | Notes |
 | --- | --- | --- | ---: | --- |
-| ModSecurity-apache tests | `/root/conecter/ModSecurity-apache/tests/` | https://github.com/owasp-modsecurity/ModSecurity-apache | 29 | Apache regression `.t`, `.t.in`, and harness files |
-| ModSecurity-nginx tests | `/root/conecter/ModSecurity-nginx/tests/` | https://github.com/owasp-modsecurity/ModSecurity-nginx | 17 | NGINX `.t`, README, and converter files |
-| ModSecurity v2 tests | `/root/conecter/ModSecurity_V2/tests/` | https://github.com/owasp-modsecurity/ModSecurity | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
-| ModSecurity v3 tests | `/root/conecter/ModSecurity_V3/test/` | https://github.com/owasp-modsecurity/ModSecurity | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
+| ModSecurity-apache tests | historical import/reference | https://github.com/owasp-modsecurity/ModSecurity-apache | 29 | Apache regression `.t`, `.t.in`, and harness files |
+| ModSecurity-nginx tests | historical import/reference | https://github.com/owasp-modsecurity/ModSecurity-nginx | 17 | NGINX `.t`, README, and converter files |
+| ModSecurity v2 tests | historical semantics reference | https://github.com/owasp-modsecurity/ModSecurity | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
+| ModSecurity v3 tests | configured engine source reference | https://github.com/owasp-modsecurity/ModSecurity | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
 
 Every relevant source file is mapped in:
 
@@ -101,9 +102,9 @@ The following source-derived common cases were added under
 These cases are imported as portable candidates. They count as proven only in an
 environment where both connector smokes observe the expected HTTP behavior.
 
-Observed locally on 2026-05-15 with
-`BUILD_ROOT=/src/ModSecurity-conector-build`, targeted `make smoke-common`
-runs reported the V2/V3-derived active imports as `PASS` on Apache and NGINX.
+Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`, targeted
+`make smoke-common` runs reported the V2/V3-derived active imports as `PASS` on
+Apache and NGINX.
 The second import wave added 13 active PASS cases using source-confirmed values
 for `urlDecode`, `htmlEntityDecode`, `pm`, and `containsWord`; none of these
 cases uses invented example values.
@@ -155,9 +156,9 @@ Apache-specific candidates reviewed in this pass mostly require Apache::Test
 context, httpd config inheritance, or Apache-specific runtime setup, so they
 are mapped rather than ported.
 
-Observed locally on 2026-05-15 with
-`BUILD_ROOT=/src/ModSecurity-conector-build`, `make smoke-all` reported all
-three original NGINX-specific imported cases as `PASS` on NGINX. The PR #377
+Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`,
+`make smoke-all` reported all three original NGINX-specific imported cases as
+`PASS` on NGINX. The PR #377
 phase-4 evidence probes were later observed 3/3 PASS individually on NGINX
 before import; strict/invalid-config/large-response response-body branches
 remain xfail or mapped-only in `docs/testing/pr377-test-import-map.md`.

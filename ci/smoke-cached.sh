@@ -1,7 +1,10 @@
 #!/bin/sh
 set -eu
 
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
 HTTPD_BIN="${HTTPD_BIN:-$BUILD_ROOT/apache-runtime/httpd/bin/httpd}"
 APXS_BIN="${APXS_BIN:-$BUILD_ROOT/apache-runtime/httpd/bin/apxs}"
 APACHE_MODULE="${APACHE_MODULE:-$BUILD_ROOT/apache-build/output/apache/mod_security3.so}"

@@ -1,16 +1,20 @@
 #!/bin/sh
 set -eu
 
-MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-SOURCE_ROOT="${SOURCE_ROOT:-${RUNNER_TEMP:-$BUILD_ROOT}/sources}"
-MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$SOURCE_ROOT/ModSecurity_V3}"
-LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache}"
-REFRESH="${REFRESH:-0}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
+if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
+    SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
+    DEFAULT_MODSECURITY_V3_SOURCE_DIR="$SOURCE_ROOT/ModSecurity_V3"
+fi
 
 AUTO_FETCH_SMOKE_SOURCES="${AUTO_FETCH_SMOKE_SOURCES:-1}"
-MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-https://github.com/owasp-modsecurity/ModSecurity.git}"
-MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-v3/master}"
+MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-}"
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_SOURCE_DIR}"
+LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache}"
+REFRESH="${REFRESH:-0}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 CACHE_ROOT="${CACHE_ROOT:-$BUILD_ROOT/cache}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-$APACHE_BUILD_ROOT/downloads}"
@@ -19,28 +23,13 @@ APACHE_CONNECTOR_LEGACY_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity-apache"
 OUTPUT_DIR="$APACHE_BUILD_ROOT/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
 BUILD_HTTPD_FROM_SOURCE="${BUILD_HTTPD_FROM_SOURCE:-0}"
-HTTPD_VERSION="${HTTPD_VERSION:-2.4.67}"
-HTTPD_SOURCE_URL="${HTTPD_SOURCE_URL:-https://downloads.apache.org/httpd/httpd-$HTTPD_VERSION.tar.bz2}"
-HTTPD_SHA256_URL="${HTTPD_SHA256_URL:-$HTTPD_SOURCE_URL.sha256}"
-APR_VERSION="${APR_VERSION:-1.7.6}"
-APR_SOURCE_URL="${APR_SOURCE_URL:-https://downloads.apache.org/apr/apr-$APR_VERSION.tar.bz2}"
-APR_SHA256_URL="${APR_SHA256_URL:-$APR_SOURCE_URL.sha256}"
-APR_UTIL_VERSION="${APR_UTIL_VERSION:-1.6.3}"
-APR_UTIL_SOURCE_URL="${APR_UTIL_SOURCE_URL:-https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2}"
-APR_UTIL_SHA256_URL="${APR_UTIL_SHA256_URL:-$APR_UTIL_SOURCE_URL.sha256}"
 HTTPD_BUILD_DIR="${HTTPD_BUILD_DIR:-$APACHE_BUILD_ROOT/httpd}"
 HTTPD_SOURCE_DIR="${HTTPD_SOURCE_DIR:-$APACHE_BUILD_ROOT/httpd-src}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
 BUILD_PCRE2_FROM_SOURCE="${BUILD_PCRE2_FROM_SOURCE:-0}"
 PCRE_CONFIG_BIN="${PCRE_CONFIG:-}"
-PCRE2_VERSION="${PCRE2_VERSION:-10.47}"
-PCRE2_SOURCE_URL="${PCRE2_SOURCE_URL:-https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.bz2}"
-PCRE2_SHA256="${PCRE2_SHA256:-}"
-PCRE2_SHA256_URL="${PCRE2_SHA256_URL:-}"
 PCRE2_SOURCE_DIR="${PCRE2_SOURCE_DIR:-$APACHE_BUILD_ROOT/pcre2-src}"
 PCRE2_PREFIX="${PCRE2_PREFIX:-$OUTPUT_DIR/pcre2}"
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 DEFAULT_APACHE_SOURCE_DIR="$REPO_ROOT/connectors/apache"
 MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$DEFAULT_APACHE_SOURCE_DIR}"
 APACHE_MATERIALIZED_SOURCE_DIR="${APACHE_MATERIALIZED_SOURCE_DIR:-$APACHE_BUILD_ROOT/connector-src}"
@@ -52,17 +41,9 @@ else
     APACHE_CONNECTOR_BUILD_DIR="${APACHE_CONNECTOR_BUILD_DIR:-$APACHE_CONNECTOR_LEGACY_BUILD_DIR}"
 fi
 
-default_jobs() {
-    if command -v nproc >/dev/null 2>&1; then
-        nproc
-    else
-        getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
-    fi
-}
-
-MAKE_JOBS="${MAKE_JOBS:-$(default_jobs)}"
-APXS_BIN="${APXS:-}"
-APACHE_HTTPD_BIN="${APACHE_HTTPD:-${APACHE:-}}"
+MAKE_JOBS="${MAKE_JOBS:-$(ci_default_jobs)}"
+APXS_BIN="${APXS_BIN:-${APXS:-}}"
+APACHE_HTTPD_BIN="${APACHE_HTTPD_BIN:-${APACHE_HTTPD:-${APACHE:-}}}"
 STATUS_FILE="$LOG_DIR/status.txt"
 COMMANDS_FILE="$LOG_DIR/commands.txt"
 SOURCE_INFO_FILE="$LOG_DIR/source-info.txt"
@@ -84,15 +65,6 @@ fail() {
     exit 1
 }
 
-canonical_existing() {
-    target_path=$1
-    if [ -e "$target_path" ]; then
-        (cd "$target_path" 2>/dev/null && pwd -P)
-    else
-        return 1
-    fi
-}
-
 require_absolute_generated_path() {
     path=$1
     label=$2
@@ -101,7 +73,7 @@ require_absolute_generated_path() {
         *) blocked "$label must be an absolute generated path: $path" ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
         *) ;;
@@ -110,9 +82,9 @@ require_absolute_generated_path() {
 
 safe_remove_dir() {
     target=$1
-    real_target=$(canonical_existing "$target")
+    real_target=$(ci_canonical_existing "$target")
     case "$real_target" in
-        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT"|/root/conecter/*)
+        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT")
             blocked "unsafe REFRESH target: $real_target"
             ;;
         *) ;;
@@ -413,7 +385,7 @@ build_httpd_from_source() {
     require_command cc "build Apache httpd"
     require_command perl "build Apache httpd support scripts"
 
-    httpd_key="httpd=$HTTPD_VERSION|httpd_url=$HTTPD_SOURCE_URL|apr=$APR_VERSION|apr_url=$APR_SOURCE_URL|apr_util=$APR_UTIL_VERSION|apr_util_url=$APR_UTIL_SOURCE_URL|pcre=$PCRE_CONFIG_BIN|cc=${CC:-}|cflags=${CFLAGS:-}|prefix=$HTTPD_PREFIX"
+    httpd_key="httpd=$HTTPD_VERSION|httpd_url=$HTTPD_SOURCE_URL|httpd_sha=$HTTPD_SHA256|httpd_sha_url=$HTTPD_SHA256_URL|apr=$APR_VERSION|apr_url=$APR_SOURCE_URL|apr_sha=$APR_SHA256|apr_sha_url=$APR_SHA256_URL|apr_util=$APR_UTIL_VERSION|apr_util_url=$APR_UTIL_SOURCE_URL|apr_util_sha=$APR_UTIL_SHA256|apr_util_sha_url=$APR_UTIL_SHA256_URL|pcre=$PCRE_CONFIG_BIN|cc=${CC:-}|cflags=${CFLAGS:-}|prefix=$HTTPD_PREFIX"
     httpd_cache_dir="$CACHE_ROOT/httpd/apache"
     httpd_marker="$httpd_cache_dir/marker.txt"
     if [ "$REFRESH" != "1" ] && [ -f "$httpd_marker" ] && [ "$(cat "$httpd_marker" 2>/dev/null)" = "$httpd_key" ] && [ -x "$HTTPD_PREFIX/bin/apxs" ] && [ -x "$HTTPD_PREFIX/bin/httpd" ]; then
@@ -437,10 +409,13 @@ build_httpd_from_source() {
     apr_util_archive="$DOWNLOAD_DIR/apr-util-$APR_UTIL_VERSION.tar.bz2"
 
     download_file httpd "$HTTPD_SOURCE_URL" "$httpd_archive"
+    verify_sha256_literal httpd "$httpd_archive" "$HTTPD_SHA256"
     verify_sha256_url httpd "$httpd_archive" "$HTTPD_SHA256_URL"
     download_file apr "$APR_SOURCE_URL" "$apr_archive"
+    verify_sha256_literal apr "$apr_archive" "$APR_SHA256"
     verify_sha256_url apr "$apr_archive" "$APR_SHA256_URL"
     download_file apr-util "$APR_UTIL_SOURCE_URL" "$apr_util_archive"
+    verify_sha256_literal apr-util "$apr_util_archive" "$APR_UTIL_SHA256"
     verify_sha256_url apr-util "$apr_util_archive" "$APR_UTIL_SHA256_URL"
 
     mkdir -p "$HTTPD_BUILD_DIR"

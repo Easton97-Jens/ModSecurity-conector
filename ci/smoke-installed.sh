@@ -1,49 +1,24 @@
 #!/bin/sh
 set -eu
 
-echo "smoke-installed: probing installed/system components (no build triggered)"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
 
-find_bin_multi() {
-  for name in "$@"; do
-    path=$(command -v "$name" 2>/dev/null || true)
-    if [ -n "$path" ]; then
-      printf '%s\n' "$path"
-      return 0
-    fi
-  done
-  return 1
-}
+ci_info "smoke-installed probing installed/system components (no build triggered)"
 
-resolve_apache_from_apxs() {
-  apxs_path=$1
-  [ -n "$apxs_path" ] || return 1
-  sbin_dir=$($apxs_path -q SBINDIR 2>/dev/null || true)
-  target_name=$($apxs_path -q TARGET 2>/dev/null || true)
-  if [ -n "$sbin_dir" ] && [ -n "$target_name" ] && [ -x "$sbin_dir/$target_name" ]; then
-    printf '%s\n' "$sbin_dir/$target_name"
-    return 0
-  fi
-  if [ -n "$sbin_dir" ] && [ -x "$sbin_dir/apache2" ]; then
-    printf '%s\n' "$sbin_dir/apache2"
-    return 0
-  fi
-  if [ -n "$sbin_dir" ] && [ -x "$sbin_dir/httpd" ]; then
-    printf '%s\n' "$sbin_dir/httpd"
-    return 0
-  fi
-  return 1
-}
-
-APXS_BIN="${APXS_BIN:-$(find_bin_multi apxs apxs2 2>/dev/null || true)}"
-HTTPD_BIN="${APACHE_BIN:-$(find_bin_multi apache2 httpd apachectl 2>/dev/null || true)}"
-if [ -z "$HTTPD_BIN" ] && [ -n "$APXS_BIN" ]; then
-  HTTPD_BIN=$(resolve_apache_from_apxs "$APXS_BIN" 2>/dev/null || true)
+APXS_BIN="${APXS_BIN:-$(ci_find_bin_multi $CI_APXS_BIN_CANDIDATES 2>/dev/null || true)}"
+HTTPD_BIN="${APACHE_BIN:-${APACHECTL_BIN:-$(ci_find_bin_multi $CI_APACHE_BIN_CANDIDATES 2>/dev/null || true)}}"
+if [ -z "$APACHECTL_BIN" ] && [ -n "$HTTPD_BIN" ]; then
+  case "$(basename "$HTTPD_BIN")" in
+    apachectl) APACHECTL_BIN=$HTTPD_BIN ;;
+  esac
 fi
-NGINX_BIN="${NGINX_BIN:-$(find_bin_multi nginx 2>/dev/null || true)}"
-MODSECURITY_PKG_CONFIG="${MODSECURITY_PKG_CONFIG:-}"
-MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-}"
-MODSECURITY_INCLUDE_DIR="${MODSECURITY_INCLUDE_DIR:-}"
-PKG_CONFIG_BIN="${PKG_CONFIG_BIN:-$(find_bin_multi pkg-config 2>/dev/null || true)}"
+if [ -z "$HTTPD_BIN" ] && [ -n "$APXS_BIN" ]; then
+  HTTPD_BIN=$(ci_resolve_apache_from_apxs "$APXS_BIN" 2>/dev/null || true)
+fi
+NGINX_BIN="${NGINX_BIN:-$(ci_find_bin_multi $CI_NGINX_BIN_CANDIDATES 2>/dev/null || true)}"
+PKG_CONFIG_BIN="${PKG_CONFIG_BIN:-$(ci_find_bin_multi pkg-config 2>/dev/null || true)}"
 
 if [ -z "$MODSECURITY_PKG_CONFIG" ] && [ -n "$PKG_CONFIG_BIN" ]; then
   for pkg in modsecurity libmodsecurity; do
@@ -55,7 +30,7 @@ if [ -z "$MODSECURITY_PKG_CONFIG" ] && [ -n "$PKG_CONFIG_BIN" ]; then
 fi
 
 if [ -z "$MODSECURITY_LIB_DIR" ]; then
-  for libdir in /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/lib64 /usr/lib; do
+  for libdir in $CI_INSTALLED_LIB_SEARCH_DIRS; do
     if [ -f "$libdir/libmodsecurity.so" ] || [ -f "$libdir/libmodsecurity.so.3" ]; then
       MODSECURITY_LIB_DIR=$libdir
       break
@@ -63,7 +38,7 @@ if [ -z "$MODSECURITY_LIB_DIR" ]; then
   done
 fi
 if [ -z "$MODSECURITY_INCLUDE_DIR" ]; then
-  for incdir in /usr/include /usr/local/include /opt/include; do
+  for incdir in $CI_INSTALLED_INCLUDE_SEARCH_DIRS; do
     if [ -f "$incdir/modsecurity/modsecurity.h" ]; then
       MODSECURITY_INCLUDE_DIR=$incdir
       break
@@ -109,27 +84,27 @@ echo "smoke-installed: readiness apache=$apache_status nginx=$nginx_status full=
 
 if [ "$apache_status" = "BLOCKED" ]; then
   if [ -n "$APXS_BIN" ] && [ -z "$HTTPD_BIN" ]; then
-    echo "blocked: apache runtime binary not found (apache2/httpd/apachectl), although APXS is present: $APXS_BIN"
+    ci_blocked "apache runtime binary not found (apache2/httpd/apachectl), although APXS is present: $APXS_BIN"
   else
-    echo "blocked: apache installed smoke missing one of: apache/httpd/apachectl, apxs/apxs2, modsecurity runtime"
+    ci_blocked "apache installed smoke missing one of: apache/httpd/apachectl, apxs/apxs2, modsecurity runtime"
   fi
 fi
 if [ "$nginx_status" = "BLOCKED" ]; then
-  echo "blocked: nginx installed smoke missing one of: nginx, modsecurity runtime"
+  ci_blocked "nginx installed smoke missing one of: nginx, modsecurity runtime"
 fi
 if [ "$modsec_ready" -ne 1 ]; then
-  echo "blocked: modsecurity runtime not found via pkg-config or include+lib path"
+  ci_blocked "modsecurity runtime not found via pkg-config or include+lib path"
 fi
 
 if [ "$full_status" = "READY" ]; then
-  echo "blocked: installed-runtime execution wiring is not yet implemented; readiness is READY but smoke execution remains unavailable"
+  ci_blocked "installed-runtime execution wiring is not yet implemented; readiness is READY but smoke execution remains unavailable"
   exit 77
 fi
 
 if [ "$full_status" = "PARTIAL" ]; then
-  echo "blocked: partial installed readiness detected; full installed smoke requires both Apache and NGINX readiness"
+  ci_blocked "partial installed readiness detected; full installed smoke requires both Apache and NGINX readiness"
   exit 77
 fi
 
-echo "blocked: installed smoke prerequisites incomplete"
+ci_blocked "installed smoke prerequisites incomplete"
 exit 77

@@ -1,16 +1,21 @@
 #!/bin/sh
 set -eu
 
-REPO_ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
-PYTHON_BIN="${PYTHON:-python3}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-SOURCE_ROOT="${SOURCE_ROOT:-$BUILD_ROOT/sources}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
+PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 status=0
 DOCTOR_MODE="${DOCTOR_MODE:-full}"
 
-say() { echo "doctor: $*"; }
-blocked() { echo "BLOCKED: $*"; status=77; }
-warn() { echo "WARN: $*"; }
+say() { ci_info "doctor $*"; }
+blocked() { ci_blocked "$*"; status=77; }
+warn() { ci_warn "$*"; }
+section() {
+  echo ""
+  echo "$1:"
+}
 check_cmd() {
   cmd_name=$1
   if command -v "$cmd_name" >/dev/null 2>&1; then
@@ -18,37 +23,6 @@ check_cmd() {
   else
     blocked "toolchain missing: $cmd_name"
   fi
-}
-
-find_bin_multi() {
-  for name in "$@"; do
-    path=$(command -v "$name" 2>/dev/null || true)
-    if [ -n "$path" ]; then
-      printf '%s\n' "$path"
-      return 0
-    fi
-  done
-  return 1
-}
-
-resolve_apache_from_apxs() {
-  apxs_path=$1
-  [ -n "$apxs_path" ] || return 1
-  sbin_dir=$($apxs_path -q SBINDIR 2>/dev/null || true)
-  target_name=$($apxs_path -q TARGET 2>/dev/null || true)
-  if [ -n "$sbin_dir" ] && [ -n "$target_name" ] && [ -x "$sbin_dir/$target_name" ]; then
-    printf '%s\n' "$sbin_dir/$target_name"
-    return 0
-  fi
-  if [ -n "$sbin_dir" ] && [ -x "$sbin_dir/apache2" ]; then
-    printf '%s\n' "$sbin_dir/apache2"
-    return 0
-  fi
-  if [ -n "$sbin_dir" ] && [ -x "$sbin_dir/httpd" ]; then
-    printf '%s\n' "$sbin_dir/httpd"
-    return 0
-  fi
-  return 1
 }
 
 show_component() {
@@ -61,6 +35,7 @@ show_component() {
   fi
 }
 
+section "SOURCE-BUILD READINESS"
 say "python interpreter: $PYTHON_BIN"
 "$PYTHON_BIN" --version || blocked "python executable failed: $PYTHON_BIN"
 if [ -x "$REPO_ROOT/.venv/bin/python" ]; then say "venv: detected $REPO_ROOT/.venv/bin/python"; else blocked "venv missing (.venv/bin/python); run make setup-dev"; fi
@@ -68,55 +43,6 @@ if ! "$PYTHON_BIN" "$REPO_ROOT/ci/check-python-deps.py"; then blocked "missing P
 
 for tool in git make gcc autoconf automake libtool pkg-config; do check_cmd "$tool"; done
 if command -v clang >/dev/null 2>&1; then say "toolchain: clang ok (optional)"; else say "toolchain: clang missing (optional)"; fi
-
-APXS_BIN="${APXS_BIN:-$(find_bin_multi apxs apxs2 2>/dev/null || true)}"
-APACHE_BIN="${APACHE_BIN:-$(find_bin_multi apache2 httpd apachectl 2>/dev/null || true)}"
-if [ -z "$APACHE_BIN" ] && [ -n "$APXS_BIN" ]; then
-  APACHE_BIN=$(resolve_apache_from_apxs "$APXS_BIN" 2>/dev/null || true)
-fi
-NGINX_BIN="${NGINX_BIN:-$(find_bin_multi nginx 2>/dev/null || true)}"
-MODSECURITY_PKG_CONFIG="${MODSECURITY_PKG_CONFIG:-}"
-MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-}"
-MODSECURITY_INCLUDE_DIR="${MODSECURITY_INCLUDE_DIR:-}"
-
-show_component apache_bin "$APACHE_BIN"
-show_component apxs_bin "$APXS_BIN"
-show_component nginx_bin "$NGINX_BIN"
-
-if [ -z "$MODSECURITY_PKG_CONFIG" ] && command -v pkg-config >/dev/null 2>&1; then
-  for pkg in modsecurity libmodsecurity; do
-    if pkg-config --exists "$pkg"; then
-      MODSECURITY_PKG_CONFIG=$pkg
-      break
-    fi
-  done
-fi
-
-if [ -z "$MODSECURITY_LIB_DIR" ]; then
-  for libdir in /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/local/lib /usr/lib64 /usr/lib; do
-    if [ -f "$libdir/libmodsecurity.so" ] || [ -f "$libdir/libmodsecurity.so.3" ]; then
-      MODSECURITY_LIB_DIR=$libdir
-      break
-    fi
-  done
-fi
-
-if [ -z "$MODSECURITY_INCLUDE_DIR" ]; then
-  for incdir in /usr/include /usr/local/include /opt/include; do
-    if [ -f "$incdir/modsecurity/modsecurity.h" ]; then
-      MODSECURITY_INCLUDE_DIR=$incdir
-      break
-    fi
-  done
-fi
-
-if [ -n "$MODSECURITY_PKG_CONFIG" ]; then
-  say "runtime: modsecurity pkg-config -> $MODSECURITY_PKG_CONFIG"
-else
-  say "runtime: modsecurity pkg-config -> not found"
-fi
-show_component modsecurity_lib_dir "$MODSECURITY_LIB_DIR"
-show_component modsecurity_include_dir "$MODSECURITY_INCLUDE_DIR"
 
 say "build root: $BUILD_ROOT"
 mkdir -p "$BUILD_ROOT" || blocked "cannot create BUILD_ROOT: $BUILD_ROOT"
@@ -136,7 +62,7 @@ else
 fi
 
 if command -v git >/dev/null 2>&1; then
-  if git ls-remote --heads https://github.com/owasp-modsecurity/ModSecurity.git >/dev/null 2>&1; then
+  if git ls-remote --heads "$MODSECURITY_V3_GIT_URL" >/dev/null 2>&1; then
     say "github reachability: ok"
   else
     blocked "github unreachable for ModSecurity fetch"
@@ -152,6 +78,61 @@ else
     blocked "sources missing under BUILD_ROOT: $SOURCE_ROOT/ModSecurity_V3"
   fi
 fi
+
+section "OPTIONAL INSTALLED READINESS"
+say "installed components are diagnostic only; source-build smokes do not require them"
+
+APXS_BIN="${APXS_BIN:-$(ci_find_bin_multi $CI_APXS_BIN_CANDIDATES 2>/dev/null || true)}"
+APACHE_BIN="${APACHE_BIN:-${APACHECTL_BIN:-$(ci_find_bin_multi $CI_APACHE_BIN_CANDIDATES 2>/dev/null || true)}}"
+if [ -z "$APACHECTL_BIN" ] && [ -n "$APACHE_BIN" ]; then
+  case "$(basename "$APACHE_BIN")" in
+    apachectl) APACHECTL_BIN=$APACHE_BIN ;;
+  esac
+fi
+if [ -z "$APACHE_BIN" ] && [ -n "$APXS_BIN" ]; then
+  APACHE_BIN=$(ci_resolve_apache_from_apxs "$APXS_BIN" 2>/dev/null || true)
+fi
+NGINX_BIN="${NGINX_BIN:-$(ci_find_bin_multi $CI_NGINX_BIN_CANDIDATES 2>/dev/null || true)}"
+
+show_component apache_bin "$APACHE_BIN"
+show_component apachectl_bin "$APACHECTL_BIN"
+show_component apxs_bin "$APXS_BIN"
+show_component nginx_bin "$NGINX_BIN"
+
+if [ -z "$MODSECURITY_PKG_CONFIG" ] && command -v pkg-config >/dev/null 2>&1; then
+  for pkg in modsecurity libmodsecurity; do
+    if pkg-config --exists "$pkg"; then
+      MODSECURITY_PKG_CONFIG=$pkg
+      break
+    fi
+  done
+fi
+
+if [ -z "$MODSECURITY_LIB_DIR" ]; then
+  for libdir in $CI_INSTALLED_LIB_SEARCH_DIRS; do
+    if [ -f "$libdir/libmodsecurity.so" ] || [ -f "$libdir/libmodsecurity.so.3" ]; then
+      MODSECURITY_LIB_DIR=$libdir
+      break
+    fi
+  done
+fi
+
+if [ -z "$MODSECURITY_INCLUDE_DIR" ]; then
+  for incdir in $CI_INSTALLED_INCLUDE_SEARCH_DIRS; do
+    if [ -f "$incdir/modsecurity/modsecurity.h" ]; then
+      MODSECURITY_INCLUDE_DIR=$incdir
+      break
+    fi
+  done
+fi
+
+if [ -n "$MODSECURITY_PKG_CONFIG" ]; then
+  say "runtime: modsecurity pkg-config -> $MODSECURITY_PKG_CONFIG"
+else
+  say "runtime: modsecurity pkg-config -> not found"
+fi
+show_component modsecurity_lib_dir "$MODSECURITY_LIB_DIR"
+show_component modsecurity_include_dir "$MODSECURITY_INCLUDE_DIR"
 
 apache_ready=BLOCKED
 nginx_ready=BLOCKED
@@ -192,18 +173,20 @@ echo "  Apache installed smoke: $apache_ready"
 echo "  NGINX installed smoke: $nginx_ready"
 echo "  Full installed smoke: $full_ready"
 
-if [ "$status" -eq 0 ]; then
-  say "smoke readiness: prerequisites look available; run make smoke-all"
-else
-  if [ "$DOCTOR_MODE" = "quick" ]; then
-    echo "doctor: quick mode completed with runtime warnings"
-  else
-    echo "doctor: smoke readiness BLOCKED"
-  fi
-fi
+section "CACHE READINESS"
 APACHE_CACHED_BIN="$BUILD_ROOT/apache-runtime/httpd/bin/httpd"
 NGINX_CACHED_BIN="$BUILD_ROOT/nginx-runtime/nginx/sbin/nginx"
 if [ -x "$APACHE_CACHED_BIN" ]; then say "cache: cached apache artifacts present"; else say "cache: cached apache artifacts missing"; fi
 if [ -x "$NGINX_CACHED_BIN" ]; then say "cache: cached nginx artifacts present"; else say "cache: cached nginx artifacts missing"; fi
+
+if [ "$status" -eq 0 ]; then
+  say "source-build diagnostics complete; run make smoke-all locally for authoritative runtime evidence"
+else
+  if [ "$DOCTOR_MODE" = "quick" ]; then
+    echo "doctor: quick mode completed with source-build warnings"
+  else
+    echo "doctor: source-build readiness BLOCKED"
+  fi
+fi
 
 exit "$status"
