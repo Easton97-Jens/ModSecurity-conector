@@ -27,10 +27,10 @@ tree does not duplicate implementation logic.
 ## Path Model
 
 Every relevant path is configurable. The current defaults come from
-`ci/common.sh` and use a portable cache build root plus `SOURCE_ROOT`:
+`ci/common.sh` and use a portable local build/output root plus `SOURCE_ROOT`:
 
 ```sh
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build
 SOURCE_ROOT=$BUILD_ROOT/sources
 MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
 MODSECURITY_V3_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
@@ -48,7 +48,7 @@ Meaning:
 
 - `MODSECURITY_V3_SOURCE_DIR`: read-only source checkout to copy from.
 - `MODSECURITY_V3_DIR`: writable build copy containing the built v3 library.
-- `BUILD_ROOT`: writable root for smoke object files, binary, and caches.
+- `BUILD_ROOT`: writable root for smoke object files, binary, and logs.
 - `LOG_DIR`: writable directory for helper logs.
 
 No build step may write generated files into this repository checkout or any

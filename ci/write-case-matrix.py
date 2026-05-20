@@ -89,7 +89,7 @@ def main(argv: list[str]) -> int:
     default_build_root = Path(
         os.environ.get(
             "BUILD_ROOT",
-            str(Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "ModSecurity-conector-build"),
+            str(Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local" / "state"))) / "ModSecurity-conector-build"),
         )
     )
     results_path = Path(argv[1]) if len(argv) > 1 else default_build_root / "results" / "connector-summary.json"

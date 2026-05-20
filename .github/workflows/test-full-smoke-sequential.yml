@@ -40,25 +40,6 @@ jobs:
           echo "build_root_apache=$build_root_apache" >> "$GITHUB_OUTPUT"
           echo "source_root=$source_root" >> "$GITHUB_OUTPUT"
 
-      - name: Restore smoke caches
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ steps.paths.outputs.source_root }}/ModSecurity_V3
-            ${{ steps.paths.outputs.build_root }}/cache/pcre2/apache
-            ${{ steps.paths.outputs.build_root }}/cache/httpd/apache
-            ${{ steps.paths.outputs.build_root }}/cache/v3-stage/apache
-            ${{ steps.paths.outputs.build_root }}/cache/v3-stage/nginx
-            ${{ steps.paths.outputs.build_root }}/cache/nginx-build/nginx
-          key: >-
-            smoke-cache-${{ runner.os }}-${{ hashFiles(
-              'ci/prepare-apache-build.sh',
-              'ci/prepare-nginx-build.sh',
-              'ci/fetch-smoke-sources.sh',
-              'ci/run-apache-smoke.sh',
-              'ci/run-nginx-smoke.sh'
-            ) }}
-
       - name: Lint and py-compile
         run: |
           make lint

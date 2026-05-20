@@ -85,7 +85,7 @@ Generated file — do not edit manually.
 - GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.
 - XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.
 - `installed-readiness` ist Komponenten-Erkennung/Readiness, keine Runtime-Ausführung.
-- `smoke-cached` hängt von vorhandenen Build-Artefakten ab.
+- Es gibt keinen separaten Artefakt-Reuse-Smoke-Pfad; Runtime-Validierung erfolgt per frischem Source-Build.
 - `make smoke-all` bleibt die autoritative Quelle für echte Runtime-PASS-Zahlen.
 
 ## Kommandos
@@ -93,7 +93,8 @@ Generated file — do not edit manually.
 - `make quick-all`
 - `make cloud-quick-check`
 - `make installed-readiness`
-- `make smoke-cached`
+- `make smoke-apache`
+- `make smoke-nginx`
 - `make smoke-all`
 - `make generate-test-matrix`
 - `make check-test-matrix`

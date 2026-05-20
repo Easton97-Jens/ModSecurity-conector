@@ -16,7 +16,6 @@ MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache}"
 REFRESH="${REFRESH:-0}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
-CACHE_ROOT="${CACHE_ROOT:-$BUILD_ROOT/cache}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-$APACHE_BUILD_ROOT/downloads}"
 V3_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity_V3"
 APACHE_CONNECTOR_LEGACY_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity-apache"
@@ -314,22 +313,6 @@ build_pcre2_from_source() {
     require_command cc "build PCRE2"
 
     pcre2_archive="$DOWNLOAD_DIR/pcre2-$PCRE2_VERSION.tar.bz2"
-    pcre2_cache_dir="$CACHE_ROOT/pcre2/apache"
-    pcre2_marker="$pcre2_cache_dir/marker.txt"
-    pcre2_key="version=$PCRE2_VERSION|url=$PCRE2_SOURCE_URL|sha=$PCRE2_SHA256|sha_url=$PCRE2_SHA256_URL|cc=${CC:-}|cflags=${CFLAGS:-}|prefix=$PCRE2_PREFIX"
-    if [ "$REFRESH" != "1" ] && [ -f "$pcre2_marker" ] && [ "$(cat "$pcre2_marker" 2>/dev/null)" = "$pcre2_key" ] && [ -x "$PCRE2_PREFIX/bin/pcre2-config" ]; then
-        echo "apache_poc: cache-hit pcre2 key=$pcre2_key"
-        PCRE_CONFIG_BIN="$PCRE2_PREFIX/bin/pcre2-config"
-        PCRE2_SOURCE_BUILT=1
-        return 0
-    fi
-    if [ "$REFRESH" = "1" ]; then
-        echo "apache_poc: rebuild pcre2 refresh=1"
-    elif [ -f "$pcre2_marker" ]; then
-        echo "apache_poc: cache-invalid pcre2 marker-mismatch"
-    else
-        echo "apache_poc: cache-miss pcre2 marker-missing"
-    fi
     download_file pcre2 "$PCRE2_SOURCE_URL" "$pcre2_archive"
     verify_sha256_literal pcre2 "$pcre2_archive" "$PCRE2_SHA256"
     verify_sha256_url pcre2 "$pcre2_archive" "$PCRE2_SHA256_URL"
@@ -347,8 +330,6 @@ build_pcre2_from_source() {
         blocked "PCRE2 source build completed without pcre2-config: $PCRE_CONFIG_BIN"
     fi
     PCRE2_SOURCE_BUILT=1
-    mkdir -p "$pcre2_cache_dir"
-    printf '%s\n' "$pcre2_key" > "$pcre2_marker"
     {
         echo "pcre2_source_built=1"
         echo "pcre2_version=$PCRE2_VERSION"
@@ -385,16 +366,6 @@ build_httpd_from_source() {
     require_command cc "build Apache httpd"
     require_command perl "build Apache httpd support scripts"
 
-    httpd_key="httpd=$HTTPD_VERSION|httpd_url=$HTTPD_SOURCE_URL|httpd_sha=$HTTPD_SHA256|httpd_sha_url=$HTTPD_SHA256_URL|apr=$APR_VERSION|apr_url=$APR_SOURCE_URL|apr_sha=$APR_SHA256|apr_sha_url=$APR_SHA256_URL|apr_util=$APR_UTIL_VERSION|apr_util_url=$APR_UTIL_SOURCE_URL|apr_util_sha=$APR_UTIL_SHA256|apr_util_sha_url=$APR_UTIL_SHA256_URL|pcre=$PCRE_CONFIG_BIN|cc=${CC:-}|cflags=${CFLAGS:-}|prefix=$HTTPD_PREFIX"
-    httpd_cache_dir="$CACHE_ROOT/httpd/apache"
-    httpd_marker="$httpd_cache_dir/marker.txt"
-    if [ "$REFRESH" != "1" ] && [ -f "$httpd_marker" ] && [ "$(cat "$httpd_marker" 2>/dev/null)" = "$httpd_key" ] && [ -x "$HTTPD_PREFIX/bin/apxs" ] && [ -x "$HTTPD_PREFIX/bin/httpd" ]; then
-        echo "apache_poc: cache-hit httpd key=$httpd_key"
-        APXS_BIN="$HTTPD_PREFIX/bin/apxs"
-        APACHE_HTTPD_BIN="$HTTPD_PREFIX/bin/httpd"
-        HTTPD_SOURCE_BUILT=1
-        return 0
-    fi
     if [ -e "$HTTPD_PREFIX" ]; then
         if [ "$REFRESH" != "1" ]; then
             blocked "HTTPD_PREFIX exists: $HTTPD_PREFIX; set REFRESH=1 to replace it or set APXS/APACHE_HTTPD explicitly"
@@ -443,8 +414,6 @@ build_httpd_from_source() {
         blocked "httpd source build completed without executable httpd: $APACHE_HTTPD_BIN"
     fi
     HTTPD_SOURCE_BUILT=1
-    mkdir -p "$httpd_cache_dir"
-    printf '%s\n' "$httpd_key" > "$httpd_marker"
 }
 
 resolve_apache_tools() {
@@ -527,43 +496,6 @@ stage_modsecurity() {
     } >> "$ARTIFACTS_FILE"
 }
 
-v3_cache_key() {
-    v3_commit=$(git -C "$MODSECURITY_V3_SOURCE_DIR" rev-parse HEAD 2>/dev/null || echo "nogit")
-    printf 'v3=%s\n' "$v3_commit"
-}
-
-try_restore_v3_stage_cache() {
-    cache_key=$(v3_cache_key)
-    V3_STAGE_CACHE_DIR="$CACHE_ROOT/v3-stage/apache"
-    V3_STAGE_CACHE_MARKER="$V3_STAGE_CACHE_DIR/marker.txt"
-    if [ ! -f "$V3_STAGE_CACHE_MARKER" ]; then
-        echo "apache_poc: cache-miss v3-stage marker-missing"
-        return 1
-    fi
-    if [ "$(cat "$V3_STAGE_CACHE_MARKER" 2>/dev/null)" != "$cache_key" ]; then
-        echo "apache_poc: cache-invalid v3-stage marker-mismatch"
-        return 1
-    fi
-    if [ ! -f "$V3_STAGE_CACHE_DIR/include/modsecurity/modsecurity.h" ] || [ ! -f "$V3_STAGE_CACHE_DIR/lib/libmodsecurity.so" ]; then
-        echo "apache_poc: cache-invalid v3-stage artifact-missing"
-        return 1
-    fi
-    mkdir -p "$MODSECURITY_STAGE"
-    run_logged v3-stage-cache-restore "$CACHE_ROOT" cp -a "$V3_STAGE_CACHE_DIR/include" "$V3_STAGE_CACHE_DIR/lib" "$MODSECURITY_STAGE/"
-    echo "apache_poc: cache-hit v3-stage key=$cache_key"
-    return 0
-}
-
-save_v3_stage_cache() {
-    cache_key=$(v3_cache_key)
-    V3_STAGE_CACHE_DIR="$CACHE_ROOT/v3-stage/apache"
-    rm -rf "$V3_STAGE_CACHE_DIR"
-    mkdir -p "$V3_STAGE_CACHE_DIR"
-    run_logged v3-stage-cache-save "$MODSECURITY_STAGE" cp -a "$MODSECURITY_STAGE/include" "$MODSECURITY_STAGE/lib" "$V3_STAGE_CACHE_DIR/"
-    printf '%s\n' "$cache_key" > "$V3_STAGE_CACHE_DIR/marker.txt"
-    echo "apache_poc: rebuild v3-stage cache key=$cache_key"
-}
-
 echo "apache_poc: MODSECURITY_V3_SOURCE_DIR=$MODSECURITY_V3_SOURCE_DIR"
 echo "apache_poc: MODSECURITY_APACHE_SOURCE_DIR=$MODSECURITY_APACHE_SOURCE_DIR"
 echo "apache_poc: BUILD_ROOT=$BUILD_ROOT"
@@ -615,14 +547,11 @@ write_git_info "modsecurity-apache-build-copy" "$APACHE_CONNECTOR_BUILD_DIR"
 resolve_apache_tools
 record_apache_tools
 
-if ! try_restore_v3_stage_cache; then
-    run_logged v3-git-submodule-update "$V3_BUILD_DIR" git submodule update --init --recursive
-    run_logged v3-build-sh "$V3_BUILD_DIR" ./build.sh
-    run_logged v3-configure "$V3_BUILD_DIR" ./configure
-    run_logged v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"
-    stage_modsecurity
-    save_v3_stage_cache
-fi
+run_logged v3-git-submodule-update "$V3_BUILD_DIR" git submodule update --init --recursive
+run_logged v3-build-sh "$V3_BUILD_DIR" ./build.sh
+run_logged v3-configure "$V3_BUILD_DIR" ./configure
+run_logged v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"
+stage_modsecurity
 
 run_logged apache-autogen "$APACHE_CONNECTOR_BUILD_DIR" ./autogen.sh
 run_logged apache-configure "$APACHE_CONNECTOR_BUILD_DIR" ./configure "--with-libmodsecurity=$MODSECURITY_STAGE" "--with-apxs=$APXS_BIN" "--with-apache=$APACHE_HTTPD_BIN"

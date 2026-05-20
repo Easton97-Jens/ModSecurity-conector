@@ -11,14 +11,11 @@ defines variables/functions when sourced; scripts perform actions explicitly.
 
 - `make quick-all`
   - local-preferred orchestration target for fast checks
-  - combines lint, doctor-quick, quick-check, smoke-cached, smoke-installed, py_compile, diff-check
+  - combines lint, doctor-quick, quick-check, smoke-installed, py_compile, diff-check
   - returns QUICK PASS / QUICK BLOCKED / QUICK FAIL
 - `make quick-check` / `make codex-check`
   - runs lint, py_compile, and diff checks
   - does **not** run Apache/NGINX full smoke
-- `make smoke-cached`
-  - runs smoke using existing cached artifacts
-  - exits BLOCKED when cache artifacts are missing
 - `make smoke-installed` / `make installed-readiness`
   - probes installed components and libmodsecurity presence
   - currently acts as installed readiness probe; returns BLOCKED when execution wiring for true installed runtime smoke is not available
@@ -28,7 +25,7 @@ defines variables/functions when sourced; scripts perform actions explicitly.
 ## Honesty rules
 
 - BLOCKED is not PASS.
-- quick/cached checks never replace full smoke for release compatibility evidence.
+- quick checks never replace full smoke for release compatibility evidence.
 - no fake green status when prerequisites are missing.
 
 ## Recommended flow
@@ -92,7 +89,7 @@ stay lightweight and deterministic.
 - Required/pass-fail: `setup-dev`, `lint`, `generate-test-matrix`,
   `check-test-matrix`, `quick-check`, Python compile, `git diff --check`.
 - Runtime probes are intentionally excluded: no `quick-all`, no
-  `smoke-cached`, no `installed-readiness`, and no full connector smoke.
+  `installed-readiness`, and no full connector smoke.
 - This does **not** replace `make smoke-all`; full runtime validation remains
   local and authoritative.
 
@@ -105,5 +102,5 @@ For version and path changes, prefer environment overrides consumed through
 `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, and `NGINX_BIN`. Apache and NGINX
 connector source is repo-local by default; server source versions are configured
 with `HTTPD_VERSION`, `PCRE2_VERSION`, `NGINX_SOURCE_REPO_URL`, and
-`NGINX_RELEASE_TAG`. Build-artifact locations can be replaced with any explicit
-absolute `BUILD_ROOT`.
+`NGINX_RELEASE_TAG`. `BUILD_ROOT` is a local build/output location and can be
+replaced with any explicit absolute path.

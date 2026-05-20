@@ -40,7 +40,7 @@ Central override variables:
 Example:
 
 ```bash
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build \
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build \
 MODSECURITY_GIT_REF=v3/master \
 make fetch-deps
 ```
@@ -80,8 +80,9 @@ fetched.
 
 `make fetch-deps`, `make doctor`, and `make smoke-all` are intended to use the same `BUILD_ROOT`.
 Fetched sources live under `BUILD_ROOT/sources`.
-The default build root is a portable cache location. If you override
-`BUILD_ROOT`, use the same absolute path for all commands in the flow.
+The default build root is a portable local build/output location, not a promise
+that old build artifacts will be reused. If you override `BUILD_ROOT`, use the
+same absolute path for all commands in the flow.
 
 Example:
 
@@ -95,11 +96,11 @@ BUILD_ROOT=/tmp/modsec-build make smoke-all
 ## Fast and full targets
 
 - Fast framework checks: `make quick-check`
-- Cached smoke: `make smoke-cached`
 - Installed runtime probe: `make smoke-installed` / `make installed-readiness`
 - Full authoritative connector smoke: `make smoke-all`
 
-Use `REFRESH=1 make smoke-all` to force clean rebuild when cache/build trees are stale.
+Use `REFRESH=1 make smoke-all` to replace existing generated build/output
+trees through the guarded cleanup path.
 
 `make smoke-installed` / `make installed-readiness` is optional diagnostic
 readiness for already-installed system components. Missing system Apache,
@@ -111,7 +112,7 @@ path; `make smoke-all` remains the authoritative local runtime evidence.
 
 Use `make quick-all` for a fast, honest framework/smoke-basis run.
 It never triggers full source rebuilds by itself.
-If runtime artifacts are missing it reports BLOCKED, not PASS.
+If optional runtime diagnostics are incomplete it reports BLOCKED, not PASS.
 
 
 ## Cloud/GitHub lightweight path

@@ -30,8 +30,7 @@ rg "<local-paths>|<system-paths>|github.com|MODSECURITY|BUILD_ROOT|SOURCE_ROOT" 
   (`MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`,
   `MODSECURITY_V3_ROOT`) and optional installed-readiness hints/search lists.
 - `make cloud-quick-check` is currently framework/generator/lint oriented and
-  does not call `quick-all`, `smoke-cached`, `installed-readiness`, or full
-  connector smokes.
+  does not call `quick-all`, `installed-readiness`, or full connector smokes.
 - `quick-framework-check.yml` is lightweight and automatic.
 - `test-full-smoke-sequential.yml` is manual-only via `workflow_dispatch`.
 - Local runtime targets still exist: `smoke-all`, `smoke-apache`,
@@ -48,9 +47,9 @@ workspace paths:
 
 | Area | Current finding | Risk |
 | --- | --- | --- |
-| `ci/common.sh` | `DEFAULT_BUILD_ROOT` now uses a portable cache path | `/src` remains usable only as explicit `BUILD_ROOT`. |
+| `ci/common.sh` | `DEFAULT_BUILD_ROOT` now uses a portable local state/output path | `/src` remains usable only as explicit `BUILD_ROOT`. |
 | `ci/common.sh` | legacy v3 source-dir fallback variable removed | No parent-workspace fallback remains. |
-| `Makefile` | `BUILD_ROOT` now defaults through `CACHE_HOME` | Make no longer implies `/src`. |
+| `Makefile` | `BUILD_ROOT` now defaults through local state/output settings | Make no longer implies `/src`. |
 | `ci/build-v3-under-src.sh` / `ci/run-v3-api-smoke.sh` / `ci/check-v3-api-smoke-prereqs.sh` | `MODSECURITY_V3_DIR` defaults under `BUILD_ROOT` | v3 API helpers no longer default to `/src`. |
 | `ci/find-modsecurity-v3.sh` | Checks explicit aliases and `$SOURCE_ROOT/ModSecurity_V3` only | No sibling repo auto-detection remains. |
 | Several scripts | Safety guards still protect root-level destructive targets | These are deletion-safety checks, not source fallbacks. |
@@ -121,7 +120,7 @@ Recommendation:
 Risk:
 
 - High if changed blindly. The full local source-built smoke currently depends
-  on server/library source downloads unless cached artifacts or installed tools
+  on server/library source downloads unless source-built outputs or installed tools
   are supplied.
 
 ### 4. Fetch Reuse Does Not Validate Existing Git Checkouts
@@ -169,10 +168,10 @@ Risk:
 
 ### 6. Installed Readiness Is Still Mixed Into Doctor Output
 
-`ci/doctor.sh` currently checks build tools, Python deps, source paths, GitHub
-reachability, cached artifacts, and installed Apache/NGINX/libmodsecurity
-readiness in one flow. It reports installed components even for source-build
-validation.
+`ci/doctor.sh` originally checked build tools, Python deps, source paths,
+GitHub reachability, generated build outputs, and installed
+Apache/NGINX/libmodsecurity readiness in one flow. It reports installed
+components even for source-build validation.
 
 `ci/smoke-installed.sh` is explicitly readiness-only, which is good, but the
 installed detection logic still contains hardcoded system paths:
@@ -191,7 +190,6 @@ Recommendation:
 - Split doctor sections clearly:
   - `SOURCE-BUILD READINESS`
   - `OPTIONAL INSTALLED READINESS`
-  - `CACHE READINESS`
 - Source-build readiness must not require system Apache, NGINX, or installed
   libmodsecurity.
 - Move installed search path lists to `ci/common.sh` as optional readiness
@@ -271,8 +269,8 @@ Implemented status:
 
 - `ci/common.sh` now defines the missing source aliases and optional installed
   hints, plus centralized installed-readiness candidate/search-list variables.
-- `ci/doctor.sh` now reports `SOURCE-BUILD READINESS`,
-  `OPTIONAL INSTALLED READINESS`, and `CACHE READINESS` separately.
+- `ci/doctor.sh` now reports `SOURCE-BUILD READINESS` and
+  `OPTIONAL INSTALLED READINESS` separately.
 - `ci/smoke-installed.sh` now consumes the centralized installed-readiness
   candidate/search-list variables.
 - Documentation now clarifies that `/src` is a replaceable build-artifact
@@ -317,8 +315,8 @@ These remain separate follow-ups:
 
 1. Add missing passive aliases and installed-readiness helper variables to
    `ci/common.sh`.
-2. Refactor `doctor` output into source-build, optional-installed, and cache
-   sections; preserve existing BLOCKED/PASS honesty.
+2. Refactor `doctor` output into source-build and optional-installed sections;
+   preserve existing BLOCKED/PASS honesty.
 3. Add git checkout validation to `fetch-smoke-sources.sh`.
 4. Pin or remove moving server-source refs where practical.
 5. Update manual full-smoke workflow names/env further if needed and pin

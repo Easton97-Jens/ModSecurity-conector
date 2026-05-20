@@ -173,12 +173,6 @@ echo "  Apache installed smoke: $apache_ready"
 echo "  NGINX installed smoke: $nginx_ready"
 echo "  Full installed smoke: $full_ready"
 
-section "CACHE READINESS"
-APACHE_CACHED_BIN="$BUILD_ROOT/apache-runtime/httpd/bin/httpd"
-NGINX_CACHED_BIN="$BUILD_ROOT/nginx-runtime/nginx/sbin/nginx"
-if [ -x "$APACHE_CACHED_BIN" ]; then say "cache: cached apache artifacts present"; else say "cache: cached apache artifacts missing"; fi
-if [ -x "$NGINX_CACHED_BIN" ]; then say "cache: cached nginx artifacts present"; else say "cache: cached nginx artifacts missing"; fi
-
 if [ "$status" -eq 0 ]; then
   say "source-build diagnostics complete; run make smoke-all locally for authoritative runtime evidence"
 else

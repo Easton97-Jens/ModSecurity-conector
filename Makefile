@@ -1,6 +1,6 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
-CACHE_HOME ?= $(if $(XDG_CACHE_HOME),$(XDG_CACHE_HOME),$(HOME)/.cache)
-BUILD_ROOT ?= $(CACHE_HOME)/ModSecurity-conector-build
+STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
+BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
@@ -59,7 +59,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-cached smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
+.PHONY: smoke-common smoke-apache smoke-nginx smoke-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 smoke-common:
 	CASE_SCOPE=common sh ci/run-connector-smokes.sh
@@ -126,9 +126,6 @@ quick-check codex-check:
 	make lint
 	$(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
 	git diff --check
-
-smoke-cached:
-	sh ci/smoke-cached.sh
 
 smoke-installed installed-readiness:
 	sh ci/smoke-installed.sh

@@ -106,8 +106,8 @@ Apache and NGINX comes from this repository by default.
 
 Smoke builds use `MODSECURITY_SOURCE_DIR` / `MODSECURITY_V3_SOURCE_DIR`,
 `MODSECURITY_V3_DIR`, `BUILD_ROOT`, and `LOG_DIR`. The default build root is a
-portable cache location, and any explicit absolute path outside this checkout
-can be used. CI can use `$RUNNER_TEMP`.
+portable local build/output location, and any explicit absolute path outside
+this checkout can be used. CI can use `$RUNNER_TEMP`.
 
 ## CI Helper Configuration
 
@@ -117,7 +117,7 @@ it only defines variables and helper functions when sourced.
 Common override variables:
 
 ```sh
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build
 SOURCE_ROOT=$BUILD_ROOT/sources
 MODSECURITY_GIT_REF=v3/master
 MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
@@ -205,20 +205,22 @@ copy.
 
 ## Shared Smoke Targets
 
-The connector smoke targets reuse build artifacts under `BUILD_ROOT` unless
-`REFRESH=1` is set. They never write generated files into this checkout.
+The connector smoke targets write build artifacts under `BUILD_ROOT`. Existing
+build/output directories block by default; use `REFRESH=1` to replace them
+through the guarded generated-path cleanup. They never write generated files
+into this checkout.
 
 ```sh
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make smoke-apache
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make smoke-nginx
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make smoke-common
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make smoke-all
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-apache
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-nginx
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-common
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-all
 ```
 
 `SMOKE_CASES` can restrict the run by case name or file path:
 
 ```sh
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build \
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build \
 SMOKE_CASES="phase1_header_block phase2_args_block request_body_json_block" \
 make smoke-all
 ```
@@ -242,9 +244,9 @@ claiming pass there.
 Useful maintenance commands:
 
 ```sh
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make lint
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make summary
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make case-matrix
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make lint
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make summary
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make case-matrix
 ```
 
 Imported source-derived cases are split by scope:

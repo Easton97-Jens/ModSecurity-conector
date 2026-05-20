@@ -146,7 +146,7 @@ Shell helper defaults are centralized in `ci/common.sh`. Override variables in
 the environment rather than editing scripts:
 
 ```bash
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build
 SOURCE_ROOT=$BUILD_ROOT/sources
 MODSECURITY_GIT_REF=v3/master
 MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
@@ -212,12 +212,12 @@ Check Python deps and ModSecurity v3 path detection:
 make doctor
 ```
 
-The doctor output separates source-build readiness, optional installed
-readiness, and cache readiness. Source-build readiness uses the configured
-source aliases from `ci/common.sh`; installed Apache/NGINX/libmodsecurity
-detection is diagnostic only and does not make system installations a standard
-prerequisite. If no ModSecurity v3 source tree is available, doctor exits
-BLOCKED and prints the exact export or `make fetch-deps` remediation command.
+The doctor output separates source-build readiness from optional installed
+readiness. Source-build readiness uses the configured source aliases from
+`ci/common.sh`; installed Apache/NGINX/libmodsecurity detection is diagnostic
+only and does not make system installations a standard prerequisite. If no
+ModSecurity v3 source tree is available, doctor exits BLOCKED and prints the
+exact export or `make fetch-deps` remediation command.
 
 
 ### Optional GitHub runtime fetch
@@ -283,7 +283,7 @@ make smoke-all
 Use a single consistent `BUILD_ROOT` across `fetch-deps`, `doctor`, and `smoke-all`.
 
 
-See also: `docs/testing/fast-checks.md` for quick/cached/full check boundaries.
+See also: `docs/testing/fast-checks.md` for quick/full check boundaries.
 
 
 Quick local developer checks can use `make doctor-quick` and `make quick-all`;
@@ -331,7 +331,7 @@ This installed-path readiness is informative for quick diagnostics. Full compati
 For Codex Cloud / GitHub Actions, `.github/workflows/quick-framework-check.yml`
 runs lightweight framework, lint, generator, and documentation consistency
 checks. It does not run connector Runtime-Smokes, source fetches, installed
-runtime probes, or cached runtime probes.
+runtime probes.
 
 This path distinguishes:
 

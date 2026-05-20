@@ -56,7 +56,7 @@ response-body blocking.
 Command:
 
 ```sh
-BUILD_ROOT=$HOME/.cache/ModSecurity-conector-build make probe-response-body || true
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make probe-response-body || true
 ```
 
 Probe defaults:

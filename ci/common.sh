@@ -7,7 +7,8 @@
 # dependencies, run validation, or otherwise mutate the filesystem.
 
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-master}"
-DEFAULT_BUILD_ROOT="${DEFAULT_BUILD_ROOT:-${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/ModSecurity-conector-build}"
+DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}}"
+DEFAULT_BUILD_ROOT="${DEFAULT_BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
 BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_BUILD_ROOT}"
 if [ -n "${SOURCE_ROOT:-}" ]; then
     CI_SOURCE_ROOT_WAS_SET=1
