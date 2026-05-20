@@ -84,6 +84,18 @@ make smoke-apache
 make smoke-nginx
 ```
 
+For a per-case Apache/NGINX runtime inventory across all YAML cases and
+mapped-only import entries, run:
+
+```sh
+make runtime-matrix
+```
+
+`runtime-matrix` runs fresh Apache and NGINX source-build smokes, records
+per-case evidence in `docs/testing/runtime-validation-snapshot.json`, and
+regenerates `docs/testing/generated/runtime-matrix.generated.md` plus
+connector-specific runtime result summaries.
+
 Generated coverage documentation is reporting only. It summarizes declared YAML
 case metadata, known xfail/pending/connector-gap coverage, and import status; it
 is not a Runtime-PASS proof. Many xfail, pending, and connector-gap cases remain
@@ -221,6 +233,7 @@ BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-apache
 BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-nginx
 BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-common
 BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-all
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make runtime-matrix
 ```
 
 `SMOKE_CASES` can restrict the run by case name or file path:

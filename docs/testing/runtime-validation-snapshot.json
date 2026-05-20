@@ -1,17 +1,16 @@
 {
   "snapshot_date": "2026-05-21",
-  "captured_at": "2026-05-21 00:17:33 CEST",
+  "captured_at": "2026-05-21 01:28:55 CEST",
   "branch": "master",
-  "commit": "1b2264d",
+  "commit": "d3b6c89",
   "build_root": "/root/.local/state/ModSecurity-conector-build",
   "notes": [
-    "Framework command statuses are from the local shell exit codes in this permission-fix run.",
-    "Runtime smoke counts are from /root/.local/state/ModSecurity-conector-build/results/*-summary.json.",
-    "The NGINX harness stages worker-facing runtime files under /tmp/ModSecurity-conector-nginx-runtime-0 in this root-run environment, avoiding unreadable /root parent directories without global chmods or system NGINX changes.",
-    "A REFRESH=1 make smoke-nginx retry rebuilt NGINX artifacts but did not complete the runtime phase because prepare-nginx-build reported a post-build shell parse error; the subsequent make smoke-nginx runtime pass used those freshly produced artifacts.",
-    "make smoke-nginx passed all 54 active NGINX runtime cases after the harness permission fix; the 11 previously blocked expected-200 cases now returned HTTP 200.",
-    "response_body_pass is request/runtime pass-through evidence only; RESPONSE_BODY remains non-verified/non-promoted.",
-    "make smoke-all was not run in this snapshot; no full-smoke PASS count is claimed."
+    "Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.",
+    "Per-case PASS/FAIL/BLOCKED/XFAIL values are runtime evidence for this local run only.",
+    "No xfail/pending YAML case is promoted by this snapshot.",
+    "RESPONSE_BODY remains non-verified/non-promoted, including pass-through response-body probes.",
+    "Mapped-only import inventory entries remain visible but are not executed runtime cases.",
+    "make smoke-all is not implied by separate Apache/NGINX runtime matrix runs."
   ],
   "framework_checks": [
     {
@@ -125,10 +124,827 @@
         "XML"
       ],
       "failed_cases": [],
-      "details": "Latest available local Apache source-build summary remained PASS; Apache was not changed by the NGINX harness permission fix"
+      "cases": [
+        {
+          "case": "action_allow_phase1_pass",
+          "path": "tests/common/cases/imported/action_allow_phase1_pass.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "pass-through",
+            "phase1"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=action_allow_phase1_pass; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "action_deny_phase1",
+          "path": "tests/common/cases/imported/action_deny_phase1.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "intervention",
+            "phase1"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=action_deny_phase1; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "action_deny_phase2",
+          "path": "tests/common/cases/imported/action_deny_phase2.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "intervention",
+            "phase2"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=action_deny_phase2; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "action_status_401_phase1_block",
+          "path": "tests/common/cases/imported/action_status_401_phase1_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 401,
+          "actual_status": 401,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "actions",
+            "intervention",
+            "phase1",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=action_status_401_phase1_block; status=pass; expected=401; actual=401"
+        },
+        {
+          "case": "audit_log_phase1_block",
+          "path": "tests/common/cases/minimal/audit_log_phase1_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "audit-log",
+            "intervention",
+            "phase1",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=audit_log_phase1_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "collection_args_combined_size_block",
+          "path": "tests/common/cases/imported/collection_args_combined_size_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=collection_args_combined_size_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "collection_args_get_block",
+          "path": "tests/common/cases/imported/collection_args_get_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=collection_args_get_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "collection_args_names_block",
+          "path": "tests/common/cases/imported/collection_args_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=collection_args_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "json_request_body_block",
+          "path": "tests/common/cases/imported/json_request_body_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "intervention",
+            "json",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=json_request_body_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_basic_block",
+          "path": "tests/common/cases/imported/multipart_basic_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=multipart_basic_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_filename_block",
+          "path": "tests/common/cases/v3-imported/multipart_filename_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "files",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=multipart_filename_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_files_combined_size",
+          "path": "tests/common/cases/v3-imported/multipart_files_combined_size.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "files",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=multipart_files_combined_size; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_files_names_block",
+          "path": "tests/common/cases/v3-imported/multipart_files_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "files",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=multipart_files_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_files_value_block",
+          "path": "tests/common/cases/v3-imported/multipart_files_value_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "files",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=multipart_files_value_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "phase1_header_block",
+          "path": "tests/common/cases/minimal/phase1_header_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "intervention",
+            "phase1",
+            "request-headers"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=phase1_header_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "phase2_args_block",
+          "path": "tests/common/cases/minimal/phase2_args_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=phase2_args_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "phase2_args_pass",
+          "path": "tests/common/cases/minimal/phase2_args_pass.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "pass-through",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=phase2_args_pass; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "request_body_args_post_names_block",
+          "path": "tests/common/cases/imported/request_body_args_post_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "form-urlencoded",
+            "intervention",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=request_body_args_post_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "request_body_json_block",
+          "path": "tests/common/cases/minimal/request_body_json_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=request_body_json_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "request_body_raw_text_block",
+          "path": "tests/common/cases/imported/request_body_raw_text_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=request_body_raw_text_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "request_body_urlencoded_block",
+          "path": "tests/common/cases/minimal/request_body_urlencoded_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "form-urlencoded",
+            "intervention",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=request_body_urlencoded_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "response_body_pass",
+          "path": "tests/common/cases/imported/response_body_pass.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "pass-through",
+            "phase4",
+            "response-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=response_body_pass; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "response_header_basic",
+          "path": "tests/common/cases/minimal/response_header_basic.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "intervention",
+            "phase3",
+            "response-headers"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=response_header_basic; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_begins_with_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_begins_with_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_operator_begins_with_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_contains_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_contains_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_operator_contains_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_contains_word_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_contains_word_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_operator_contains_word_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_ends_with_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_ends_with_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_operator_ends_with_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_pm_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_pm_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_operator_pm_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_streq_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_streq_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_operator_streq_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_html_entity_decode_block",
+          "path": "tests/common/cases/v2-imported/v2_transformation_html_entity_decode_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "phase1",
+            "request-headers",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_transformation_html_entity_decode_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_lowercase_block",
+          "path": "tests/common/cases/v2-imported/v2_transformation_lowercase_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_transformation_lowercase_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_trim_block",
+          "path": "tests/common/cases/v2-imported/v2_transformation_trim_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_transformation_trim_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_url_decode_block",
+          "path": "tests/common/cases/v2-imported/v2_transformation_url_decode_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "phase1",
+            "request-uri",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_transformation_url_decode_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_url_decode_pass_no_match",
+          "path": "tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "pass-through",
+            "phase1",
+            "request-uri",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v2_transformation_url_decode_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_args_names_get_block",
+          "path": "tests/common/cases/v3-imported/v3_args_names_get_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "args-names",
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_args_names_get_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_args_names_get_pass_no_match",
+          "path": "tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "args-names",
+            "collections",
+            "pass-through",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_args_names_get_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_auditlog_serial_fields_block",
+          "path": "tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "audit-log",
+            "intervention",
+            "phase1",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_auditlog_serial_fields_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_operator_pm_digit_block",
+          "path": "tests/common/cases/v3-imported/v3_operator_pm_digit_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase1",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_operator_pm_digit_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_operator_rx_block",
+          "path": "tests/common/cases/v3-imported/v3_operator_rx_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_operator_rx_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_request_cookies_block",
+          "path": "tests/common/cases/v3-imported/v3_request_cookies_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase1",
+            "request-cookies"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_request_cookies_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_request_cookies_names_block",
+          "path": "tests/common/cases/v3-imported/v3_request_cookies_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase1",
+            "request-cookies"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_request_cookies_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_request_cookies_names_pass_no_match",
+          "path": "tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "pass-through",
+            "phase1",
+            "request-cookies"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_request_cookies_names_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_request_cookies_pass_no_match",
+          "path": "tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "pass-through",
+            "phase1",
+            "request-cookies"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_request_cookies_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_request_headers_names_block",
+          "path": "tests/common/cases/v3-imported/v3_request_headers_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase1",
+            "request-headers"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_request_headers_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_request_headers_names_pass_no_match",
+          "path": "tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "pass-through",
+            "phase1",
+            "request-headers"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_request_headers_names_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_secaction_block",
+          "path": "tests/common/cases/v3-imported/v3_secaction_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "actions",
+            "intervention",
+            "phase2"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_secaction_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_transformation_trim_block",
+          "path": "tests/common/cases/v3-imported/v3_transformation_trim_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=v3_transformation_trim_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "xml_request_body_block",
+          "path": "tests/common/cases/v3-imported/xml_request_body_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "body-processors",
+            "collections",
+            "intervention",
+            "phase2",
+            "request-body",
+            "xml"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/apache-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403"
+        }
+      ],
+      "details": "Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status."
     },
     {
-      "command": "make smoke-nginx",
+      "command": "REFRESH=1 make smoke-nginx",
       "connector": "nginx",
       "status": "PASS",
       "exit_code": 0,
@@ -154,75 +970,927 @@
         "XML"
       ],
       "failed_cases": [],
-      "previously_blocked_cases": [
-        {
-          "case": "phase2_args_pass",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX source-built smoke after harness permission fix"
-        },
+      "cases": [
         {
           "case": "action_allow_phase1_pass",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX source-built smoke after harness permission fix"
+          "path": "tests/common/cases/imported/action_allow_phase1_pass.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "pass-through",
+            "phase1"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=action_allow_phase1_pass; status=pass; expected=200; actual=200"
         },
         {
-          "case": "response_body_pass",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS-through evidence in current local NGINX smoke only; RESPONSE_BODY remains non-verified/non-promoted"
+          "case": "action_deny_phase1",
+          "path": "tests/common/cases/imported/action_deny_phase1.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "intervention",
+            "phase1"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=action_deny_phase1; status=pass; expected=403; actual=403"
         },
         {
-          "case": "v2_transformation_url_decode_pass_no_match",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX no-match pass-through smoke after harness permission fix"
+          "case": "action_deny_phase2",
+          "path": "tests/common/cases/imported/action_deny_phase2.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "intervention",
+            "phase2"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=action_deny_phase2; status=pass; expected=403; actual=403"
         },
         {
-          "case": "v3_args_names_get_pass_no_match",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX no-match pass-through smoke after harness permission fix"
+          "case": "action_status_401_phase1_block",
+          "path": "tests/common/cases/imported/action_status_401_phase1_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 401,
+          "actual_status": 401,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "actions",
+            "intervention",
+            "phase1",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=action_status_401_phase1_block; status=pass; expected=401; actual=401"
         },
         {
-          "case": "v3_request_cookies_names_pass_no_match",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX no-match pass-through smoke after harness permission fix"
+          "case": "audit_log_phase1_block",
+          "path": "tests/common/cases/minimal/audit_log_phase1_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "audit-log",
+            "intervention",
+            "phase1",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=audit_log_phase1_block; status=pass; expected=403; actual=403"
         },
         {
-          "case": "v3_request_cookies_pass_no_match",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX no-match pass-through smoke after harness permission fix"
+          "case": "collection_args_combined_size_block",
+          "path": "tests/common/cases/imported/collection_args_combined_size_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=collection_args_combined_size_block; status=pass; expected=403; actual=403"
         },
         {
-          "case": "v3_request_headers_names_pass_no_match",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX no-match pass-through smoke after harness permission fix"
+          "case": "collection_args_get_block",
+          "path": "tests/common/cases/imported/collection_args_get_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=collection_args_get_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "collection_args_names_block",
+          "path": "tests/common/cases/imported/collection_args_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=collection_args_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "json_request_body_block",
+          "path": "tests/common/cases/imported/json_request_body_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "intervention",
+            "json",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=json_request_body_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_basic_block",
+          "path": "tests/common/cases/imported/multipart_basic_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=multipart_basic_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_filename_block",
+          "path": "tests/common/cases/v3-imported/multipart_filename_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "files",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=multipart_filename_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_files_combined_size",
+          "path": "tests/common/cases/v3-imported/multipart_files_combined_size.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "files",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=multipart_files_combined_size; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_files_names_block",
+          "path": "tests/common/cases/v3-imported/multipart_files_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "files",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=multipart_files_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "multipart_files_value_block",
+          "path": "tests/common/cases/v3-imported/multipart_files_value_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "files",
+            "intervention",
+            "multipart",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=multipart_files_value_block; status=pass; expected=403; actual=403"
         },
         {
           "case": "nginx_phase4_content_type_out_of_scope",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX phase-4 log-only smoke; not RESPONSE_BODY promotion"
+          "path": "tests/nginx/cases/imported/nginx_phase4_content_type_out_of_scope.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "nginx/imported",
+          "group": "imported",
+          "capabilities": [
+            "logging",
+            "pass-through",
+            "phase4",
+            "response-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=nginx_phase4_content_type_out_of_scope; status=pass; expected=200; actual=200"
         },
         {
           "case": "nginx_phase4_minimal_log_only",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX phase-4 log-only smoke; not RESPONSE_BODY promotion"
+          "path": "tests/nginx/cases/imported/nginx_phase4_minimal_log_only.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "nginx/imported",
+          "group": "imported",
+          "capabilities": [
+            "logging",
+            "pass-through",
+            "phase4",
+            "response-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=nginx_phase4_minimal_log_only; status=pass; expected=200; actual=200"
         },
         {
           "case": "nginx_phase4_safe_log_only",
-          "expected": 200,
-          "actual": 200,
-          "assessment": "PASS in current local NGINX phase-4 log-only smoke; not RESPONSE_BODY promotion"
+          "path": "tests/nginx/cases/imported/nginx_phase4_safe_log_only.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "nginx/imported",
+          "group": "imported",
+          "capabilities": [
+            "logging",
+            "pass-through",
+            "phase4",
+            "response-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=nginx_phase4_safe_log_only; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "nginx_redirect_phase1_302",
+          "path": "tests/nginx/cases/imported/nginx_redirect_phase1_302.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 302,
+          "actual_status": 302,
+          "scope": "nginx/imported",
+          "group": "imported",
+          "capabilities": [
+            "phase1",
+            "query-args",
+            "redirect"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=nginx_redirect_phase1_302; status=pass; expected=302; actual=302"
+        },
+        {
+          "case": "nginx_tx_scoring_absolute_block",
+          "path": "tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "nginx/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args",
+            "tx-collection"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=nginx_tx_scoring_absolute_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "nginx_tx_scoring_iterative_block",
+          "path": "tests/nginx/cases/imported/nginx_tx_scoring_iterative_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "nginx/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args",
+            "tx-collection"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=nginx_tx_scoring_iterative_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "phase1_header_block",
+          "path": "tests/common/cases/minimal/phase1_header_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "intervention",
+            "phase1",
+            "request-headers"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=phase1_header_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "phase2_args_block",
+          "path": "tests/common/cases/minimal/phase2_args_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=phase2_args_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "phase2_args_pass",
+          "path": "tests/common/cases/minimal/phase2_args_pass.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "pass-through",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=phase2_args_pass; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "request_body_args_post_names_block",
+          "path": "tests/common/cases/imported/request_body_args_post_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "form-urlencoded",
+            "intervention",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=request_body_args_post_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "request_body_json_block",
+          "path": "tests/common/cases/minimal/request_body_json_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=request_body_json_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "request_body_raw_text_block",
+          "path": "tests/common/cases/imported/request_body_raw_text_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=request_body_raw_text_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "request_body_urlencoded_block",
+          "path": "tests/common/cases/minimal/request_body_urlencoded_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "form-urlencoded",
+            "intervention",
+            "phase2",
+            "request-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=request_body_urlencoded_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "response_body_pass",
+          "path": "tests/common/cases/imported/response_body_pass.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "pass-through",
+            "phase4",
+            "response-body"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=response_body_pass; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "response_header_basic",
+          "path": "tests/common/cases/minimal/response_header_basic.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/minimal",
+          "group": "minimal",
+          "capabilities": [
+            "intervention",
+            "phase3",
+            "response-headers"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=response_header_basic; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_begins_with_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_begins_with_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_operator_begins_with_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_contains_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_contains_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_operator_contains_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_contains_word_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_contains_word_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_operator_contains_word_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_ends_with_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_ends_with_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_operator_ends_with_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_pm_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_pm_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_operator_pm_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_operator_streq_block",
+          "path": "tests/common/cases/v2-imported/v2_operator_streq_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_operator_streq_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_html_entity_decode_block",
+          "path": "tests/common/cases/v2-imported/v2_transformation_html_entity_decode_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "phase1",
+            "request-headers",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_transformation_html_entity_decode_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_lowercase_block",
+          "path": "tests/common/cases/v2-imported/v2_transformation_lowercase_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_transformation_lowercase_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_trim_block",
+          "path": "tests/common/cases/v2-imported/v2_transformation_trim_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_transformation_trim_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_url_decode_block",
+          "path": "tests/common/cases/v2-imported/v2_transformation_url_decode_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v2-imported",
+          "group": "v2-imported",
+          "capabilities": [
+            "intervention",
+            "phase1",
+            "request-uri",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_transformation_url_decode_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v2_transformation_url_decode_pass_no_match",
+          "path": "tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "pass-through",
+            "phase1",
+            "request-uri",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v2_transformation_url_decode_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_args_names_get_block",
+          "path": "tests/common/cases/v3-imported/v3_args_names_get_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "args-names",
+            "collections",
+            "intervention",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_args_names_get_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_args_names_get_pass_no_match",
+          "path": "tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "args-names",
+            "collections",
+            "pass-through",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_args_names_get_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_auditlog_serial_fields_block",
+          "path": "tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "audit-log",
+            "intervention",
+            "phase1",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_auditlog_serial_fields_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_operator_pm_digit_block",
+          "path": "tests/common/cases/v3-imported/v3_operator_pm_digit_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase1",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_operator_pm_digit_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_operator_rx_block",
+          "path": "tests/common/cases/v3-imported/v3_operator_rx_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "intervention",
+            "operators",
+            "phase2",
+            "query-args"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_operator_rx_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_request_cookies_block",
+          "path": "tests/common/cases/v3-imported/v3_request_cookies_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase1",
+            "request-cookies"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_request_cookies_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_request_cookies_names_block",
+          "path": "tests/common/cases/v3-imported/v3_request_cookies_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase1",
+            "request-cookies"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_request_cookies_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_request_cookies_names_pass_no_match",
+          "path": "tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "pass-through",
+            "phase1",
+            "request-cookies"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_request_cookies_names_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_request_cookies_pass_no_match",
+          "path": "tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "pass-through",
+            "phase1",
+            "request-cookies"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_request_cookies_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_request_headers_names_block",
+          "path": "tests/common/cases/v3-imported/v3_request_headers_names_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "collections",
+            "intervention",
+            "phase1",
+            "request-headers"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_request_headers_names_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_request_headers_names_pass_no_match",
+          "path": "tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common/imported",
+          "group": "imported",
+          "capabilities": [
+            "collections",
+            "pass-through",
+            "phase1",
+            "request-headers"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_request_headers_names_pass_no_match; status=pass; expected=200; actual=200"
+        },
+        {
+          "case": "v3_secaction_block",
+          "path": "tests/common/cases/v3-imported/v3_secaction_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "actions",
+            "intervention",
+            "phase2"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_secaction_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "v3_transformation_trim_block",
+          "path": "tests/common/cases/v3-imported/v3_transformation_trim_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args",
+            "transformations"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=v3_transformation_trim_block; status=pass; expected=403; actual=403"
+        },
+        {
+          "case": "xml_request_body_block",
+          "path": "tests/common/cases/v3-imported/xml_request_body_block.yaml",
+          "status": "pass",
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common/v3-imported",
+          "group": "v3-imported",
+          "capabilities": [
+            "body-processors",
+            "collections",
+            "intervention",
+            "phase2",
+            "request-body",
+            "xml"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-conector-build/results/nginx-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403"
         }
       ],
-      "details": "NGINX runtime smoke completed successfully using freshly produced source-build artifacts after the harness permission fix"
+      "details": "Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status."
     },
     {
       "command": "REFRESH=1 make smoke-all",
@@ -238,22 +1906,20 @@
         "xfail": "unknown"
       },
       "failed_cases": [],
-      "details": "Not run in this permission-fix pass; no full-smoke PASS numbers claimed"
+      "cases": [],
+      "details": "Not run by runtime-matrix; no full-smoke PASS numbers claimed."
     }
   ],
   "runtime_verified_status": [
-    "NGINX source-build smoke passed 54 runtime cases with 0 failures and 0 blocked after the harness permission fix.",
-    "The 11 cases previously classified as NGINX harness filesystem permission blocked now pass in the current local NGINX smoke run.",
-    "Apache latest available source-build summary remains 48 PASS, 0 FAIL, 0 BLOCKED; Apache connector source was not changed by this patch.",
-    "The generated metadata still separates local runtime evidence from runtime_verified=true promotion; no YAML case was promoted solely from this run.",
-    "Apache and NGINX summaries list exercised variables ARGS, ARGS_NAMES, AUDIT_LOG, FILES, REQUEST_BODY, REQUEST_COOKIES, REQUEST_HEADERS, REQUEST_URI, RESPONSE_HEADERS, and XML.",
-    "response_body_pass is pass-through evidence only; RESPONSE_BODY remains non-verified/non-promoted and no full phase-4 compatibility claim is made.",
-    "make smoke-all was not run; full-smoke PASS counts remain unknown."
+    "Runtime matrix records current local Apache and NGINX per-case smoke evidence.",
+    "PASS in this snapshot means the case was executed by that connector's smoke harness and matched the case expectation in the summary JSON.",
+    "XFAIL, pending, connector-gap, runtime-difference, future, and mapped-only inventory are not promoted by this snapshot.",
+    "RESPONSE_BODY remains non-verified/non-promoted.",
+    "make smoke-all was not run by runtime-matrix; full-smoke PASS counts remain unknown."
   ],
   "open_issues": [
-    "Optional installed-readiness remains diagnostic only and may be BLOCKED on systems without Apache/APXS/NGINX/libmodsecurity packages.",
-    "RESPONSE_BODY remains non-verified/non-promoted; response-body blocking support remains xfail/mapped until stable local full-smoke evidence exists.",
-    "XFAIL, pending, connector-gap, runtime-difference, and future/experimental YAML cases still require separate local runtime validation before promotion.",
-    "A pre-existing unrelated local diff remains under connectors/apache/src/mod_security3.c and was intentionally not staged or modified."
+    "Mapped-only import inventory entries are not executable YAML runtime cases.",
+    "XFAIL/pending/future/connector-gap/runtime-difference cases require separate evidence before any status change.",
+    "RESPONSE_BODY remains experimental/non-verified."
   ]
 }

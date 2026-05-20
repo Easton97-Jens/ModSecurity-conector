@@ -12,6 +12,8 @@ Generated file — do not edit manually.
 - runtime-difference: **13**
 - future/experimental: **16**
 - RESPONSE_BODY Cases: **19**
+- runtime-executable YAML Cases: **54**
+- mapped-only import inventory entries: **10**
 
 **RESPONSE_BODY ist nicht verified/promoted.** Diese Datei ist generiertes Reporting und keine Runtime-Evidenz.
 
@@ -80,18 +82,36 @@ Generated file — do not edit manually.
 | Response header probes | 10 |
 | Response body experimental probes | 2 |
 
+## Runtime Matrix Status
+| Connector | PASS | FAIL | BLOCKED | XFAIL | NOT EXECUTED |
+|---|---:|---:|---:|---:|---:|
+| Apache | 48 | 0 | 0 | 78 | 7 |
+| NGINX | 54 | 0 | 0 | 79 | 0 |
+
+- Apache executed runtime cases from latest summary: **48**
+- NGINX executed runtime cases from latest summary: **54**
+- Apache runtime XFAIL observations from latest summary: **0**
+- NGINX runtime XFAIL observations from latest summary: **0**
+- Apache NOT EXECUTED YAML rows: **7**
+- NGINX NOT EXECUTED YAML rows: **0**
+- mapped-only import inventory entries: **10**
+- Runtime Matrix Detail: `docs/testing/generated/runtime-matrix.generated.md`
+- Apache per-case results: `docs/testing/generated/apache-runtime-results.generated.md`
+- NGINX per-case results: `docs/testing/generated/nginx-runtime-results.generated.md`
+- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence; xfail/pending cases are not promoted.
+- RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
+
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-21** (2026-05-21 00:17:33 CEST)
-- Git: branch `master`, commit `1b2264d`
+- Snapshot: **2026-05-21** (2026-05-21 01:28:55 CEST)
+- Git: branch `master`, commit `d3b6c89`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
-- Framework command statuses are from the local shell exit codes in this permission-fix run.
-- Runtime smoke counts are from /root/.local/state/ModSecurity-conector-build/results/*-summary.json.
-- The NGINX harness stages worker-facing runtime files under /tmp/ModSecurity-conector-nginx-runtime-0 in this root-run environment, avoiding unreadable /root parent directories without global chmods or system NGINX changes.
-- A REFRESH=1 make smoke-nginx retry rebuilt NGINX artifacts but did not complete the runtime phase because prepare-nginx-build reported a post-build shell parse error; the subsequent make smoke-nginx runtime pass used those freshly produced artifacts.
-- make smoke-nginx passed all 54 active NGINX runtime cases after the harness permission fix; the 11 previously blocked expected-200 cases now returned HTTP 200.
-- response_body_pass is request/runtime pass-through evidence only; RESPONSE_BODY remains non-verified/non-promoted.
-- make smoke-all was not run in this snapshot; no full-smoke PASS count is claimed.
+- Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.
+- Per-case PASS/FAIL/BLOCKED/XFAIL values are runtime evidence for this local run only.
+- No xfail/pending YAML case is promoted by this snapshot.
+- RESPONSE_BODY remains non-verified/non-promoted, including pass-through response-body probes.
+- Mapped-only import inventory entries remain visible but are not executed runtime cases.
+- make smoke-all is not implied by separate Apache/NGINX runtime matrix runs.
 
 ## Framework Check Status
 | Command | Status | Details |
@@ -121,23 +141,20 @@ Generated file — do not edit manually.
 | Command | Status | Exit | PASS | FAIL | BLOCKED | XFAIL | Evidence |
 |---|---|---|---|---|---|---|---|
 | REFRESH=1 make smoke-apache | PASS | 0 | 48 | 0 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/apache-summary.json |
-| make smoke-nginx | PASS | 0 | 54 | 0 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/nginx-summary.json |
+| REFRESH=1 make smoke-nginx | PASS | 0 | 54 | 0 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/nginx-summary.json |
 | REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
 
 ## Runtime Verified Status
-- NGINX source-build smoke passed 54 runtime cases with 0 failures and 0 blocked after the harness permission fix.
-- The 11 cases previously classified as NGINX harness filesystem permission blocked now pass in the current local NGINX smoke run.
-- Apache latest available source-build summary remains 48 PASS, 0 FAIL, 0 BLOCKED; Apache connector source was not changed by this patch.
-- The generated metadata still separates local runtime evidence from runtime_verified=true promotion; no YAML case was promoted solely from this run.
-- Apache and NGINX summaries list exercised variables ARGS, ARGS_NAMES, AUDIT_LOG, FILES, REQUEST_BODY, REQUEST_COOKIES, REQUEST_HEADERS, REQUEST_URI, RESPONSE_HEADERS, and XML.
-- response_body_pass is pass-through evidence only; RESPONSE_BODY remains non-verified/non-promoted and no full phase-4 compatibility claim is made.
-- make smoke-all was not run; full-smoke PASS counts remain unknown.
+- Runtime matrix records current local Apache and NGINX per-case smoke evidence.
+- PASS in this snapshot means the case was executed by that connector's smoke harness and matched the case expectation in the summary JSON.
+- XFAIL, pending, connector-gap, runtime-difference, future, and mapped-only inventory are not promoted by this snapshot.
+- RESPONSE_BODY remains non-verified/non-promoted.
+- make smoke-all was not run by runtime-matrix; full-smoke PASS counts remain unknown.
 
 ## Offene Runtime-Probleme
-- Optional installed-readiness remains diagnostic only and may be BLOCKED on systems without Apache/APXS/NGINX/libmodsecurity packages.
-- RESPONSE_BODY remains non-verified/non-promoted; response-body blocking support remains xfail/mapped until stable local full-smoke evidence exists.
-- XFAIL, pending, connector-gap, runtime-difference, and future/experimental YAML cases still require separate local runtime validation before promotion.
-- A pre-existing unrelated local diff remains under connectors/apache/src/mod_security3.c and was intentionally not staged or modified.
+- Mapped-only import inventory entries are not executable YAML runtime cases.
+- XFAIL/pending/future/connector-gap/runtime-difference cases require separate evidence before any status change.
+- RESPONSE_BODY remains experimental/non-verified.
 
 ## Offene Bereiche / Gaps
 - Runtime verification pending: Cases mit `runtime_verified=false` oder `runtime_verified=unknown` sind nicht als Runtime-PASS zu lesen.
@@ -154,6 +171,7 @@ Generated file — do not edit manually.
 - `make quick-all`
 - `make cloud-quick-check`
 - `make installed-readiness`
+- `make runtime-matrix`
 - `make smoke-apache`
 - `make smoke-nginx`
 - `make smoke-all`
@@ -167,6 +185,9 @@ Generated file — do not edit manually.
 - `docs/testing/generated/xfail-summary.generated.md`
 - `docs/testing/generated/connector-gap-summary.generated.md`
 - `docs/testing/generated/phase-coverage.generated.md`
+- `docs/testing/generated/runtime-matrix.generated.md`
+- `docs/testing/generated/apache-runtime-results.generated.md`
+- `docs/testing/generated/nginx-runtime-results.generated.md`
 - `docs/testing/runtime-validation-snapshot.json`
 - `docs/testing/nginx-runtime-failure-classification.md`
 - `docs/testing/response-body-blocking-investigation.md`
