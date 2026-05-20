@@ -9,7 +9,8 @@
     "Runtime smoke counts are from /root/.local/state/ModSecurity-conector-build/results/*-summary.json.",
     "The GitHub common-structure metadata failure was fixed by quoting known_limitations Classification entries so they parse as strings.",
     "The NGINX smoke failed, so make smoke-all was not run and no full-smoke PASS count is claimed.",
-    "RESPONSE_BODY remains not verified/promoted by this snapshot."
+    "RESPONSE_BODY remains not verified/promoted by this snapshot.",
+    "Follow-up log triage classified the 11 NGINX 403 results as harness filesystem permission blocked: NGINX error.log reports generated htdocs/index.html forbidden (13: Permission denied). They are not connector-gap, runtime-difference, or bug proof."
   ],
   "framework_checks": [
     {
@@ -171,70 +172,92 @@
           "case": "phase2_args_pass",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX pass-through failure; runtime-difference candidate, not reclassified"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "action_allow_phase1_pass",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX allow/pass-through failure; runtime-difference candidate, not reclassified"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "response_body_pass",
           "expected": 200,
           "actual": 403,
-          "assessment": "RESPONSE_BODY pass-through failure; RESPONSE_BODY remains non-promoted"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification; RESPONSE_BODY remains non-verified/non-promoted",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "v2_transformation_url_decode_pass_no_match",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX transformation no-match pass-through failure; runtime-difference candidate"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "v3_args_names_get_pass_no_match",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX ARGS_NAMES no-match pass-through failure; runtime-difference candidate"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "v3_request_cookies_names_pass_no_match",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX REQUEST_COOKIES_NAMES no-match pass-through failure; runtime-difference candidate"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "v3_request_cookies_pass_no_match",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX REQUEST_COOKIES no-match pass-through failure; runtime-difference candidate"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "v3_request_headers_names_pass_no_match",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX REQUEST_HEADERS_NAMES no-match pass-through failure; runtime-difference candidate"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "nginx_phase4_content_type_out_of_scope",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "nginx_phase4_minimal_log_only",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         },
         {
           "case": "nginx_phase4_safe_log_only",
           "expected": 200,
           "actual": 403,
-          "assessment": "NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate"
+          "assessment": "BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion",
+          "classification": "nginx harness filesystem permission blocked",
+          "evidence": "NGINX error.log: generated htdocs/index.html is forbidden (13: Permission denied)"
         }
       ],
-      "details": "Fresh source-build NGINX smoke built and ran, but failed pass-through and response-body/phase4 cases"
+      "details": "Fresh source-build NGINX smoke built and ran, but 11 expected-200 cases returned 403 because the generated docroot was not readable by NGINX; connector behavior remains unclassified for those cases"
     },
     {
       "command": "REFRESH=1 make smoke-all",
@@ -255,17 +278,18 @@
   ],
   "runtime_verified_status": [
     "Apache source-build smoke passed 48 runtime cases with 0 failures.",
-    "NGINX source-build smoke executed 54 runtime cases but failed 11, so NGINX is not fully runtime-verified by this snapshot.",
-    "NGINX failures are treated as observed runtime failures/candidates for later xfail or runtime-difference classification; no pass promotion was made.",
+    "NGINX source-build smoke executed 54 runtime cases; 43 passed and 11 expected-200 cases are blocked by generated docroot permissions, so NGINX is not fully runtime-verified by this snapshot.",
+    "The 11 NGINX 403 results are classified as harness/filesystem blocked, not as connector-gap, runtime-difference, or likely bug evidence.",
+    "No pass promotion, xfail promotion, or import PASS claim was made from the blocked NGINX cases.",
     "The YAML coverage metadata still reports runtime_verified=true as 0 because no generated metadata was promoted from this local run.",
     "Apache and NGINX summaries both list exercised variables ARGS, ARGS_NAMES, AUDIT_LOG, FILES, REQUEST_BODY, REQUEST_COOKIES, REQUEST_HEADERS, REQUEST_URI, RESPONSE_HEADERS, and XML; RESPONSE_BODY is not promoted.",
     "make smoke-all was not run after the NGINX failure; full-smoke PASS counts remain unknown."
   ],
   "open_issues": [
     "Optional installed-readiness remains BLOCKED because system Apache/APXS/NGINX/libmodsecurity are not installed.",
-    "NGINX pass-through/no-match cases returned 403 instead of 200 in this local run.",
-    "NGINX phase 4 response-body/log-only cases returned 403 instead of 200 in this local run.",
-    "The NGINX failures need follow-up triage before any import-status or YAML classification change.",
+    "NGINX pass-through/no-match runtime classification is blocked by generated docroot permission denial in this local run.",
+    "NGINX phase 4 response-body/log-only runtime classification is blocked by generated docroot permission denial and missing/empty phase4.log in this local run.",
+    "The blocked NGINX cases need rerun with an NGINX-readable BUILD_ROOT or harness permission fix before any PASS, xfail, connector-gap, runtime-difference, or bug classification.",
     "RESPONSE_BODY remains non-verified/non-promoted.",
     "XFAIL, pending, connector-gap, runtime-difference, and future/experimental YAML cases still require separate local runtime validation before promotion."
   ]

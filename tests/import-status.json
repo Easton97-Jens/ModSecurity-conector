@@ -1,10 +1,6 @@
 {
   "fully_imported_common": [
     {
-      "case": "tests/common/cases/imported/action_allow_phase1_pass.yaml",
-      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
-    },
-    {
       "case": "tests/common/cases/imported/action_deny_phase1.yaml",
       "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
     },
@@ -39,10 +35,6 @@
     {
       "case": "tests/common/cases/imported/multipart_basic_block.yaml",
       "reason": "Simple multipart text field is portable; parser edge cases remain mapped."
-    },
-    {
-      "case": "tests/common/cases/imported/response_body_pass.yaml",
-      "reason": "Response-body access pass-through is portable; response-body blocking remains xfail/mapped."
     },
     {
       "case": "tests/common/cases/v2-imported/v2_operator_streq_block.yaml",
@@ -143,26 +135,6 @@
     {
       "case": "tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
       "reason": "V3-derived serial audit log field case observed PASS on Apache and NGINX."
-    },
-    {
-      "case": "tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml",
-      "reason": "V3-derived REQUEST_COOKIES no-match pass-through observed PASS on Apache and NGINX. Runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
-    },
-    {
-      "case": "tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml",
-      "reason": "V3-derived REQUEST_HEADERS_NAMES no-match pass-through observed PASS on Apache and NGINX using a stable custom header. Runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
-    },
-    {
-      "case": "tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml",
-      "reason": "V3-derived REQUEST_COOKIES_NAMES no-match pass-through coverage is source-derived; runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
-    },
-    {
-      "case": "tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml",
-      "reason": "V3-derived ARGS_NAMES GET no-match pass-through coverage is source-derived; runtime verification requires smoke prerequisites (ModSecurity v3 source/build environment)."
-    },
-    {
-      "case": "tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml",
-      "reason": "V2-derived urlDecode no-match pass-through coverage is source-derived; runtime verification requires smoke prerequisites (ModSecurity v2/v3 compatible smoke environment)."
     }
   ],
   "connector_specific": [
@@ -177,18 +149,74 @@
     {
       "case": "tests/nginx/cases/imported/nginx_tx_scoring_iterative_block.yaml",
       "reason": "NGINX TX scoring import is not yet proven against Apache."
+    }
+  ],
+  "runtime_blocked": [
+    {
+      "case": "tests/common/cases/minimal/phase2_args_pass.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Latest local NGINX source-build smoke returned HTTP 403 because NGINX could not read the generated docroot index.html (error.log: htdocs/index.html is forbidden (13: Permission denied)). Apache passed the corresponding case. This blocks NGINX runtime classification; rerun with an NGINX-readable BUILD_ROOT/harness before classifying as PASS, xfail, connector-gap, or runtime-difference."
     },
     {
-      "case": "tests/nginx/cases/imported/nginx_phase4_minimal_log_only.yaml",
-      "reason": "NGINX PR #377 minimal phase-4 mode observed 3/3 PASS on NGINX with HTTP 200 pass-through and phase4 log_only/mode_minimal evidence; NGINX-specific and not a RESPONSE_BODY promotion."
+      "case": "tests/common/cases/imported/action_allow_phase1_pass.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Apache passed. Latest local NGINX smoke logged the allow rule and then returned HTTP 403 because NGINX could not read the generated docroot index.html (permission denied). This is harness/filesystem blocked, not connector-gap or runtime-difference evidence."
     },
     {
-      "case": "tests/nginx/cases/imported/nginx_phase4_safe_log_only.yaml",
-      "reason": "NGINX PR #377 safe phase-4 mode observed 3/3 PASS on NGINX with HTTP 200 pass-through and phase4 log_only/mode_safe evidence; NGINX-specific and not a RESPONSE_BODY promotion."
+      "case": "tests/common/cases/imported/response_body_pass.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Apache passed. Latest local NGINX smoke returned HTTP 403 before response-body pass-through could be classified because NGINX could not read the generated docroot index.html (permission denied). RESPONSE_BODY remains non-verified/non-promoted."
+    },
+    {
+      "case": "tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Apache passed. Latest local NGINX no-match pass-through run returned HTTP 403 from generated docroot permission denial. Needs rerun with an NGINX-readable BUILD_ROOT/harness before classifying connector behavior."
+    },
+    {
+      "case": "tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Apache passed. Latest local NGINX ARGS_NAMES no-match pass-through run returned HTTP 403 from generated docroot permission denial. Needs rerun with an NGINX-readable BUILD_ROOT/harness before connector classification."
+    },
+    {
+      "case": "tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Apache passed. Latest local NGINX REQUEST_COOKIES_NAMES no-match pass-through run returned HTTP 403 from generated docroot permission denial. Needs rerun with an NGINX-readable BUILD_ROOT/harness before connector classification."
+    },
+    {
+      "case": "tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Apache passed. Latest local NGINX REQUEST_COOKIES no-match pass-through run returned HTTP 403 from generated docroot permission denial. Needs rerun with an NGINX-readable BUILD_ROOT/harness before connector classification."
+    },
+    {
+      "case": "tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Apache passed. Latest local NGINX REQUEST_HEADERS_NAMES no-match pass-through run returned HTTP 403 from generated docroot permission denial. Needs rerun with an NGINX-readable BUILD_ROOT/harness before connector classification."
     },
     {
       "case": "tests/nginx/cases/imported/nginx_phase4_content_type_out_of_scope.yaml",
-      "reason": "NGINX PR #377 content-type out-of-scope behavior observed 3/3 PASS on NGINX with HTTP 200 pass-through and content_type_not_in_scope evidence; NGINX-specific and not a RESPONSE_BODY promotion."
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Latest local NGINX phase-4 log-only run returned HTTP 403 from generated docroot permission denial and phase4.log was missing/empty. This blocks phase-4 classification; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion."
+    },
+    {
+      "case": "tests/nginx/cases/imported/nginx_phase4_minimal_log_only.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Latest local NGINX phase-4 minimal log-only run returned HTTP 403 from generated docroot permission denial and phase4.log was missing/empty. This blocks phase-4 classification; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion."
+    },
+    {
+      "case": "tests/nginx/cases/imported/nginx_phase4_safe_log_only.yaml",
+      "source": "latest-nginx-smoke",
+      "classification": "nginx harness filesystem permission blocked",
+      "reason": "Latest local NGINX phase-4 safe log-only run returned HTTP 403 from generated docroot permission denial and phase4.log was missing/empty. This blocks phase-4 classification; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion."
     }
   ],
   "mapped_only": [

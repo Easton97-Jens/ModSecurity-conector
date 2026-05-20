@@ -33,12 +33,13 @@ The active V2/V3 imports are common connector tests, not copied upstream tests.
 Each YAML includes provenance metadata and is executed through the same Apache
 and NGINX harnesses as other common cases.
 
-Observed locally on 2026-05-15:
+Observed locally on 2026-05-15, then refined by the 2026-05-20 runtime-log
+classification:
 
 | Source family | Imported active cases | Apache | NGINX |
 | --- | ---: | --- | --- |
-| V2 operators/transformations | 10 | pass | pass |
-| V3 multipart FILES/XML/operator/action/collections/audit | 14 | pass | pass |
+| V2 operators/transformations | 10 | pass | pass for blocking branches; latest `urlDecode` no-match pass-through is runtime-blocked by docroot permissions |
+| V3 multipart FILES/XML/operator/action/collections/audit | 14 | pass | pass for blocking branches; latest no-match pass-through subset is runtime-blocked by docroot permissions |
 
 The second compatibility import wave intentionally used source-confirmed
 values from the V2/V3 fixtures. For example, `urlDecode` uses `Test+Case` ->
@@ -48,6 +49,24 @@ with input `abc def ghi`, and V3 `pm` uses `@pm 1 2 3` with `param1=123`.
 The V3 `issue-2196` `nolog,pass` case is no longer counted as an active
 common import because GitHub Actions observed audit-log output while local
 Apache and NGINX runs observed empty audit logs.
+
+## Latest NGINX No-Match Classification (2026-05-20)
+
+The latest local NGINX source-built smoke returned HTTP 403 for the V2/V3
+no-match pass-through cases listed below, but the NGINX `error.log` reports the
+generated `htdocs/index.html` as forbidden with `Permission denied`. The cases
+are therefore runtime-blocked by the harness/filesystem and are not classified
+as connector gaps, runtime differences, likely bugs, or PASS evidence:
+
+- `v2_transformation_url_decode_pass_no_match`
+- `v3_args_names_get_pass_no_match`
+- `v3_request_cookies_names_pass_no_match`
+- `v3_request_cookies_pass_no_match`
+- `v3_request_headers_names_pass_no_match`
+
+Apache passed the corresponding cases. Rerun NGINX with an NGINX-readable
+`BUILD_ROOT` or a harness permission fix before promoting or reclassifying
+these cases.
 
 ## Mapped Only
 

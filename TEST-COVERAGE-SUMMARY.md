@@ -21,6 +21,7 @@ Generated file — do not edit manually.
 - NGINX-specific Cases: **7**
 - xfail Cases: **79**
 - mapped-only import inventory entries: **10** (nicht als runnable YAML Cases gezählt)
+- runtime-blocked import inventory entries: **11** (belegte Harness-/Umgebungsblocker, keine PASS- oder XFAIL-Promotion)
 - pending/future compatibility Cases: **16** future/experimental; **133** nicht runtime-verified
 
 ## Statusklassen
@@ -89,6 +90,7 @@ Generated file — do not edit manually.
 - The GitHub common-structure metadata failure was fixed by quoting known_limitations Classification entries so they parse as strings.
 - The NGINX smoke failed, so make smoke-all was not run and no full-smoke PASS count is claimed.
 - RESPONSE_BODY remains not verified/promoted by this snapshot.
+- Follow-up log triage classified the 11 NGINX 403 results as harness filesystem permission blocked: NGINX error.log reports generated htdocs/index.html forbidden (13: Permission denied). They are not connector-gap, runtime-difference, or bug proof.
 
 ## Framework Check Status
 | Command | Status | Details |
@@ -127,31 +129,32 @@ Generated file — do not edit manually.
 ## Runtime FAIL Details
 | Connector | Case | Expected | Actual | Assessment |
 |---|---|---|---|---|
-| nginx | phase2_args_pass | 200 | 403 | NGINX pass-through failure; runtime-difference candidate, not reclassified |
-| nginx | action_allow_phase1_pass | 200 | 403 | NGINX allow/pass-through failure; runtime-difference candidate, not reclassified |
-| nginx | response_body_pass | 200 | 403 | RESPONSE_BODY pass-through failure; RESPONSE_BODY remains non-promoted |
-| nginx | v2_transformation_url_decode_pass_no_match | 200 | 403 | NGINX transformation no-match pass-through failure; runtime-difference candidate |
-| nginx | v3_args_names_get_pass_no_match | 200 | 403 | NGINX ARGS_NAMES no-match pass-through failure; runtime-difference candidate |
-| nginx | v3_request_cookies_names_pass_no_match | 200 | 403 | NGINX REQUEST_COOKIES_NAMES no-match pass-through failure; runtime-difference candidate |
-| nginx | v3_request_cookies_pass_no_match | 200 | 403 | NGINX REQUEST_COOKIES no-match pass-through failure; runtime-difference candidate |
-| nginx | v3_request_headers_names_pass_no_match | 200 | 403 | NGINX REQUEST_HEADERS_NAMES no-match pass-through failure; runtime-difference candidate |
-| nginx | nginx_phase4_content_type_out_of_scope | 200 | 403 | NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate |
-| nginx | nginx_phase4_minimal_log_only | 200 | 403 | NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate |
-| nginx | nginx_phase4_safe_log_only | 200 | 403 | NGINX phase 4 response-body/log-only failure; connector-gap/runtime-difference candidate |
+| nginx | phase2_args_pass | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
+| nginx | action_allow_phase1_pass | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
+| nginx | response_body_pass | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification; RESPONSE_BODY remains non-verified/non-promoted |
+| nginx | v2_transformation_url_decode_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
+| nginx | v3_args_names_get_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
+| nginx | v3_request_cookies_names_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
+| nginx | v3_request_cookies_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
+| nginx | v3_request_headers_names_pass_no_match | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied while serving generated htdocs/index.html; rerun with an NGINX-readable BUILD_ROOT/harness before connector classification |
+| nginx | nginx_phase4_content_type_out_of_scope | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion |
+| nginx | nginx_phase4_minimal_log_only | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion |
+| nginx | nginx_phase4_safe_log_only | 200 | 403 | BLOCKED: NGINX harness filesystem permission denied before phase-4 log-only behavior could be classified; phase4.log missing/empty; not connector-gap/runtime-difference proof and not RESPONSE_BODY promotion |
 
 ## Runtime Verified Status
 - Apache source-build smoke passed 48 runtime cases with 0 failures.
-- NGINX source-build smoke executed 54 runtime cases but failed 11, so NGINX is not fully runtime-verified by this snapshot.
-- NGINX failures are treated as observed runtime failures/candidates for later xfail or runtime-difference classification; no pass promotion was made.
+- NGINX source-build smoke executed 54 runtime cases; 43 passed and 11 expected-200 cases are blocked by generated docroot permissions, so NGINX is not fully runtime-verified by this snapshot.
+- The 11 NGINX 403 results are classified as harness/filesystem blocked, not as connector-gap, runtime-difference, or likely bug evidence.
+- No pass promotion, xfail promotion, or import PASS claim was made from the blocked NGINX cases.
 - The YAML coverage metadata still reports runtime_verified=true as 0 because no generated metadata was promoted from this local run.
 - Apache and NGINX summaries both list exercised variables ARGS, ARGS_NAMES, AUDIT_LOG, FILES, REQUEST_BODY, REQUEST_COOKIES, REQUEST_HEADERS, REQUEST_URI, RESPONSE_HEADERS, and XML; RESPONSE_BODY is not promoted.
 - make smoke-all was not run after the NGINX failure; full-smoke PASS counts remain unknown.
 
 ## Offene Runtime-Probleme
 - Optional installed-readiness remains BLOCKED because system Apache/APXS/NGINX/libmodsecurity are not installed.
-- NGINX pass-through/no-match cases returned 403 instead of 200 in this local run.
-- NGINX phase 4 response-body/log-only cases returned 403 instead of 200 in this local run.
-- The NGINX failures need follow-up triage before any import-status or YAML classification change.
+- NGINX pass-through/no-match runtime classification is blocked by generated docroot permission denial in this local run.
+- NGINX phase 4 response-body/log-only runtime classification is blocked by generated docroot permission denial and missing/empty phase4.log in this local run.
+- The blocked NGINX cases need rerun with an NGINX-readable BUILD_ROOT or harness permission fix before any PASS, xfail, connector-gap, runtime-difference, or bug classification.
 - RESPONSE_BODY remains non-verified/non-promoted.
 - XFAIL, pending, connector-gap, runtime-difference, and future/experimental YAML cases still require separate local runtime validation before promotion.
 
@@ -160,6 +163,7 @@ Generated file — do not edit manually.
 - RESPONSE_BODY non-verified: RESPONSE_BODY bleibt nicht promoted, auch wenn Reporting Cases erfasst.
 - GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.
 - XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.
+- Runtime-blocked Import-Einträge sind belegte Harness-/Umgebungsblocker und keine Connector-Gap- oder Runtime-Difference-Promotion.
 - `installed-readiness` ist Komponenten-Erkennung/Readiness, keine Runtime-Ausführung.
 - Es gibt keinen separaten Artefakt-Reuse-Smoke-Pfad; Runtime-Validierung erfolgt per frischem Source-Build.
 - `make smoke-all` bleibt die autoritative Quelle für echte Runtime-PASS-Zahlen.
@@ -183,6 +187,7 @@ Generated file — do not edit manually.
 - `docs/testing/generated/connector-gap-summary.generated.md`
 - `docs/testing/generated/phase-coverage.generated.md`
 - `docs/testing/runtime-validation-snapshot.json`
+- `docs/testing/nginx-runtime-failure-classification.md`
 - `docs/testing/response-body-blocking-investigation.md`
 - `docs/testing/compatibility.md`
 

@@ -13,8 +13,8 @@ architecture for new connectors.
 | --- | --- | --- |
 | Common headers | implemented | Connector-neutral C-compatible data shapes only |
 | libmodsecurity v3 API mapping | planned | Public API sequence documented, not wrapped |
-| Apache connector | scaffolded | Local source-built PoC observed expected HTTP behavior for all current shared minimal cases |
-| NGINX connector | scaffolded | Local source-built PoC observed expected HTTP behavior for all current shared minimal cases |
+| Apache connector | scaffolded | Latest local source-built smoke passed 48/48 active runtime cases |
+| NGINX connector | scaffolded | Latest local source-built smoke passed 43/54 active runtime cases; 11 expected-200 cases are blocked by generated docroot permissions, not yet connector-classified |
 | Apache real-world connector path | implemented | Smoke summaries record source-built httpd, `mod_security3.so`, libmodsecurity, and verified variables |
 | NGINX real-world connector path | implemented | Smoke summaries record source-built NGINX, dynamic module, libmodsecurity, and verified variables |
 | HAProxy connector | unknown | SPOE/Lua/native options documented, implementation undecided |
@@ -22,8 +22,8 @@ architecture for new connectors.
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
 | Traefik connector | unknown | Yaegi/Wasm plugin options documented, implementation undecided |
 | v2 regression reuse | planned | Only portable rule/engine semantics may enter `tests/common/` |
-| v2-derived common imports | implemented | Operator and transformation cases including `@streq`, `@contains`, `@beginsWith`, `@endsWith`, `@pm`, `@containsWord`, `t:lowercase`, `t:trim`, `t:urlDecode`, and `t:htmlEntityDecode` pass locally on Apache and NGINX |
-| v3-derived common imports | implemented | Multipart FILES, XML body processor, operator, transformation, action, cookie/header-name/ARGS_NAMES, and stable audit cases pass locally on Apache and NGINX |
+| v2-derived common imports | implemented | Blocking operator/transformation cases pass locally on Apache and NGINX; latest NGINX `t:urlDecode` no-match pass-through classification is blocked by docroot permissions |
+| v3-derived common imports | implemented | Blocking multipart/FILES/XML/operator/action/collection/audit cases pass locally on Apache and NGINX; latest NGINX no-match pass-through classification for cookies/header names/ARGS_NAMES is blocked by docroot permissions |
 | Source-derived Apache/NGINX test import | implemented | Imported YAML cases are derived, not copied; origin and portability are documented |
 
 ## Capability Rule
@@ -45,7 +45,7 @@ Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`:
 | `audit_log_phase1_block.yaml` | query args, phase 1, audit log | pass, HTTP 403 plus audit fields | pass, HTTP 403 plus audit fields |
 | `phase1_header_block.yaml` | request headers, phase 1 | pass, HTTP 403 | pass, HTTP 403 |
 | `phase2_args_block.yaml` | query args, phase 2 | pass, HTTP 403 | pass, HTTP 403 |
-| `phase2_args_pass.yaml` | query args, phase 2, pass-through | pass, HTTP 200 plus origin body | pass, HTTP 200 plus origin body |
+| `phase2_args_pass.yaml` | query args, phase 2, pass-through | pass, HTTP 200 plus origin body | blocked in latest run: HTTP 403 from generated docroot permission denial |
 | `request_body_json_block.yaml` | request body, JSON content type, raw body match | pass, HTTP 403 | pass, HTTP 403 |
 | `request_body_urlencoded_block.yaml` | form body, `ARGS_POST` | pass, HTTP 403 | pass, HTTP 403 |
 | `response_header_basic.yaml` | response headers, phase 3 | pass, HTTP 403 | pass, HTTP 403 |
@@ -69,11 +69,12 @@ Mapped-only categories include HTTP/2, proxy, multipart parser edge cases,
 response-body blocking, external-file operators, debug logs, and connector
 config inheritance.
 
-Observed locally on 2026-05-15, the current imported common cases all passed on
-Apache and NGINX through `make smoke-all`; the NGINX-specific imported cases
-passed only on NGINX and remain `portable: false`. Phase 10 added three
-NGINX-only PR #377 phase-4 log/pass-through probes after 3/3 targeted NGINX
-PASS runs; those are connector-specific evidence, not common compatibility.
+Earlier local runs imported common cases after Apache and NGINX evidence, but
+the latest local source-built NGINX smoke needs a narrower classification: 11
+expected-200 pass-through/phase-4 cases returned 403 because NGINX could not
+read the generated `htdocs/index.html` under the active local build root. Those
+cases are listed in `docs/testing/nginx-runtime-failure-classification.md` as
+runtime-blocked harness evidence, not connector-gap/runtime-difference proof.
 
 ## Body And Filter Compatibility
 
@@ -81,10 +82,10 @@ PASS runs; those are connector-specific evidence, not common compatibility.
 | --- | --- | --- | --- |
 | `json_request_body_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| `response_body_pass.yaml` | pass, HTTP 200 | pass, HTTP 200 | fully-imported-common |
+| `response_body_pass.yaml` | pass, HTTP 200 | blocked in latest run: HTTP 403 from generated docroot permission denial | runtime-blocked; RESPONSE_BODY non-promoted |
 | `response_body_basic_block` | fail, HTTP 200 | fail, HTTP 200 | xfail/mapped-only |
-| PR #377 minimal/safe phase-4 log-only probes | n/a | pass, HTTP 200 plus phase4 log evidence | NGINX connector-specific |
-| PR #377 content-type out-of-scope phase-4 probe | n/a | pass, HTTP 200 plus phase4 log evidence | NGINX connector-specific |
+| PR #377 minimal/safe phase-4 log-only probes | n/a | blocked in latest run: HTTP 403 from generated docroot permission denial; `phase4.log` missing/empty | runtime-blocked; NGINX behavior unclassified |
+| PR #377 content-type out-of-scope phase-4 probe | n/a | blocked in latest run: HTTP 403 from generated docroot permission denial; `phase4.log` missing/empty | runtime-blocked; NGINX behavior unclassified |
 
 The response-body block row is intentionally not an active smoke. The NGINX
 reference test marks the behavior TODO, and ModSecurity-nginx PR #377 source
@@ -99,11 +100,11 @@ Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`:
 | Case group | Apache | NGINX | Status |
 | --- | --- | --- | --- |
 | V2 operator semantics (`@streq`, `@contains`, `@beginsWith`, `@endsWith`, `@pm`, `@containsWord`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| V2 transformation semantics (`t:lowercase`, `t:trim`, `t:urlDecode`, `t:htmlEntityDecode`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
+| V2 transformation semantics (`t:lowercase`, `t:trim`, `t:urlDecode`, `t:htmlEntityDecode`) | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common for blocking branches; `t:urlDecode` no-match pass-through is runtime-blocked in latest NGINX run |
 | V3 multipart FILES variables | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 XML body processor basic case | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 `@rx`, trim, and `SecAction` basics | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| V3 `@pm`, cookies, header names, ARGS_NAMES, and serial audit basics | pass | pass | fully-imported-common |
+| V3 `@pm`, cookies, header names, ARGS_NAMES, and serial audit basics | pass | pass for blocking branches; no-match pass-through subset is runtime-blocked in latest NGINX run | mixed: blocking branches fully imported, no-match pass-through requires NGINX rerun |
 | V3 `nolog,pass` audit absence (`issue-2196`) | pass locally, empty audit log | pass locally, empty audit log | xfail because GitHub Actions observed a non-empty audit log |
 
 The active cases prove only the minimal YAML scenarios. V2 Perl harness
@@ -128,9 +129,25 @@ runtime.
 
 Current active passing cases verify `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
 `REQUEST_HEADERS`, `REQUEST_URI`, `REQUEST_BODY`, `FILES`, `XML`, `AUDIT_LOG`,
-and `RESPONSE_HEADERS` through both Apache and NGINX in this workspace.
-`RESPONSE_BODY` remains mapped/xfail until an active response-body
-variable/blocking case passes on both connectors.
+and `RESPONSE_HEADERS` through both Apache and the passing subset of the NGINX
+runtime in this workspace. The latest NGINX expected-200 pass-through subset is
+blocked by generated docroot permissions and must be rerun before it can verify
+connector behavior. `RESPONSE_BODY` remains mapped/xfail until an active
+response-body variable/blocking case passes on both connectors.
+
+## Latest NGINX Runtime Classification (2026-05-20)
+
+`REFRESH=1 make smoke-nginx` ran 54 active cases: 43 PASS, 11 FAIL, 0 BLOCKED.
+All 11 failures expected HTTP 200 and observed HTTP 403. The case-level NGINX
+`error.log` entries report generated `htdocs/index.html` as forbidden with
+`Permission denied`; phase-4 cases also lacked the expected `phase4.log`
+evidence.
+
+These 11 cases are therefore classified as **runtime-blocked by the NGINX
+harness/filesystem**, not as connector-gap, runtime-difference, or likely-bug
+evidence. See `docs/testing/nginx-runtime-failure-classification.md` for the
+per-case table. No PASS promotion, XFAIL promotion, or RESPONSE_BODY promotion
+is made from this run.
 
 `v3_action_nolog_pass_no_audit` is also classified as xfail/mapped for now:
 local runs in this workspace produced HTTP 200 and empty audit logs, but the

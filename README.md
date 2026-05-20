@@ -232,14 +232,16 @@ Current shared minimal cases:
 | `audit_log_phase1_block.yaml` | Apache logging actions and NGINX serial audit-log tests | pass, HTTP 403, audit fields | pass, HTTP 403, audit fields |
 | `phase1_header_block.yaml` | Apache request-header/JSON gating and NGINX phase-1 block tests | pass, HTTP 403 | pass, HTTP 403 |
 | `phase2_args_block.yaml` | Apache `00-basics.t` and NGINX `modsecurity.t` ARGS phase-2 tests | pass, HTTP 403 | pass, HTTP 403 |
-| `phase2_args_pass.yaml` | Apache non-matching ARGS rule and NGINX "nothing to detect" tests | pass, HTTP 200, origin body | pass, HTTP 200, origin body |
+| `phase2_args_pass.yaml` | Apache non-matching ARGS rule and NGINX "nothing to detect" tests | pass, HTTP 200, origin body | blocked in latest run: HTTP 403 from generated docroot permission denial |
 | `request_body_json_block.yaml` | Apache JSON/body handling and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
 | `request_body_urlencoded_block.yaml` | Apache `ARGS_POST` and NGINX request-body/ARGS_POST tests | pass, HTTP 403 | pass, HTTP 403 |
 | `response_header_basic.yaml` | Apache phase tests and NGINX header-filter path | pass, HTTP 403 | pass, HTTP 403 |
 
-These pass observations were made locally on 2026-05-15 with an explicit
-external `BUILD_ROOT`. Other environments must run the same targets before
-claiming pass there.
+The original pass observations were made locally on 2026-05-15 with an
+explicit external `BUILD_ROOT`. The latest 2026-05-20 NGINX source-built run
+blocked expected-200 pass-through cases when NGINX could not read the generated
+docroot. Other environments must run the same targets before claiming pass
+there.
 
 Useful maintenance commands:
 
@@ -280,10 +282,12 @@ previous pass are:
 | --- | --- | --- | --- |
 | `json_request_body_block.yaml` | Apache JSON/body coverage and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
 | `multipart_basic_block.yaml` | Apache multipart parser and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
-| `response_body_pass.yaml` | Apache response directives and NGINX response-body access tests | pass, HTTP 200 | pass, HTTP 200 |
+| `response_body_pass.yaml` | Apache response directives and NGINX response-body access tests | pass, HTTP 200 | blocked in latest run: HTTP 403 from generated docroot permission denial |
 
-`response_body_basic_block` remains mapped/xfail until both connectors return
-stable HTTP 403 for the same YAML case.
+`response_body_pass.yaml` is not RESPONSE_BODY promotion in the latest snapshot:
+NGINX did not reach the origin body because of the generated docroot permission
+block. `response_body_basic_block` remains mapped/xfail until both connectors
+return stable HTTP 403 for the same YAML case.
 
 Observed locally on 2026-05-15, targeted `make smoke-common` runs also reported
 these V2/V3-derived active cases as `PASS` on both Apache and NGINX:

@@ -58,6 +58,7 @@ ROOT_DETAIL_DOCS = [
     "docs/testing/generated/connector-gap-summary.generated.md",
     "docs/testing/generated/phase-coverage.generated.md",
     "docs/testing/runtime-validation-snapshot.json",
+    "docs/testing/nginx-runtime-failure-classification.md",
     "docs/testing/response-body-blocking-investigation.md",
     "docs/testing/compatibility.md",
 ]
@@ -243,7 +244,7 @@ def render_gap_summary(cases: list[dict], import_status: dict) -> str:
         tags = set(case["tags"])
         if {"connector-gap", "runtime-difference"}.intersection(tags) or case["status"] in {"connector-gap", "runtime-difference"}:
             rows.append(f"| {case['id']} | `{case['path']}` | {case['status']} | {', '.join(case['tags']) or '-'} | {', '.join(case['variables']) or '-'} | {case['source']} | {case['notes']} |")
-    for key in ["connector_specific", "mapped_only", "blocked", "xfail"]:
+    for key in ["connector_specific", "runtime_blocked", "mapped_only", "blocked", "xfail"]:
         for item in import_status.get(key, []):
             if isinstance(item, dict):
                 rows.append(f"| {item.get('case') or item.get('source') or 'unknown'} | `tests/import-status.json` | {key} | - | - | {item.get('source', 'unknown')} | {item.get('reason', '')} |")
@@ -467,6 +468,7 @@ def render_root_summary(
     metrics = root_summary_metrics(cases, by_status, by_runtime)
     collection_counts = normalized_collection_counts(cases)
     mapped_only_count = len(import_status.get("mapped_only", []))
+    runtime_blocked_count = len(import_status.get("runtime_blocked", []))
     topics = topic_counts(cases)
 
     lines = [
@@ -491,6 +493,7 @@ def render_root_summary(
         f"- NGINX-specific Cases: **{by_scope.get('nginx', 0)}**",
         f"- xfail Cases: **{metrics['xfail']}**",
         f"- mapped-only import inventory entries: **{mapped_only_count}** (nicht als runnable YAML Cases gezählt)",
+        f"- runtime-blocked import inventory entries: **{runtime_blocked_count}** (belegte Harness-/Umgebungsblocker, keine PASS- oder XFAIL-Promotion)",
         f"- pending/future compatibility Cases: **{metrics['future_experimental']}** future/experimental; "
         f"**{metrics['pending_false'] + metrics['pending_unknown']}** nicht runtime-verified",
         "",
@@ -516,6 +519,7 @@ def render_root_summary(
             "- RESPONSE_BODY non-verified: RESPONSE_BODY bleibt nicht promoted, auch wenn Reporting Cases erfasst.",
             "- GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.",
             "- XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.",
+            "- Runtime-blocked Import-Einträge sind belegte Harness-/Umgebungsblocker und keine Connector-Gap- oder Runtime-Difference-Promotion.",
             "- `installed-readiness` ist Komponenten-Erkennung/Readiness, keine Runtime-Ausführung.",
             "- Es gibt keinen separaten Artefakt-Reuse-Smoke-Pfad; Runtime-Validierung erfolgt per frischem Source-Build.",
             "- `make smoke-all` bleibt die autoritative Quelle für echte Runtime-PASS-Zahlen.",

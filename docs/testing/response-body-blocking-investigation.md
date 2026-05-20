@@ -102,8 +102,10 @@ It is not promoted to:
 - `tests/nginx/cases/imported/`
 
 `RESPONSE_BODY` remains excluded from `verified_variables`. Active
-`response_body_pass.yaml` continues to prove only pass-through behavior with
-response-body access enabled; it does not prove response-body blocking.
+`response_body_pass.yaml` is only a pass-through probe with response-body access
+enabled; it does not prove response-body blocking. In the latest NGINX runtime
+snapshot, even that pass-through classification is blocked by generated docroot
+permissions and must be rerun before claiming NGINX pass-through evidence.
 
 ## Next Steps
 

@@ -126,7 +126,9 @@ not a response-body promotion. The dedicated local probe in
 `tests/common/cases/xfail/response_body_basic_block.yaml` ran three repeats:
 Apache and NGINX both returned HTTP 200 instead of stable HTTP 403. The source
 rows remain `xfail`/`mapped-only`, while `response_body_pass.yaml` remains a
-pass-through smoke only.
+pass-through smoke only. In the latest 2026-05-20 NGINX run that pass-through
+classification is blocked by generated docroot permissions and is not
+RESPONSE_BODY promotion.
 
 `multipart_basic_block.yaml` covers a simple multipart text field visible
 through `ARGS:name`. V3-derived FILES, FILES_NAMES, FILES_COMBINED_SIZE, and
@@ -157,11 +159,14 @@ context, httpd config inheritance, or Apache-specific runtime setup, so they
 are mapped rather than ported.
 
 Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`,
-`make smoke-all` reported all three original NGINX-specific imported cases as
-`PASS` on NGINX. The PR #377
-phase-4 evidence probes were later observed 3/3 PASS individually on NGINX
-before import; strict/invalid-config/large-response response-body branches
-remain xfail or mapped-only in `docs/testing/pr377-test-import-map.md`.
+`make smoke-all` reported the original NGINX-specific imported cases as `PASS`
+on NGINX. The latest 2026-05-20 NGINX source-built run supersedes the phase-4
+probe classification for now: the PR #377 expected-200 phase-4 probes returned
+HTTP 403 because NGINX could not read the generated docroot, and `phase4.log`
+was missing/empty. They are runtime-blocked harness evidence until rerun with
+an NGINX-readable `BUILD_ROOT`; strict/invalid-config/large-response
+response-body branches remain xfail or mapped-only in
+`docs/testing/pr377-test-import-map.md`.
 
 ## Smoke Scopes
 
@@ -188,7 +193,7 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 | streaming-buffering | todo | No streaming assertions or chunk control yet |
 | response-body | todo | Connector filter ordering needs explicit support |
 | response-body blocking | xfail | NGINX upstream marks block behavior TODO and local probing did not yield stable HTTP 403 |
-| response-body pass-through | imported | `response_body_pass.yaml` verifies no regression when response-body access is enabled |
+| response-body pass-through | runtime-blocked in latest NGINX run | `response_body_pass.yaml` needs rerun with an NGINX-readable `BUILD_ROOT`; latest NGINX 403 came from generated docroot permission denial |
 | multipart basic text field | imported | `multipart_basic_block.yaml` covers simple portable multipart parsing |
 | multipart file collections | imported | FILES, FILES_NAMES, FILES_COMBINED_SIZE, and MULTIPART_FILENAME have active common smoke coverage; FILES_TMPNAMES remains mapped |
 | XML | imported | Tiny XML body processor case is active common coverage; schema/DTD/parser-error cases remain mapped |
@@ -204,8 +209,15 @@ Added source-derived portable negative/pass-through cases without changing conne
 - `tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_COOKIES_NAMES.json`)
 - `tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-ARGS_NAMES.json`)
 - `tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml` (source: `ModSecurity_V2` `tests/tfn/urlDecode.t`)
+- `tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_COOKIES.json`)
+- `tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_HEADERS_NAMES.json`)
 
-These cases are intentionally pass-through (`expect.status: 200`) and serve as negative-branch evidence for REQUEST_COOKIES/REQUEST_COOKIES_NAMES, ARGS_NAMES, and REQUEST_URI+t:urlDecode coverage. They are source-derived only until full runtime smoke prerequisites are available.
+These cases are intentionally pass-through (`expect.status: 200`) and serve as
+negative-branch evidence for REQUEST_COOKIES/REQUEST_COOKIES_NAMES,
+REQUEST_HEADERS_NAMES, ARGS_NAMES, and REQUEST_URI+t:urlDecode coverage. Apache
+passed them in the latest source-built run, but NGINX returned HTTP 403 because
+the generated docroot was not readable. They remain runtime-blocked until rerun
+with an NGINX-readable `BUILD_ROOT` or harness permission fix.
 
 ## Compatibility Expansion Wave (2026-05-19, pending/xfail)
 
