@@ -54,7 +54,7 @@ By default the harness iterates every `*.yaml` file in:
 ```text
 modules/ModSecurity-test-Framework/tests/cases/
 modules/ModSecurity-test-Framework/tests/cases/
-modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/imported/
+modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/
 ```
 
 To run a subset:

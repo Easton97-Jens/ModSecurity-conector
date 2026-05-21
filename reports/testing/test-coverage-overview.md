@@ -23,10 +23,10 @@ Generated file — do not edit manually.
 | `REQUEST_URI` | 7 |
 | `ARGS:test` | 6 |
 | `REQUEST_HEADERS_NAMES` | 5 |
-| `ARGS:param1` | 4 |
 | `ARGS:a` | 4 |
 | `REQUEST_COOKIES_NAMES` | 4 |
 | `XML` | 4 |
+| `ARGS:param1` | 4 |
 | `ARGS` | 4 |
 | `RESPONSE_HEADERS:Set-Cookie` | 4 |
 | `ARGS:probe` | 4 |
@@ -48,8 +48,8 @@ Generated file — do not edit manually.
 ## Coverage By Status
 | Status | Count |
 |---|---:|
+| active | 7 |
 | imported | 47 |
-| unknown | 7 |
 | xfail | 79 |
 
 ## Coverage By Scope
@@ -82,8 +82,8 @@ Generated file — do not edit manually.
 - Details: `reports/testing/generated/runtime-matrix.generated.md`
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-21** (2026-05-21 19:32:18 CEST)
-- Git: branch `master`, commit `ad8587c`
+- Snapshot: **2026-05-21** (2026-05-21 20:30:51 CEST)
+- Git: branch `master`, commit `aa31837`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.

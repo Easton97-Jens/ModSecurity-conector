@@ -142,7 +142,7 @@ Rules, request details, and expected statuses are read from:
 ```text
 modules/ModSecurity-test-Framework/tests/cases/*.yaml
 modules/ModSecurity-test-Framework/tests/cases/*.yaml
-modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/imported/*.yaml
+modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/*.yaml
 ```
 
 The harness does not hardcode the rule, request path, request method, headers,

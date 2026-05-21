@@ -143,7 +143,7 @@ Rules, request details, and expected statuses are read from:
 ```text
 modules/ModSecurity-test-Framework/tests/cases/*.yaml
 modules/ModSecurity-test-Framework/tests/cases/*.yaml
-modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/imported/*.yaml
+modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/*.yaml
 ```
 
 The default run executes:

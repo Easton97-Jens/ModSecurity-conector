@@ -37,8 +37,8 @@ Generated file — do not edit manually.
 ## Status Classes
 | Status | Count |
 |---|---:|
+| active | 7 |
 | imported | 47 |
-| unknown | 7 |
 | xfail | 79 |
 
 ## Scope
@@ -122,8 +122,8 @@ Generated file — do not edit manually.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-21** (2026-05-21 19:32:18 CEST)
-- Git: branch `master`, commit `ad8587c`
+- Snapshot: **2026-05-21** (2026-05-21 20:30:51 CEST)
+- Git: branch `master`, commit `aa31837`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.

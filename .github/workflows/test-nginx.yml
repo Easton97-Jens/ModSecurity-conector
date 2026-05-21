@@ -28,7 +28,7 @@ jobs:
           test -f connectors/nginx/docs/build.md
           test -f connectors/nginx/docs/public-sources.md
           test ! -d connectors/nginx/tests
-          test -f modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/imported/nginx_tx_scoring_absolute_block.yaml
+          test -f modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml
           test -f modules/ModSecurity-test-Framework/docs/testing/imports/nginx-regression-map.md
           test -f config/testing/import-status.json
           test -f reports/testing/nginx-poc.md
