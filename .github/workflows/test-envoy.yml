@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Check Envoy scaffold
         run: |
           set -eu
@@ -17,8 +19,4 @@ jobs:
           test -f connectors/envoy/docs/architecture.md
           test -f connectors/envoy/docs/build.md
           test -f connectors/envoy/docs/public-sources.md
-          test -f tests/envoy/README.md
           grep -q 'Status:' connectors/envoy/TODO.md
-      - name: Compile Python skeletons
-        run: |
-          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py

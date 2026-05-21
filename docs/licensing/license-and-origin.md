@@ -103,8 +103,8 @@ documented in `licenses/modsecurity/README.md`.
 ## Pruning Review
 
 The current imported connector trees were reviewed in
-`docs/imports/upstream-pruning-analysis.md` and summarized in
-`docs/imports/minimal-upstream-file-set.md`.
+`modules/ModSecurity-test-Framework/docs/imports/upstream-pruning-analysis.md` and summarized in
+`modules/ModSecurity-test-Framework/docs/imports/minimal-upstream-file-set.md`.
 
 Later replace-and-reduce phases removed the imported NGINX debug helper,
 migrated NGINX `config`/`src/*` into adapter-owned source, and then removed the

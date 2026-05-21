@@ -90,7 +90,7 @@ files relate to the adapter-owned source tree.
 
 ## Pruning Review
 
-Last reviewed in `docs/imports/upstream-pruning-analysis.md`.
+Last reviewed in `modules/ModSecurity-test-Framework/docs/imports/upstream-pruning-analysis.md`.
 
 `connectors/nginx/upstream/` was removed in phase 10. Future NGINX source
 reductions should update `connectors/nginx/SOURCE_MAP.json`,

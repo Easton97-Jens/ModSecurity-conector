@@ -5,13 +5,20 @@ on:
   pull_request:
 
 jobs:
-  nginx-poc:
+  nginx-structure:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Check NGINX scaffold
         run: |
           set -eu
+          test -d modules/ModSecurity-test-Framework
           test -f connectors/nginx/README.md
           test -f connectors/nginx/TODO.md
           test -f connectors/nginx/harness/nginx_smoke.conf
@@ -20,22 +27,16 @@ jobs:
           test -f connectors/nginx/docs/architecture.md
           test -f connectors/nginx/docs/build.md
           test -f connectors/nginx/docs/public-sources.md
-          test -f ci/run-nginx-smoke.sh
-          test -f tests/nginx/nginx-regression-map.md
-          test -f tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml
-          test -f tests/common/cases/minimal/phase2_args_block.yaml
-          test -f tests/common/cases/imported/request_body_raw_text_block.yaml
-          test -f tests/common/cases/imported/response_body_pass.yaml
-          test -f tests/import-status.json
-          test -f docs/connectors/nginx-poc.md
-          test -f docs/connectors/apache-vs-nginx-poc.md
-          test -f docs/testing/test-import-plan.md
-          test -f docs/connectors/real-world-connector-validation.md
+          test ! -d connectors/nginx/tests
+          test -f modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml
+          test -f modules/ModSecurity-test-Framework/docs/testing/imports/nginx-regression-map.md
+          test -f config/testing/import-status.json
+          test -f reports/testing/nginx-poc.md
+          test -f reports/testing/apache-vs-nginx-poc.md
           grep -q 'Status:' connectors/nginx/TODO.md
-      - name: Syntax checks
+      - name: Syntax and dry-run checks
         run: |
-          set -eu
-          sh -n ci/prepare-nginx-build.sh
-          sh -n ci/run-nginx-smoke.sh
+          make setup-dev
           sh -n connectors/nginx/harness/run_nginx_smoke.sh
-          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
+          make -n smoke-nginx
+          make quick-check

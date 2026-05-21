@@ -14,7 +14,7 @@ Phase 3 extracted only connector-neutral helper logic:
 | Capability descriptors | `common/src/capabilities.c` | Names and composes connector-neutral capability flags |
 
 The Python harness layer mirrors those concepts in
-`tests/runners/msconnector_models.py`; it does not use FFI, `ctypes`, or a C
+`modules/ModSecurity-test-Framework/tests/runners/msconnector_models.py`; it does not use FFI, `ctypes`, or a C
 bridge binary.
 
 ## Deferred

@@ -20,7 +20,7 @@ These helpers depend only on the C standard library and
 ## Harness Relationship
 
 The Apache/NGINX smoke runners do not load these helpers through FFI. Python
-uses `tests/runners/msconnector_models.py` as a schema-compatible mirror for the
+uses `modules/ModSecurity-test-Framework/tests/runners/msconnector_models.py` as a schema-compatible mirror for the
 same status, origin, intervention, and capability names.
 
 That means:
@@ -87,7 +87,7 @@ replace-and-reduce phase and passing before/after smokes.
 ## Phase 7 Reporting Integration
 
 Phase 7 allows adapter-owned metadata to feed build and runtime summaries. The
-smoke scripts read the metadata through `ci/adapter_metadata.py`, a local parser
+smoke scripts read the metadata through `modules/ModSecurity-test-Framework/ci/adapter_metadata.py`, a local parser
 with no FFI or C runtime dependency. The reporting order is explicit env
 override, external source git metadata, then adapter-owned monorepo metadata.
 

@@ -17,7 +17,7 @@ Implemented now:
   (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) applied to
   adapter-owned source for phase-4 / late intervention handling.
 - A connector-specific runtime harness under `harness/`.
-- Shared YAML case consumption through `tests/runners/case_cli.py`.
+- Shared YAML case consumption through `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
 - Source-derived shared imported cases for raw JSON body matching, simple
   multipart text-field matching, and response-body pass-through.
 
@@ -42,7 +42,7 @@ materialized-source NGINX builds and smokes passed. Durable attribution stays in
 `licenses/nginx/`, `connectors/nginx/ORIGIN.md`, and
 `connectors/nginx/SOURCE_MAP.json`.
 
-The build helper is `ci/prepare-nginx-build.sh`. For the monorepo default it
+The build helper is `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh`. For the monorepo default it
 materializes `$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
 `connectors/nginx/config` and `connectors/nginx/src` files only, then builds the
 connector as a dynamic NGINX module against an official `nginx/nginx` GitHub

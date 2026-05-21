@@ -21,7 +21,7 @@ the YAML-expected HTTP status for all current shared minimal cases.
 - Defaults to the source-built httpd under
   `$BUILD_ROOT/apache-runtime/httpd/bin/httpd`.
 - Reads rule, request, headers, body, multipart body, response fixture, and
-  expected status from YAML through `tests/runners/case_cli.py`.
+  expected status from YAML through `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
 
 ## Usage
 
@@ -29,7 +29,7 @@ the YAML-expected HTTP status for all current shared minimal cases.
 REFRESH=1 \
 BUILD_HTTPD_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh ci/prepare-apache-build.sh
+make smoke-apache
 
 BUILD_ROOT=/src/ModSecurity-conector-build \
 make smoke-apache
@@ -52,9 +52,9 @@ and marks the result as `blocked`.
 By default the harness iterates every `*.yaml` file in:
 
 ```text
-tests/common/cases/minimal/
-tests/common/cases/imported/
-tests/apache/cases/imported/
+modules/ModSecurity-test-Framework/tests/cases/
+modules/ModSecurity-test-Framework/tests/cases/
+modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/
 ```
 
 To run a subset:

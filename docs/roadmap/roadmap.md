@@ -36,7 +36,7 @@ Status: scaffolded
   response body checks, and stable audit-log field checks.
 - Source-derived imported YAML smoke cases from the local Apache and NGINX
   connector tests, with common vs connector-specific placement documented in
-  `docs/testing/test-import-plan.md`.
+  the framework-owned test import plan.
 - Deterministic multipart request materialization, per-case response fixtures,
   and active source-derived common cases for raw JSON body matching, simple
   multipart text-field blocking, and response-body pass-through.
@@ -54,10 +54,10 @@ Status: scaffolded
 - Connector adapter responsibilities documented in
   `docs/architecture/connector-adapter-interface.md`.
 - Case matrix generation through `make case-matrix` and
-  `docs/testing/case-matrix.md`.
+  the framework-owned case matrix documentation.
 - Maintenance checks through `make lint` and summary rendering through
   `make summary`.
-- SonarCloud remediation inventory in `docs/quality/sonarcloud-remediation-plan.md`.
+- SonarCloud remediation inventory in `modules/ModSecurity-test-Framework/docs/quality/sonarcloud-remediation-plan.md`.
 - Controlled Apache and NGINX connector source imports with file-level origin
   maps, documented minimal upstream file sets, and central attribution under
   `licenses/`.

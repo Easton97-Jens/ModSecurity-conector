@@ -1,25 +1,15 @@
 # CI
 
-Status: scaffolded
+Status: connector integration only.
 
-CI helper scripts belong here after they are proven to be connector-neutral or
-clearly connector-scoped.
+Generic framework logic lives in `modules/ModSecurity-test-Framework/ci`.
+The connector repository keeps only checks that compile or validate
+connector-owned C helpers and adapter metadata:
 
-`ci/common.sh` is the shared shell config/helper entrypoint. It centralizes
-build roots, source roots, ModSecurity core refs/URLs, repo-local connector
-source defaults, server source versions/URLs, Python selection, optional
-installed-runtime hints, and logging helpers. It is passive: sourcing it
-defines variables and functions only.
+- `check-common-helpers.sh`
+- `check-adapter-helpers.sh`
+- `check-adapter-metadata-drift.sh`
 
-Important local entrypoints:
-
-- `ci/cloud-quick-check.sh`: framework/generator/lint check for lightweight CI.
-- `ci/quick-all.sh`: local-preferred quick orchestration; may return BLOCKED.
-- `ci/fetch-smoke-sources.sh`: explicit source fetch helper.
-- `ci/doctor.sh`: local prerequisite/readiness diagnostics.
-- `ci/run-connector-smokes.sh`: local Apache+NGINX smoke orchestration.
-
-Full runtime evidence remains local through the Makefile smoke targets.
-Apache and NGINX connector code comes from `connectors/apache` and
-`connectors/nginx` by default; external connector repository fetches require
-explicit opt-in.
+Public Makefile targets such as `quick-check`, `generate-test-matrix`,
+`runtime-matrix-all`, `smoke-apache`, `smoke-nginx`, and `smoke-all` delegate to
+the framework module with `CONNECTOR_ROOT` set to this repository.

@@ -43,7 +43,7 @@ Apache source tree is now a build/runtime tree; durable attribution stays in
 Phase 13 simplified the adapter-owned layout without changing runtime
 semantics. Autotools/APXS files now live at `connectors/apache/`, productive
 Apache C sources live directly under `connectors/apache/src/`, and retained
-Autotools test templates live under `connectors/apache/tests/`. The materializer
+Autotools test templates live under `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`. The materializer
 still writes the upstream-compatible build layout under
 `$BUILD_ROOT/apache-build/connector-src`.
 
@@ -66,12 +66,12 @@ still writes the upstream-compatible build layout under
 | `connectors/apache/src/msc_filters.h` | `src/msc_filters.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache filter header |
 | `connectors/apache/src/msc_utils.c` | `src/msc_utils.c` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utilities |
 | `connectors/apache/src/msc_utils.h` | `src/msc_utils.h` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Apache connector utility header |
-| `connectors/apache/tests/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Test-template layout referenced by configure/build inputs |
-| `connectors/apache/tests/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/tests/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/tests/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/tests/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
-| `connectors/apache/tests/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | `t/conf/extra.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | Test-template layout referenced by configure/build inputs |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/run-regression-tests.pl.in` | `tests/run-regression-tests.pl.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/40-secRemoteRules.t.in` | `tests/regression/misc/40-secRemoteRules.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/50-ipmatchfromfile-external.t.in` | `tests/regression/misc/50-ipmatchfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/misc/60-pmfromfile-external.t.in` | `tests/regression/misc/60-pmfromfile-external.t.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/regression/server_root/conf/httpd.conf.in` | `tests/regression/server_root/conf/httpd.conf.in` | ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | Apache-2.0 | `configure.ac` output template |
 
 ## Repo-Owned Metadata Files
 
@@ -99,8 +99,8 @@ still writes the upstream-compatible build layout under
 | `connectors/apache/src/Makefile.am` | `connectors/apache/Makefile.am` | `Makefile.am` |
 | `connectors/apache/src/build/` | `connectors/apache/build/` | `build/` |
 | `connectors/apache/src/src/*.c`, `*.h` | `connectors/apache/src/*.c`, `*.h` | `src/*.c`, `*.h` |
-| `connectors/apache/src/t/conf/extra.conf.in` | `connectors/apache/tests/t/conf/extra.conf.in` | `t/conf/extra.conf.in` |
-| `connectors/apache/src/tests/` | `connectors/apache/tests/` | `tests/` |
+| Apache generated source `t/conf/extra.conf.in` template | `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | `t/conf/extra.conf.in` |
+| Apache generated source test-template tree | `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/` | `tests/` |
 | `connectors/apache/src/metadata.*` | `connectors/apache/metadata.*` | not materialized |
 | `connectors/apache/src/SOURCE_MAP.json` | `connectors/apache/SOURCE_MAP.json` | not materialized |
 
@@ -120,7 +120,7 @@ duplicates were removed.
 
 ## Pruning Review
 
-Last reviewed in `docs/imports/upstream-pruning-analysis.md`.
+Last reviewed in `modules/ModSecurity-test-Framework/docs/imports/upstream-pruning-analysis.md`.
 
 Apache adapter-owned source may be reduced only after a functional replacement,
 updated origin/license documentation, and passing real-world `smoke-apache` and

@@ -3,15 +3,26 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}"
+[ -d "$FRAMEWORK_ROOT" ] || { echo "nginx_smoke: blocked FRAMEWORK_ROOT is missing; run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; exit 77; }
+BUILD_ROOT="${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}"
+CURRENT_UID=$(id -u 2>/dev/null || printf 'unknown')
+if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
+    if [ "$CURRENT_UID" = "0" ]; then
+        NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${TMPDIR:-/tmp}}"
+    else
+        NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}}"
+    fi
+    NGINX_HARNESS_WORK_ROOT="$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID"
+fi
 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
 NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$NGINX_BUILD_DIR/output/modsecurity/lib}"
-LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/nginx-runtime}"
+LOG_DIR="${LOG_DIR:-$NGINX_HARNESS_WORK_ROOT/logs}"
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
-RUNTIME_BASE="${RUNTIME_BASE:-$BUILD_ROOT/nginx-runtime}"
+RUNTIME_BASE="${RUNTIME_BASE:-$NGINX_HARNESS_WORK_ROOT/runtime}"
 RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 CURL_BIN="${CURL:-}"
 PYTHON_BIN="${PYTHON:-python3}"
@@ -25,7 +36,7 @@ TEMPLATE="$SCRIPT_DIR/nginx_smoke.conf"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
-CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
+CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
@@ -35,9 +46,12 @@ CONNECTOR_ORIGIN_SOURCE_COMMIT="${CONNECTOR_ORIGIN_SOURCE_COMMIT:-}"
 CONNECTOR_ORIGIN_SOURCE_VERSION="${CONNECTOR_ORIGIN_SOURCE_VERSION:-}"
 CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
+NGINX_WORKER_USER="${NGINX_WORKER_USER:-nobody}"
+NGINX_WORKER_GROUP="${NGINX_WORKER_GROUP:-}"
+PERMISSIONS_LOG="${PERMISSIONS_LOG:-}"
 
 load_connector_adapter_metadata() {
-    eval "$("$PYTHON_BIN" "$REPO_ROOT/ci/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
+    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"
     CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-$CONNECTOR_ADAPTER_SOURCE_REPO}"
     CONNECTOR_ORIGIN_SOURCE_URL="${CONNECTOR_ORIGIN_SOURCE_URL:-$CONNECTOR_ADAPTER_SOURCE_URL}"
@@ -63,6 +77,79 @@ fail() {
     exit 1
 }
 
+ensure_dir_755() {
+    for path in "$@"; do
+        install -d -m 755 "$path"
+    done
+}
+
+nginx_worker_group() {
+    if [ -n "$NGINX_WORKER_GROUP" ]; then
+        printf '%s\n' "$NGINX_WORKER_GROUP"
+        return 0
+    fi
+    id -gn "$NGINX_WORKER_USER" 2>/dev/null || printf '%s\n' "$NGINX_WORKER_USER"
+}
+
+write_permission_diagnostics() {
+    log_file=${PERMISSIONS_LOG:-$LOG_DIR/permissions.log}
+    mkdir -p "$(dirname "$log_file")"
+    {
+        echo "nginx_harness_permissions:"
+        echo "  effective_user=$(id -un 2>/dev/null || printf unknown)"
+        echo "  effective_uid=$CURRENT_UID"
+        echo "  nginx_worker_user_hint=$NGINX_WORKER_USER"
+        echo "  nginx_worker_group_hint=$(nginx_worker_group)"
+        echo "  build_root=$BUILD_ROOT"
+        echo "  nginx_harness_work_root=$NGINX_HARNESS_WORK_ROOT"
+        echo "  runtime_base=$RUNTIME_BASE"
+        echo "  runtime_root=$RUNTIME_ROOT"
+        echo "  log_dir=$LOG_DIR"
+        echo "  docroot=${DOCROOT:-}"
+        echo
+        for path in \
+            "$NGINX_HARNESS_WORK_ROOT" \
+            "$RUNTIME_BASE" \
+            "$RUNTIME_ROOT" \
+            "$LOG_DIR" \
+            "${LOG_DIR}/audit" \
+            "${DOCROOT:-}" \
+            "${DOCROOT:-}/index.html" \
+            "${DOCROOT:-}/__modsec_smoke_ready" \
+            "${NGINX_PHASE4_LOG_FILE:-}" \
+            "${CONFIG_FILE:-}" \
+            "${RULES_FILE:-}"
+        do
+            [ -n "$path" ] || continue
+            echo "-- $path"
+            if [ -e "$path" ]; then
+                stat -c '%A %U %G %n' "$path" 2>/dev/null || ls -ld "$path" 2>/dev/null || true
+                if command -v namei >/dev/null 2>&1; then
+                    namei -l "$path" 2>/dev/null || true
+                fi
+            else
+                echo "missing"
+            fi
+            echo
+        done
+    } > "$log_file"
+}
+
+ensure_worker_runtime_permissions() {
+    chmod -R u+rwX,go+rX "$NGINX_HARNESS_WORK_ROOT" 2>/dev/null || true
+    if [ "$CURRENT_UID" = "0" ]; then
+        worker_group=$(nginx_worker_group)
+        chown -R "$NGINX_WORKER_USER:$worker_group" "$NGINX_HARNESS_WORK_ROOT" 2>/dev/null || true
+        chmod -R u+rwX,go+rX "$NGINX_HARNESS_WORK_ROOT" 2>/dev/null || true
+    fi
+    write_permission_diagnostics
+}
+
+nginx_docroot_permission_denied() {
+    [ -f "$LOG_DIR/error.log" ] || return 1
+    grep -E "htdocs/index\\.html.*Permission denied|htdocs/index\\.html.*forbidden \\(13: Permission denied\\)" "$LOG_DIR/error.log" >/dev/null 2>&1
+}
+
 require_absolute_generated_path() {
     path=$1
     label=$2
@@ -71,7 +158,7 @@ require_absolute_generated_path() {
         *) blocked "$label must be absolute: $path" ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*|"$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
         *) ;;
@@ -82,6 +169,8 @@ resolve_case_path() {
     item=$1
     "$PYTHON_BIN" "$CASE_CLI" list-cases \
         --repo-root "$REPO_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --connector-root "$REPO_ROOT" \
         --connector nginx \
         --scope "$CASE_SCOPE" \
         --test-case "$item"
@@ -91,6 +180,8 @@ list_case_files() {
     if [ -n "$TEST_CASE" ]; then
         "$PYTHON_BIN" "$CASE_CLI" list-cases \
             --repo-root "$REPO_ROOT" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --connector-root "$REPO_ROOT" \
             --connector nginx \
             --scope "$CASE_SCOPE" \
             --test-case "$TEST_CASE"
@@ -99,6 +190,8 @@ list_case_files() {
     if [ -n "$SMOKE_CASES" ]; then
         "$PYTHON_BIN" "$CASE_CLI" list-cases \
             --repo-root "$REPO_ROOT" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --connector-root "$REPO_ROOT" \
             --connector nginx \
             --scope "$CASE_SCOPE" \
             --smoke-cases "$SMOKE_CASES"
@@ -106,6 +199,8 @@ list_case_files() {
     fi
     "$PYTHON_BIN" "$CASE_CLI" list-cases \
         --repo-root "$REPO_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --connector-root "$REPO_ROOT" \
         --connector nginx \
         --scope "$CASE_SCOPE"
 }
@@ -197,7 +292,7 @@ run_all_cases() {
         --input-jsonl "$results_jsonl" \
         --summary-json "$json_file" \
         --summary-text "$summary_file" \
-        --import-status-file "$REPO_ROOT/tests/import-status.json" \
+        --import-status-file "$REPO_ROOT/config/testing/import-status.json" \
         --connector-path real-world \
         --validation-mode real-world-connector-path \
         --server nginx \
@@ -293,8 +388,8 @@ stop_stale_runtime_pid() {
     pid_file=$1
     [ -f "$pid_file" ] || return 0
     case "$pid_file" in
-        "$BUILD_ROOT"/*) ;;
-        *) blocked "runtime pid file is outside BUILD_ROOT: $pid_file" ;;
+        "$BUILD_ROOT"/*|"$RUNTIME_BASE"/*|"$NGINX_HARNESS_WORK_ROOT"/*) ;;
+        *) blocked "runtime pid file is outside allowed generated runtime roots: $pid_file" ;;
     esac
     stale_pid=$(cat "$pid_file" 2>/dev/null || true)
     case "$stale_pid" in
@@ -416,6 +511,7 @@ echo "nginx_smoke: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
 echo "nginx_smoke: NGINX_PREFIX=$NGINX_PREFIX"
 echo "nginx_smoke: NGINX_BINARY=$NGINX_BINARY"
 echo "nginx_smoke: NGINX_MODULE=$NGINX_MODULE"
+echo "nginx_smoke: NGINX_HARNESS_WORK_ROOT=$NGINX_HARNESS_WORK_ROOT"
 echo "nginx_smoke: RUNTIME_ROOT=$RUNTIME_ROOT"
 echo "nginx_smoke: LOG_DIR=$LOG_DIR"
 echo "nginx_smoke: TEST_CASE=$TEST_CASE"
@@ -429,7 +525,7 @@ require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 
 RUNTIME_PID_FILE="$RUNTIME_ROOT/nginx.pid"
 
-mkdir -p "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs" \
+ensure_dir_755 "$NGINX_HARNESS_WORK_ROOT" "$RUNTIME_BASE" "$LOG_DIR" "$LOG_DIR/audit" "$RUNTIME_ROOT" "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/htdocs" \
     "$RUNTIME_ROOT/client_body_temp" "$RUNTIME_ROOT/proxy_temp" \
     "$RUNTIME_ROOT/fastcgi_temp" "$RUNTIME_ROOT/uwsgi_temp" \
     "$RUNTIME_ROOT/scgi_temp"
@@ -466,7 +562,7 @@ AUDIT_LOG_DIR="$LOG_DIR/audit"
 NGINX_LOCATION_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-directives.conf"
 NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
 
-chmod go+rx "$BUILD_ROOT" "$RUNTIME_BASE" "$RUNTIME_ROOT" "$DOCROOT" 2>/dev/null || true
+ensure_worker_runtime_permissions
 if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --case "$TEST_CASE" \
     --rules-file "$RULES_FILE" \
@@ -481,7 +577,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
 	    --nginx-phase4-log-file "$NGINX_PHASE4_LOG_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
-chmod go+r "$DOCROOT/index.html" "$DOCROOT/__modsec_smoke_ready" 2>/dev/null || true
+ensure_worker_runtime_permissions
 . "$CASE_ENV_FILE"
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -514,5 +610,10 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
 fi
 
 write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
+if [ "$http_status" = "403" ] && nginx_docroot_permission_denied; then
+    write_case_result "$TEST_CASE" blocked "$http_status" "$LOG_DIR/result.json" || true
+    write_permission_diagnostics
+    blocked "NGINX could not read generated docroot; see $LOG_DIR/error.log and $LOG_DIR/permissions.log"
+fi
 echo "nginx_smoke: fail case=$CASE_NAME observed=$http_status expected=$EXPECT_STATUS"
 exit 1

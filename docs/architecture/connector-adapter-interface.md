@@ -44,11 +44,11 @@ instantiate the C structs through FFI.
 
 Phase 3 adds small Common C helper implementations for those shapes. Existing
 Apache and NGINX harnesses still use Python/Shell and mirror the schema through
-`tests/runners/msconnector_models.py`.
+`modules/ModSecurity-test-Framework/tests/runners/msconnector_models.py`.
 
 ## Boundary Rules
 
-- `common/` and `tests/common/` remain connector-neutral.
+- `common/` and `docs/imports/common/` remain connector-neutral.
 - `connectors/<name>/` contains server-specific build/runtime logic.
 - Generated configs, logs, downloads, and binaries stay under `BUILD_ROOT`.
 - Direct libmodsecurity API success never counts as connector success.

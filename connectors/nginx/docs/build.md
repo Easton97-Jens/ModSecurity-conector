@@ -12,7 +12,7 @@ release archive and uses the observed dynamic-module path:
 REFRESH=1 \
 BUILD_NGINX_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh ci/prepare-nginx-build.sh
+make smoke-nginx
 ```
 
 By default the connector source is the adapter-owned monorepo source:

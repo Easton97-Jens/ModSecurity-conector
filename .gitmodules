@@ -1,0 +1,3 @@
+[submodule "modules/ModSecurity-test-Framework"]
+	path = modules/ModSecurity-test-Framework
+	url = https://github.com/Easton97-Jens/ModSecurity-test-Framework.git

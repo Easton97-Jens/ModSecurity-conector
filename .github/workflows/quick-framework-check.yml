@@ -10,15 +10,16 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Setup python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Lightweight framework and generated-doc checks
+      - name: Lightweight connector/framework checks
         run: |
           make setup-dev
           make generate-test-matrix
           make check-test-matrix
           make quick-check
-          .venv/bin/python -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
           git diff --check
