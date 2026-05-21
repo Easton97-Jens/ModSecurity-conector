@@ -3,7 +3,9 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$REPO_ROOT/../ModSecurity-test-Framework" 2>/dev/null && pwd || printf '')}"
+[ -n "$FRAMEWORK_ROOT" ] || { echo "apache_smoke: blocked FRAMEWORK_ROOT is not set and ../ModSecurity-test-Framework is missing"; exit 77; }
+BUILD_ROOT="${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
@@ -28,7 +30,7 @@ TEMPLATE="$SCRIPT_DIR/apache_smoke.conf"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
-CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
+CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
 IFMODULE_END="</IfModule>"
@@ -75,7 +77,7 @@ require_absolute_generated_path() {
         *) blocked "$label must be absolute: $path" ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*|"$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
         *) ;;
@@ -86,16 +88,20 @@ resolve_case_path() {
     item=$1
     "$PYTHON_BIN" "$CASE_CLI" list-cases \
         --repo-root "$REPO_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --connector-root "$REPO_ROOT" \
         --connector apache \
         --scope "$CASE_SCOPE" \
         --test-case "$item"
 }
 
 list_case_files() {
-    args="--repo-root $REPO_ROOT --connector apache --scope $CASE_SCOPE"
+    args="--repo-root $REPO_ROOT --framework-root $FRAMEWORK_ROOT --connector-root $REPO_ROOT --connector apache --scope $CASE_SCOPE"
     if [ -n "$TEST_CASE" ]; then
         "$PYTHON_BIN" "$CASE_CLI" list-cases \
             --repo-root "$REPO_ROOT" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --connector-root "$REPO_ROOT" \
             --connector apache \
             --scope "$CASE_SCOPE" \
             --test-case "$TEST_CASE"
@@ -104,6 +110,8 @@ list_case_files() {
     if [ -n "$SMOKE_CASES" ]; then
         "$PYTHON_BIN" "$CASE_CLI" list-cases \
             --repo-root "$REPO_ROOT" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --connector-root "$REPO_ROOT" \
             --connector apache \
             --scope "$CASE_SCOPE" \
             --smoke-cases "$SMOKE_CASES"

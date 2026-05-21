@@ -1,9 +1,13 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
 BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
+FRAMEWORK_ROOT ?= $(abspath ../ModSecurity-test-Framework)
+CONNECTOR_ROOT ?= $(CURDIR)
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
+export FRAMEWORK_ROOT
+export CONNECTOR_ROOT
 export SOURCE_ROOT
 export PYTHON
 export PYTHONDONTWRITEBYTECODE
@@ -63,22 +67,22 @@ export RESPONSE_BODY_PROBE_CASE
 .PHONY: smoke-common smoke-apache smoke-nginx smoke-all runtime-matrix runtime-matrix-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 smoke-common:
-	CASE_SCOPE=common sh ci/run-connector-smokes.sh
+	CASE_SCOPE=common sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
 
 smoke-apache:
-	CASE_SCOPE=all sh ci/run-apache-smoke.sh
+	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-apache-smoke.sh"
 
 smoke-nginx:
-	CASE_SCOPE=all sh ci/run-nginx-smoke.sh
+	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-nginx-smoke.sh"
 
 smoke-all:
-	CASE_SCOPE=all sh ci/run-connector-smokes.sh
+	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
 
 runtime-matrix:
-	sh ci/run-runtime-matrix.sh
+	sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
 
 runtime-matrix-all:
-	FORCE_ALL_CASES=1 sh ci/run-runtime-matrix.sh
+	FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
 
 probe-response-body:
 	sh ci/probe-response-body-blocking.sh
@@ -86,7 +90,7 @@ probe-response-body:
 lint:
 	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh; else echo "bash unavailable"; fi
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py ci/*.py
 	$(PYTHON) -m json.tool tests/import-status.json >/dev/null
 	$(PYTHON) ci/check-python-deps.py
 	$(PYTHON) ci/check-workflow-yaml.py
@@ -98,10 +102,10 @@ lint:
 	git diff --check
 
 summary:
-	$(PYTHON) ci/summarize-results.py "$(BUILD_ROOT)/results/connector-summary.json"
+	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/summarize-results.py" "$(BUILD_ROOT)/results/connector-summary.json"
 
 case-matrix:
-	$(PYTHON) ci/write-case-matrix.py "$(BUILD_ROOT)/results/connector-summary.json" docs/testing/case-matrix.md
+	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/write-case-matrix.py" "$(BUILD_ROOT)/results/connector-summary.json" docs/testing/case-matrix.md
 
 install-dev-deps:
 	sh ci/bootstrap-python.sh
@@ -113,10 +117,10 @@ setup-dev: install-dev-deps
 
 
 fetch-modsecurity-v3:
-	sh ci/fetch-smoke-sources.sh v3
+	sh "$(FRAMEWORK_ROOT)/ci/fetch-smoke-sources.sh" v3
 
 fetch-deps bootstrap-runtime:
-	sh ci/fetch-smoke-sources.sh all
+	sh "$(FRAMEWORK_ROOT)/ci/fetch-smoke-sources.sh" all
 
 doctor env-check:
 	sh ci/doctor.sh
@@ -131,7 +135,7 @@ bootstrap-all: setup-dev fetch-deps doctor
 
 quick-check codex-check:
 	make lint
-	$(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+	$(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py ci/*.py
 	git diff --check
 
 smoke-installed installed-readiness:
@@ -158,10 +162,10 @@ cloud-quick-check:
 
 
 generate-test-matrix:
-	$(PYTHON) ci/generate-case-matrix.py
+	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/generate-case-matrix.py" --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CURDIR)" --output-root "$(CURDIR)"
 
 check-test-matrix:
-	$(PYTHON) ci/generate-case-matrix.py
+	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/generate-case-matrix.py" --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CURDIR)" --output-root "$(CURDIR)"
 	@git diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md TEST-COVERAGE-SUMMARY.md >/dev/null || { \
 		echo "Generated test matrix docs are out of date. Run make generate-test-matrix"; \
 		exit 1; \

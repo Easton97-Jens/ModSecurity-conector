@@ -3,7 +3,9 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$REPO_ROOT/../ModSecurity-test-Framework" 2>/dev/null && pwd || printf '')}"
+[ -n "$FRAMEWORK_ROOT" ] || { echo "nginx_smoke: blocked FRAMEWORK_ROOT is not set and ../ModSecurity-test-Framework is missing"; exit 77; }
+BUILD_ROOT="${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}"
 CURRENT_UID=$(id -u 2>/dev/null || printf 'unknown')
 if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
     if [ "$CURRENT_UID" = "0" ]; then
@@ -34,7 +36,7 @@ TEMPLATE="$SCRIPT_DIR/nginx_smoke.conf"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
-CASE_CLI="$REPO_ROOT/tests/runners/case_cli.py"
+CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
 RUN_ONE_CASE="${RUN_ONE_CASE:-0}"
 STATUS_FILE="$LOG_DIR/status.txt"
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
@@ -156,7 +158,7 @@ require_absolute_generated_path() {
         *) blocked "$label must be absolute: $path" ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*|"$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
         *) ;;
@@ -167,6 +169,8 @@ resolve_case_path() {
     item=$1
     "$PYTHON_BIN" "$CASE_CLI" list-cases \
         --repo-root "$REPO_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --connector-root "$REPO_ROOT" \
         --connector nginx \
         --scope "$CASE_SCOPE" \
         --test-case "$item"
@@ -176,6 +180,8 @@ list_case_files() {
     if [ -n "$TEST_CASE" ]; then
         "$PYTHON_BIN" "$CASE_CLI" list-cases \
             --repo-root "$REPO_ROOT" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --connector-root "$REPO_ROOT" \
             --connector nginx \
             --scope "$CASE_SCOPE" \
             --test-case "$TEST_CASE"
@@ -184,6 +190,8 @@ list_case_files() {
     if [ -n "$SMOKE_CASES" ]; then
         "$PYTHON_BIN" "$CASE_CLI" list-cases \
             --repo-root "$REPO_ROOT" \
+            --framework-root "$FRAMEWORK_ROOT" \
+            --connector-root "$REPO_ROOT" \
             --connector nginx \
             --scope "$CASE_SCOPE" \
             --smoke-cases "$SMOKE_CASES"
@@ -191,6 +199,8 @@ list_case_files() {
     fi
     "$PYTHON_BIN" "$CASE_CLI" list-cases \
         --repo-root "$REPO_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --connector-root "$REPO_ROOT" \
         --connector nginx \
         --scope "$CASE_SCOPE"
 }

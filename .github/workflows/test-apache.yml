@@ -9,7 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout test framework
+        uses: actions/checkout@v4
+        with:
+          repository: Easton97-Jens/ModSecurity-test-Framework
+          path: ModSecurity-test-Framework
       - name: Check Apache scaffold
+        env:
+          FRAMEWORK_ROOT: ${{ github.workspace }}/ModSecurity-test-Framework
         run: |
           set -eu
           test -f connectors/apache/README.md
@@ -25,15 +32,18 @@ jobs:
           test -f tests/apache/apache-regression-map.md
           test -f tests/apache/cases/imported/README.md
           test -f docs/testing/test-import-plan.md
-          test -f tests/common/cases/minimal/phase2_args_block.yaml
-          test -f tests/common/cases/imported/action_deny_phase1.yaml
-          test -f tests/common/cases/imported/multipart_basic_block.yaml
+          test -f "$FRAMEWORK_ROOT/tests/common/cases/minimal/phase2_args_block.yaml"
+          test -f "$FRAMEWORK_ROOT/tests/common/cases/imported/action_deny_phase1.yaml"
+          test -f "$FRAMEWORK_ROOT/tests/common/cases/imported/multipart_basic_block.yaml"
           test -f tests/import-status.json
           test -f docs/connectors/real-world-connector-validation.md
           grep -q 'Status:' connectors/apache/TODO.md
       - name: Shell syntax
+        env:
+          FRAMEWORK_ROOT: ${{ github.workspace }}/ModSecurity-test-Framework
         run: |
           set -eu
           sh -n ci/prepare-apache-build.sh
           sh -n ci/run-apache-smoke.sh
           sh -n connectors/apache/harness/run_apache_smoke.sh
+          python3 -m py_compile "$FRAMEWORK_ROOT"/tests/normalizers/*.py "$FRAMEWORK_ROOT"/tests/runners/*.py "$FRAMEWORK_ROOT"/ci/*.py ci/*.py

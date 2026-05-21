@@ -3,13 +3,15 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$REPO_ROOT/../ModSecurity-test-Framework" 2>/dev/null && pwd || printf '')}"
+[ -n "$FRAMEWORK_ROOT" ] || { echo "probe_response_body: blocked FRAMEWORK_ROOT is not set and ../ModSecurity-test-Framework is missing"; exit 77; }
 . "$SCRIPT_DIR/common.sh"
 
 PROBE_ROOT="${RESPONSE_BODY_PROBE_ROOT:-$BUILD_ROOT/response-body-probe}"
 RESULTS_ROOT="$PROBE_ROOT/results"
 LOG_ROOT="$PROBE_ROOT/logs"
 RUNTIME_ROOT="$PROBE_ROOT/runtime"
-CASE_FILE="${RESPONSE_BODY_PROBE_CASE:-$REPO_ROOT/tests/common/cases/xfail/response_body_basic_block.yaml}"
+CASE_FILE="${RESPONSE_BODY_PROBE_CASE:-$FRAMEWORK_ROOT/tests/common/cases/xfail/response_body_basic_block.yaml}"
 REPEAT="${RESPONSE_BODY_PROBE_REPEAT:-3}"
 
 require_absolute_generated_path() {
