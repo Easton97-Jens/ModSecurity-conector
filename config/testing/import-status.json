@@ -167,27 +167,27 @@
   ],
   "connector_specific": [
     {
-      "case": "tests/nginx/cases/imported/nginx_redirect_phase1_302.yaml",
+      "case": "connectors/nginx/tests/cases/imported/nginx_redirect_phase1_302.yaml",
       "reason": "NGINX redirect behavior is not yet proven against Apache."
     },
     {
-      "case": "tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml",
+      "case": "connectors/nginx/tests/cases/imported/nginx_tx_scoring_absolute_block.yaml",
       "reason": "NGINX TX scoring import is not yet proven against Apache."
     },
     {
-      "case": "tests/nginx/cases/imported/nginx_tx_scoring_iterative_block.yaml",
+      "case": "connectors/nginx/tests/cases/imported/nginx_tx_scoring_iterative_block.yaml",
       "reason": "NGINX TX scoring import is not yet proven against Apache."
     },
     {
-      "case": "tests/nginx/cases/imported/nginx_phase4_content_type_out_of_scope.yaml",
+      "case": "connectors/nginx/tests/cases/imported/nginx_phase4_content_type_out_of_scope.yaml",
       "reason": "NGINX-specific phase-4 log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion."
     },
     {
-      "case": "tests/nginx/cases/imported/nginx_phase4_minimal_log_only.yaml",
+      "case": "connectors/nginx/tests/cases/imported/nginx_phase4_minimal_log_only.yaml",
       "reason": "NGINX-specific phase-4 minimal log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion."
     },
     {
-      "case": "tests/nginx/cases/imported/nginx_phase4_safe_log_only.yaml",
+      "case": "connectors/nginx/tests/cases/imported/nginx_phase4_safe_log_only.yaml",
       "reason": "NGINX-specific phase-4 safe log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion."
     }
   ],
@@ -256,7 +256,7 @@
       "reason": "Local Apache and NGINX runs observed empty audit logs, but GitHub Actions reported a non-empty audit log; it is not counted as stable common PASS until both environments agree."
     },
     {
-      "case": "tests/nginx/cases/xfail/nginx_phase4_strict_connection_abort.yaml",
+      "case": "connectors/nginx/tests/cases/xfail/nginx_phase4_strict_connection_abort.yaml",
       "source": "ModSecurity-nginx PR #377 tests/modsecurity-phase4-modes.t",
       "reason": "Strict mode may abort the connection after headers are sent; current smoke schema asserts stable HTTP status and keeps this as NGINX-only xfail evidence."
     },

@@ -74,12 +74,13 @@ The generated root-level test coverage overview is available at
 
 ## External Test Framework
 
-This connector repository consumes the sibling `ModSecurity-test-Framework`
-project as its shared test/tooling layer. The connector Makefile defaults to:
+This connector repository consumes `ModSecurity-test-Framework` as its shared
+test/tooling layer through the module path
+`modules/ModSecurity-test-Framework`. Initialize the module before running
+framework-backed targets:
 
 ```sh
-FRAMEWORK_ROOT=../ModSecurity-test-Framework
-CONNECTOR_ROOT=.
+git submodule update --init --recursive
 ```
 
 Override `FRAMEWORK_ROOT` when the framework checkout is elsewhere:
@@ -92,11 +93,12 @@ FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make runtime-matrix-all
 The framework owns the portable/common YAML cases, runner code, normalizers,
 coverage generator, and runtime snapshot tooling. This repository owns the
 Apache/NGINX connector sources, connector harnesses, adapter metadata,
-`tests/import-status.json`, and connector-specific cases such as
-`tests/nginx/cases/`.
+`config/testing/import-status.json`, and connector-specific cases such as
+`connectors/nginx/tests/cases/`.
 
-There is no absolute `/root/conecter` runtime fallback. The sibling checkout is
-only a relative local convenience, and all important paths remain configurable.
+There is no absolute `/root/conecter` runtime fallback. The module path is the
+default, and all important paths remain configurable through `FRAMEWORK_ROOT`,
+`CONNECTOR_ROOT`, `BUILD_ROOT`, and source/ref environment variables.
 
 ## Local Runtime Validation
 
@@ -164,7 +166,7 @@ this checkout can be used. CI can use `$RUNNER_TEMP`.
 
 ## CI Helper Configuration
 
-Shared shell defaults live in `ci/common.sh`. The file is intentionally passive:
+Shared shell defaults live in `modules/ModSecurity-test-Framework/ci/common.sh`. The file is intentionally passive:
 it only defines variables and helper functions when sourced.
 
 Common override variables:
@@ -317,8 +319,8 @@ Imported source-derived cases are split by scope:
 
 - `$FRAMEWORK_ROOT/tests/common/cases/imported/`: portable cases that Apache
   and NGINX both must run for `smoke-common` and `smoke-all`.
-- `tests/apache/cases/imported/`: Apache-specific cases only.
-- `tests/nginx/cases/imported/`: NGINX-specific cases only.
+- `connectors/apache/tests/cases/imported/`: Apache-specific cases only.
+- `connectors/nginx/tests/cases/imported/`: NGINX-specific cases only.
 
 Current imported common candidates cover phase actions, query-argument
 collections, form-body collection names, raw request-body matching, raw JSON
@@ -377,7 +379,8 @@ Boundary rule:
 - `common/` contains connector-neutral code only.
 - `connectors/<name>/` contains server/proxy-specific integration only.
 - `$FRAMEWORK_ROOT/tests/common/` contains only portable engine/rule/behavior tests.
-- `tests/<connector>/` contains connector-specific behavior tests.
+- `connectors/<connector>/tests/cases/` contains connector-specific behavior
+  tests.
 
 ## Documentation Entry Points
 

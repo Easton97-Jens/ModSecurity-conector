@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Check Lighttpd scaffold
         run: |
           set -eu
@@ -17,8 +19,4 @@ jobs:
           test -f connectors/lighttpd/docs/architecture.md
           test -f connectors/lighttpd/docs/build.md
           test -f connectors/lighttpd/docs/public-sources.md
-          test -f tests/lighttpd/README.md
           grep -q 'Status:' connectors/lighttpd/TODO.md
-      - name: Compile Python skeletons
-        run: |
-          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py

@@ -14,7 +14,7 @@ The repository provides a controlled adapter-owned build helper:
 REFRESH=1 \
 BUILD_HTTPD_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh ci/prepare-apache-build.sh
+make smoke-apache
 ```
 
 The helper copies libmodsecurity v3 and materializes the Apache connector

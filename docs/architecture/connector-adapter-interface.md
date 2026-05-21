@@ -44,7 +44,7 @@ instantiate the C structs through FFI.
 
 Phase 3 adds small Common C helper implementations for those shapes. Existing
 Apache and NGINX harnesses still use Python/Shell and mirror the schema through
-`tests/runners/msconnector_models.py`.
+`modules/ModSecurity-test-Framework/tests/runners/msconnector_models.py`.
 
 ## Boundary Rules
 

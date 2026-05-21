@@ -32,7 +32,7 @@ they do not replace the runtime statuses above.
 
 The mapping is intentionally one-way. Existing smoke semantics and exit codes
 stay unchanged. Python/Shell runners mirror this mapping through
-`tests/runners/msconnector_models.py`; they do not load the C helper through
+`modules/ModSecurity-test-Framework/tests/runners/msconnector_models.py`; they do not load the C helper through
 FFI.
 
 ## Import Status
@@ -45,7 +45,7 @@ FFI.
 | `blocked` | Relevant source exists but current harness cannot execute it |
 | `xfail` | Probeable case with known instability or expected failure |
 
-`tests/import-status.json` is the machine-readable manifest for import status
+`config/testing/import-status.json` is the machine-readable manifest for import status
 counts. Connector summaries copy those counts into `import_status`.
 
 ## Result Metadata

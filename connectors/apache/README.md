@@ -9,7 +9,7 @@ Implemented now:
 - Documentation of observed local Apache connector concepts.
 - Adapter-owned Apache connector layout under `connectors/apache/`, with
   productive source under `connectors/apache/src/`.
-- A PoC build-preparation helper in `ci/prepare-apache-build.sh`.
+- A PoC build-preparation helper in `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`.
 - A local runtime smoke harness under `connectors/apache/harness/`.
 - Use of all shared minimal cases under `tests/common/cases/minimal/`.
 - Use of source-derived shared imported cases, including raw JSON body,

@@ -25,7 +25,7 @@ Generated file — do not edit manually.
 - Connector root used for adapter inventory/reports: `CONNECTOR_ROOT`.
 - Common YAML cases, runners, normalizers, and generators are owned by `ModSecurity-test-Framework`.
 - Connector-specific cases, adapter metadata, harnesses, import status, and generated reports are owned by this connector repository.
-- `FRAMEWORK_ROOT` is configurable; the sibling checkout is only a relative local convenience, not an absolute workspace fallback.
+- `FRAMEWORK_ROOT` is configurable and may point at a module/submodule or another explicit checkout; there is no absolute workspace fallback.
 
 ## Testarten
 - Common YAML Cases: **126**
@@ -124,8 +124,8 @@ Generated file — do not edit manually.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-21** (2026-05-21 13:34:45 CEST)
-- Git: branch `master`, commit `91cd00d`
+- Snapshot: **2026-05-21** (2026-05-21 18:02:19 CEST)
+- Git: branch `master`, commit `aea6d52`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.
@@ -144,9 +144,9 @@ Generated file — do not edit manually.
 | make check-test-matrix | PASS | Generated coverage docs matched generator output after staging generated docs |
 | make quick-check | PASS | Lightweight framework checks passed |
 | make cloud-quick-check | PASS | Framework/generator-only cloud check passed |
-| .venv/bin/python -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py | PASS | Python files compiled |
-| sh -n ci/*.sh | PASS | POSIX shell syntax check passed for ci shell scripts |
-| bash -n ci/*.sh | PASS | Bash syntax check passed for ci shell scripts |
+| .venv/bin/python -m py_compile modules/ModSecurity-test-Framework/tests/normalizers/*.py modules/ModSecurity-test-Framework/tests/runners/*.py modules/ModSecurity-test-Framework/ci/*.py | PASS | Framework Python files compiled through the connector module path |
+| sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | POSIX shell syntax check passed for connector integration shell scripts |
+| bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | Bash syntax check passed for connector integration shell scripts |
 | git diff --check | PASS | No whitespace errors reported |
 | diff -u /tmp/pre-connector.diff /tmp/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
 | git diff --exit-code -- connectors/apache/src connectors/nginx/src | BLOCKED | Non-zero because connectors/apache/src/mod_security3.c had a pre-existing unrelated local change before this fix; the pre/post connector diff snapshot is unchanged |
@@ -155,9 +155,9 @@ Generated file — do not edit manually.
 ## Readiness / Fetch Status
 | Command | Status | Details |
 |---|---|---|
-| make fetch-deps | NOT_RUN | Not rerun in this permission-fix pass; existing ModSecurity source tree from prior source-build smoke was reused for REFRESH=1 make smoke-nginx |
+| make fetch-deps | NOT_RUN | Not rerun during the framework-module migration; runtime-matrix-all used the configured local source tree and build output location |
 | optional installed readiness | BLOCKED | System Apache/APXS/NGINX/libmodsecurity readiness remains diagnostic only and is not required for source-build smokes |
-| REFRESH=1 make smoke-nginx rebuild retry | BLOCKED | The rebuild produced NGINX artifacts, then prepare-nginx-build reported a post-build shell parse error before runtime cases; runtime validation was completed separately with make smoke-nginx using the freshly produced artifacts. |
+| make runtime-matrix-all | PASS | Force-all matrix orchestration completed and recorded Apache/NGINX per-case evidence; expected runtime FAILs remain evidence and are not PASS promotions |
 
 ## Runtime Smoke Status
 | Command | Status | Exit | PASS | FAIL | BLOCKED | XFAIL | Evidence |

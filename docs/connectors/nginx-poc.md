@@ -4,7 +4,7 @@ Status: scaffolded
 
 ## Implemented
 
-- `ci/prepare-nginx-build.sh` prepares a connector-specific NGINX PoC build
+- `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` prepares a connector-specific NGINX PoC build
   under `BUILD_ROOT`.
 - The helper copies the read-only libmodsecurity v3 and ModSecurity-nginx
   sources into `$BUILD_ROOT/nginx-build/` and builds only inside those copies.
@@ -58,7 +58,7 @@ Run the build helper with:
 REFRESH=1 \
 BUILD_NGINX_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh ci/prepare-nginx-build.sh
+sh modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh
 ```
 
 The helper builds libmodsecurity v3 in:
@@ -114,7 +114,7 @@ latest release. The helper does not hardcode this value.
 For a pinned release:
 
 ```sh
-NGINX_RELEASE_TAG=release-1.31.0 sh ci/prepare-nginx-build.sh
+NGINX_RELEASE_TAG=release-1.31.0 sh modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh
 ```
 
 The archive URL is:
@@ -142,7 +142,7 @@ Rules, request details, and expected statuses are read from:
 ```text
 tests/common/cases/minimal/*.yaml
 tests/common/cases/imported/*.yaml
-tests/nginx/cases/imported/*.yaml
+connectors/nginx/tests/cases/imported/*.yaml
 ```
 
 The harness does not hardcode the rule, request path, request method, headers,
@@ -168,7 +168,7 @@ make smoke-nginx
 Observed in this workspace on 2026-05-15:
 
 - `REFRESH=1 BUILD_NGINX_FROM_SOURCE=1
-  BUILD_ROOT=/src/ModSecurity-conector-build sh ci/prepare-nginx-build.sh`
+  BUILD_ROOT=/src/ModSecurity-conector-build sh modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh`
   built libmodsecurity v3 in a writable copy, resolved the NGINX release
   through GitHub, built NGINX, and produced the ModSecurity dynamic module.
 - `BUILD_ROOT=/src/ModSecurity-conector-build make smoke-nginx` returned pass

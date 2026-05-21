@@ -21,6 +21,8 @@ jobs:
       SMOKE_LOCK_TIMEOUT_SECONDS: "1800"
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Initialize paths
         id: paths
@@ -42,8 +44,9 @@ jobs:
 
       - name: Lint and py-compile
         run: |
+          make setup-dev
           make lint
-          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+          .venv/bin/python -m py_compile modules/ModSecurity-test-Framework/tests/normalizers/*.py modules/ModSecurity-test-Framework/tests/runners/*.py modules/ModSecurity-test-Framework/ci/*.py
           git diff --check
 
       - name: Sequential full smoke

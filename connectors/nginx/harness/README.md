@@ -18,7 +18,7 @@ minimal cases.
 - Reports `pass` only when NGINX returns the YAML-expected HTTP status for a
   real local request.
 - Reads rule, request, headers, body, multipart body, response fixture, and
-  expected status from YAML through `tests/runners/case_cli.py`.
+  expected status from YAML through `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
 
 ## Usage
 
@@ -26,7 +26,7 @@ minimal cases.
 REFRESH=1 \
 BUILD_NGINX_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh ci/prepare-nginx-build.sh
+make smoke-nginx
 
 BUILD_ROOT=/src/ModSecurity-conector-build \
 make smoke-nginx
@@ -54,7 +54,7 @@ By default the harness iterates every `*.yaml` file in:
 ```text
 tests/common/cases/minimal/
 tests/common/cases/imported/
-tests/nginx/cases/imported/
+connectors/nginx/tests/cases/imported/
 ```
 
 To run a subset:

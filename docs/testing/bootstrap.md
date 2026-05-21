@@ -5,13 +5,12 @@ Apache and NGINX connector source is repo-local by default; external connector
 repositories are not part of the default runtime bootstrap.
 
 Shared shell defaults for the framework runtime helpers are centralized in
-`$FRAMEWORK_ROOT/ci/common.sh`. Connector-local `ci/` scripts are thin
-compatibility wrappers or connector-specific checks. The framework `common.sh`
+`$FRAMEWORK_ROOT/ci/common.sh`. Connector-local `ci/` scripts are connector-specific checks. The framework `common.sh`
 is passive: it only defines variables and helper functions when sourced, and it
 does not fetch, install, validate, or create directories by itself.
 
-Set `FRAMEWORK_ROOT` when the framework checkout is not the sibling
-`../ModSecurity-test-Framework`.
+Set `FRAMEWORK_ROOT` when the framework checkout is not the module
+`modules/ModSecurity-test-Framework`.
 
 ## Repositories used
 
@@ -22,7 +21,7 @@ Set `FRAMEWORK_ROOT` when the framework checkout is not the sibling
   `$FRAMEWORK_ROOT/tests/common`, `$FRAMEWORK_ROOT/tests/runners`,
   `$FRAMEWORK_ROOT/tests/normalizers`, and `$FRAMEWORK_ROOT/ci`
 - Apache/httpd, APR/APR-util, PCRE2, and NGINX server sources are separate
-  runtime-build dependencies configured through `ci/common.sh`.
+  runtime-build dependencies configured through `modules/ModSecurity-test-Framework/ci/common.sh`.
 
 Central override variables:
 

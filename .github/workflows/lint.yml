@@ -9,19 +9,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check common boundary
+        with:
+          submodules: recursive
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check common boundary and docs
         run: |
           set -eu
           if grep -RInE 'apache|nginx|haproxy|envoy|lighttpd|traefik' common/include common/src; then
             echo "common/include and common/src must remain connector-neutral"
             exit 1
           fi
-      - name: Compile Python skeletons
-        run: |
-          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
-      - name: Check required docs
-        run: |
-          set -eu
           test -f README.md
           test -f docs/architecture/architecture.md
           test -f docs/imports/sources.md
@@ -32,6 +32,7 @@ jobs:
           test -f docs/architecture/README.md
           test -f docs/connectors/README.md
           test -f docs/testing/README.md
-      - name: Check documentation links
+      - name: Run lightweight lint
         run: |
-          python3 ci/check-doc-links.py
+          make setup-dev
+          make lint

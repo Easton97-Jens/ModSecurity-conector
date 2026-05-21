@@ -3,10 +3,12 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-. "$SCRIPT_DIR/common.sh"
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}"
+[ -d "$FRAMEWORK_ROOT" ] || { echo "adapter_helper_smoke: missing FRAMEWORK_ROOT; run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; exit 77; }
+BUILD_ROOT="${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}"
 
 CC_BIN="${CC:-cc}"
-PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
+PYTHON_BIN="${PYTHON_BIN:-${PYTHON:-$(if [ -x "$REPO_ROOT/.venv/bin/python" ]; then printf '%s' "$REPO_ROOT/.venv/bin/python"; else printf '%s' python3; fi)}}"
 OUT_DIR="$BUILD_ROOT/adapter-helper-smoke"
 SMOKE_C="$OUT_DIR/adapter_helper_smoke.c"
 SMOKE_BIN="$OUT_DIR/adapter_helper_smoke"
@@ -29,7 +31,7 @@ command -v "$CC_BIN" >/dev/null 2>&1 || {
 }
 
 mkdir -p "$OUT_DIR"
-"$PYTHON_BIN" "$REPO_ROOT/ci/adapter_metadata.py" c-smoke > "$SMOKE_C"
+CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" c-smoke > "$SMOKE_C"
 
 "$CC_BIN" -std=c99 -Wall -Wextra -Werror \
     -I "$REPO_ROOT" \

@@ -5,20 +5,20 @@ on:
   pull_request:
 
 jobs:
-  nginx-poc:
+  nginx-structure:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Checkout test framework
-        uses: actions/checkout@v4
         with:
-          repository: Easton97-Jens/ModSecurity-test-Framework
-          path: ModSecurity-test-Framework
+          submodules: recursive
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Check NGINX scaffold
-        env:
-          FRAMEWORK_ROOT: ${{ github.workspace }}/ModSecurity-test-Framework
         run: |
           set -eu
+          test -d modules/ModSecurity-test-Framework
           test -f connectors/nginx/README.md
           test -f connectors/nginx/TODO.md
           test -f connectors/nginx/harness/nginx_smoke.conf
@@ -27,24 +27,15 @@ jobs:
           test -f connectors/nginx/docs/architecture.md
           test -f connectors/nginx/docs/build.md
           test -f connectors/nginx/docs/public-sources.md
-          test -f ci/run-nginx-smoke.sh
-          test -f tests/nginx/nginx-regression-map.md
-          test -f tests/nginx/cases/imported/nginx_tx_scoring_absolute_block.yaml
-          test -f "$FRAMEWORK_ROOT/tests/common/cases/minimal/phase2_args_block.yaml"
-          test -f "$FRAMEWORK_ROOT/tests/common/cases/imported/request_body_raw_text_block.yaml"
-          test -f "$FRAMEWORK_ROOT/tests/common/cases/imported/response_body_pass.yaml"
-          test -f tests/import-status.json
+          test -f connectors/nginx/tests/cases/imported/nginx_tx_scoring_absolute_block.yaml
+          test -f docs/testing/imports/nginx-regression-map.md
+          test -f config/testing/import-status.json
           test -f docs/connectors/nginx-poc.md
           test -f docs/connectors/apache-vs-nginx-poc.md
-          test -f docs/testing/test-import-plan.md
-          test -f docs/connectors/real-world-connector-validation.md
           grep -q 'Status:' connectors/nginx/TODO.md
-      - name: Syntax checks
-        env:
-          FRAMEWORK_ROOT: ${{ github.workspace }}/ModSecurity-test-Framework
+      - name: Syntax and dry-run checks
         run: |
-          set -eu
-          sh -n ci/prepare-nginx-build.sh
-          sh -n ci/run-nginx-smoke.sh
+          make setup-dev
           sh -n connectors/nginx/harness/run_nginx_smoke.sh
-          python3 -m py_compile "$FRAMEWORK_ROOT"/tests/normalizers/*.py "$FRAMEWORK_ROOT"/tests/runners/*.py "$FRAMEWORK_ROOT"/ci/*.py ci/*.py
+          make -n smoke-nginx
+          make quick-check

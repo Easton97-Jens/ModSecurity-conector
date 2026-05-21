@@ -1,8 +1,8 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
 BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
-FRAMEWORK_ROOT ?= $(abspath ../ModSecurity-test-Framework)
-CONNECTOR_ROOT ?= $(CURDIR)
+FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
+CONNECTOR_ROOT := $(CURDIR)
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
@@ -64,67 +64,72 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all runtime-matrix runtime-matrix-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
+.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-all runtime-matrix runtime-matrix-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
-smoke-common:
+check-framework:
+	@test -d "$(FRAMEWORK_ROOT)" || { \
+		echo "BLOCKED: FRAMEWORK_ROOT is missing: $(FRAMEWORK_ROOT)"; \
+		echo "Hint: run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; \
+		exit 77; \
+	}
+
+smoke-common: check-framework
 	CASE_SCOPE=common sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
 
-smoke-apache:
+smoke-apache: check-framework
 	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-apache-smoke.sh"
 
-smoke-nginx:
+smoke-nginx: check-framework
 	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-nginx-smoke.sh"
 
-smoke-all:
+smoke-all: check-framework
 	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
 
-runtime-matrix:
+runtime-matrix: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
 
-runtime-matrix-all:
+runtime-matrix-all: check-framework
 	FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
 
-probe-response-body:
-	sh ci/probe-response-body-blocking.sh
+probe-response-body: check-framework
+	sh "$(FRAMEWORK_ROOT)/ci/probe-response-body-blocking.sh"
 
-lint:
+lint: check-framework
 	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh; else echo "bash unavailable"; fi
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py ci/*.py
-	$(PYTHON) -m json.tool tests/import-status.json >/dev/null
-	$(PYTHON) ci/check-python-deps.py
-	$(PYTHON) ci/check-workflow-yaml.py
-	$(PYTHON) ci/check-doc-links.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
+	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"
+	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-workflow-yaml.py"
+	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-doc-links.py"
 	sh ci/check-common-helpers.sh
 	sh ci/check-adapter-helpers.sh
 	sh ci/check-adapter-metadata-drift.sh
 	if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else echo "actionlint unavailable"; fi
 	git diff --check
 
-summary:
+summary: check-framework
 	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/summarize-results.py" "$(BUILD_ROOT)/results/connector-summary.json"
 
-case-matrix:
+case-matrix: check-framework
 	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/write-case-matrix.py" "$(BUILD_ROOT)/results/connector-summary.json" docs/testing/case-matrix.md
 
-install-dev-deps:
-	sh ci/bootstrap-python.sh
+install-dev-deps: check-framework
+	sh "$(FRAMEWORK_ROOT)/ci/bootstrap-python.sh"
 
 setup-dev: install-dev-deps
 	@echo "setup-dev: using PYTHON=$(PYTHON)"
+	@echo "setup-dev: test framework -> $(FRAMEWORK_ROOT)"
 	@echo "setup-dev: next steps -> make lint; make fetch-deps; make doctor; make smoke-all"
 
-
-
-fetch-modsecurity-v3:
+fetch-modsecurity-v3: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/fetch-smoke-sources.sh" v3
 
-fetch-deps bootstrap-runtime:
+fetch-deps bootstrap-runtime: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/fetch-smoke-sources.sh" all
 
-doctor env-check:
-	sh ci/doctor.sh
-
+doctor env-check: check-framework
+	sh "$(FRAMEWORK_ROOT)/ci/doctor.sh"
 
 print-python:
 	@echo "make: using PYTHON=$(PYTHON)"
@@ -132,14 +137,12 @@ print-python:
 bootstrap-all: setup-dev fetch-deps doctor
 	@echo "bootstrap-all complete (smoke not run)"
 
-
-quick-check codex-check:
-	make lint
-	$(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py ci/*.py
+quick-check codex-check: lint
+	$(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	git diff --check
 
-smoke-installed installed-readiness:
-	sh ci/smoke-installed.sh
+smoke-installed installed-readiness: check-framework
+	sh "$(FRAMEWORK_ROOT)/ci/smoke-installed.sh"
 
 doctor-install-hints:
 	@echo "Install hints (Debian/Ubuntu example):"
@@ -150,21 +153,21 @@ doctor-install-hints:
 	@echo "Install hints (Alpine example):"
 	@echo "  sudo apk add git make gcc clang autoconf automake libtool pkgconf apache2-dev nginx modsecurity"
 
+doctor-quick: check-framework
+	DOCTOR_MODE=quick sh "$(FRAMEWORK_ROOT)/ci/doctor.sh"
 
-doctor-quick:
-	DOCTOR_MODE=quick sh ci/doctor.sh
+quick-all: check-framework
+	sh "$(FRAMEWORK_ROOT)/ci/quick-all.sh"
 
-quick-all:
-	sh ci/quick-all.sh
+cloud-quick-check: setup-dev lint generate-test-matrix check-test-matrix quick-check
+	$(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	git diff --check
+	@echo "INFO: Cloud check is framework/generator only and not runtime compatibility evidence."
 
-cloud-quick-check:
-	sh ci/cloud-quick-check.sh
-
-
-generate-test-matrix:
+generate-test-matrix: check-framework
 	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/generate-case-matrix.py" --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CURDIR)" --output-root "$(CURDIR)"
 
-check-test-matrix:
+check-test-matrix: check-framework
 	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/generate-case-matrix.py" --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CURDIR)" --output-root "$(CURDIR)"
 	@git diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md TEST-COVERAGE-SUMMARY.md >/dev/null || { \
 		echo "Generated test matrix docs are out of date. Run make generate-test-matrix"; \

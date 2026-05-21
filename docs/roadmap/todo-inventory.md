@@ -26,9 +26,9 @@ entries. It intentionally excludes runtime status strings such as shell
 | `common/src/README.md` | 19 | phase 3 resolved | Add implementation files only after a connector-neutral need exists | refactor | resolved | P3 | common | Metadata-only Common C helpers now exist; broader runtime extraction remains deferred |
 | `tests/common/schema/README.md` | 67 | open work | Define a machine-readable JSON schema | test | planned | P1 | tests/common | Add schema after YAML shape stabilizes |
 | `tests/common/schema/README.md` | 68 | open work | Reject connector-specific fields in common schema validation | test | planned | P1 | tests/common | Add with machine-readable schema |
-| `tests/normalizers/README.md` | 18 | open work | Header order normalization | test | planned | P2 | normalizers | Add artifact-specific parser |
-| `tests/normalizers/README.md` | 19 | open work | Audit log section parsing | audit-log | planned | P2 | normalizers | Add stable section-aware parser |
-| `tests/normalizers/README.md` | 20 | open work | Connector-specific log formats | connector | deferred | P3 | connector tests | Keep in connector-specific normalizers |
+| `modules/ModSecurity-test-Framework/tests/normalizers/README.md` | 18 | open work | Header order normalization | test | planned | P2 | normalizers | Add artifact-specific parser |
+| `modules/ModSecurity-test-Framework/tests/normalizers/README.md` | 19 | open work | Audit log section parsing | audit-log | planned | P2 | normalizers | Add stable section-aware parser |
+| `modules/ModSecurity-test-Framework/tests/normalizers/README.md` | 20 | open work | Connector-specific log formats | connector | deferred | P3 | connector tests | Keep in connector-specific normalizers |
 | `connectors/apache/TODO.md` | 1 | planning file | Apache-specific build/runtime/refactor items | connector | planned | P1 | apache | Keep as connector-local checklist linked to this inventory |
 | `connectors/nginx/TODO.md` | 1 | planning file | NGINX-specific build/runtime/refactor items | connector | planned | P1 | nginx | Keep as connector-local checklist linked to this inventory |
 | `connectors/haproxy/TODO.md` | 3 | `Status: unknown` | Integration path undecided | future-connector | planned | P2 | haproxy | Decide after Common stabilization |
@@ -77,7 +77,7 @@ The following owned markers were removed or replaced by inventory references:
 - `common/docs/design.md` old `## TODO` heading.
 - `common/src/README.md` old `TODO:` heading.
 - `tests/common/schema/README.md` old `TODO:` heading.
-- `tests/normalizers/README.md` old `TODO:` heading.
+- `modules/ModSecurity-test-Framework/tests/normalizers/README.md` old `TODO:` heading.
 - Connector-local `TODO.md` titles now use “Planning” while retaining the file
   names expected by workflow structure checks.
 - Connector build/architecture docs now use “Open work” wording and point here.

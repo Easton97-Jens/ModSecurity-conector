@@ -32,7 +32,7 @@ MODSECURITY_APACHE_SOURCE_DIR=connectors/apache
 APACHE_CONNECTOR_BUILD_DIR=$BUILD_ROOT/apache-build/connector-src
 ```
 
-`ci/prepare-apache-build.sh` materializes the source tree, then runs the
+`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` materializes the source tree, then runs the
 standard Autotools/APXS sequence from the generated directory:
 
 ```sh

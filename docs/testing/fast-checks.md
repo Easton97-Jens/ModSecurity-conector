@@ -5,10 +5,9 @@
 Fast checks provide rapid feedback for Codex/developer iterations without pretending to be full connector validation.
 
 Shared defaults for runtime helper scripts live in
-`$FRAMEWORK_ROOT/ci/common.sh`; connector-local `ci/` scripts either wrap the
-framework or perform connector-specific checks. The framework path is
-configurable with `FRAMEWORK_ROOT` and defaults locally to the sibling
-`../ModSecurity-test-Framework`.
+`$FRAMEWORK_ROOT/ci/common.sh`; connector-local `ci/` scripts perform connector-specific checks. The framework path is
+configurable with `FRAMEWORK_ROOT` and defaults locally to the module
+`modules/ModSecurity-test-Framework`.
 
 ## Targets
 

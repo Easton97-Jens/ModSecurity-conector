@@ -4,7 +4,7 @@ Status: scaffolded
 
 ## Implemented
 
-- `ci/prepare-apache-build.sh` prepares a connector-specific Apache PoC build
+- `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` prepares a connector-specific Apache PoC build
   under `BUILD_ROOT`.
 - The helper can build Apache httpd from source under `BUILD_ROOT`; system-wide
   `apxs` and `httpd` are not required.
@@ -12,7 +12,7 @@ Status: scaffolded
   runtime under `BUILD_ROOT` and checks for a real HTTP `403`.
 - The shared minimal YAML cases under `tests/common/cases/minimal/` define the
   rule/request/expectation model used by Apache and NGINX.
-- `tests/runners/case_cli.py` reads each YAML file and materializes the Apache
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py` reads each YAML file and materializes the Apache
   rules, request method/path, headers, body, multipart body, response fixture,
   and expected HTTP status for the harness.
 
@@ -58,7 +58,7 @@ The Apache PoC can build httpd without package installation:
 REFRESH=1 \
 BUILD_HTTPD_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-conector-build \
-sh ci/prepare-apache-build.sh
+sh modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh
 ```
 
 Default source versions:
@@ -143,7 +143,7 @@ Rules, request details, and expected statuses are read from:
 ```text
 tests/common/cases/minimal/*.yaml
 tests/common/cases/imported/*.yaml
-tests/apache/cases/imported/*.yaml
+connectors/apache/tests/cases/imported/*.yaml
 ```
 
 The default run executes:
@@ -188,7 +188,7 @@ Observed in this workspace on 2026-05-15:
 - `apxs`, `apxs2`, `apache2`, `httpd`, `apachectl`, and `apache2ctl` were not
   found in `PATH`.
 - `REFRESH=1 BUILD_HTTPD_FROM_SOURCE=1
-  BUILD_ROOT=/src/ModSecurity-conector-build sh ci/prepare-apache-build.sh`
+  BUILD_ROOT=/src/ModSecurity-conector-build sh modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`
   built Apache httpd from source, built libmodsecurity v3 in a writable copy,
   and built `mod_security3.so`.
 - `BUILD_ROOT=/src/ModSecurity-conector-build make smoke-apache` returned pass

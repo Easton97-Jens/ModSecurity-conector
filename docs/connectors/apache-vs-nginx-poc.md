@@ -15,9 +15,9 @@ tests/common/cases/v3-imported/*.yaml
 
 Shared pieces:
 
-- `tests/runners/case_cli.py materialize` writes connector runtime rule files
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py materialize` writes connector runtime rule files
   and request variables from the YAML case.
-- `tests/runners/case_cli.py assert-status` compares the observed HTTP status
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py assert-status` compares the observed HTTP status
   with `expect.status`.
 - The expected proof is the HTTP status encoded in each YAML file, currently
   HTTP `403` for all minimal blocking cases.
@@ -57,7 +57,7 @@ NGINX:
   the materialized rules file.
 - A local source-built NGINX smoke has observed the YAML-expected HTTP status
   for all current shared minimal cases.
-- NGINX-specific imported cases under `tests/nginx/cases/imported/` currently
+- NGINX-specific imported cases under `connectors/nginx/tests/cases/imported/` currently
   cover redirect and TX scoring behavior from the local NGINX suite. They stay
   NGINX-only until Apache equivalence is explicitly tested.
 

@@ -3,8 +3,8 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
-FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$REPO_ROOT/../ModSecurity-test-Framework" 2>/dev/null && pwd || printf '')}"
-[ -n "$FRAMEWORK_ROOT" ] || { echo "apache_smoke: blocked FRAMEWORK_ROOT is not set and ../ModSecurity-test-Framework is missing"; exit 77; }
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}"
+[ -d "$FRAMEWORK_ROOT" ] || { echo "apache_smoke: blocked FRAMEWORK_ROOT is missing; run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; exit 77; }
 BUILD_ROOT="${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
@@ -43,7 +43,7 @@ CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
 
 load_connector_adapter_metadata() {
-    eval "$("$PYTHON_BIN" "$REPO_ROOT/ci/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
+    eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
     CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-$CONNECTOR_ADAPTER_SOURCE}"
     CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-$CONNECTOR_ADAPTER_SOURCE_REPO}"
     CONNECTOR_ORIGIN_SOURCE_URL="${CONNECTOR_ORIGIN_SOURCE_URL:-$CONNECTOR_ADAPTER_SOURCE_URL}"
@@ -208,7 +208,7 @@ run_all_cases() {
         --input-jsonl "$results_jsonl" \
         --summary-json "$json_file" \
         --summary-text "$summary_file" \
-        --import-status-file "$REPO_ROOT/tests/import-status.json" \
+        --import-status-file "$REPO_ROOT/config/testing/import-status.json" \
         --connector-path real-world \
         --validation-mode real-world-connector-path \
         --server apache \

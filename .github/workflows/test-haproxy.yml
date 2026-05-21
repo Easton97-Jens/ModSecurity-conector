@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Check HAProxy scaffold
         run: |
           set -eu
@@ -17,8 +19,4 @@ jobs:
           test -f connectors/haproxy/docs/architecture.md
           test -f connectors/haproxy/docs/build.md
           test -f connectors/haproxy/docs/public-sources.md
-          test -f tests/haproxy/README.md
           grep -q 'Status:' connectors/haproxy/TODO.md
-      - name: Compile Python skeletons
-        run: |
-          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py

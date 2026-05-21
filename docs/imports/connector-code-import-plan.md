@@ -64,7 +64,7 @@ The following are intentionally not imported:
 
 ## Build Harness Use
 
-`ci/prepare-apache-build.sh` and `ci/prepare-nginx-build.sh` use the
+`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` and `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` use the
 adapter-owned monorepo sources by default when connector source env vars are
 not set:
 
