@@ -7,13 +7,19 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT = ROOT / "docs/testing/runtime-validation-snapshot.json"
+sys.path.insert(0, str(ROOT / "tests" / "runners"))
+
+from runner_core import case_group, load_case  # noqa: E402
 
 
 def default_build_root() -> Path:
@@ -45,6 +51,69 @@ def normalize_case(path: str, build_root: Path) -> str:
         return path
 
 
+def case_metadata(path: str) -> dict[str, str]:
+    relative = normalize_case(path, default_build_root())
+    case_path = ROOT / relative
+    try:
+        case = load_case(case_path)
+    except Exception:
+        try:
+            raw = yaml.safe_load(case_path.read_text(encoding="utf-8"))
+            case = raw if isinstance(raw, dict) else {}
+        except Exception:
+            case = {}
+    status = str(case.get("status", "") or "")
+    text = " ".join(
+        [
+            relative,
+            status,
+            str(case.get("category", "") or ""),
+            str(case.get("notes", "") or ""),
+            str(case.get("source", "") or ""),
+        ]
+    ).lower()
+    group = case_group(case_path)
+    if "connector_gap" in text or "connector-gap" in text:
+        classification = "connector_gap"
+    elif "runtime_difference" in text or "runtime-difference" in text or "runtime_diff" in text:
+        classification = "runtime_difference"
+    elif "future" in text or "experimental" in text:
+        classification = "future"
+    elif "pending" in text:
+        classification = "pending"
+    elif group == "xfail" or status == "xfail":
+        classification = "xfail"
+    else:
+        classification = "active"
+    return {
+        "yaml_status": status or "unknown",
+        "case_group": group,
+        "classification": classification,
+    }
+
+
+def matrix_status(result_status: str, classification: str) -> str:
+    status = result_status.strip().lower()
+    if status == "blocked":
+        return "BLOCKED"
+    if status == "skipped":
+        return "NOT_EXECUTABLE"
+    if status not in {"pass", "fail"}:
+        return status.upper() if status else "UNKNOWN"
+    suffix = "PASS" if status == "pass" else "FAIL"
+    if classification == "active":
+        return suffix
+    if classification == "connector_gap":
+        return f"CONNECTOR_GAP_{suffix}"
+    if classification == "runtime_difference":
+        return f"RUNTIME_DIFFERENCE_{suffix}"
+    if classification == "pending":
+        return f"PENDING_{suffix}"
+    if classification == "future":
+        return f"FUTURE_{suffix}"
+    return f"XFAIL_{suffix}"
+
+
 def case_rows(summary: dict, connector: str, build_root: Path, summary_path: Path) -> list[dict]:
     connector_summary = summary.get(connector)
     if not isinstance(connector_summary, dict):
@@ -57,6 +126,7 @@ def case_rows(summary: dict, connector: str, build_root: Path, summary_path: Pat
         if not isinstance(item, dict):
             continue
         status = str(item.get("status", "unknown"))
+        metadata = case_metadata(str(item.get("path", "")))
         expected = item.get("expected_status")
         actual = item.get("actual_status")
         evidence = f"{summary_path}; case={name}; status={status}"
@@ -67,13 +137,18 @@ def case_rows(summary: dict, connector: str, build_root: Path, summary_path: Pat
                 "case": str(name),
                 "path": normalize_case(str(item.get("path", "")), build_root),
                 "status": status,
+                "matrix_status": matrix_status(status, metadata["classification"]),
+                "runtime_attempted": True,
                 "operation_status": item.get("operation_status", "unknown"),
                 "expected_status": expected,
                 "actual_status": actual,
                 "scope": item.get("scope", "unknown"),
                 "group": item.get("group", "unknown"),
+                "yaml_status": metadata["yaml_status"],
+                "runtime_classification": metadata["classification"],
                 "capabilities": item.get("capabilities", []),
                 "evidence": evidence,
+                "not_auto_promoted": metadata["classification"] != "active",
             }
         )
     return rows
@@ -144,6 +219,7 @@ def main() -> int:
     parser.add_argument("--nginx-exit-code", default="not_run")
     parser.add_argument("--apache-command", default="REFRESH=1 make smoke-apache")
     parser.add_argument("--nginx-command", default="REFRESH=1 make smoke-nginx")
+    parser.add_argument("--force-all", action="store_true")
     args = parser.parse_args()
 
     build_root = Path(args.build_root)
@@ -157,6 +233,7 @@ def main() -> int:
         "branch": git_value("branch", "--show-current"),
         "commit": git_value("rev-parse", "--short", "HEAD"),
         "build_root": str(build_root),
+        "force_all_cases": args.force_all,
         "notes": [
             "Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.",
             "Per-case PASS/FAIL/BLOCKED/XFAIL values are runtime evidence for this local run only.",
@@ -170,7 +247,7 @@ def main() -> int:
         "runtime_smokes": [
             connector_smoke(
                 "apache",
-                args.apache_command,
+                f"FORCE_ALL_CASES=1 {args.apache_command}" if args.force_all else args.apache_command,
                 str(args.apache_exit_code),
                 results_dir / "apache-summary.json",
                 results_dir / "apache-summary.txt",
@@ -178,7 +255,7 @@ def main() -> int:
             ),
             connector_smoke(
                 "nginx",
-                args.nginx_command,
+                f"FORCE_ALL_CASES=1 {args.nginx_command}" if args.force_all else args.nginx_command,
                 str(args.nginx_exit_code),
                 results_dir / "nginx-summary.json",
                 results_dir / "nginx-summary.txt",
@@ -206,6 +283,7 @@ def main() -> int:
             "Runtime matrix records current local Apache and NGINX per-case smoke evidence.",
             "PASS in this snapshot means the case was executed by that connector's smoke harness and matched the case expectation in the summary JSON.",
             "XFAIL, pending, connector-gap, runtime-difference, future, and mapped-only inventory are not promoted by this snapshot.",
+            "FORCE_ALL_CASES=1 attempts xfail/pending/future/gap YAML cases where they are applicable to the connector.",
             "RESPONSE_BODY remains non-verified/non-promoted.",
             "make smoke-all was not run by runtime-matrix; full-smoke PASS counts remain unknown.",
         ],

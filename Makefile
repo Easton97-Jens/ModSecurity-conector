@@ -11,6 +11,7 @@ export DEFAULT_BRANCH
 export REFRESH
 export SMOKE_CASES
 export CASE_SCOPE
+export FORCE_ALL_CASES
 export MODSECURITY_REPO_URL
 export MODSECURITY_GIT_REF
 export MODSECURITY_APACHE_REPO_URL
@@ -59,7 +60,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: smoke-common smoke-apache smoke-nginx smoke-all runtime-matrix probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
+.PHONY: smoke-common smoke-apache smoke-nginx smoke-all runtime-matrix runtime-matrix-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 smoke-common:
 	CASE_SCOPE=common sh ci/run-connector-smokes.sh
@@ -75,6 +76,9 @@ smoke-all:
 
 runtime-matrix:
 	sh ci/run-runtime-matrix.sh
+
+runtime-matrix-all:
+	FORCE_ALL_CASES=1 sh ci/run-runtime-matrix.sh
 
 probe-response-body:
 	sh ci/probe-response-body-blocking.sh

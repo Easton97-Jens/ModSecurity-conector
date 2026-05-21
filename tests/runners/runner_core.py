@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import shlex
 import time
@@ -774,7 +775,11 @@ def _case_dirs(repo_root: Path, connector: str, scope: str) -> list[Path]:
         repo_root / "tests" / "common" / "cases" / "v2-imported",
         repo_root / "tests" / "common" / "cases" / "v3-imported",
     ]
+    if force_all_cases_enabled():
+        common_dirs.append(repo_root / "tests" / "common" / "cases" / "xfail")
     connector_dirs = [repo_root / "tests" / connector / "cases" / "imported"]
+    if force_all_cases_enabled():
+        connector_dirs.append(repo_root / "tests" / connector / "cases" / "xfail")
     if scope == "common":
         return common_dirs
     if scope == "connector":
@@ -791,6 +796,10 @@ def _case_path_in_scope(path: str | Path, connector: str, scope: str) -> bool:
     if path_scope.startswith(f"{connector}/"):
         return scope in {"connector", "all"}
     return False
+
+
+def force_all_cases_enabled() -> bool:
+    return os.environ.get("FORCE_ALL_CASES", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str, scope: str) -> bool:

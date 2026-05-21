@@ -21,6 +21,12 @@ defines variables/functions when sourced; scripts perform actions explicitly.
   - currently acts as installed readiness probe; returns BLOCKED when execution wiring for true installed runtime smoke is not available
 - `make smoke-all`
   - full source-build smoke path (authoritative)
+- `make runtime-matrix`
+  - local source-build Apache/NGINX per-case runtime inventory for the default executable case set
+- `make runtime-matrix-all`
+  - local source-build Apache/NGINX per-case runtime inventory with `FORCE_ALL_CASES=1`
+  - attempts xfail, pending, future, experimental, and connector-gap YAML cases where applicable
+  - recorded PASS/FAIL data is evidence only and does not promote YAML status or RESPONSE_BODY support
 
 ## Honesty rules
 
