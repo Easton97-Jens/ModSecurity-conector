@@ -30,8 +30,8 @@ jobs:
           test -f common/src/origin.c
           test -f common/src/capabilities.c
           test -f config/testing/import-status.json
-          test -f modules/ModSecurity-test-Framework/tests/common/modsecurity-v2-regression-map.md
-          test -f modules/ModSecurity-test-Framework/tests/common/modsecurity-v3-regression-map.md
+          test -f modules/ModSecurity-test-Framework/docs/imports/common/modsecurity-v2-regression-map.md
+          test -f modules/ModSecurity-test-Framework/docs/imports/common/modsecurity-v3-regression-map.md
           test -f modules/ModSecurity-test-Framework/docs/testing/v2-vs-v3-test-compatibility.md
           test -f reports/testing/real-world-connector-validation.md
           test ! -d docs/testing

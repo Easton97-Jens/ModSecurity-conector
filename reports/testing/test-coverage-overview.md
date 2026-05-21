@@ -82,8 +82,8 @@ Generated file — do not edit manually.
 - Details: `reports/testing/generated/runtime-matrix.generated.md`
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-21** (2026-05-21 20:30:51 CEST)
-- Git: branch `master`, commit `aa31837`
+- Snapshot: **2026-05-21** (2026-05-21 21:11:10 CEST)
+- Git: branch `master`, commit `adf9e6d`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.

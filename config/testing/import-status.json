@@ -1,31 +1,31 @@
 {
   "fully_imported_common": [
     {
-      "case": "tests/cases/phases/action_deny_phase1.yaml",
+      "case": "tests/cases/phases/phase1/action_deny_phase1.yaml",
       "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
-      "case": "tests/cases/phases/action_deny_phase2.yaml",
+      "case": "tests/cases/phases/phase2/action_deny_phase2.yaml",
       "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
-      "case": "tests/cases/phases/collection_args_combined_size_block.yaml",
+      "case": "tests/cases/phases/phase2/collection_args_combined_size_block.yaml",
       "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
-      "case": "tests/cases/phases/collection_args_get_block.yaml",
+      "case": "tests/cases/phases/phase2/collection_args_get_block.yaml",
       "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
-      "case": "tests/cases/phases/collection_args_names_block.yaml",
+      "case": "tests/cases/phases/phase2/collection_args_names_block.yaml",
       "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
-      "case": "tests/cases/phases/request_body_args_post_names_block.yaml",
+      "case": "tests/cases/phases/phase2/request_body_args_post_names_block.yaml",
       "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
-      "case": "tests/cases/phases/request_body_raw_text_block.yaml",
+      "case": "tests/cases/phases/phase2/request_body_raw_text_block.yaml",
       "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
@@ -81,11 +81,11 @@
       "reason": "V3-derived transformation case observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
-      "case": "tests/cases/phases/v3_secaction_block.yaml",
+      "case": "tests/cases/phases/phase2/v3_secaction_block.yaml",
       "reason": "V3-derived SecAction case observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
-      "case": "tests/cases/phases/action_status_401_phase1_block.yaml",
+      "case": "tests/cases/phases/phase1/action_status_401_phase1_block.yaml",
       "reason": "Source-derived HTTP 401 status action observed PASS on Apache and NGINX in the shared smoke harness."
     },
     {
@@ -129,7 +129,7 @@
       "reason": "V3-derived REQUEST_HEADERS_NAMES case observed PASS on Apache and NGINX using a stable custom header name."
     },
     {
-      "case": "tests/cases/phases/v3_args_names_get_block.yaml",
+      "case": "tests/cases/phases/phase2/v3_args_names_get_block.yaml",
       "reason": "V3-derived ARGS_NAMES GET case observed PASS on Apache and NGINX."
     },
     {
@@ -137,7 +137,7 @@
       "reason": "V3-derived serial audit log field case observed PASS on Apache and NGINX."
     },
     {
-      "case": "tests/cases/phases/action_allow_phase1_pass.yaml",
+      "case": "tests/cases/phases/phase1/action_allow_phase1_pass.yaml",
       "reason": "Observed PASS on Apache and latest local NGINX source-built smoke after the NGINX harness permission fix."
     },
     {
@@ -321,7 +321,7 @@
       "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
     },
     {
-      "case": "tests/cases/phases/edge_semicolon_query_args_names.yaml",
+      "case": "tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
       "source": "source-derived compatibility expansion",
       "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
     },
@@ -356,7 +356,7 @@
       "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
     },
     {
-      "case": "tests/cases/phases/phase1_vs_phase2_request_body_gap.yaml",
+      "case": "tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
       "source": "source-derived compatibility expansion",
       "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
     },
@@ -713,7 +713,7 @@
       "reason": "Derived from V3 transformations regression coverage and observed through the shared connector smoke path."
     },
     {
-      "case": "tests/cases/phases/v3_secaction_block.yaml",
+      "case": "tests/cases/phases/phase2/v3_secaction_block.yaml",
       "reason": "Derived from V3 secruleengine SecAction coverage and observed through the shared connector smoke path."
     },
     {
@@ -733,7 +733,7 @@
       "reason": "V3-derived REQUEST_HEADERS_NAMES case and observed through the shared connector smoke path using a stable custom header name."
     },
     {
-      "case": "tests/cases/phases/v3_args_names_get_block.yaml",
+      "case": "tests/cases/phases/phase2/v3_args_names_get_block.yaml",
       "reason": "V3-derived ARGS_NAMES GET case and observed through the shared connector smoke path."
     },
     {
