@@ -16,8 +16,10 @@ Implemented now:
   and regression-test material.
 - Connector directories for Apache, NGINX, HAProxy, Envoy, Lighttpd, and
   Traefik.
-- Test layout, normalizer skeletons, runner skeletons, and CI structure checks.
-- A shared YAML case runner used by Apache and NGINX PoC smokes.
+- Connector-specific test inventory plus CI structure checks.
+- Shared YAML cases, normalizers, runners, runtime matrix generation, and
+  coverage reporting are provided by the external
+  `ModSecurity-test-Framework` checkout through `FRAMEWORK_ROOT`.
 - A connector-free libmodsecurity v3 C API smoke probe build harness under
   `src/v3-api-smoke/`; see `docs/testing/v3-api-smoke-test.md`.
 - A local explicit-build-root v3 smoke run has observed `primary_args_phase2`
@@ -43,8 +45,9 @@ Implemented now:
   `docs/architecture/connector-adapter-interface.md`, and `docs/testing/case-matrix.md`.
 - Source-derived imported YAML cases from the local Apache and NGINX connector
   test suites, with origin mapping in `docs/testing/test-import-plan.md`.
-- Source-derived V2/V3 compatibility cases under
-  `tests/common/cases/v2-imported/` and `tests/common/cases/v3-imported/`,
+- Source-derived V2/V3 compatibility cases under the framework-owned
+  `$FRAMEWORK_ROOT/tests/common/cases/v2-imported/` and
+  `$FRAMEWORK_ROOT/tests/common/cases/v3-imported/`,
   covering initial operator, transformation, multipart FILES, XML body
   processor, and v3 action/operator behavior.
 - Central license and attribution index under `licenses/`, with Apache and
@@ -68,6 +71,32 @@ Not implemented:
 
 The generated root-level test coverage overview is available at
 `TEST-COVERAGE-SUMMARY.md`.
+
+## External Test Framework
+
+This connector repository consumes the sibling `ModSecurity-test-Framework`
+project as its shared test/tooling layer. The connector Makefile defaults to:
+
+```sh
+FRAMEWORK_ROOT=../ModSecurity-test-Framework
+CONNECTOR_ROOT=.
+```
+
+Override `FRAMEWORK_ROOT` when the framework checkout is elsewhere:
+
+```sh
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make quick-check
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make runtime-matrix-all
+```
+
+The framework owns the portable/common YAML cases, runner code, normalizers,
+coverage generator, and runtime snapshot tooling. This repository owns the
+Apache/NGINX connector sources, connector harnesses, adapter metadata,
+`tests/import-status.json`, and connector-specific cases such as
+`tests/nginx/cases/`.
+
+There is no absolute `/root/conecter` runtime fallback. The sibling checkout is
+only a relative local convenience, and all important paths remain configurable.
 
 ## Local Runtime Validation
 
@@ -286,8 +315,8 @@ BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make case-matrix
 
 Imported source-derived cases are split by scope:
 
-- `tests/common/cases/imported/`: portable cases that Apache and NGINX both
-  must run for `smoke-common` and `smoke-all`.
+- `$FRAMEWORK_ROOT/tests/common/cases/imported/`: portable cases that Apache
+  and NGINX both must run for `smoke-common` and `smoke-all`.
 - `tests/apache/cases/imported/`: Apache-specific cases only.
 - `tests/nginx/cases/imported/`: NGINX-specific cases only.
 
@@ -303,7 +332,7 @@ phase-4 / late intervention handling are applied to adapter-owned NGINX source,
 but response-body blocking is still mapped as xfail rather than counted as
 common PASS until stable real-world Apache+NGINX HTTP 403 evidence exists. See
 `docs/testing/test-import-plan.md` and
-`tests/common/shared-case-origin-map.md` before promoting or moving a case.
+`$FRAMEWORK_ROOT/tests/common/shared-case-origin-map.md` before promoting or moving a case.
 
 Observed locally on 2026-05-15 after the stabilization pass, `make smoke-all`
 reported 43 Apache passes (7 minimal + 12 Apache/NGINX-derived common + 10
@@ -339,14 +368,15 @@ classified as `xfail` until local and CI behavior are stable in both
 connectors.
 
 V2/V3 import inventory is documented in
-`tests/common/v2-regression-map.md`, `tests/common/v3-regression-map.md`, and
+`$FRAMEWORK_ROOT/tests/common/v2-regression-map.md`,
+`$FRAMEWORK_ROOT/tests/common/v3-regression-map.md`, and
 `docs/testing/v2-vs-v3-test-compatibility.md`.
 
 Boundary rule:
 
 - `common/` contains connector-neutral code only.
 - `connectors/<name>/` contains server/proxy-specific integration only.
-- `tests/common/` contains only portable engine/rule/behavior tests.
+- `$FRAMEWORK_ROOT/tests/common/` contains only portable engine/rule/behavior tests.
 - `tests/<connector>/` contains connector-specific behavior tests.
 
 ## Documentation Entry Points

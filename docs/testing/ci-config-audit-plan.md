@@ -305,6 +305,31 @@ helpers.
 Runtime/build/fetch/debug helpers were deliberately kept unless the reference
 audit proved them dead. Full runtime validation remains local.
 
+## Framework Extraction Follow-Up
+
+The shared test/runtime/coverage layer is now owned by the sibling
+`ModSecurity-test-Framework` checkout and consumed through configurable
+`FRAMEWORK_ROOT` / `CONNECTOR_ROOT` paths.
+
+Moved to the framework:
+
+- common YAML cases and schema notes
+- shared case runner and normalizers
+- matrix, coverage, runtime-snapshot, and runtime-matrix generators
+- generic source-build smoke orchestration helpers
+
+Kept in this connector repository:
+
+- Apache/NGINX connector source and harnesses
+- adapter metadata and connector materialization checks
+- `tests/import-status.json`
+- connector-specific cases under `tests/<connector>/`
+- generated connector reports under `docs/testing/generated`
+
+Connector-local `ci/` entrypoints that overlap with framework-owned helpers are
+compatibility wrappers only; they delegate to `$FRAMEWORK_ROOT`. No xfail,
+pending, connector-gap, or RESPONSE_BODY status was promoted by the extraction.
+
 ## Changes That Should Be Separate
 
 These remain separate follow-ups:

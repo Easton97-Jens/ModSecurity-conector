@@ -1,8 +1,8 @@
 {
   "snapshot_date": "2026-05-21",
-  "captured_at": "2026-05-21 02:13:16 CEST",
+  "captured_at": "2026-05-21 13:34:45 CEST",
   "branch": "master",
-  "commit": "6934763",
+  "commit": "91cd00d",
   "build_root": "/root/.local/state/ModSecurity-conector-build",
   "force_all_cases": true,
   "notes": [

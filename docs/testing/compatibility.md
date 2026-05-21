@@ -34,7 +34,8 @@ configuration, it is connector-specific unless proven portable.
 
 ## Shared Minimal Cases
 
-The files under `tests/common/cases/minimal/` are portable rule/request models.
+The files under `$FRAMEWORK_ROOT/tests/common/cases/minimal/` are portable
+rule/request models supplied by `ModSecurity-test-Framework`.
 They are not proof that a connector supports the behavior until that
 connector's runtime harness observes the expected HTTP response.
 
@@ -58,10 +59,10 @@ complete response-body behavior.
 
 | Scope | Location | Compatibility meaning |
 | --- | --- | --- |
-| common minimal | `tests/common/cases/minimal/` | Already proven locally for both PoCs before the import step |
-| common imported | `tests/common/cases/imported/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
-| v2 imported | `tests/common/cases/v2-imported/` | Portable v2 semantics candidates adapted to HTTP behavior and proven on both connector PoCs |
-| v3 imported | `tests/common/cases/v3-imported/` | Portable v3 regression candidates adapted to HTTP behavior and proven on both connector PoCs |
+| common minimal | `$FRAMEWORK_ROOT/tests/common/cases/minimal/` | Already proven locally for both PoCs before the import step |
+| common imported | `$FRAMEWORK_ROOT/tests/common/cases/imported/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
+| v2 imported | `$FRAMEWORK_ROOT/tests/common/cases/v2-imported/` | Portable v2 semantics candidates adapted to HTTP behavior and proven on both connector PoCs |
+| v3 imported | `$FRAMEWORK_ROOT/tests/common/cases/v3-imported/` | Portable v3 regression candidates adapted to HTTP behavior and proven on both connector PoCs |
 | Apache imported | `tests/apache/cases/imported/` | Apache-only until a common equivalent is proven |
 | NGINX imported | `tests/nginx/cases/imported/` | NGINX-only until a common equivalent is proven |
 

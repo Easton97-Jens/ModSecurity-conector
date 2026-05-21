@@ -20,6 +20,13 @@ Generated file — do not edit manually.
 
 **RESPONSE_BODY ist nicht verified/promoted.** Diese Datei ist generiertes Reporting und keine Runtime-Evidenz.
 
+## Framework Integration
+- Framework root used for shared cases/tools: `FRAMEWORK_ROOT`.
+- Connector root used for adapter inventory/reports: `CONNECTOR_ROOT`.
+- Common YAML cases, runners, normalizers, and generators are owned by `ModSecurity-test-Framework`.
+- Connector-specific cases, adapter metadata, harnesses, import status, and generated reports are owned by this connector repository.
+- `FRAMEWORK_ROOT` is configurable; the sibling checkout is only a relative local convenience, not an absolute workspace fallback.
+
 ## Testarten
 - Common YAML Cases: **126**
 - Apache-specific Cases: **0**
@@ -117,8 +124,8 @@ Generated file — do not edit manually.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-21** (2026-05-21 02:13:16 CEST)
-- Git: branch `master`, commit `6934763`
+- Snapshot: **2026-05-21** (2026-05-21 13:34:45 CEST)
+- Git: branch `master`, commit `91cd00d`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.
