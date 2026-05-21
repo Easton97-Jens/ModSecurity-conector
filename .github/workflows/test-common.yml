@@ -32,8 +32,11 @@ jobs:
           test -f config/testing/import-status.json
           test -f modules/ModSecurity-test-Framework/tests/common/modsecurity-v2-regression-map.md
           test -f modules/ModSecurity-test-Framework/tests/common/modsecurity-v3-regression-map.md
-          test -f docs/testing/v2-vs-v3-test-compatibility.md
-          test -f docs/connectors/real-world-connector-validation.md
+          test -f modules/ModSecurity-test-Framework/docs/testing/v2-vs-v3-test-compatibility.md
+          test -f reports/testing/real-world-connector-validation.md
+          test ! -d docs/testing
+          test ! -d connectors/apache/tests
+          test ! -d connectors/nginx/tests
           test -f docs/architecture/capability-model.md
           test -f docs/architecture/status-model.md
           test -f docs/architecture/connector-adapter-interface.md

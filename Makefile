@@ -112,7 +112,7 @@ summary: check-framework
 	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/summarize-results.py" "$(BUILD_ROOT)/results/connector-summary.json"
 
 case-matrix: check-framework
-	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/write-case-matrix.py" "$(BUILD_ROOT)/results/connector-summary.json" docs/testing/case-matrix.md
+	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/write-case-matrix.py" "$(BUILD_ROOT)/results/connector-summary.json" reports/testing/case-matrix.md
 
 install-dev-deps: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/bootstrap-python.sh"
@@ -169,7 +169,7 @@ generate-test-matrix: check-framework
 
 check-test-matrix: check-framework
 	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/generate-case-matrix.py" --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CURDIR)" --output-root "$(CURDIR)"
-	@git diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md TEST-COVERAGE-SUMMARY.md >/dev/null || { \
+	@git diff --exit-code -- reports/testing TEST-COVERAGE-SUMMARY.md >/dev/null || { \
 		echo "Generated test matrix docs are out of date. Run make generate-test-matrix"; \
 		exit 1; \
 	}

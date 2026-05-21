@@ -11,7 +11,7 @@ Implemented now:
   productive source under `connectors/apache/src/`.
 - A PoC build-preparation helper in `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`.
 - A local runtime smoke harness under `connectors/apache/harness/`.
-- Use of all shared minimal cases under `tests/common/cases/minimal/`.
+- Use of all shared minimal cases under `modules/ModSecurity-test-Framework/tests/cases/`.
 - Use of source-derived shared imported cases, including raw JSON body,
   simple multipart text-field, and response-body pass-through smokes.
 - A local source-built httpd run observed the YAML-expected HTTP status for all
@@ -33,7 +33,7 @@ builds run. The former `connectors/apache/upstream/` tree was removed after the
 Phase 11 materialized build and Apache smoke passed. Phase 13 keeps
 `connectors/apache/src/` limited to productive C sources; build files live at
 the connector root, retained Autotools test templates live under
-`connectors/apache/tests/`, and durable attribution lives in
+`modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`, and durable attribution lives in
 `licenses/apache/`, `connectors/apache/ORIGIN.md`, and
 `connectors/apache/SOURCE_MAP.json`.
 

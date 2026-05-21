@@ -52,9 +52,9 @@ exits `77` and marks the result as `blocked`.
 By default the harness iterates every `*.yaml` file in:
 
 ```text
-tests/common/cases/minimal/
-tests/common/cases/imported/
-connectors/nginx/tests/cases/imported/
+modules/ModSecurity-test-Framework/tests/cases/
+modules/ModSecurity-test-Framework/tests/cases/
+modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/imported/
 ```
 
 To run a subset:

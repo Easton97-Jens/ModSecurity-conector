@@ -110,7 +110,7 @@ repository layout stricter. NGINX `config` lives at `connectors/nginx/config`
 and materializes to root `config`; NGINX `src/` contains only productive module
 headers/sources. Apache Autotools/APXS files live at `connectors/apache/`,
 productive C files live directly under `connectors/apache/src/`, and retained
-Autotools templates live under `connectors/apache/tests/` while materializing
+Autotools templates live under `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/` while materializing
 back to the `t/` and `tests/` paths expected by `configure.ac`.
 
 ## Non-Goals

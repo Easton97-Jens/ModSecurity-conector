@@ -27,11 +27,12 @@ jobs:
           test -f connectors/nginx/docs/architecture.md
           test -f connectors/nginx/docs/build.md
           test -f connectors/nginx/docs/public-sources.md
-          test -f connectors/nginx/tests/cases/imported/nginx_tx_scoring_absolute_block.yaml
-          test -f docs/testing/imports/nginx-regression-map.md
+          test ! -d connectors/nginx/tests
+          test -f modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/imported/nginx_tx_scoring_absolute_block.yaml
+          test -f modules/ModSecurity-test-Framework/docs/testing/imports/nginx-regression-map.md
           test -f config/testing/import-status.json
-          test -f docs/connectors/nginx-poc.md
-          test -f docs/connectors/apache-vs-nginx-poc.md
+          test -f reports/testing/nginx-poc.md
+          test -f reports/testing/apache-vs-nginx-poc.md
           grep -q 'Status:' connectors/nginx/TODO.md
       - name: Syntax and dry-run checks
         run: |

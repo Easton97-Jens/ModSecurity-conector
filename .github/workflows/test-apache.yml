@@ -27,9 +27,10 @@ jobs:
           test -f connectors/apache/harness/README.md
           test -f connectors/apache/harness/apache_smoke.conf
           test -f connectors/apache/harness/run_apache_smoke.sh
-          test -f docs/testing/imports/apache-regression-map.md
+          test ! -d connectors/apache/tests
+          test -f modules/ModSecurity-test-Framework/docs/testing/imports/apache-regression-map.md
           test -f config/testing/import-status.json
-          test -f docs/connectors/real-world-connector-validation.md
+          test -f reports/testing/real-world-connector-validation.md
           grep -q 'Status:' connectors/apache/TODO.md
       - name: Syntax and dry-run checks
         run: |

@@ -8,4 +8,4 @@ FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}
 
 PYTHON_BIN="${PYTHON_BIN:-${PYTHON:-$(if [ -x "$REPO_ROOT/.venv/bin/python" ]; then printf '%s' "$REPO_ROOT/.venv/bin/python"; else printf '%s' python3; fi)}}"
 
-CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" check-drift
+FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" check-drift

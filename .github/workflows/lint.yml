@@ -24,14 +24,14 @@ jobs:
           fi
           test -f README.md
           test -f docs/architecture/architecture.md
-          test -f docs/imports/sources.md
-          test -f docs/testing/compatibility.md
+          test -f modules/ModSecurity-test-Framework/docs/imports/sources.md
+          test -f modules/ModSecurity-test-Framework/docs/testing/compatibility.md
           test -f docs/roadmap/roadmap.md
-          test -f docs/testing/v2-vs-v3-compatibility.md
           test -f docs/README.md
           test -f docs/architecture/README.md
           test -f docs/connectors/README.md
-          test -f docs/testing/README.md
+          test -f reports/testing/test-coverage-overview.md
+          test ! -d docs/testing
       - name: Run lightweight lint
         run: |
           make setup-dev

@@ -36,9 +36,9 @@ Underscore aliases such as `request_body` normalize to dash names such as
 Capabilities do not decide whether a case is active. Discovery is path and
 status based:
 
-- `tests/common/cases/minimal`, `imported`, `v2-imported`, and `v3-imported`
+- `modules/ModSecurity-test-Framework/tests/cases/minimal`, `imported`, `v2-imported`, and `v3-imported`
   are active common scopes.
-- `tests/common/cases/xfail` is excluded from normal discovery and must be
+- `modules/ModSecurity-test-Framework/tests/cases/xfail` is excluded from normal discovery and must be
   selected explicitly with `SMOKE_CASES`.
 - Connector-specific cases are active only for their matching connector.
 

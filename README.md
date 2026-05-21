@@ -1,410 +1,133 @@
 # ModSecurity Connector Monorepo
 
-Status: scaffolded
+This repository contains connector-focused code and integration scaffolding for
+libmodsecurity v3 based server connectors. The reusable test framework lives in
+the `modules/ModSecurity-test-Framework` module; this repository keeps the
+connector source trees, connector metadata, harness integration, and generated
+connector evidence.
 
-This repository is a monorepo scaffold and evidence workspace for future
-libmodsecurity v3 based connectors. It is based on ModSecurity v2/v3 regression
-and API evidence plus controlled Apache and NGINX connector imports, and it
-validates real connector paths through source-derived YAML smokes.
+## Connector Architecture
 
-Implemented now:
+The repository is split into a connector-neutral C layer and adapter-owned
+connector trees:
 
-- Connector-neutral headers under `common/include/msconnector/`, including
-  C-first request, response, transaction, intervention, status, origin, logging,
-  and capability data shapes.
-- Documentation that separates local v3/libmodsecurity facts from v2 historical
-  and regression-test material.
-- Connector directories for Apache, NGINX, HAProxy, Envoy, Lighttpd, and
-  Traefik.
-- Connector-specific test inventory plus CI structure checks.
-- Shared YAML cases, normalizers, runners, runtime matrix generation, and
-  coverage reporting are provided by the external
-  `ModSecurity-test-Framework` checkout through `FRAMEWORK_ROOT`.
-- A connector-free libmodsecurity v3 C API smoke probe build harness under
-  `src/v3-api-smoke/`; see `docs/testing/v3-api-smoke-test.md`.
-- A local explicit-build-root v3 smoke run has observed `primary_args_phase2`
-  returning intervention status `403`.
-- Explicit `real-world-connector-path` validation metadata for Apache and
-  NGINX smoke summaries; see `docs/connectors/real-world-connector-validation.md`.
-- An Apache PoC build helper that can source-build httpd under `BUILD_ROOT`, plus
-  a runtime smoke harness scaffold; see `docs/connectors/apache-poc.md`.
-- A local source-built Apache PoC has observed the YAML-expected HTTP behavior
-  for all current shared minimal cases.
-- An NGINX PoC build helper and runtime harness use the same shared YAML cases,
-  build NGINX from the official `nginx/nginx` GitHub release archive flow, and
-  build the ModSecurity-nginx module from materialized adapter-owned source
-  under `$BUILD_ROOT/nginx-build/connector-src`.
-- A local source-built NGINX PoC has observed the YAML-expected HTTP behavior
-  for all current shared minimal cases.
-- Formal connector smoke targets:
-  `make smoke-common`, `make smoke-apache`, `make smoke-nginx`, and
-  `make smoke-all`.
-- Maintenance targets: `make lint`, `make summary`, and `make case-matrix`.
-- Finalized capability/status/result model documentation:
-  `docs/architecture/capability-model.md`, `docs/architecture/status-model.md`,
-  `docs/architecture/connector-adapter-interface.md`, and `docs/testing/case-matrix.md`.
-- Source-derived imported YAML cases from the local Apache and NGINX connector
-  test suites, with origin mapping in `docs/testing/test-import-plan.md`.
-- Source-derived V2/V3 compatibility cases under the framework-owned
-  `$FRAMEWORK_ROOT/tests/common/cases/v2-imported/` and
-  `$FRAMEWORK_ROOT/tests/common/cases/v3-imported/`,
-  covering initial operator, transformation, multipart FILES, XML body
-  processor, and v3 action/operator behavior.
-- Central license and attribution index under `licenses/`, with Apache and
-  NGINX connector license mirrors plus ModSecurity V2/V3 read-only reference
-  notes.
+- `common/include/msconnector/` defines shared request, response, transaction,
+  intervention, capability, origin, logging, and status data shapes.
+- `common/src/` contains small connector-neutral helper implementations.
+- `connectors/apache/` contains the Apache connector adapter, Autotools/APXS
+  build inputs, harness files, metadata, and productive source under
+  `connectors/apache/src/`.
+- `connectors/nginx/` contains the NGINX connector adapter, module `config`,
+  harness files, metadata, and productive source under `connectors/nginx/src/`.
+- `connectors/{envoy,haproxy,lighttpd,traefik}/` are scaffolded future
+  connector areas with documentation and TODOs.
 
-Not implemented:
+Connector source is repo-local. Apache and NGINX connector repositories are not
+fetched as runtime defaults.
 
-- No complete connector runtime.
-- No complete connector regression suite.
-- No claim that any connector is complete, reload-safe, production-ready, or
-  covered beyond the documented local PoC smokes.
-- No claim that the v3 API smoke probe passes until `primary_args_phase2`
-  observes status `403`.
-- No claim that the Apache PoC is complete beyond the documented shared
-  minimal HTTP `403` smokes.
-- No claim that the NGINX PoC is complete beyond the documented shared minimal
-  HTTP `403` smokes.
+## Supported Connectors
 
-## Test Coverage Summary
+| Connector | Status | Primary path |
+| --- | --- | --- |
+| Apache | adapter-owned scaffold with source-build smoke harness | `connectors/apache/` |
+| NGINX | adapter-owned scaffold with source-build smoke harness | `connectors/nginx/` |
+| Envoy | placeholder scaffold | `connectors/envoy/` |
+| HAProxy | placeholder scaffold | `connectors/haproxy/` |
+| Lighttpd | placeholder scaffold | `connectors/lighttpd/` |
+| Traefik | placeholder scaffold | `connectors/traefik/` |
 
-The generated root-level test coverage overview is available at
-`TEST-COVERAGE-SUMMARY.md`.
+## Connector Metadata
 
-## External Test Framework
+Adapter metadata is owned by each connector:
 
-This connector repository consumes `ModSecurity-test-Framework` as its shared
-test/tooling layer through the module path
-`modules/ModSecurity-test-Framework`. Initialize the module before running
-framework-backed targets:
+- `connectors/apache/metadata.c`
+- `connectors/nginx/metadata.c`
+- `connectors/*/ORIGIN.md`
+- `licenses/*/ORIGIN.md`
+- `config/testing/import-status.json`
+
+The metadata drift checks compare connector source attribution with the
+connector and framework documentation without linking connector runtime code.
+
+## Build And Runtime Integration
+
+The public connector targets remain stable and delegate to the framework module
+where appropriate:
 
 ```sh
-git submodule update --init --recursive
-```
-
-Override `FRAMEWORK_ROOT` when the framework checkout is elsewhere:
-
-```sh
-FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make quick-check
-FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make runtime-matrix-all
-```
-
-The framework owns the portable/common YAML cases, runner code, normalizers,
-coverage generator, and runtime snapshot tooling. This repository owns the
-Apache/NGINX connector sources, connector harnesses, adapter metadata,
-`config/testing/import-status.json`, and connector-specific cases such as
-`connectors/nginx/tests/cases/`.
-
-There is no absolute `/root/conecter` runtime fallback. The module path is the
-default, and all important paths remain configurable through `FRAMEWORK_ROOT`,
-`CONNECTOR_ROOT`, `BUILD_ROOT`, and source/ref environment variables.
-
-## Local Runtime Validation
-
-This repository is primarily validated through local runtime and connector
-smoke runs. GitHub Actions and Codex Cloud checks are intentionally lightweight:
-they cover framework, generator, lint, syntax, and documentation consistency,
-but they do not prove connector runtime compatibility.
-
-Authoritative runtime evidence comes from local runs of:
-
-```sh
-make smoke-all
+make setup-dev
+make lint
+make quick-check
+make generate-test-matrix
+make check-test-matrix
+make runtime-matrix-all
 make smoke-apache
 make smoke-nginx
+make smoke-all
 ```
 
-For a per-case Apache/NGINX runtime inventory across all YAML cases and
-mapped-only import entries, run the default runtime matrix:
-
-```sh
-make runtime-matrix
-```
-
-`runtime-matrix` runs fresh Apache and NGINX source-build smokes, records
-per-case evidence in `docs/testing/runtime-validation-snapshot.json`, and
-regenerates `docs/testing/generated/runtime-matrix.generated.md` plus
-connector-specific runtime result summaries.
-
-To attempt xfail, pending, connector-gap, future-compatibility, and
-experimental YAML cases as runtime evidence without promoting them, run:
-
-```sh
-make runtime-matrix-all
-```
-
-`runtime-matrix-all` sets `FORCE_ALL_CASES=1`; observed failures remain visible
-as XFAIL/PENDING/FUTURE/GAP runtime evidence and are not converted into PASS or
-verified coverage. Connector-specific YAML cases are still only applicable to
-their connector, and mapped-only import inventory entries remain non-executable.
-
-Generated coverage documentation is reporting only. It summarizes declared YAML
-case metadata, known xfail/pending/connector-gap coverage, and import status; it
-is not a Runtime-PASS proof. Many xfail, pending, and connector-gap cases remain
-tracked precisely because they need local Apache/NGINX runtime evidence before
-promotion. RESPONSE_BODY remains not verified/promoted without stable local
-full-smoke evidence.
-
-## Source References
-
-Historical local paths are not required build locations. The upstream
-repositories are attribution/reference sources; runtime connector source for
-Apache and NGINX comes from this repository by default.
-
-| Repository | Historical reference role | Upstream | Observed commit | Observed version/tag | License |
-| --- | --- | --- | --- | --- | --- |
-| ModSecurity v2 | read-only semantics reference | https://github.com/owasp-modsecurity/ModSecurity | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 |
-| ModSecurity v3 | runtime engine reference/source | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
-| ModSecurity-apache | historical import/reference only | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
-| ModSecurity-nginx | historical import/reference only | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
-
-Smoke builds use `MODSECURITY_SOURCE_DIR` / `MODSECURITY_V3_SOURCE_DIR`,
-`MODSECURITY_V3_DIR`, `BUILD_ROOT`, and `LOG_DIR`. The default build root is a
-portable local build/output location, and any explicit absolute path outside
-this checkout can be used. CI can use `$RUNNER_TEMP`.
-
-## CI Helper Configuration
-
-Shared shell defaults live in `modules/ModSecurity-test-Framework/ci/common.sh`. The file is intentionally passive:
-it only defines variables and helper functions when sourced.
-
-Common override variables:
+Source-build variables remain configurable:
 
 ```sh
 BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build
 SOURCE_ROOT=$BUILD_ROOT/sources
 MODSECURITY_GIT_REF=v3/master
 MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
-MODSECURITY_V3_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
-MODSECURITY_V3_ROOT=$SOURCE_ROOT/ModSecurity_V3
-MODSECURITY_APACHE_SOURCE_DIR=$PWD/connectors/apache
-MODSECURITY_NGINX_SOURCE_DIR=$PWD/connectors/nginx
-APACHE_BIN=/path/to/apache2
-APACHECTL_BIN=/path/to/apachectl
-APXS_BIN=/path/to/apxs
-NGINX_BIN=/path/to/nginx
-MODSECURITY_PKG_CONFIG=modsecurity
-MODSECURITY_LIB_DIR=/path/to/lib
-MODSECURITY_INCLUDE_DIR=/path/to/include
-HTTPD_VERSION=2.4.67
-APR_VERSION=1.7.6
-APR_UTIL_VERSION=1.6.3
-PCRE2_VERSION=10.47
-NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
-NGINX_RELEASE_TAG=latest
 ```
 
-The older `MODSECURITY_V3_GIT_URL` / `MODSECURITY_V3_GIT_REF` names still work;
-`MODSECURITY_REPO_URL` / `MODSECURITY_GIT_REF` are the central aliases for new
-usage. `MODSECURITY_V3_SOURCE_DIR` and `MODSECURITY_V3_ROOT` remain compatible
-aliases for `MODSECURITY_SOURCE_DIR`. Installed-component hints are optional
-diagnostics; the source-build smoke path does not require system Apache, NGINX,
-or libmodsecurity packages. Apache and NGINX connector code is repo-local by
-default. External connector repositories are not fetched unless explicitly
-enabled with `ALLOW_EXTERNAL_CONNECTOR_REPOS=1` and user-provided repo URLs and
-source destinations. Keep build and source roots outside this checkout.
+`BUILD_ROOT` is a local build/output location, not a cache contract. Full
+runtime validation is local and evidence-based; `make smoke-all` is
+authoritative only when it is actually executed successfully.
 
-## Architecture Map
+## Framework Module Integration
 
-- `connectors/apache/` is the adapter-owned Apache connector tree. Autotools
-  build files live at the connector root, productive C files live in
-  `connectors/apache/src/`, retained Autotools templates live under
-  `connectors/apache/tests/`, and builds run through
-  `$BUILD_ROOT/apache-build/connector-src`.
-- `connectors/nginx/` is the adapter-owned NGINX connector tree. Module
-  `config` lives at `connectors/nginx/config`, productive module source lives
-  in `connectors/nginx/src/`, and builds run through
-  `$BUILD_ROOT/nginx-build/connector-src`.
-- The former `connectors/apache/upstream/` and `connectors/nginx/upstream/`
-  trees were removed after adapter-owned materialized builds and smokes passed.
-- Apache attribution now lives in `licenses/apache/`,
-  `connectors/apache/ORIGIN.md`, and `connectors/apache/SOURCE_MAP.json`.
-- NGINX attribution now lives in `licenses/nginx/`,
-  `connectors/nginx/ORIGIN.md`, and `connectors/nginx/SOURCE_MAP.json`.
-- `licenses/` is the durable attribution index for imported connector code and
-  read-only ModSecurity engine references.
-- `common/` is the future connector-neutral basis. It currently contains
-  C-first data shapes only; it does not own Apache or NGINX hook/filter logic.
-- `connectors/<name>/` remains server-specific implementation, harness, and
-  build documentation.
-
-Apache PoC source-build defaults are also overrideable:
+Initialize the framework module before running framework-backed targets:
 
 ```sh
-BUILD_HTTPD_FROM_SOURCE=1
-HTTPD_VERSION=2.4.67
-APR_VERSION=1.7.6
-APR_UTIL_VERSION=1.6.3
-BUILD_PCRE2_FROM_SOURCE=1
-PCRE2_VERSION=10.47
+git submodule update --init --recursive
 ```
 
-NGINX PoC source-build defaults are overrideable:
+The default module path is:
 
 ```sh
-BUILD_NGINX_FROM_SOURCE=1
-NGINX_SOURCE_MODE=github-release
-NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
-NGINX_RELEASE_TAG=latest
+modules/ModSecurity-test-Framework
 ```
 
-When `NGINX_RELEASE_TAG=latest`, the actual tag is resolved at build time and
-recorded under `$BUILD_ROOT/logs/nginx/`.
-
-The monorepo-default NGINX connector source root is `connectors/nginx`. It is
-materialized into `$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
-`config` and `src/` files only, plus generated manifests. Explicit
-`MODSECURITY_NGINX_SOURCE_DIR` overrides still use a sanitized external source
-copy.
-
-The NGINX runtime harness stages worker-facing runtime files under a readable
-local harness work root (`NGINX_HARNESS_WORK_ROOT`, defaulting to a temp
-directory for root-run environments). This avoids relying on worker access to
-private parent directories such as `$HOME` while keeping permission changes
-inside generated harness output only.
-
-## Shared Smoke Targets
-
-The connector smoke targets write build artifacts under `BUILD_ROOT`. Existing
-build/output directories block by default; use `REFRESH=1` to replace them
-through the guarded generated-path cleanup. They never write generated files
-into this checkout.
+Override it when using a separate checkout:
 
 ```sh
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-apache
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-nginx
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-common
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-all
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make runtime-matrix
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make runtime-matrix-all
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make quick-check
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make runtime-matrix-all
 ```
 
-`SMOKE_CASES` can restrict the run by case name or file path:
+The framework owns YAML cases, runners, normalizers, runtime-matrix logic,
+coverage generation, v3 API smoke helpers, and reusable testing documentation.
+Connector-specific generated evidence is written in this repository under
+`reports/testing/`, with a generated root copy at `TEST-COVERAGE-SUMMARY.md`.
+
+## Documentation Links
+
+- Architecture docs: `docs/architecture/`
+- Connector docs: `docs/connectors/`
+- Licensing and origin index: `docs/licensing/license-and-origin.md`
+- Framework docs: `modules/ModSecurity-test-Framework/README.md`
+- Connector test evidence: `reports/testing/`
+- Generated coverage summary: `TEST-COVERAGE-SUMMARY.md`
+
+## Local Development
+
+Typical local setup:
 
 ```sh
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build \
-SMOKE_CASES="phase1_header_block phase2_args_block request_body_json_block" \
-make smoke-all
+git submodule update --init --recursive
+make setup-dev
+make lint
+make quick-check
+make generate-test-matrix
+make check-test-matrix
 ```
 
-Current shared minimal cases:
-
-| Case | Source-derived origin | Local Apache | Local NGINX |
-| --- | --- | --- | --- |
-| `audit_log_phase1_block.yaml` | Apache logging actions and NGINX serial audit-log tests | pass, HTTP 403, audit fields | pass, HTTP 403, audit fields |
-| `phase1_header_block.yaml` | Apache request-header/JSON gating and NGINX phase-1 block tests | pass, HTTP 403 | pass, HTTP 403 |
-| `phase2_args_block.yaml` | Apache `00-basics.t` and NGINX `modsecurity.t` ARGS phase-2 tests | pass, HTTP 403 | pass, HTTP 403 |
-| `phase2_args_pass.yaml` | Apache non-matching ARGS rule and NGINX "nothing to detect" tests | pass, HTTP 200, origin body | pass, HTTP 200, origin body |
-| `request_body_json_block.yaml` | Apache JSON/body handling and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
-| `request_body_urlencoded_block.yaml` | Apache `ARGS_POST` and NGINX request-body/ARGS_POST tests | pass, HTTP 403 | pass, HTTP 403 |
-| `response_header_basic.yaml` | Apache phase tests and NGINX header-filter path | pass, HTTP 403 | pass, HTTP 403 |
-
-The original pass observations were made locally on 2026-05-15 with an
-explicit external `BUILD_ROOT`. A later 2026-05-20 NGINX run exposed a harness
-permission blocker for expected-200 pass-through cases; the 2026-05-21 rerun
-after the NGINX harness permission fix completed with 54 PASS, 0 FAIL, and
-0 BLOCKED. Other environments must run the same targets before claiming pass
-there.
-
-Useful maintenance commands:
-
-```sh
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make lint
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make summary
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make case-matrix
-```
-
-Imported source-derived cases are split by scope:
-
-- `$FRAMEWORK_ROOT/tests/common/cases/imported/`: portable cases that Apache
-  and NGINX both must run for `smoke-common` and `smoke-all`.
-- `connectors/apache/tests/cases/imported/`: Apache-specific cases only.
-- `connectors/nginx/tests/cases/imported/`: NGINX-specific cases only.
-
-Current imported common candidates cover phase actions, query-argument
-collections, form-body collection names, raw request-body matching, raw JSON
-body matching, simple multipart text fields, and response-body pass-through.
-Additional V2/V3-derived common candidates cover v2 operator/transformation
-semantics plus v3 multipart FILES variables, XML body processing, `@rx`, trim,
-and `SecAction`.
-Current imported NGINX-specific cases cover redirect and TX scoring behavior
-from the local NGINX suite. ModSecurity-nginx PR #377 source changes for
-phase-4 / late intervention handling are applied to adapter-owned NGINX source,
-but response-body blocking is still mapped as xfail rather than counted as
-common PASS until stable real-world Apache+NGINX HTTP 403 evidence exists. See
-`docs/testing/test-import-plan.md` and
-`$FRAMEWORK_ROOT/tests/common/shared-case-origin-map.md` before promoting or moving a case.
-
-Observed locally on 2026-05-15 after the stabilization pass, `make smoke-all`
-reported 43 Apache passes (7 minimal + 12 Apache/NGINX-derived common + 10
-V2-derived common + 14 V3-derived common) and 46 NGINX passes (the same common
-cases plus 3 NGINX-specific imported). The body/filter additions from the
-previous pass are:
-
-| Case | Source-derived origin | Local Apache | Local NGINX |
-| --- | --- | --- | --- |
-| `json_request_body_block.yaml` | Apache JSON/body coverage and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
-| `multipart_basic_block.yaml` | Apache multipart parser and NGINX request-body tests | pass, HTTP 403 | pass, HTTP 403 |
-| `response_body_pass.yaml` | Apache response directives and NGINX response-body access tests | pass, HTTP 200 | pass, HTTP 200 pass-through evidence |
-
-`response_body_pass.yaml` is still not RESPONSE_BODY promotion in the latest
-snapshot: the NGINX run provides request/runtime pass-through evidence only.
-`response_body_basic_block` remains mapped/xfail until both connectors return
-stable HTTP 403 for the same YAML case.
-
-Observed locally on 2026-05-15, targeted `make smoke-common` runs also reported
-these V2/V3-derived active cases as `PASS` on both Apache and NGINX:
-
-| Case group | Cases | Local Apache | Local NGINX |
-| --- | --- | --- | --- |
-| V2 operators/transformations | `v2_operator_streq_block`, `v2_operator_contains_block`, `v2_transformation_lowercase_block`, `v2_transformation_trim_block` | pass, HTTP 403 | pass, HTTP 403 |
-| V3 multipart FILES | `multipart_files_value_block`, `multipart_files_names_block`, `multipart_files_combined_size`, `multipart_filename_block` | pass, HTTP 403 | pass, HTTP 403 |
-| V3 XML/operator/action | `xml_request_body_block`, `v3_operator_rx_block`, `v3_transformation_trim_block`, `v3_secaction_block` | pass, HTTP 403 | pass, HTTP 403 |
-
-`v3_action_nolog_pass_no_audit` remains probeable by explicit `SMOKE_CASES`,
-but it is no longer an active Common-PASS case. Local Apache and NGINX probes
-observed HTTP 200 and an empty audit log, while GitHub Actions reported a
-non-empty audit log for the same semantic expectation. That difference is
-classified as `xfail` until local and CI behavior are stable in both
-connectors.
-
-V2/V3 import inventory is documented in
-`$FRAMEWORK_ROOT/tests/common/v2-regression-map.md`,
-`$FRAMEWORK_ROOT/tests/common/v3-regression-map.md`, and
-`docs/testing/v2-vs-v3-test-compatibility.md`.
-
-Boundary rule:
-
-- `common/` contains connector-neutral code only.
-- `connectors/<name>/` contains server/proxy-specific integration only.
-- `$FRAMEWORK_ROOT/tests/common/` contains only portable engine/rule/behavior tests.
-- `connectors/<connector>/tests/cases/` contains connector-specific behavior
-  tests.
-
-## Documentation Entry Points
-
-- `docs/README.md`: documentation index.
-- `docs/architecture/`: common model, C-first decision, and adapter boundaries.
-- `docs/connectors/`: Apache/NGINX PoCs, real-world validation, and future
-  connector planning.
-- `docs/testing/`: source-derived YAML cases, compatibility, xfail evidence,
-  and v3 API smoke notes.
-- `docs/imports/`: source inventories, import analyses, and upstream pruning.
-- `docs/roadmap/`: roadmap and TODO inventory.
-- `docs/licensing/license-and-origin.md` and `licenses/README.md`: origin and
-  license attribution.
-
-## API Smoke vs Connector Smoke
-
-The connector-free API smoke under `src/v3-api-smoke/` proves only the public
-libmodsecurity v3 C API path. It is not counted as Apache or NGINX connector
-success.
-
-Apache and NGINX `pass` means `real-world-connector-path`: a real HTTP client
-talked to a source-built server process, the real connector module loaded, the
-YAML rules evaluated in libmodsecurity, and the server returned the
-YAML-expected HTTP status. Connector summaries record the server binary, module
-path, libmodsecurity path, and verified variable families such as `ARGS`,
-`REQUEST_HEADERS`, `REQUEST_BODY`, `FILES`, `XML`, `AUDIT_LOG`, and
-`RESPONSE_HEADERS`.
+Runtime and coverage evidence must not be inferred from generated metadata
+alone. XFAIL, pending, future, connector-gap, and runtime-difference cases stay
+evidence classes until explicitly promoted by documented runtime proof.
+RESPONSE_BODY remains non-verified and non-promoted.

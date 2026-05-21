@@ -37,7 +37,7 @@ Apache and NGINX upstream trees have been removed. Apache provenance remains in
 | `connectors/apache/metadata.c` | Apache origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
 | `connectors/apache/autogen.sh`, `configure.ac`, `Makefile.am`, `build/*` | Adapter-owned Apache Autotools/APXS build inputs | Materialized to `$BUILD_ROOT/apache-build/connector-src` for monorepo-default Apache builds |
 | `connectors/apache/src/*.c`, `src/*.h` | Adapter-owned Apache module sources | Built through the generated Apache connector source tree |
-| `connectors/apache/tests/**/*.in`, `connectors/apache/tests/t/conf/extra.conf.in` | Apache configure templates retained from upstream layout | Materialized for Autotools compatibility |
+| `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/**/*.in`, `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/t/conf/extra.conf.in` | Apache configure templates retained from upstream layout | Materialized for Autotools compatibility |
 | `connectors/apache/SOURCE_MAP.json` | Apache base provenance map | Used by materialized-source manifests; not compiled |
 | `connectors/nginx/metadata.h` | NGINX adapter metadata API | Not linked into NGINX module builds |
 | `connectors/nginx/metadata.c` | NGINX origin/source metadata | Validated by `ci/check-adapter-helpers.sh` |
@@ -112,7 +112,7 @@ files from that tree after the Autoconf source anchor moves to
 `src/mod_security3.c`. Phase 13 flattens the layout so Autotools files live at
 `connectors/apache/`, productive C files live directly in
 `connectors/apache/src/`, and retained Autotools templates live under
-`connectors/apache/tests/`. For the monorepo-default Apache source,
+`modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`. For the monorepo-default Apache source,
 `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` materializes
 `$BUILD_ROOT/apache-build/connector-src` from adapter-owned Apache source and
 generated manifests only. The generated manifest identifies Apache module

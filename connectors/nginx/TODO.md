@@ -8,5 +8,5 @@ Tracked in `docs/roadmap/todo-inventory.md`.
 - Decide dynamic vs static module build strategy.
 - Define capability flags for request body, response body, HTTP/2, audit log,
   reload, and custom transaction ID.
-- Keep nginx-tests-derived cases in `connectors/nginx/tests/`.
+- Keep nginx-tests-derived cases in `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`.
 - Document filter ordering before implementation.

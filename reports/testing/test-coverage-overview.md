@@ -1,47 +1,58 @@
 Generated file — do not edit manually.
 
-# ModSecurity Connector Test Coverage Summary
+# ModSecurity Connector Test Coverage Overview
 
-## Summary Status
-- Total YAML cases: **133**
-- Verified/pass (`runtime_verified=true`): **0**
-- XFAIL cases: **79**
-- Pending runtime verification (`runtime_verified=false`): **86**
-- Pending runtime verification (`runtime_verified=unknown`): **47**
-- Connector-gap cases: **11**
-- Runtime-difference cases: **13**
-- Future/experimental cases: **16**
-- RESPONSE_BODY cases: **19**
-- Default runtime-executable YAML cases: **54**
-- Force-all runtime-executable YAML cases: **133**
-- Apache attempted YAML cases in latest runtime snapshot: **126**
-- NGINX attempted YAML cases in latest runtime snapshot: **133**
+## Summary
+- Total cases: **133**
+- Verified/pass count (`runtime_verified=true`): **0**
+- XFAIL count: **79**
+- Pending runtime verification count: **86**
+- Connector-gap count: **11**
+- Runtime-difference count: **13**
+- Future/experimental count: **16**
+- RESPONSE_BODY cases: **19** (still **not verified/promoted**)
 - Mapped-only import inventory entries: **10**
 
-**RESPONSE_BODY is not verified or promoted.** This file is generated reporting, not runtime proof.
+## Coverage By Variable / Collection
+| Variable | Count |
+|---|---:|
+| `RESPONSE_BODY` | 19 |
+| `ARGS:q` | 18 |
+| `REQUEST_BODY` | 10 |
+| `ARGS_NAMES` | 7 |
+| `REQUEST_URI` | 7 |
+| `ARGS:test` | 6 |
+| `REQUEST_HEADERS_NAMES` | 5 |
+| `ARGS:param1` | 4 |
+| `ARGS:a` | 4 |
+| `REQUEST_COOKIES_NAMES` | 4 |
+| `XML` | 4 |
+| `ARGS` | 4 |
+| `RESPONSE_HEADERS:Set-Cookie` | 4 |
+| `ARGS:probe` | 4 |
+| `MULTIPART_FILENAME` | 3 |
+| `FILES_NAMES` | 2 |
+| `TX:SCORE` | 2 |
+| `REQUEST_COOKIES:USER_TOKEN` | 2 |
+| `RESPONSE_HEADERS:Location` | 2 |
+| `ARGS:audit` | 1 |
 
-## Framework Integration
-- Shared YAML cases, runners, normalizers, generators, and detailed testing documentation are owned by `ModSecurity-test-Framework`.
-- The connector repository owns connector source, harnesses, adapter metadata, `config/testing/import-status.json`, and connector-specific generated evidence under `reports/testing/`.
-- `FRAMEWORK_ROOT` and `CONNECTOR_ROOT` are explicit integration paths; there is no absolute workspace fallback.
+## Coverage By Phase
+| Phase | Count |
+|---|---:|
+| 1 | 35 |
+| 2 | 69 |
+| 3 | 11 |
+| 4 | 19 |
 
-## Case Types
-- Common YAML cases: **126**
-- Apache-specific YAML cases: **0**
-- NGINX-specific YAML cases: **7**
-- XFAIL cases: **79**
-- Mapped-only import inventory entries: **10** (not counted as runnable YAML cases)
-- Runtime-blocked import inventory entries: **0** (environment/harness blockers, not PASS or XFAIL promotions)
-- Pending/future compatibility cases: **16** future/experimental; **133** not runtime-verified
-
-## Status Classes
+## Coverage By Status
 | Status | Count |
 |---|---:|
 | imported | 47 |
 | unknown | 7 |
 | xfail | 79 |
 
-## Scope
+## Coverage By Scope
 | Scope | Count |
 |---|---:|
 | common | 126 |
@@ -49,48 +60,11 @@ Generated file — do not edit manually.
 | nginx | 7 |
 | unknown | 0 |
 
-## Coverage By Variable / Collection
-| Variable / Collection | Count |
-|---|---:|
-| `ARGS` | 43 |
-| `ARGS_NAMES` | 7 |
-| `REQUEST_HEADERS` | 4 |
-| `REQUEST_HEADERS_NAMES` | 5 |
-| `REQUEST_COOKIES` | 2 |
-| `REQUEST_COOKIES_NAMES` | 4 |
-| `REQUEST_URI` | 7 |
-| `REQUEST_BODY` | 10 |
-| `FILES` | 2 |
-| `FILES_NAMES` | 2 |
-| `XML` | 5 |
-| `RESPONSE_HEADERS` | 10 |
-| `RESPONSE_BODY` | 19 |
-| `AUDIT_LOG` | 0 |
-
-## Coverage By Phase
-| Phase | Count |
-|---|---:|
-| Phase 1 | 35 |
-| Phase 2 | 69 |
-| Phase 3 | 11 |
-| Phase 4 | 19 |
-
-## Coverage By Topic
-| Topic | Count |
-|---|---:|
-| Operators | 128 |
-| Transformations | 28 |
-| Multipart / FILES | 11 |
-| JSON | 7 |
-| XML | 5 |
-| Unicode / Encoding | 16 |
-| XSS-like compatibility probes | 2 |
-| SQLi-like compatibility probes | 2 |
-| Audit-log probes | 20 |
-| Response header probes | 10 |
-| Response body experimental probes | 2 |
-
 ## Runtime Matrix Status
+- Default runtime-executable YAML cases: **54**
+- Force-all runtime-executable YAML cases: **133**
+- Apache attempted YAML cases from latest summary: **126**
+- NGINX attempted YAML cases from latest summary: **133**
 | Status | Apache | NGINX |
 |---|---:|---:|
 | PASS | 48 | 54 |
@@ -105,21 +79,7 @@ Generated file — do not edit manually.
 | RUNTIME_DIFFERENCE_FAIL | 8 | 8 |
 | NOT_EXECUTABLE | 7 | 0 |
 | MAPPED_ONLY | 10 | 10 |
-
-- Apache attempted YAML cases from latest summary: **126**
-- NGINX attempted YAML cases from latest summary: **133**
-- Apache raw runtime XFAIL observations from latest summary: **0**
-- NGINX raw runtime XFAIL observations from latest summary: **0**
-- Apache NOT EXECUTED YAML rows: **0**
-- NGINX NOT EXECUTED YAML rows: **0**
-- Apache NOT_EXECUTABLE YAML rows: **7**
-- NGINX NOT_EXECUTABLE YAML rows: **0**
-- Mapped-only import inventory entries: **10**
-- Runtime matrix detail: `reports/testing/generated/runtime-matrix.generated.md`
-- Apache per-case results: `reports/testing/generated/apache-runtime-results.generated.md`
-- NGINX per-case results: `reports/testing/generated/nginx-runtime-results.generated.md`
-- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence; XFAIL and pending cases are not promoted.
-- RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
+- Details: `reports/testing/generated/runtime-matrix.generated.md`
 
 ## Latest Local Runtime Validation Snapshot
 - Snapshot: **2026-05-21** (2026-05-21 19:32:18 CEST)
@@ -271,46 +231,42 @@ Generated file — do not edit manually.
 - XFAIL/pending/future/connector-gap/runtime-difference cases require separate evidence before any status change.
 - RESPONSE_BODY remains experimental/non-verified.
 
-## Open Areas / Gaps
-- Runtime verification pending: cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.
-- RESPONSE_BODY remains non-verified and non-promoted.
-- GitHub/Codex checks are intentionally lightweight and do not prove runtime compatibility.
-- XFAIL, pending, future, connector-gap, and runtime-difference cases require local runtime evidence before any status change.
-- Runtime-blocked import entries are environment or harness blockers and do not imply connector-gap/runtime-difference promotion.
-- `installed-readiness` is diagnostic detection, not runtime execution.
-- There is no separate artifact-reuse smoke path; runtime validation uses source-build execution.
-- `make smoke-all` is authoritative only when it is actually executed successfully.
+## Open Gaps
+- See `reports/testing/generated/connector-gap-summary.generated.md` for detailed entries.
 
-## Commands
-- `make quick-check`
-- `make quick-all`
-- `make cloud-quick-check`
-- `make installed-readiness`
-- `make runtime-matrix`
-- `make runtime-matrix-all`
-- `make smoke-apache`
-- `make smoke-nginx`
-- `make smoke-all`
-- `make generate-test-matrix`
-- `make check-test-matrix`
+## Verified Runtime Coverage
+- Runtime-verified means only cases explicitly classified as `runtime_verified=true`.
 
-## Detail Reports
-- `reports/testing/test-coverage-overview.md`
+## Pending Runtime Verification
+- Cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.
+
+## XFAIL / Known Gap Coverage
+- XFAIL, pending, future, and experimental cases are listed in the XFAIL summary.
+- XFAIL, pending, and gap cases need local runtime validation before promotion.
+
+## Connector Gap / Runtime Difference Coverage
+- Connector-gap and runtime-difference classes are reported separately.
+
+## Phase 3/4 Outbound Coverage
+- Phase 3/4 cases are visible in `reports/testing/generated/phase-coverage.generated.md` and in the runtime matrix.
+
+## RESPONSE_BODY Status
+- RESPONSE_BODY remains not verified and not promoted.
+
+## Cloud / Quick / Full Smoke Meaning
+- Generated coverage is not runtime evidence by itself.
+- Full runtime validation is local and evidence-based.
+- GitHub/Codex checks are intentionally lightweight.
+- XFAIL, pending, and gap cases need local runtime validation.
+- `make smoke-all` is authoritative only if it was actually executed successfully.
+
+## Generated Artifacts
 - `reports/testing/generated/case-matrix.generated.md`
 - `reports/testing/generated/coverage-summary.generated.md`
 - `reports/testing/generated/xfail-summary.generated.md`
 - `reports/testing/generated/connector-gap-summary.generated.md`
 - `reports/testing/generated/phase-coverage.generated.md`
-- `reports/testing/generated/runtime-matrix.generated.md`
-- `reports/testing/generated/apache-runtime-results.generated.md`
-- `reports/testing/generated/nginx-runtime-results.generated.md`
-- `reports/testing/runtime-validation-snapshot.json`
 
-## Important Note
-Generated coverage is reporting only; it is not runtime evidence by itself.
-Full runtime validation is local and evidence-based.
-GitHub/Codex checks are intentionally lightweight.
-XFAIL, pending, future, and gap cases need local runtime validation before promotion.
-`make smoke-all` is authoritative only if it was actually executed successfully.
-No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.
-No RESPONSE_BODY promotion is made without stable full-smoke runtime evidence.
+## Note
+- Generated summaries do not replace full-smoke runtime evidence.
+- No RESPONSE_BODY promotion is made without stable runtime evidence.
