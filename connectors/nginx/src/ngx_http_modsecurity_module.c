@@ -21,6 +21,8 @@
 #include "ddebug.h"
 
 #include "ngx_http_modsecurity_common.h"
+#include "msconnector/directives.h"
+#include "msconnector/options.h"
 #include "stdio.h"
 #include <ctype.h>
 #include <ngx_core.h>
@@ -684,7 +686,7 @@ ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_mod
 
 static ngx_command_t ngx_http_modsecurity_commands[] =  {
   {
-    ngx_string("modsecurity"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_MODSECURITY),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
     ngx_conf_set_flag_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -692,7 +694,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string("modsecurity_rules"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_RULES),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_rules,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -700,7 +702,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string("modsecurity_rules_file"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_RULES_FILE),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_rules_file,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -708,7 +710,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string("modsecurity_rules_remote"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_RULES_REMOTE),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE2,
     ngx_conf_set_rules_remote,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -716,7 +718,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string("modsecurity_transaction_id"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_TRANSACTION_ID),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
     ngx_conf_set_transaction_id,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -724,7 +726,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string("modsecurity_phase4_mode"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_MODE),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_phase4_mode,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -732,7 +734,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string("modsecurity_phase4_content_types_file"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_phase4_content_types_file,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -740,7 +742,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string("modsecurity_phase4_log"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_LOG),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_phase4_log,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -748,7 +750,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
-    ngx_string("modsecurity_use_error_log"),
+    ngx_string(MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
     ngx_conf_set_flag_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
@@ -994,10 +996,10 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     dd("                  state - parent: '%d' child: '%d'",
         (int) c->enable, (int) p->enable);
 
-    ngx_conf_merge_value(c->enable, p->enable, 0);
+    ngx_conf_merge_value(c->enable, p->enable, MSCONNECTOR_DEFAULT_ENABLE);
     ngx_conf_merge_ptr_value(c->transaction_id, p->transaction_id, NULL);
-    ngx_conf_merge_value(c->use_error_log, p->use_error_log, 1);
-    ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, NGX_HTTP_MODSEC_PHASE4_MODE_SAFE);
+    ngx_conf_merge_value(c->use_error_log, p->use_error_log, MSCONNECTOR_DEFAULT_USE_ERROR_LOG);
+    ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, MSCONNECTOR_DEFAULT_PHASE4_MODE);
     ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);
     ngx_conf_merge_ptr_value(c->phase4_content_types, p->phase4_content_types, NULL);
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
