@@ -12,4 +12,17 @@ for opt in "$@"; do
     esac
 done
 
-exec @APXS@ -Wc,-fPIC -Wc,-O0 -a -c -I @V3INCLUDE@ -L @V3LIB@ -lmodsecurity src/mod_security3.c src/msc_config.c src/msc_filters.c src/msc_utils.c
+if test -z "$MSCONNECTOR_COMMON_INC" && test -n "$CONNECTOR_ROOT" && test -d "$CONNECTOR_ROOT/common/include"; then
+    MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include"
+fi
+
+if test -z "$MSCONNECTOR_COMMON_INC" && test -d "../../common/include"; then
+    MSCONNECTOR_COMMON_INC="../../common/include"
+fi
+
+MSCONNECTOR_COMMON_OPT_I=
+if test -n "$MSCONNECTOR_COMMON_INC"; then
+    MSCONNECTOR_COMMON_OPT_I="-I $MSCONNECTOR_COMMON_INC"
+fi
+
+exec @APXS@ -Wc,-fPIC -Wc,-O0 -a -c -I @V3INCLUDE@ $MSCONNECTOR_COMMON_OPT_I -L @V3LIB@ -lmodsecurity src/mod_security3.c src/msc_config.c src/msc_filters.c src/msc_utils.c

@@ -2,12 +2,13 @@
 #include "mod_security3.h"
 #include "msc_config.h"
 #include "msc_filters.h"
+#include "msconnector/directives.h"
 
 
 const command_rec module_directives[] =
 {
     AP_INIT_TAKE1(
-        "modsecurity",
+        MSCONNECTOR_DIRECTIVE_MODSECURITY,
         msc_config_modsec_state,
         NULL,
         RSRC_CONF | ACCESS_CONF,
@@ -15,7 +16,7 @@ const command_rec module_directives[] =
     ),
 
     AP_INIT_TAKE1(
-        "modsecurity_rules",
+        MSCONNECTOR_DIRECTIVE_RULES,
         msc_config_load_rules,
         NULL,
         RSRC_CONF | ACCESS_CONF,
@@ -23,7 +24,7 @@ const command_rec module_directives[] =
     ),
 
     AP_INIT_TAKE1(
-        "modsecurity_rules_file",
+        MSCONNECTOR_DIRECTIVE_RULES_FILE,
         msc_config_load_rules_file,
         NULL,
         RSRC_CONF | ACCESS_CONF,
@@ -31,7 +32,7 @@ const command_rec module_directives[] =
     ),
 
     AP_INIT_TAKE2(
-        "modsecurity_rules_remote",
+        MSCONNECTOR_DIRECTIVE_RULES_REMOTE,
         msc_config_load_rules_remote,
         NULL,
         RSRC_CONF | ACCESS_CONF,
