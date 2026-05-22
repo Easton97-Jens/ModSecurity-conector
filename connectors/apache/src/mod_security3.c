@@ -146,7 +146,7 @@ static msc_t *create_tx_context(request_rec *r) {
 
     msr->r = r;
     unique_id = getenv("UNIQUE_ID");
-    if (unique_id != NULL && strlen(unique_id) > 0) {
+    if (unique_id != NULL && unique_id[0] != '\0') {
         msr->t = msc_new_transaction_with_id(msc_apache->modsec,
             z->rules_set, unique_id, (void *)r);
     } else {
@@ -477,7 +477,13 @@ static int process_request_headers(request_rec *r, msc_t *msr) {
     /* process uri */
     {
         int it;
-        int offset = (r->protocol && strlen(r->protocol) > 5 && r->protocol[0] == 'H') ? 5 : 0;
+        int offset = (r->protocol != NULL
+            && r->protocol[0] == 'H'
+            && r->protocol[1] != '\0'
+            && r->protocol[2] != '\0'
+            && r->protocol[3] != '\0'
+            && r->protocol[4] != '\0'
+            && r->protocol[5] != '\0') ? 5 : 0;
 
         msc_process_uri(msr->t, r->unparsed_uri, r->method, r->protocol + offset);
         it = process_intervention(msr->t, r);
