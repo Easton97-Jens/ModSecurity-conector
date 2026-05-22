@@ -22,6 +22,7 @@
 
 #include "ngx_http_modsecurity_common.h"
 #include "msconnector/directives.h"
+#include "msconnector/options.h"
 #include "stdio.h"
 #include <ctype.h>
 #include <ngx_core.h>
@@ -995,10 +996,10 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     dd("                  state - parent: '%d' child: '%d'",
         (int) c->enable, (int) p->enable);
 
-    ngx_conf_merge_value(c->enable, p->enable, 0);
+    ngx_conf_merge_value(c->enable, p->enable, MSCONNECTOR_DEFAULT_ENABLE);
     ngx_conf_merge_ptr_value(c->transaction_id, p->transaction_id, NULL);
-    ngx_conf_merge_value(c->use_error_log, p->use_error_log, 1);
-    ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, NGX_HTTP_MODSEC_PHASE4_MODE_SAFE);
+    ngx_conf_merge_value(c->use_error_log, p->use_error_log, MSCONNECTOR_DEFAULT_USE_ERROR_LOG);
+    ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, MSCONNECTOR_DEFAULT_PHASE4_MODE);
     ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);
     ngx_conf_merge_ptr_value(c->phase4_content_types, p->phase4_content_types, NULL);
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
