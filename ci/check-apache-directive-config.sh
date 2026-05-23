@@ -129,11 +129,13 @@ write_modules_file() {
     append_load_if_exists "unixd_module" "mod_unixd.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "dir_module" "mod_dir.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "mime_module" "mod_mime.so" "$modules_dir" "$MODULES_FILE"
+    append_load_if_exists "remoteip_module" "mod_remoteip.so" "$modules_dir" "$MODULES_FILE"
 }
 
 write_documents() {
     printf '%s\n' "blocked path" > "$RUNTIME_ROOT/htdocs/__modsec_directive_block"
     printf '%s\n' "off path" > "$RUNTIME_ROOT/htdocs/__modsec_directive_off"
+    printf '%s\n' "remoteip path" > "$RUNTIME_ROOT/htdocs/__modsec_remoteip"
 }
 
 write_config() {
@@ -154,11 +156,16 @@ DocumentRoot "$RUNTIME_ROOT/htdocs"
     Require all granted
 </Directory>
 
+<IfModule remoteip_module>
+    RemoteIPHeader X-Forwarded-For
+</IfModule>
+
 modsecurity on
 modsecurity_use_error_log off
 modsecurity_transaction_id static-test-id
 modsecurity_rules "SecRuleEngine On"
 modsecurity_rules "SecRule REQUEST_URI \"__modsec_directive\" \"id:900001,phase:1,deny,status:403\""
+modsecurity_rules "SecRule REMOTE_ADDR \"@ipMatch 1.2.3.4\" \"id:900002,phase:1,deny,status:406\""
 
 <Location "/__modsec_directive_config_parse">
     modsecurity_use_error_log on
@@ -191,6 +198,12 @@ request_status() {
     "$CURL_BIN" -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT$path"
 }
 
+request_status_with_forwarded_for() {
+    path=$1
+    "$CURL_BIN" -sS -o /dev/null -w "%{http_code}" \
+        -H "X-Forwarded-For: 1.2.3.4" "http://127.0.0.1:$PORT$path"
+}
+
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$RUNTIME_ROOT" "RUNTIME_ROOT"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
@@ -218,6 +231,11 @@ if [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ]; then
 fi
 
 modules_dir=$(apache_modules_dir) || blocked "missing Apache modules directory"
+if [ -f "$modules_dir/mod_remoteip.so" ]; then
+    remoteip_available=1
+else
+    remoteip_available=0
+fi
 
 rm -rf "$RUNTIME_ROOT"
 mkdir -p "$RUNTIME_ROOT/conf" "$RUNTIME_ROOT/logs" "$RUNTIME_ROOT/run" \
@@ -250,6 +268,20 @@ fi
 off_status=$(request_status "/__modsec_directive_off")
 if [ "$off_status" != "200" ]; then
     fail "expected Location modsecurity off request to bypass ModSecurity and return 200; got $off_status"
+fi
+
+if [ "$remoteip_available" = "1" ]; then
+    remoteip_control_status=$(request_status "/__modsec_remoteip")
+    if [ "$remoteip_control_status" != "200" ]; then
+        fail "expected RemoteIP control request without X-Forwarded-For to return 200; got $remoteip_control_status"
+    fi
+
+    remoteip_status=$(request_status_with_forwarded_for "/__modsec_remoteip")
+    if [ "$remoteip_status" != "406" ]; then
+        fail "expected RemoteIPHeader request to set REMOTE_ADDR and block with 406; got $remoteip_status"
+    fi
+else
+    echo "apache_directive_config: skip RemoteIPHeader runtime check; mod_remoteip.so not found under $modules_dir"
 fi
 
 echo "apache_directive_config: pass Syntax OK and runtime gate config=$CONFIG_FILE log=$CONFIGTEST_LOG"

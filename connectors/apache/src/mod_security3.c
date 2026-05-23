@@ -295,6 +295,43 @@ static int hook_connection_early(conn_rec *conn)
 }
 
 
+#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER < 3
+static const char *msc_apache_client_ip(request_rec *r)
+{
+    return r->connection->remote_ip;
+}
+
+
+static int msc_apache_client_port(request_rec *r)
+{
+    return r->connection->remote_addr->port;
+}
+#else
+static const char *msc_apache_client_ip(request_rec *r)
+{
+    if (r->useragent_ip != NULL) {
+        return r->useragent_ip;
+    }
+
+    return r->connection->client_ip;
+}
+
+
+static int msc_apache_client_port(request_rec *r)
+{
+    if (r->useragent_addr != NULL) {
+        return r->useragent_addr->port;
+    }
+
+    if (r->connection->client_addr != NULL) {
+        return r->connection->client_addr->port;
+    }
+
+    return 0;
+}
+#endif
+
+
 /**
  * Initial request processing, executed immediatelly after
  * Apache receives the request headers. This function wil create
@@ -303,13 +340,8 @@ static int hook_connection_early(conn_rec *conn)
 static int hook_request_early(request_rec *r) {
     msc_t *msr = NULL;
     int rc = DECLINED;
-#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER < 3
-    const char *client_ip = r->connection->remote_ip;
-    int client_port = r->connection->remote_addr->port;
-#else
-    const char *client_ip = r->connection->client_ip;
-    int client_port = r->connection->client_addr->port;
-#endif
+    const char *client_ip = msc_apache_client_ip(r);
+    int client_port = msc_apache_client_port(r);
 
     /* This function needs to run only once per transaction
      * (i.e. subrequests and redirects are excluded).
@@ -363,13 +395,8 @@ static int hook_request_late(request_rec *r)
 {
     msc_t *msr = NULL;
     int it;
-#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER < 3
-    const char *client_ip = r->connection->remote_ip;
-    int client_port = r->connection->remote_addr->port;
-#else
-    const char *client_ip = r->connection->client_ip;
-    int client_port = r->connection->client_addr->port;
-#endif
+    const char *client_ip = msc_apache_client_ip(r);
+    int client_port = msc_apache_client_port(r);
 
     /* This function needs to run only once per transaction
      * (i.e. subrequests and redirects are excluded).
