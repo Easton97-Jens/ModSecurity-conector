@@ -96,6 +96,8 @@ static const char *msc_config_load_rules(cmd_parms *cmd, void *_cnf,
         return error;
     }
 
+    cnf->rule_load_stats.inline_rules += (unsigned) ret;
+
     return NULL;
 }
 
@@ -114,6 +116,8 @@ static const char *msc_config_load_rules_file(cmd_parms *cmd, void *_cnf,
         return error;
     }
 
+    cnf->rule_load_stats.file_rules += (unsigned) ret;
+
     return NULL;
 }
 
@@ -131,6 +135,8 @@ static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_cnf,
     {
         return error;
     }
+
+    cnf->rule_load_stats.remote_rules += (unsigned) ret;
 
     return NULL;
 }
@@ -190,6 +196,9 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
     cnf->rules_set = msc_create_rules_set();
     cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
     cnf->transaction_id = NULL;
+    cnf->rule_load_stats.inline_rules = 0;
+    cnf->rule_load_stats.file_rules = 0;
+    cnf->rule_load_stats.remote_rules = 0;
     if (cnf->rules_set == NULL)
     {
         ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
@@ -300,6 +309,26 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
     else
     {
         cnf_new->transaction_id = NULL;
+    }
+
+    if (cnf_p != NULL)
+    {
+        cnf_new->rule_load_stats.inline_rules +=
+            cnf_p->rule_load_stats.inline_rules;
+        cnf_new->rule_load_stats.file_rules +=
+            cnf_p->rule_load_stats.file_rules;
+        cnf_new->rule_load_stats.remote_rules +=
+            cnf_p->rule_load_stats.remote_rules;
+    }
+
+    if (cnf_c != NULL)
+    {
+        cnf_new->rule_load_stats.inline_rules +=
+            cnf_c->rule_load_stats.inline_rules;
+        cnf_new->rule_load_stats.file_rules +=
+            cnf_c->rule_load_stats.file_rules;
+        cnf_new->rule_load_stats.remote_rules +=
+            cnf_c->rule_load_stats.remote_rules;
     }
 
     return cnf_new;

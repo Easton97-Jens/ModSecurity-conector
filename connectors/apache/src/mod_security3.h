@@ -35,6 +35,7 @@
 #include "http_request.h"
 
 #include "msc_filters.h"
+#include "msconnector/rule_load_stats.h"
 
 #ifndef _SRC_APACHE_HTTP_MODSECURITY__
 #define _SRC_APACHE_HTTP_MODSECURITY__
@@ -60,6 +61,7 @@ typedef struct
     int msc_state;
     int use_error_log;
     const char *transaction_id;
+    msconnector_rule_load_stats rule_load_stats;
     char *name_for_debug;
 } msc_conf_t;
 
