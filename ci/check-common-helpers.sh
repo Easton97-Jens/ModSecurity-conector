@@ -32,6 +32,7 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/capabilities.h"
 #include "msconnector/intervention.h"
 #include "msconnector/origin.h"
+#include "msconnector/rule_load_stats.h"
 #include "msconnector/status.h"
 
 #include <assert.h>
@@ -42,6 +43,7 @@ int main(void) {
     msconnector_capability_flags flags = MSCONNECTOR_CAPABILITY_NONE;
     msconnector_intervention intervention;
     msconnector_origin origin;
+    msconnector_rule_load_stats rule_stats = {1, 2, 3};
 
     assert(strcmp(msconnector_status_name(MSCONNECTOR_STATUS_OK), "ok") == 0);
     assert(strcmp(msconnector_status_name(MSCONNECTOR_STATUS_ERROR), "error") == 0);
@@ -82,6 +84,9 @@ int main(void) {
     assert(strcmp(msconnector_capability_name(MSCONNECTOR_CAPABILITY_REQUEST_HEADERS), "request-headers") == 0);
     assert(msconnector_capability_from_name("request-headers") == MSCONNECTOR_CAPABILITY_REQUEST_HEADERS);
     assert(msconnector_capability_from_name("does-not-exist") == MSCONNECTOR_CAPABILITY_NONE);
+    assert(rule_stats.inline_rules == 1);
+    assert(rule_stats.file_rules == 2);
+    assert(rule_stats.remote_rules == 3);
     return 0;
 }
 EOF
