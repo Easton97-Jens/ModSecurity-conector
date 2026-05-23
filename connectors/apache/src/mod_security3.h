@@ -59,6 +59,7 @@ typedef struct
     void *rules_set;
     int msc_state;
     int use_error_log;
+    const char *transaction_id;
     char *name_for_debug;
 } msc_conf_t;
 

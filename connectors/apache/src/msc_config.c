@@ -41,6 +41,14 @@ const command_rec module_directives[] =
     ),
 
     AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_TRANSACTION_ID,
+        msc_config_transaction_id,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Set a static ModSecurity transaction ID for this Apache context"
+    ),
+
+    AP_INIT_TAKE1(
         MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG,
         msc_config_use_error_log,
         NULL,
@@ -128,6 +136,21 @@ static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_cnf,
 }
 
 
+static const char *msc_config_transaction_id(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+
+    if (p1 == NULL || p1[0] == '\0')
+    {
+        return "modsecurity_transaction_id must not be empty";
+    }
+
+    cnf->transaction_id = apr_pstrdup(cmd->pool, p1);
+    return NULL;
+}
+
+
 static const char *msc_config_use_error_log(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
@@ -166,6 +189,7 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 
     cnf->rules_set = msc_create_rules_set();
     cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
+    cnf->transaction_id = NULL;
     if (cnf->rules_set == NULL)
     {
         ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
@@ -263,6 +287,19 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
     else
     {
         cnf_new->use_error_log = MSCONNECTOR_DEFAULT_USE_ERROR_LOG;
+    }
+
+    if (cnf_c != NULL && cnf_c->transaction_id != NULL)
+    {
+        cnf_new->transaction_id = apr_pstrdup(mp, cnf_c->transaction_id);
+    }
+    else if (cnf_p != NULL && cnf_p->transaction_id != NULL)
+    {
+        cnf_new->transaction_id = apr_pstrdup(mp, cnf_p->transaction_id);
+    }
+    else
+    {
+        cnf_new->transaction_id = NULL;
     }
 
     return cnf_new;
