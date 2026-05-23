@@ -11,8 +11,9 @@ connector evidence.
 The repository is split into a connector-neutral C layer and adapter-owned
 connector trees:
 
-- `common/include/msconnector/` defines shared request, response, transaction,
-  intervention, capability, origin, logging, and status data shapes.
+- `common/include/msconnector/` defines shared directive, option/default,
+  rule-load-stat, request, response, transaction, intervention, capability,
+  origin, logging, and status data shapes.
 - `common/src/` contains small connector-neutral helper implementations.
 - `connectors/apache/` contains the Apache connector adapter, Autotools/APXS
   build inputs, harness files, metadata, and productive source under
@@ -35,6 +36,86 @@ fetched as runtime defaults.
 | HAProxy | placeholder scaffold | `connectors/haproxy/` |
 | Lighttpd | placeholder scaffold | `connectors/lighttpd/` |
 | Traefik | placeholder scaffold | `connectors/traefik/` |
+
+## Connector Feature Status
+
+The Apache and NGINX connectors share connector-neutral metadata in `common/`,
+but keep server runtime behavior in their adapter-owned trees. The tables below
+describe the current implemented state only.
+
+### Shared Features
+
+| Feature | Apache | NGINX | Notes |
+| --- | --- | --- | --- |
+| `modsecurity on|off` | Supported | Supported | Shared directive name from `common/include/msconnector/directives.h`; server-specific directive registration remains adapter-owned. |
+| Inline rules | Supported | Supported | `modsecurity_rules`; rules loading and error paths remain connector-specific. |
+| Rules file | Supported | Supported | `modsecurity_rules_file`; values count toward rule-load metadata after successful loads. |
+| Remote rules | Supported | Supported | `modsecurity_rules_remote`; remote loading remains connector-specific. |
+| Transaction ID | Supported | Supported | Apache accepts a static string; NGINX accepts an NGINX complex value. |
+| Error-log forwarding policy | Supported | Supported | `modsecurity_use_error_log on|off`; default is on. Audit logs, interventions, and request/response handling are unchanged. |
+| Rule-load stats metadata | Supported | Supported | Common data shape in `common/include/msconnector/rule_load_stats.h`; metadata only. |
+| Common directive metadata | Used | Used | Shared directive-name constants are used by both connectors. |
+| Common option metadata | Partial | Partial | Apache uses common bool/default metadata for error-log policy. NGINX uses common defaults for enablement, error-log forwarding, and phase-4 mode. |
+
+### Apache
+
+The Apache connector is an adapter-owned Apache module under
+`connectors/apache/`. It currently supports:
+
+- `modsecurity on|off`
+- `modsecurity_rules`
+- `modsecurity_rules_file`
+- `modsecurity_rules_remote`
+- `modsecurity_use_error_log on|off`
+- `modsecurity_transaction_id <string>`
+
+`modsecurity_transaction_id` is static-string only. It does not evaluate Apache
+expressions or expand environment variables. If unset, Apache keeps the existing
+`UNIQUE_ID` fallback and then creates a transaction without an explicit ID if no
+usable `UNIQUE_ID` value is available.
+
+`modsecurity_use_error_log off` suppresses Apache error-log forwarding from the
+libmodsecurity log callback only. It does not change audit logging,
+interventions, hooks, filters, buckets, transaction ownership, or request and
+response handling.
+
+Apache tracks rule-load stats internally in `msc_conf_t`. It does not currently
+report those stats in the post-config log. Apache does not implement NGINX
+phase-4 parity yet.
+
+### NGINX
+
+The NGINX connector is an adapter-owned dynamic NGINX module under
+`connectors/nginx/`. It currently supports:
+
+- `modsecurity on|off`
+- `modsecurity_rules`
+- `modsecurity_rules_file`
+- `modsecurity_rules_remote`
+- `modsecurity_transaction_id`
+- `modsecurity_use_error_log on|off`
+- `modsecurity_phase4_mode minimal|safe|strict`
+- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_log <path>`
+
+`modsecurity_transaction_id` uses an NGINX complex value and may evaluate
+per-request NGINX variables. NGINX exposes rule-load stats in its existing
+startup log through the common rule-load-stats helper without changing the log
+text, format, level, or order.
+
+The phase-4 directives are NGINX-specific runtime controls. They are not a
+common connector contract and are not implemented by Apache.
+
+### Known Differences And Deferred Areas
+
+| Area | Current state |
+| --- | --- |
+| Transaction ID mapping | Apache supports static strings only; NGINX supports complex values. |
+| Apache phase-4 directives | `modsecurity_phase4_mode`, `modsecurity_phase4_content_types_file`, and `modsecurity_phase4_log` are not implemented for Apache. |
+| Apache response body behavior | Not promoted; `RESPONSE_BODY` remains non-verified and non-promoted. |
+| Apache bucket/filter/intervention paths | Intentionally not refactored in this common-metadata work. |
+| Common layer | Contains connector-neutral metadata and data shapes only; it does not own Apache or NGINX runtime APIs. |
+| Rule-load stats reporting | NGINX reports via its existing startup log; Apache keeps stats as internal metadata until display aggregation and merge semantics are explicitly designed. |
 
 ## Connector Metadata
 
