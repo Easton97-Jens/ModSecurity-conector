@@ -3,6 +3,9 @@ name: manual-heavy-runtime-validation
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   manual-heavy-runtime-validation:
     runs-on: ubuntu-latest
@@ -23,6 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          persist-credentials: false
 
       - name: Initialize paths
         id: paths
@@ -46,7 +50,7 @@ jobs:
         run: |
           make setup-dev
           make lint
-          .venv/bin/python -m py_compile modules/ModSecurity-test-Framework/tests/normalizers/*.py modules/ModSecurity-test-Framework/tests/runners/*.py modules/ModSecurity-test-Framework/ci/*.py
+          .venv/bin/python -P -m py_compile modules/ModSecurity-test-Framework/tests/normalizers/*.py modules/ModSecurity-test-Framework/tests/runners/*.py modules/ModSecurity-test-Framework/ci/*.py
           git diff --check
 
       - name: Sequential full smoke

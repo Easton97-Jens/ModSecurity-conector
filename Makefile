@@ -97,7 +97,7 @@ probe-response-body: check-framework
 lint: check-framework
 	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh; else echo "bash unavailable"; fi
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-workflow-yaml.py"
@@ -138,7 +138,7 @@ bootstrap-all: setup-dev fetch-deps doctor
 	@echo "bootstrap-all complete (smoke not run)"
 
 quick-check codex-check: lint
-	$(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	git diff --check
 
 smoke-installed installed-readiness: check-framework
@@ -160,7 +160,7 @@ quick-all: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/quick-all.sh"
 
 cloud-quick-check: setup-dev lint generate-test-matrix check-test-matrix quick-check
-	$(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	git diff --check
 	@echo "INFO: Cloud check is framework/generator only and not runtime compatibility evidence."
 

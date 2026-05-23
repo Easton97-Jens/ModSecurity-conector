@@ -4,14 +4,19 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   quick-check:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          persist-credentials: false
       - name: Setup python
         uses: actions/setup-python@v5
         with:
