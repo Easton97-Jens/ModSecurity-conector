@@ -3,6 +3,7 @@
 #include "msc_config.h"
 #include "msc_filters.h"
 #include "msconnector/directives.h"
+#include "msconnector/options.h"
 
 
 const command_rec module_directives[] =
@@ -37,6 +38,14 @@ const command_rec module_directives[] =
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Load ModSecurity rules from a remote server"
+    ),
+
+    AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG,
+        msc_config_use_error_log,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Enable or disable forwarding libmodsecurity log messages to the Apache error log"
     ),
 
     {NULL}
@@ -118,6 +127,29 @@ static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_cnf,
     return NULL;
 }
 
+
+static const char *msc_config_use_error_log(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+
+    if (strcasecmp(p1, "on") == 0)
+    {
+        cnf->use_error_log = MSCONNECTOR_BOOL_ON;
+    }
+    else if (strcasecmp(p1, "off") == 0)
+    {
+        cnf->use_error_log = MSCONNECTOR_BOOL_OFF;
+    }
+    else
+    {
+        return "modsecurity_use_error_log must be either 'on' or 'off'";
+    }
+
+    return NULL;
+}
+
+
 void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 {
     msc_conf_t *cnf = NULL;
@@ -133,6 +165,7 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 #endif
 
     cnf->rules_set = msc_create_rules_set();
+    cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
     if (cnf->rules_set == NULL)
     {
         ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
@@ -217,6 +250,19 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
             "ModSecurity: Merge parent %pp [%s] child -NULL- [-NULL-]",
             cnf_p, cnf_p->name_for_debug);
 #endif
+    }
+
+    if (cnf_c != NULL && cnf_c->use_error_log != MSCONNECTOR_BOOL_UNSET)
+    {
+        cnf_new->use_error_log = cnf_c->use_error_log;
+    }
+    else if (cnf_p != NULL && cnf_p->use_error_log != MSCONNECTOR_BOOL_UNSET)
+    {
+        cnf_new->use_error_log = cnf_p->use_error_log;
+    }
+    else
+    {
+        cnf_new->use_error_log = MSCONNECTOR_DEFAULT_USE_ERROR_LOG;
     }
 
     return cnf_new;

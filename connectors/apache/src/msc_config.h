@@ -14,6 +14,9 @@ static const char *msc_config_load_rules_file(cmd_parms *cmd, void *_dcfg,
 static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_dcfg,
     const char *p1, const char *p2);
 
+static const char *msc_config_use_error_log(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+
 void *msc_hook_create_config_directory(apr_pool_t *mp, char *path);
 
 void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,

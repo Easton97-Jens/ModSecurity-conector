@@ -4,6 +4,7 @@
 #include "mod_security3.h"
 #include "msc_utils.h"
 #include "msc_config.h"
+#include "msconnector/options.h"
 
 /*
  *
@@ -19,6 +20,15 @@ void modsecurity_log_cb(void *log, const void* data)
     }
     msg = (const char *) data;
     request_rec *r = (request_rec *) log;
+    msc_conf_t *conf = NULL;
+
+    if (r->per_dir_config != NULL) {
+        conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+                &security3_module);
+        if (conf != NULL && conf->use_error_log == MSCONNECTOR_BOOL_OFF) {
+            return;
+        }
+    }
 
 #if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 2
     ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
