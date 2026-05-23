@@ -3,11 +3,13 @@ STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
 BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
 FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
 CONNECTOR_ROOT := $(CURDIR)
+NGINX_HARNESS_PARENT ?= $(BUILD_ROOT)
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
 export FRAMEWORK_ROOT
 export CONNECTOR_ROOT
+export NGINX_HARNESS_PARENT
 export SOURCE_ROOT
 export PYTHON
 export PYTHONDONTWRITEBYTECODE
@@ -32,6 +34,12 @@ export MODSECURITY_APACHE_GIT_URL
 export MODSECURITY_APACHE_GIT_REF
 export MODSECURITY_NGINX_GIT_URL
 export MODSECURITY_NGINX_GIT_REF
+export MODSECURITY_TEST_VARIANT
+export CRS_REPO_URL
+export CRS_GIT_REF
+export CRS_SOURCE_DIR
+export CRS_RUNTIME_DIR
+export MODSECURITY_RULE_PREAMBLE_FILE
 export BUILD_HTTPD_FROM_SOURCE
 export BUILD_PCRE2_FROM_SOURCE
 export BUILD_NGINX_FROM_SOURCE
@@ -64,7 +72,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-all runtime-matrix runtime-matrix-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
+.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs runtime-matrix runtime-matrix-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 check-framework:
 	@test -d "$(FRAMEWORK_ROOT)" || { \
@@ -85,6 +93,14 @@ smoke-nginx: check-framework
 smoke-all: check-framework
 	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
 
+test: test-no-crs test-with-crs
+
+test-no-crs: check-framework
+	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"'
+
+test-with-crs: check-framework
+	MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; sh "$(FRAMEWORK_ROOT)/ci/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"'
+
 runtime-matrix: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
 
@@ -97,11 +113,12 @@ probe-response-body: check-framework
 lint: check-framework
 	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh; else echo "bash unavailable"; fi
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-workflow-yaml.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-doc-links.py"
+	sh "$(FRAMEWORK_ROOT)/ci/check-crs-version-pinning.sh"
 	sh ci/check-common-helpers.sh
 	sh ci/check-adapter-helpers.sh
 	sh ci/check-adapter-metadata-drift.sh
@@ -128,6 +145,12 @@ fetch-modsecurity-v3: check-framework
 fetch-deps bootstrap-runtime: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/fetch-smoke-sources.sh" all
 
+fetch-crs: check-framework
+	sh "$(FRAMEWORK_ROOT)/ci/fetch-crs.sh"
+
+prepare-crs: check-framework
+	sh "$(FRAMEWORK_ROOT)/ci/prepare-crs.sh"
+
 doctor env-check: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/doctor.sh"
 
@@ -138,7 +161,7 @@ bootstrap-all: setup-dev fetch-deps doctor
 	@echo "bootstrap-all complete (smoke not run)"
 
 quick-check codex-check: lint
-	$(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	git diff --check
 
 smoke-installed installed-readiness: check-framework
@@ -160,7 +183,7 @@ quick-all: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/quick-all.sh"
 
 cloud-quick-check: setup-dev lint generate-test-matrix check-test-matrix quick-check
-	$(PYTHON) -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	git diff --check
 	@echo "INFO: Cloud check is framework/generator only and not runtime compatibility evidence."
 

@@ -13,7 +13,8 @@ if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
     else
         NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}}"
     fi
-    NGINX_HARNESS_WORK_ROOT="$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID"
+    install -d -m 700 "$NGINX_HARNESS_PARENT"
+    NGINX_HARNESS_WORK_ROOT=$(mktemp -d "$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID-XXXXXX")
 fi
 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
 NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
@@ -46,6 +47,8 @@ CONNECTOR_ORIGIN_SOURCE_COMMIT="${CONNECTOR_ORIGIN_SOURCE_COMMIT:-}"
 CONNECTOR_ORIGIN_SOURCE_VERSION="${CONNECTOR_ORIGIN_SOURCE_VERSION:-}"
 CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
+MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-}"
+MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 NGINX_WORKER_USER="${NGINX_WORKER_USER:-nobody}"
 NGINX_WORKER_GROUP="${NGINX_WORKER_GROUP:-}"
 PERMISSIONS_LOG="${PERMISSIONS_LOG:-}"
@@ -492,6 +495,14 @@ send_case_request() {
     "$@" 2>"$LOG_DIR/curl-attack.err"
 }
 
+require_crs_preamble_if_needed() {
+    if [ "$MODSECURITY_TEST_VARIANT" = "with-crs" ] && [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+        blocked "MODSECURITY_RULE_PREAMBLE_FILE is required for MODSECURITY_TEST_VARIANT=with-crs; run make test-with-crs or make prepare-crs"
+    fi
+}
+
+require_crs_preamble_if_needed
+
 if [ "$RUN_ONE_CASE" != "1" ]; then
     run_all_cases
 fi
@@ -516,6 +527,10 @@ echo "nginx_smoke: RUNTIME_ROOT=$RUNTIME_ROOT"
 echo "nginx_smoke: LOG_DIR=$LOG_DIR"
 echo "nginx_smoke: TEST_CASE=$TEST_CASE"
 echo "nginx_smoke: CASE_SCOPE=$CASE_SCOPE"
+echo "nginx_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+    echo "nginx_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
+fi
 
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
@@ -572,6 +587,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
 	    --docroot "$DOCROOT" \
 	    --audit-log-file "$AUDIT_LOG_FILE" \
 	    --audit-log-dir "$AUDIT_LOG_DIR" \
+	    --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" \
 	    --nginx-location-directives-file "$NGINX_LOCATION_DIRECTIVES_FILE" \
 	    --nginx-runtime-config-dir "$RUNTIME_ROOT/conf" \
 	    --nginx-phase4-log-file "$NGINX_PHASE4_LOG_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then

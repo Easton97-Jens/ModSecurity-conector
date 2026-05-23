@@ -3,6 +3,7 @@
 #include "msc_config.h"
 #include "msc_filters.h"
 #include "msconnector/directives.h"
+#include "msconnector/options.h"
 
 
 const command_rec module_directives[] =
@@ -39,6 +40,30 @@ const command_rec module_directives[] =
         "Load ModSecurity rules from a remote server"
     ),
 
+    AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_TRANSACTION_ID,
+        msc_config_transaction_id,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Set a static ModSecurity transaction ID for this Apache context"
+    ),
+
+    AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR,
+        msc_config_transaction_id_expr,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Set a per-request Apache expression for the ModSecurity transaction ID"
+    ),
+
+    AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG,
+        msc_config_use_error_log,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Enable or disable forwarding libmodsecurity log messages to the Apache error log"
+    ),
+
     {NULL}
 };
 
@@ -50,11 +75,11 @@ static const char *msc_config_modsec_state(cmd_parms *cmd, void *_cnf,
 
     if (strcasecmp(p1, "On") == 0)
     {
-        cnf->msc_state = 1;
+        cnf->msc_state = MSCONNECTOR_BOOL_ON;
     }
     else if (strcasecmp(p1, "Off") == 0)
     {
-        cnf->msc_state = 0;
+        cnf->msc_state = MSCONNECTOR_BOOL_OFF;
     }
     else
     {
@@ -79,6 +104,9 @@ static const char *msc_config_load_rules(cmd_parms *cmd, void *_cnf,
         return error;
     }
 
+    msconnector_rule_load_stats_add_inline(&cnf->rule_load_stats,
+        (unsigned) ret);
+
     return NULL;
 }
 
@@ -96,6 +124,9 @@ static const char *msc_config_load_rules_file(cmd_parms *cmd, void *_cnf,
     {
         return error;
     }
+
+    msconnector_rule_load_stats_add_file(&cnf->rule_load_stats,
+        (unsigned) ret);
 
     return NULL;
 }
@@ -115,8 +146,84 @@ static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_cnf,
         return error;
     }
 
+    msconnector_rule_load_stats_add_remote(&cnf->rule_load_stats,
+        (unsigned) ret);
+
     return NULL;
 }
+
+
+static const char *msc_config_transaction_id(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+
+    if (p1 == NULL || p1[0] == '\0')
+    {
+        return "modsecurity_transaction_id must not be empty";
+    }
+
+    if (cnf->transaction_id_expr != NULL)
+    {
+        return "modsecurity_transaction_id and modsecurity_transaction_id_expr are mutually exclusive";
+    }
+
+    cnf->transaction_id = apr_pstrdup(cmd->pool, p1);
+    return NULL;
+}
+
+
+static const char *msc_config_transaction_id_expr(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    const char *error = NULL;
+    ap_expr_info_t *expr = NULL;
+
+    if (p1 == NULL || p1[0] == '\0')
+    {
+        return "modsecurity_transaction_id_expr must not be empty";
+    }
+
+    if (cnf->transaction_id != NULL)
+    {
+        return "modsecurity_transaction_id and modsecurity_transaction_id_expr are mutually exclusive";
+    }
+
+    expr = ap_expr_parse_cmd(cmd, p1, AP_EXPR_FLAG_STRING_RESULT,
+        &error, NULL);
+    if (error != NULL)
+    {
+        return apr_pstrcat(cmd->pool,
+            "modsecurity_transaction_id_expr parse error: ", error, NULL);
+    }
+
+    cnf->transaction_id_expr = expr;
+    return NULL;
+}
+
+
+static const char *msc_config_use_error_log(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+
+    if (strcasecmp(p1, "on") == 0)
+    {
+        cnf->use_error_log = MSCONNECTOR_BOOL_ON;
+    }
+    else if (strcasecmp(p1, "off") == 0)
+    {
+        cnf->use_error_log = MSCONNECTOR_BOOL_OFF;
+    }
+    else
+    {
+        return "modsecurity_use_error_log must be either 'on' or 'off'";
+    }
+
+    return NULL;
+}
+
 
 void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 {
@@ -133,6 +240,11 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 #endif
 
     cnf->rules_set = msc_create_rules_set();
+    cnf->msc_state = MSCONNECTOR_BOOL_UNSET;
+    cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
+    cnf->transaction_id = NULL;
+    cnf->transaction_id_expr = NULL;
+    msconnector_rule_load_stats_init(&cnf->rule_load_stats);
     if (cnf->rules_set == NULL)
     {
         ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
@@ -217,6 +329,70 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
             "ModSecurity: Merge parent %pp [%s] child -NULL- [-NULL-]",
             cnf_p, cnf_p->name_for_debug);
 #endif
+    }
+
+    if (cnf_c != NULL && cnf_c->msc_state != MSCONNECTOR_BOOL_UNSET)
+    {
+        cnf_new->msc_state = cnf_c->msc_state;
+    }
+    else if (cnf_p != NULL && cnf_p->msc_state != MSCONNECTOR_BOOL_UNSET)
+    {
+        cnf_new->msc_state = cnf_p->msc_state;
+    }
+    else
+    {
+        cnf_new->msc_state = MSCONNECTOR_DEFAULT_ENABLE;
+    }
+
+    if (cnf_c != NULL && cnf_c->use_error_log != MSCONNECTOR_BOOL_UNSET)
+    {
+        cnf_new->use_error_log = cnf_c->use_error_log;
+    }
+    else if (cnf_p != NULL && cnf_p->use_error_log != MSCONNECTOR_BOOL_UNSET)
+    {
+        cnf_new->use_error_log = cnf_p->use_error_log;
+    }
+    else
+    {
+        cnf_new->use_error_log = MSCONNECTOR_DEFAULT_USE_ERROR_LOG;
+    }
+
+    if (cnf_c != NULL && cnf_c->transaction_id_expr != NULL)
+    {
+        cnf_new->transaction_id_expr = cnf_c->transaction_id_expr;
+        cnf_new->transaction_id = NULL;
+    }
+    else if (cnf_c != NULL && cnf_c->transaction_id != NULL)
+    {
+        cnf_new->transaction_id = apr_pstrdup(mp, cnf_c->transaction_id);
+        cnf_new->transaction_id_expr = NULL;
+    }
+    else if (cnf_p != NULL && cnf_p->transaction_id_expr != NULL)
+    {
+        cnf_new->transaction_id_expr = cnf_p->transaction_id_expr;
+        cnf_new->transaction_id = NULL;
+    }
+    else if (cnf_p != NULL && cnf_p->transaction_id != NULL)
+    {
+        cnf_new->transaction_id = apr_pstrdup(mp, cnf_p->transaction_id);
+        cnf_new->transaction_id_expr = NULL;
+    }
+    else
+    {
+        cnf_new->transaction_id = NULL;
+        cnf_new->transaction_id_expr = NULL;
+    }
+
+    if (cnf_p != NULL)
+    {
+        msconnector_rule_load_stats_add(&cnf_new->rule_load_stats,
+            &cnf_p->rule_load_stats);
+    }
+
+    if (cnf_c != NULL)
+    {
+        msconnector_rule_load_stats_add(&cnf_new->rule_load_stats,
+            &cnf_c->rule_load_stats);
     }
 
     return cnf_new;

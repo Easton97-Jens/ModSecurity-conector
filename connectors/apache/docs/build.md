@@ -86,7 +86,7 @@ Autotools build layout. Build files now live in `connectors/apache/`, productive
 C sources live directly in `connectors/apache/src/`, and retained Autotools
 test templates live under `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`.
 
-Open work is tracked in `docs/roadmap/todo-inventory.md`:
+Open work is tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`:
 
 - Verify minimum Apache/APR/APR-util/PCRE build requirements.
 - Keep CI blocked-safe until those dependencies are explicitly provisioned.

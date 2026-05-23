@@ -10,4 +10,4 @@ Source references used for this scaffold:
 
 Tracked follow-up: document official NGINX module development and dynamic
 module references before any maintained NGINX adapter rewrite. See
-`docs/roadmap/todo-inventory.md`.
+`modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.

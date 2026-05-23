@@ -4,6 +4,7 @@
 #include "mod_security3.h"
 #include "msc_utils.h"
 #include "msc_config.h"
+#include "msconnector/options.h"
 
 /*
  *
@@ -19,16 +20,23 @@ void modsecurity_log_cb(void *log, const void* data)
     }
     msg = (const char *) data;
     request_rec *r = (request_rec *) log;
+    msc_conf_t *conf = NULL;
+
+    if (r->per_dir_config != NULL) {
+        conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
+                &security3_module);
+        if (conf != NULL && conf->use_error_log == MSCONNECTOR_BOOL_OFF) {
+            return;
+        }
+    }
 
 #if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 2
     ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-        msg,
-        r->status);
+        "%s", msg);
 
 #else
     ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r->server,
-        msg,
-        r->status);
+        "%s", msg);
 #endif
 
 }
@@ -135,9 +143,15 @@ static msc_t *create_tx_context(request_rec *r) {
     msc_t *msr = NULL;
     msc_conf_t *z = NULL;
     char *unique_id = NULL;
+    const char *transaction_id = NULL;
+    const char *expr_error = NULL;
 
     z = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
+
+    if (z == NULL || z->msc_state != MSCONNECTOR_BOOL_ON) {
+        return NULL;
+    }
 
     msr = (msc_t *)apr_pcalloc(r->pool, sizeof(msc_t));
     if (msr == NULL) {
@@ -145,10 +159,29 @@ static msc_t *create_tx_context(request_rec *r) {
     }
 
     msr->r = r;
-    unique_id = getenv("UNIQUE_ID");
-    if (unique_id != NULL && unique_id[0] != '\0') {
+    if (z->transaction_id_expr != NULL) {
+        transaction_id = ap_expr_str_exec(r, z->transaction_id_expr,
+            &expr_error);
+        if (expr_error != NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                "ModSecurity: Failed to evaluate "
+                "modsecurity_transaction_id_expr: %s", expr_error);
+            transaction_id = NULL;
+        }
+    } else if (z->transaction_id != NULL && z->transaction_id[0] != '\0') {
+        transaction_id = z->transaction_id;
+    }
+
+    if (transaction_id == NULL || transaction_id[0] == '\0') {
+        unique_id = getenv("UNIQUE_ID");
+        if (unique_id != NULL && unique_id[0] != '\0') {
+            transaction_id = unique_id;
+        }
+    }
+
+    if (transaction_id != NULL && transaction_id[0] != '\0') {
         msr->t = msc_new_transaction_with_id(msc_apache->modsec,
-            z->rules_set, unique_id, (void *)r);
+            z->rules_set, transaction_id, (void *)r);
     } else {
         msr->t = msc_new_transaction(msc_apache->modsec,
             z->rules_set, (void *)r);
@@ -278,6 +311,43 @@ static int hook_connection_early(conn_rec *conn)
 }
 
 
+#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER < 3
+static const char *msc_apache_client_ip(request_rec *r)
+{
+    return r->connection->remote_ip;
+}
+
+
+static int msc_apache_client_port(request_rec *r)
+{
+    return r->connection->remote_addr->port;
+}
+#else
+static const char *msc_apache_client_ip(request_rec *r)
+{
+    if (r->useragent_ip != NULL) {
+        return r->useragent_ip;
+    }
+
+    return r->connection->client_ip;
+}
+
+
+static int msc_apache_client_port(request_rec *r)
+{
+    if (r->useragent_addr != NULL) {
+        return r->useragent_addr->port;
+    }
+
+    if (r->connection->client_addr != NULL) {
+        return r->connection->client_addr->port;
+    }
+
+    return 0;
+}
+#endif
+
+
 /**
  * Initial request processing, executed immediatelly after
  * Apache receives the request headers. This function wil create
@@ -286,13 +356,8 @@ static int hook_connection_early(conn_rec *conn)
 static int hook_request_early(request_rec *r) {
     msc_t *msr = NULL;
     int rc = DECLINED;
-#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER < 3
-    const char *client_ip = r->connection->remote_ip;
-    int client_port = r->connection->remote_addr->port;
-#else
-    const char *client_ip = r->connection->client_ip;
-    int client_port = r->connection->client_addr->port;
-#endif
+    const char *client_ip = msc_apache_client_ip(r);
+    int client_port = msc_apache_client_port(r);
 
     /* This function needs to run only once per transaction
      * (i.e. subrequests and redirects are excluded).
@@ -346,13 +411,8 @@ static int hook_request_late(request_rec *r)
 {
     msc_t *msr = NULL;
     int it;
-#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER < 3
-    const char *client_ip = r->connection->remote_ip;
-    int client_port = r->connection->remote_addr->port;
-#else
-    const char *client_ip = r->connection->client_ip;
-    int client_port = r->connection->client_addr->port;
-#endif
+    const char *client_ip = msc_apache_client_ip(r);
+    int client_port = msc_apache_client_port(r);
 
     /* This function needs to run only once per transaction
      * (i.e. subrequests and redirects are excluded).

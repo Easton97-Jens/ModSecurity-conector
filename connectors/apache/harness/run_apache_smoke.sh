@@ -41,6 +41,8 @@ CONNECTOR_ORIGIN_SOURCE_COMMIT="${CONNECTOR_ORIGIN_SOURCE_COMMIT:-}"
 CONNECTOR_ORIGIN_SOURCE_VERSION="${CONNECTOR_ORIGIN_SOURCE_VERSION:-}"
 CONNECTOR_ORIGIN_LICENSE="${CONNECTOR_ORIGIN_LICENSE:-}"
 CONNECTOR_ORIGIN_IMPORTED_PATH="${CONNECTOR_ORIGIN_IMPORTED_PATH:-}"
+MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-}"
+MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell apache --prefix CONNECTOR_ADAPTER)"
@@ -477,6 +479,14 @@ send_case_request() {
     "$@" 2>"$LOG_DIR/curl-attack.err"
 }
 
+require_crs_preamble_if_needed() {
+    if [ "$MODSECURITY_TEST_VARIANT" = "with-crs" ] && [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+        blocked "MODSECURITY_RULE_PREAMBLE_FILE is required for MODSECURITY_TEST_VARIANT=with-crs; run make test-with-crs or make prepare-crs"
+    fi
+}
+
+require_crs_preamble_if_needed
+
 if [ "$RUN_ONE_CASE" != "1" ]; then
     run_all_cases
 fi
@@ -499,6 +509,10 @@ echo "apache_smoke: LOG_DIR=$LOG_DIR"
 echo "apache_smoke: APACHE_MODULE=$APACHE_MODULE"
 echo "apache_smoke: TEST_CASE=$TEST_CASE"
 echo "apache_smoke: CASE_SCOPE=$CASE_SCOPE"
+echo "apache_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+    echo "apache_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
+fi
 
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$APACHE_BUILD_ROOT" "APACHE_BUILD_ROOT"
@@ -563,7 +577,8 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --body-file "$REQUEST_BODY_FILE" \
     --docroot "$DOCROOT" \
     --audit-log-file "$AUDIT_LOG_FILE" \
-    --audit-log-dir "$AUDIT_LOG_DIR" > "$LOG_DIR/case-materialize.log" 2>&1; then
+    --audit-log-dir "$AUDIT_LOG_DIR" \
+    --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"

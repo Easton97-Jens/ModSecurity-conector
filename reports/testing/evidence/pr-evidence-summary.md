@@ -21,10 +21,14 @@ Client -> Apache/NGINX -> connector module -> libmodsecurity -> rule variables -
 The connector-free v3 API smoke under `framework v3 API smoke helper/` is useful API
 evidence, but it is not Apache or NGINX connector proof.
 
-## Currently Verified Variable Families
+## Current Evidence-Scoped Variable Families
 
-The active Apache and NGINX smokes currently verify these families through real
-connector paths when `make smoke-all` passes:
+The current local default connector summary lists these families in
+`verified_variables` for both Apache and NGINX. This is real-world connector
+summary evidence for the default executable cases only. It does not promote
+xfail, mapped-only, future, connector-gap, runtime-difference, or force-all
+FAIL cases, and it does not imply that the tracked runtime-matrix `smoke-all`
+entry passed.
 
 - `ARGS`
 - `ARGS_NAMES`
@@ -38,7 +42,8 @@ connector paths when `make smoke-all` passes:
 - `RESPONSE_HEADERS`
 
 `RESPONSE_BODY` is not verified. It remains xfail/mapped-only; see
-`../testing/response-body-blocking-investigation.md`.
+`../../../modules/ModSecurity-test-Framework/docs/testing/response-body-blocking-investigation.md`
+and `../generated/runtime-matrix.generated.md`.
 
 ## PR #377 Source Status
 
@@ -55,8 +60,9 @@ The PR source intake is not counted as response-body validation. Active
 connector success still requires real HTTP behavior through Apache and NGINX,
 and `RESPONSE_BODY` remains absent from `verified_variables`.
 
-Phase 10 added source-derived PR #377 test mapping in
-`../testing/pr377-test-import-map.md`. The imported NGINX-only probes cover
+Phase 10 added source-derived PR #377 test mapping in the framework docs at
+`../../../modules/ModSecurity-test-Framework/docs/testing/pr377-test-import-map.md`.
+The imported NGINX-only probes cover
 minimal/safe/out-of-scope phase-4 log behavior with HTTP 200 pass-through.
 Strict aborts, invalid config, large-response, and shared response-body blocking
 remain xfail or mapped-only.

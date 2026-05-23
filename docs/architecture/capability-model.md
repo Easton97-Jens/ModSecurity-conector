@@ -4,6 +4,10 @@ Capabilities describe what a YAML case exercises. They are evidence labels, not
 automatic skips. A capability is counted as verified only when a real connector
 smoke case passes through Apache or NGINX.
 
+Capability metadata is not connector proof on its own. API-only smokes,
+mapped-only inventory entries, xfail probes, blocked cases, and generated
+coverage rows do not add verified variables.
+
 ## Active Capability Names
 
 | Capability | Meaning | Verified variable mapping |

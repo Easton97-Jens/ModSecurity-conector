@@ -2,7 +2,7 @@
 
 Status: mapped-only
 
-Upstream PR: https://github.com/owasp-modsecurity/ModSecurity/pull/3564  
+Upstream PR: https://github.com/owasp-modsecurity/ModSecurity/pull/3564
 Upstream repository: https://github.com/owasp-modsecurity/ModSecurity
 
 PR #3564 introduces RAW argument collection support in ModSecurity:
