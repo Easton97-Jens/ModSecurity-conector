@@ -47,12 +47,12 @@ describe the current implemented state only.
 
 | Feature | Apache | NGINX | Notes |
 | --- | --- | --- | --- |
-| `modsecurity on|off` | Supported | Supported | Shared directive name from `common/include/msconnector/directives.h`; server-specific directive registration remains adapter-owned. |
+| <code>modsecurity on&#124;off</code> | Supported | Supported | Shared directive name from `common/include/msconnector/directives.h`; server-specific directive registration remains adapter-owned. |
 | Inline rules | Supported | Supported | `modsecurity_rules`; rules loading and error paths remain connector-specific. |
 | Rules file | Supported | Supported | `modsecurity_rules_file`; values count toward rule-load metadata after successful loads. |
 | Remote rules | Supported | Supported | `modsecurity_rules_remote`; remote loading remains connector-specific. |
 | Transaction ID | Supported | Supported | Apache accepts a static string; NGINX accepts an NGINX complex value. |
-| Error-log forwarding policy | Supported | Supported | `modsecurity_use_error_log on|off`; default is on. Audit logs, interventions, and request/response handling are unchanged. |
+| Error-log forwarding policy | Supported | Supported | <code>modsecurity_use_error_log on&#124;off</code>; default is on. Audit logs, interventions, and request/response handling are unchanged. |
 | Rule-load stats metadata | Supported | Supported | Common data shape in `common/include/msconnector/rule_load_stats.h`; metadata only. |
 | Common directive metadata | Used | Used | Shared directive-name constants are used by both connectors. |
 | Common option metadata | Partial | Partial | Apache uses common bool/default metadata for error-log policy. NGINX uses common defaults for enablement, error-log forwarding, and phase-4 mode. |
