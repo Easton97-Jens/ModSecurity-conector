@@ -13,7 +13,8 @@ if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
     else
         NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}}"
     fi
-    NGINX_HARNESS_WORK_ROOT="$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID"
+    install -d -m 700 "$NGINX_HARNESS_PARENT"
+    NGINX_HARNESS_WORK_ROOT=$(mktemp -d "$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID-XXXXXX")
 fi
 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
 NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
