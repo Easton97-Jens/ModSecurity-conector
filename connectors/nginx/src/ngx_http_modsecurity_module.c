@@ -908,12 +908,16 @@ static char *
 ngx_http_modsecurity_init_main_conf(ngx_conf_t *cf, void *conf)
 {
     ngx_http_modsecurity_main_conf_t  *mmcf;
+    msconnector_rule_load_stats        stats;
+
     mmcf = (ngx_http_modsecurity_main_conf_t *) conf;
+    stats = ngx_http_modsecurity_rule_load_stats(mmcf);
 
     ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
                   "%s (rules loaded inline/local/remote: %ui/%ui/%ui)",
-                  MODSECURITY_NGINX_WHOAMI, mmcf->rules_inline,
-                  mmcf->rules_file, mmcf->rules_remote);
+                  MODSECURITY_NGINX_WHOAMI, (ngx_uint_t) stats.inline_rules,
+                  (ngx_uint_t) stats.file_rules,
+                  (ngx_uint_t) stats.remote_rules);
     ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
                   "libmodsecurity3 version %s.%s.%s",
                   MODSECURITY_MAJOR, MODSECURITY_MINOR, MODSECURITY_PATCHLEVEL);
