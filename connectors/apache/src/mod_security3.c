@@ -147,6 +147,10 @@ static msc_t *create_tx_context(request_rec *r) {
     z = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
 
+    if (z == NULL || z->msc_state != MSCONNECTOR_BOOL_ON) {
+        return NULL;
+    }
+
     msr = (msc_t *)apr_pcalloc(r->pool, sizeof(msc_t));
     if (msr == NULL) {
         return NULL;

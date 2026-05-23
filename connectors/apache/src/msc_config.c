@@ -67,11 +67,11 @@ static const char *msc_config_modsec_state(cmd_parms *cmd, void *_cnf,
 
     if (strcasecmp(p1, "On") == 0)
     {
-        cnf->msc_state = 1;
+        cnf->msc_state = MSCONNECTOR_BOOL_ON;
     }
     else if (strcasecmp(p1, "Off") == 0)
     {
-        cnf->msc_state = 0;
+        cnf->msc_state = MSCONNECTOR_BOOL_OFF;
     }
     else
     {
@@ -194,6 +194,7 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 #endif
 
     cnf->rules_set = msc_create_rules_set();
+    cnf->msc_state = MSCONNECTOR_BOOL_UNSET;
     cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
     cnf->transaction_id = NULL;
     cnf->rule_load_stats.inline_rules = 0;
@@ -283,6 +284,19 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
             "ModSecurity: Merge parent %pp [%s] child -NULL- [-NULL-]",
             cnf_p, cnf_p->name_for_debug);
 #endif
+    }
+
+    if (cnf_c != NULL && cnf_c->msc_state != MSCONNECTOR_BOOL_UNSET)
+    {
+        cnf_new->msc_state = cnf_c->msc_state;
+    }
+    else if (cnf_p != NULL && cnf_p->msc_state != MSCONNECTOR_BOOL_UNSET)
+    {
+        cnf_new->msc_state = cnf_p->msc_state;
+    }
+    else
+    {
+        cnf_new->msc_state = MSCONNECTOR_DEFAULT_ENABLE;
     }
 
     if (cnf_c != NULL && cnf_c->use_error_log != MSCONNECTOR_BOOL_UNSET)
