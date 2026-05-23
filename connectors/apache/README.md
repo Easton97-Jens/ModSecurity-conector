@@ -9,6 +9,7 @@ Implemented now:
 - Documentation of observed local Apache connector concepts.
 - Adapter-owned Apache connector layout under `connectors/apache/`, with
   productive source under `connectors/apache/src/`.
+- Shared directive-name metadata from `common/include/msconnector/directives.h`.
 - A PoC build-preparation helper in `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`.
 - A local runtime smoke harness under `connectors/apache/harness/`.
 - Use of all shared minimal cases under `modules/ModSecurity-test-Framework/tests/cases/`.
@@ -23,6 +24,31 @@ Not implemented:
   migration.
 - No claim that the Apache connector is complete beyond the documented shared
   minimal/imported smokes.
+- No Apache support for the NGINX phase-4 directives
+  `modsecurity_phase4_mode`, `modsecurity_phase4_content_types_file`, or
+  `modsecurity_phase4_log`.
+
+## Supported Directives
+
+The adapter-owned Apache connector currently registers:
+
+- `modsecurity on|off`
+- `modsecurity_rules`
+- `modsecurity_rules_file`
+- `modsecurity_rules_remote`
+- `modsecurity_use_error_log on|off`
+- `modsecurity_transaction_id <string>`
+
+`modsecurity_transaction_id` accepts a static string only. It does not evaluate
+Apache expressions, expand environment variables, or attempt NGINX
+complex-value parity. If the directive is unset, the connector keeps the
+existing `UNIQUE_ID` fallback and then creates a transaction without an explicit
+ID if `UNIQUE_ID` is absent or empty.
+
+`modsecurity_use_error_log off` suppresses Apache error-log forwarding from the
+libmodsecurity log callback only. It does not change audit logging,
+intervention behavior, request or response handling, hooks, filters, buckets,
+or transaction ownership.
 
 Primary local reference: `/root/conecter/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
@@ -40,4 +66,5 @@ the connector root, retained Autotools test templates live under
 Build and runtime artifacts must stay under `BUILD_ROOT`, defaulting locally to
 `/src/ModSecurity-conector-build`.
 
-See `docs/connectors/apache-poc.md` and `connectors/apache/harness/README.md`.
+See `docs/connectors/directive-parity.md` and
+`connectors/apache/harness/README.md`.

@@ -9,11 +9,7 @@ future connectors must meet before claiming compatibility.
 
 | Document | Use |
 | --- | --- |
-| `apache-poc.md` | Apache source-build, module build, and smoke harness status |
-| `nginx-poc.md` | NGINX source-build, dynamic module, and smoke harness status |
-| `nginx-poc-plan.md` | NGINX lifecycle and build model notes |
-| `apache-vs-nginx-poc.md` | Shared YAML evidence and connector lifecycle differences |
-| `real-world-connector-validation.md` | Required proof path through real server connector modules |
+| `directive-parity.md` | Current Apache and NGINX directive support and semantics |
 | `future-connectors.md` | HAProxy, Envoy, Lighttpd, and Traefik planning constraints |
 
 ## Upstream References
