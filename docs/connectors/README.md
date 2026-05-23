@@ -10,6 +10,7 @@ future connectors must meet before claiming compatibility.
 | Document | Use |
 | --- | --- |
 | `directive-parity.md` | Current Apache and NGINX directive support and semantics |
+| `rule-load-stats.md` | Common rule-load metadata shape and Apache/NGINX adapter semantics |
 | `future-connectors.md` | HAProxy, Envoy, Lighttpd, and Traefik planning constraints |
 
 ## Upstream References
