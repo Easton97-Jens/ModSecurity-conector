@@ -38,12 +38,16 @@ The adapter-owned Apache connector currently registers:
 - `modsecurity_rules_remote`
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
+- `modsecurity_transaction_id_expr <apache-expression>`
 
-`modsecurity_transaction_id` accepts a static string only. It does not evaluate
-Apache expressions, expand environment variables, or attempt NGINX
-complex-value parity. If the directive is unset, the connector keeps the
-existing `UNIQUE_ID` fallback and then creates a transaction without an explicit
-ID if `UNIQUE_ID` is absent or empty.
+`modsecurity_transaction_id` accepts a static string and keeps the existing
+static semantics. `modsecurity_transaction_id_expr` accepts an Apache string
+expression, for example `%{REQUEST_URI}`, and evaluates it per request. The two
+directives are mutually exclusive in the same Apache context; normal
+child-context overrides apply during config merge. If neither directive is set,
+or if the expression evaluates to an empty value or fails, the connector keeps
+the existing `UNIQUE_ID` fallback and then creates a transaction without an
+explicit ID if `UNIQUE_ID` is absent or empty.
 
 `modsecurity_use_error_log off` suppresses Apache error-log forwarding from the
 libmodsecurity log callback only. It does not change audit logging,

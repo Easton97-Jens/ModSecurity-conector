@@ -143,6 +143,8 @@ static msc_t *create_tx_context(request_rec *r) {
     msc_t *msr = NULL;
     msc_conf_t *z = NULL;
     char *unique_id = NULL;
+    const char *transaction_id = NULL;
+    const char *expr_error = NULL;
 
     z = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
@@ -157,18 +159,32 @@ static msc_t *create_tx_context(request_rec *r) {
     }
 
     msr->r = r;
-    if (z->transaction_id != NULL && z->transaction_id[0] != '\0') {
-        msr->t = msc_new_transaction_with_id(msc_apache->modsec,
-            z->rules_set, z->transaction_id, (void *)r);
-    } else {
+    if (z->transaction_id_expr != NULL) {
+        transaction_id = ap_expr_str_exec(r, z->transaction_id_expr,
+            &expr_error);
+        if (expr_error != NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                "ModSecurity: Failed to evaluate "
+                "modsecurity_transaction_id_expr: %s", expr_error);
+            transaction_id = NULL;
+        }
+    } else if (z->transaction_id != NULL && z->transaction_id[0] != '\0') {
+        transaction_id = z->transaction_id;
+    }
+
+    if (transaction_id == NULL || transaction_id[0] == '\0') {
         unique_id = getenv("UNIQUE_ID");
         if (unique_id != NULL && unique_id[0] != '\0') {
-            msr->t = msc_new_transaction_with_id(msc_apache->modsec,
-                z->rules_set, unique_id, (void *)r);
-        } else {
-            msr->t = msc_new_transaction(msc_apache->modsec,
-                z->rules_set, (void *)r);
+            transaction_id = unique_id;
         }
+    }
+
+    if (transaction_id != NULL && transaction_id[0] != '\0') {
+        msr->t = msc_new_transaction_with_id(msc_apache->modsec,
+            z->rules_set, transaction_id, (void *)r);
+    } else {
+        msr->t = msc_new_transaction(msc_apache->modsec,
+            z->rules_set, (void *)r);
     }
 
     store_tx_context(msr, r);

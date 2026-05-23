@@ -136,6 +136,7 @@ write_documents() {
     printf '%s\n' "blocked path" > "$RUNTIME_ROOT/htdocs/__modsec_directive_block"
     printf '%s\n' "off path" > "$RUNTIME_ROOT/htdocs/__modsec_directive_off"
     printf '%s\n' "remoteip path" > "$RUNTIME_ROOT/htdocs/__modsec_remoteip"
+    printf '%s\n' "transaction id expression path" > "$RUNTIME_ROOT/htdocs/__modsec_txid_expr"
 }
 
 write_config() {
@@ -166,6 +167,7 @@ modsecurity_transaction_id static-test-id
 modsecurity_rules "SecRuleEngine On"
 modsecurity_rules "SecRule REQUEST_URI \"__modsec_directive\" \"id:900001,phase:1,deny,status:403\""
 modsecurity_rules "SecRule REMOTE_ADDR \"@ipMatch 1.2.3.4\" \"id:900002,phase:1,deny,status:406\""
+modsecurity_rules "SecRule UNIQUE_ID \"@streq /__modsec_txid_expr\" \"id:900003,phase:1,deny,status:409\""
 
 <Location "/__modsec_directive_config_parse">
     modsecurity_use_error_log on
@@ -173,6 +175,10 @@ modsecurity_rules "SecRule REMOTE_ADDR \"@ipMatch 1.2.3.4\" \"id:900002,phase:1,
 
 <Location "/__modsec_directive_off">
     modsecurity off
+</Location>
+
+<Location "/__modsec_txid_expr">
+    modsecurity_transaction_id_expr "%{REQUEST_URI}"
 </Location>
 EOF
 }
@@ -268,6 +274,11 @@ fi
 off_status=$(request_status "/__modsec_directive_off")
 if [ "$off_status" != "200" ]; then
     fail "expected Location modsecurity off request to bypass ModSecurity and return 200; got $off_status"
+fi
+
+txid_expr_status=$(request_status "/__modsec_txid_expr")
+if [ "$txid_expr_status" != "409" ]; then
+    fail "expected modsecurity_transaction_id_expr to evaluate REQUEST_URI and block with 409; got $txid_expr_status"
 fi
 
 if [ "$remoteip_available" = "1" ]; then

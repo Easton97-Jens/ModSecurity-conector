@@ -51,7 +51,7 @@ describe the current implemented state only.
 | Inline rules | Supported | Supported | `modsecurity_rules`; rules loading and error paths remain connector-specific. |
 | Rules file | Supported | Supported | `modsecurity_rules_file`; values count toward rule-load metadata after successful loads. |
 | Remote rules | Supported | Supported | `modsecurity_rules_remote`; remote loading remains connector-specific. |
-| Transaction ID | Supported | Supported | Apache accepts a static string; NGINX accepts an NGINX complex value. |
+| Transaction ID | Supported | Supported | Apache accepts a static string or a separate Apache expression directive; NGINX accepts an NGINX complex value. |
 | Error-log forwarding policy | Supported | Supported | <code>modsecurity_use_error_log on&#124;off</code>; default is on. Audit logs, interventions, and request/response handling are unchanged. |
 | Rule-load stats metadata | Supported | Supported | Common data shape in `common/include/msconnector/rule_load_stats.h`; metadata only. |
 | Common directive metadata | Used | Used | Shared directive-name constants are used by both connectors. |
@@ -68,11 +68,16 @@ The Apache connector is an adapter-owned Apache module under
 - `modsecurity_rules_remote`
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
+- `modsecurity_transaction_id_expr <apache-expression>`
 
-`modsecurity_transaction_id` is static-string only. It does not evaluate Apache
-expressions or expand environment variables. If unset, Apache keeps the existing
-`UNIQUE_ID` fallback and then creates a transaction without an explicit ID if no
-usable `UNIQUE_ID` value is available.
+`modsecurity_transaction_id` keeps the existing static-string semantics.
+`modsecurity_transaction_id_expr` is an opt-in Apache string expression, for
+example `%{REQUEST_URI}`, evaluated per request. Static and expression
+transaction IDs are mutually exclusive in the same Apache context; normal
+child-context overrides apply during config merge. If neither directive is set,
+or if the expression evaluates to an empty value or fails, Apache keeps the
+existing `UNIQUE_ID` fallback and then creates a transaction without an
+explicit ID if no usable `UNIQUE_ID` value is available.
 
 `modsecurity_use_error_log off` suppresses Apache error-log forwarding from the
 libmodsecurity log callback only. It does not change audit logging,
@@ -110,7 +115,7 @@ common connector contract and are not implemented by Apache.
 
 | Area | Current state |
 | --- | --- |
-| Transaction ID mapping | Apache supports static strings only; NGINX supports complex values. |
+| Transaction ID mapping | Apache supports static strings plus opt-in Apache string expressions through `modsecurity_transaction_id_expr`; NGINX supports complex values through `modsecurity_transaction_id`. |
 | Apache phase-4 directives | `modsecurity_phase4_mode`, `modsecurity_phase4_content_types_file`, and `modsecurity_phase4_log` are not implemented for Apache. |
 | Apache response body behavior | Not promoted; `RESPONSE_BODY` remains non-verified and non-promoted. |
 | Apache bucket/filter/intervention paths | Intentionally not refactored in this common-metadata work. |

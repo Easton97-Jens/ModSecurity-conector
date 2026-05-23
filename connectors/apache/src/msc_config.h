@@ -17,6 +17,9 @@ static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_dcfg,
 static const char *msc_config_transaction_id(cmd_parms *cmd, void *_dcfg,
     const char *p1);
 
+static const char *msc_config_transaction_id_expr(cmd_parms *cmd, void *_dcfg,
+    const char *p1);
+
 static const char *msc_config_use_error_log(cmd_parms *cmd, void *_dcfg,
     const char *p1);
 

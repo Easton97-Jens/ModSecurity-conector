@@ -27,6 +27,7 @@
 #include "util_filter.h"
 
 #include "httpd.h"
+#include "ap_expr.h"
 #include "http_config.h"
 #include "http_connection.h"
 #include "http_core.h"
@@ -61,6 +62,7 @@ typedef struct
     int msc_state;
     int use_error_log;
     const char *transaction_id;
+    ap_expr_info_t *transaction_id_expr;
     msconnector_rule_load_stats rule_load_stats;
     char *name_for_debug;
 } msc_conf_t;

@@ -49,6 +49,14 @@ const command_rec module_directives[] =
     ),
 
     AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR,
+        msc_config_transaction_id_expr,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Set a per-request Apache expression for the ModSecurity transaction ID"
+    ),
+
+    AP_INIT_TAKE1(
         MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG,
         msc_config_use_error_log,
         NULL,
@@ -152,7 +160,42 @@ static const char *msc_config_transaction_id(cmd_parms *cmd, void *_cnf,
         return "modsecurity_transaction_id must not be empty";
     }
 
+    if (cnf->transaction_id_expr != NULL)
+    {
+        return "modsecurity_transaction_id and modsecurity_transaction_id_expr are mutually exclusive";
+    }
+
     cnf->transaction_id = apr_pstrdup(cmd->pool, p1);
+    return NULL;
+}
+
+
+static const char *msc_config_transaction_id_expr(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    const char *error = NULL;
+    ap_expr_info_t *expr = NULL;
+
+    if (p1 == NULL || p1[0] == '\0')
+    {
+        return "modsecurity_transaction_id_expr must not be empty";
+    }
+
+    if (cnf->transaction_id != NULL)
+    {
+        return "modsecurity_transaction_id and modsecurity_transaction_id_expr are mutually exclusive";
+    }
+
+    expr = ap_expr_parse_cmd(cmd, p1, AP_EXPR_FLAG_STRING_RESULT,
+        &error, NULL);
+    if (error != NULL)
+    {
+        return apr_pstrcat(cmd->pool,
+            "modsecurity_transaction_id_expr parse error: ", error, NULL);
+    }
+
+    cnf->transaction_id_expr = expr;
     return NULL;
 }
 
@@ -197,6 +240,7 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
     cnf->msc_state = MSCONNECTOR_BOOL_UNSET;
     cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
     cnf->transaction_id = NULL;
+    cnf->transaction_id_expr = NULL;
     cnf->rule_load_stats.inline_rules = 0;
     cnf->rule_load_stats.file_rules = 0;
     cnf->rule_load_stats.remote_rules = 0;
@@ -312,17 +356,30 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
         cnf_new->use_error_log = MSCONNECTOR_DEFAULT_USE_ERROR_LOG;
     }
 
-    if (cnf_c != NULL && cnf_c->transaction_id != NULL)
+    if (cnf_c != NULL && cnf_c->transaction_id_expr != NULL)
+    {
+        cnf_new->transaction_id_expr = cnf_c->transaction_id_expr;
+        cnf_new->transaction_id = NULL;
+    }
+    else if (cnf_c != NULL && cnf_c->transaction_id != NULL)
     {
         cnf_new->transaction_id = apr_pstrdup(mp, cnf_c->transaction_id);
+        cnf_new->transaction_id_expr = NULL;
+    }
+    else if (cnf_p != NULL && cnf_p->transaction_id_expr != NULL)
+    {
+        cnf_new->transaction_id_expr = cnf_p->transaction_id_expr;
+        cnf_new->transaction_id = NULL;
     }
     else if (cnf_p != NULL && cnf_p->transaction_id != NULL)
     {
         cnf_new->transaction_id = apr_pstrdup(mp, cnf_p->transaction_id);
+        cnf_new->transaction_id_expr = NULL;
     }
     else
     {
         cnf_new->transaction_id = NULL;
+        cnf_new->transaction_id_expr = NULL;
     }
 
     if (cnf_p != NULL)

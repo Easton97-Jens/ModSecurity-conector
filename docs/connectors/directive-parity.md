@@ -15,7 +15,8 @@ paths or claim future parity work as implemented.
 | `modsecurity_rules_file` | Supported | Supported | Loads ModSecurity rules from a local file. | Loads ModSecurity rules from a local file. | CAREFUL: rules-loading behavior remains connector-owned. |
 | `modsecurity_rules_remote` | Supported | Supported | Loads remote rules using the configured key and URL arguments. | Loads remote rules using the configured key and URL arguments. | CAREFUL: remote rules-loading behavior remains connector-owned. |
 | `modsecurity_use_error_log` | Supported | Supported | `on` or `off`; default is on. `off` suppresses Apache error-log forwarding from the libmodsecurity log callback only. | `on` or `off`; default is on. `off` suppresses the connector's NGINX error-log write from the libmodsecurity log callback. | CAREFUL: logging policy only; audit log, intervention, request, and response behavior are unchanged. |
-| `modsecurity_transaction_id` | Supported | Supported | Static string only. If unset, Apache keeps the existing `UNIQUE_ID` fallback, then creates a transaction without an explicit ID. | NGINX complex value. Values may be evaluated per request by NGINX. | CAREFUL: transaction-ID selection is per connector. Apache does not do expression or environment interpolation. |
+| `modsecurity_transaction_id` | Supported | Supported | Static string. Mutually exclusive with `modsecurity_transaction_id_expr` in the same context. If no transaction-ID directive is set, Apache keeps the existing `UNIQUE_ID` fallback, then creates a transaction without an explicit ID. | NGINX complex value. Values may be evaluated per request by NGINX. | CAREFUL: transaction-ID selection is per connector and uses server-specific syntax. |
+| `modsecurity_transaction_id_expr` | Supported | Not supported | Apache string expression evaluated per request, for example `%{REQUEST_URI}`. Empty results or evaluation errors fall back to `UNIQUE_ID`, then to a transaction without an explicit ID. | NGINX uses `modsecurity_transaction_id` for complex values instead. | CAREFUL: Apache expression evaluation is opt-in and adapter-owned. |
 | `modsecurity_phase4_mode` | Not supported | Supported | Not implemented. | Selects phase-4 response-body mode: `minimal`, `safe`, or `strict`; default is `safe`. | RISKY: response-body, filter, and intervention paths. Apache parity is intentionally deferred. |
 | `modsecurity_phase4_content_types_file` | Not supported | Supported | Not implemented. | Loads the phase-4 response content-type allow list from a file. | RISKY: response-body content-type gating. Apache parity is intentionally deferred. |
 | `modsecurity_phase4_log` | Not supported | Supported | Not implemented. | Configures phase-4 diagnostic logging. | RISKY: phase-4 runtime diagnostics. Apache parity is intentionally deferred. |
@@ -30,12 +31,16 @@ The Apache connector currently registers:
 - `modsecurity_rules_remote`
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
+- `modsecurity_transaction_id_expr <apache-expression>`
 
-`modsecurity_transaction_id` is intentionally minimal: it accepts a static
-string. It does not evaluate Apache expressions, expand environment variables,
-or attempt NGINX complex-value parity. If the directive is not set, Apache keeps
-the existing `UNIQUE_ID` fallback and then falls back to creating a transaction
-without an explicit ID.
+`modsecurity_transaction_id` keeps the existing static-string semantics.
+`modsecurity_transaction_id_expr` is a separate opt-in Apache string expression
+directive. Confirmed syntax includes `%{REQUEST_URI}`. The directives are
+mutually exclusive in the same Apache context, and normal child-context
+overrides apply during config merge. If neither directive is set, or if the
+expression evaluates to an empty value or fails, Apache keeps the existing
+`UNIQUE_ID` fallback and then falls back to creating a transaction without an
+explicit ID.
 
 `modsecurity_use_error_log off` only suppresses Apache error-log forwarding from
 the libmodsecurity log callback. It does not change audit logging,
@@ -63,8 +68,9 @@ The NGINX connector currently registers:
 - `modsecurity_phase4_log <path>`
 
 NGINX `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
-per-request variables. The NGINX phase-4 directives remain NGINX-specific
-runtime controls and are not a common connector contract.
+per-request variables. Apache expression transaction IDs use
+`modsecurity_transaction_id_expr` instead. The NGINX phase-4 directives remain
+NGINX-specific runtime controls and are not a common connector contract.
 
 ## Deferred and Risky Areas
 
