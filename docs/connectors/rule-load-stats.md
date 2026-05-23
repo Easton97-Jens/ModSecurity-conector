@@ -31,8 +31,21 @@ used by each connector. Failed load attempts keep the existing error path and do
 not increase the counters.
 
 No connector uses these stats to decide whether a request should be processed,
-blocked, logged, or inspected. No common reporting or logging path consumes
-these values yet.
+blocked, logged, or inspected. NGINX exposes the values through its existing
+startup log. Apache currently keeps the values as internal config metadata only.
+
+## Reporting Status
+
+NGINX reports rule-load stats through its existing startup log. The connector
+uses the common stats helper internally, but the log text, format, level, and
+ordering remain the existing NGINX behavior.
+
+Apache stores rule-load stats as metadata in `msc_conf_t`. It does not currently
+report these values in the post-config log. Apache reporting is deferred until
+the aggregation source and merge semantics for display are explicitly defined.
+
+`msconnector_rule_load_stats` is a data shape only. There is no common reporting
+API for these values yet.
 
 ## Apache
 
@@ -62,7 +75,8 @@ NGINX keeps its existing local counters:
 
 A small adapter helper copies those values into `msconnector_rule_load_stats`.
 The local `ngx_uint_t` fields remain the source used by the current NGINX
-connector. Startup logging remains unchanged, and the helper does not change
+connector. The existing startup log reads the values through the helper without
+changing the log text, format, level, or ordering. The helper does not change
 rules loading, config merge, init behavior, PCRE allocator behavior, RulesSet
 ownership, or error handling.
 
@@ -85,7 +99,8 @@ The rule-load stats metadata does not change:
 The following work is intentionally deferred:
 
 - common reporting for rule-load stats;
-- startup or metadata logging;
+- Apache post-config reporting;
+- shared metadata logging;
 - test-result or audit-log evaluation of the stats;
 - capability reports that include rule-load counts;
 - any runtime use of the counters.
