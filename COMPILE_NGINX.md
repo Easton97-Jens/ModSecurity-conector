@@ -1,202 +1,258 @@
-# Compile Nginx
+# Compile NGINX
 
-This guide explains how to build the ModSecurity connector from this repository
-as an Nginx module and how to use it in an Nginx configuration. It covers the
-locally evidenced build and smoke-test path provided by the repository, and it
-also includes manual build steps for environments where Nginx and
-libmodsecurity are supplied separately.
+This document explains how the NGINX connector is built and validated in this
+repository. It follows the root `README.md` terminology: connector source is
+repo-local, NGINX runtime behavior is adapter-owned, the framework module owns
+the reusable smoke/test machinery, and `BUILD_ROOT` is a local build/output
+location rather than a cache contract.
+
+The repository-supported path is the framework-backed `make smoke-nginx`
+target. Manual NGINX build commands are included only as general guidance for
+operators who need to reproduce the module build outside the repository helper.
 
 ## Overview
 
-The Nginx connector lives under `connectors/nginx/`. It is an Nginx HTTP module
-that passes Nginx requests and responses to libmodsecurity v3. The WAF decision
-itself is made by libmodsecurity and the loaded rules; the connector provides
-the Nginx integration, configuration directives, transaction creation, and
-handoff of HTTP data to the ModSecurity phases.
+The NGINX connector is an adapter-owned NGINX HTTP module under
+`connectors/nginx/`. The productive source lives in `connectors/nginx/src/`,
+and the NGINX third-party module `config` file lives at `connectors/nginx/config`.
+The connector integrates libmodsecurity v3 with NGINX, but the WAF engine and
+rule evaluation remain in libmodsecurity and in the loaded rules.
 
-At a high level, the build does the following:
+The current README describes the NGINX connector as an adapter-owned dynamic
+NGINX module with a source-build smoke harness. That wording is intentional:
+the repository records local build and runtime evidence through generated
+source trees and smoke tests, but it does not claim broad production support
+for every NGINX version or every runtime configuration.
 
-1. Makes libmodsecurity-v3 headers and `libmodsecurity.so` available.
-2. Configures the Nginx source tree with the third-party module from
-   `connectors/nginx/`.
-3. Compiles the connector sources from `connectors/nginx/src/`.
-4. Produces either a dynamic module named `ngx_http_modsecurity_module.so` or
-   an Nginx binary with the module compiled in statically.
+At a high level, the repository build path:
 
-The dynamic/static distinction matters:
+1. Uses or fetches a libmodsecurity v3 source tree.
+2. Builds libmodsecurity v3 under the local build root.
+3. Materializes the repo-local NGINX connector source under `BUILD_ROOT`.
+4. Downloads or prepares the NGINX source used by the smoke helper.
+5. Builds the connector as a dynamic NGINX module.
+6. Starts a generated local NGINX runtime.
+7. Sends real HTTP requests from the shared YAML cases.
+8. Records evidence under the repository's generated reports and build logs.
 
-- Dynamic: `./configure --add-dynamic-module=...` produces a `.so` file. That
-  file is loaded later with `load_module`. This is the path evidenced by the
-  repository smoke build.
-- Static: `./configure --add-module=...` compiles the connector directly into
-  the Nginx binary. There is no separate `load_module` line. The project
-  documentation treats this path as generally possible, but as a path that must
-  be validated separately.
+`make smoke-nginx` is authoritative only when it is actually executed
+successfully. Generated metadata alone is not runtime evidence.
 
-`connectors/nginx/docs/build.md` records that the local proof-of-concept
-automation uses the dynamic module build, and that supported Nginx versions
-still need explicit verification.
+## Repository Layout
 
-## Prerequisites
-
-On Debian/Ubuntu, these packages are a reasonable starting point:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y \
-  git make gcc g++ clang \
-  autoconf automake libtool pkg-config \
-  curl ca-certificates tar perl python3 \
-  libpcre3-dev zlib1g-dev libssl-dev \
-  libxml2-dev libyajl-dev liblmdb-dev libgeoip-dev \
-  libcurl4-openssl-dev
-```
-
-If your distribution provides a suitable package, you can use an installed
-libmodsecurity development environment:
-
-```sh
-sudo apt-get install -y libmodsecurity-dev
-```
-
-Package names differ by distribution. On RHEL/Fedora, comparable packages are
-often named `pcre-devel`, `zlib-devel`, `openssl-devel`,
-`pkgconf-pkg-config`, or `mod_security`. What matters is not the exact package
-name, but that the compiler, Make, Nginx build dependencies, ModSecurity
-headers, and `libmodsecurity.so` are available.
-
-The connector needs these libmodsecurity files in particular:
-
-- `modsecurity/modsecurity.h`
-- `modsecurity/transaction.h`
-- either `modsecurity/rules_set.h` or `modsecurity/rules.h`, depending on the
-  libmodsecurity version
-- `libmodsecurity.so`
-
-If libmodsecurity is not installed in standard paths, these variables are used
-during the Nginx build:
-
-```sh
-export MODSECURITY_INC=/opt/modsecurity/include
-export MODSECURITY_LIB=/opt/modsecurity/lib
-```
-
-The Nginx source must match the target Nginx version. ABI compatibility is
-especially important for dynamic modules. For an existing target Nginx, check:
-
-```sh
-nginx -V 2>&1
-```
-
-This output shows the version, compiler, and configure arguments. After Nginx
-updates, rebuild and retest the module.
-
-## Prepare the Repository
-
-After a fresh clone:
-
-```sh
-git clone <repository-url> ModSecurity-conector
-cd ModSecurity-conector
-git submodule update --init --recursive
-```
-
-The `modules/ModSecurity-test-Framework` submodule is required by the Makefile
-targets and smoke helpers. Without the submodule, targets such as
-`make smoke-nginx` will block.
-
-Important paths:
+The README's connector architecture section is the best starting point. For
+the NGINX build, the most relevant paths are:
 
 | Path | Purpose |
 | --- | --- |
-| `connectors/nginx/config` | Nginx third-party module configuration and libmodsecurity detection |
-| `connectors/nginx/src/` | Productive Nginx connector sources |
-| `common/include/msconnector/` | Shared directive, option, and metadata headers |
-| `connectors/nginx/harness/` | Runtime smoke configuration and runner |
-| `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` | Build helper for the local dynamic Nginx module build |
+| `connectors/nginx/` | Adapter-owned NGINX connector tree |
+| `connectors/nginx/config` | NGINX third-party module build glue |
+| `connectors/nginx/src/` | Productive NGINX connector source and headers |
+| `connectors/nginx/harness/` | Runtime smoke harness and NGINX config template |
+| `common/include/msconnector/` | Connector-neutral directive, option/default, request, response, transaction, intervention, capability, origin, logging, and status data shapes |
+| `common/src/` | Small connector-neutral helper implementations |
+| `modules/ModSecurity-test-Framework/` | Framework module that owns YAML cases, runners, normalizers, runtime matrix logic, coverage generation, v3 API smoke helpers, and reusable testing documentation |
+| `reports/testing/` | Connector-specific generated evidence written by framework-backed targets |
+| `TEST-COVERAGE-SUMMARY.md` | Generated root copy of test coverage evidence |
 
-The repository-provided build path is:
+Apache and NGINX connector repositories are not fetched as runtime defaults.
+The default build input is the repo-local adapter-owned source under
+`connectors/nginx/`.
 
-```sh
-REFRESH=1 \
-BUILD_NGINX_FROM_SOURCE=1 \
-BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
-make smoke-nginx
-```
+## Required Repository Setup
 
-This command does more than compile the module. It builds or stages
-libmodsecurity v3, materializes the Nginx connector source into
-`$BUILD_ROOT/nginx-build/connector-src`, downloads Nginx sources, configures
-Nginx with `--with-compat --add-dynamic-module=...`, installs a local Nginx
-under `$BUILD_ROOT/nginx-runtime/nginx`, and then runs real HTTP smoke tests.
-
-## Prepare the Nginx Source Code
-
-For manual builds, an Nginx source tree must be available:
-
-```sh
-mkdir -p "$HOME/src"
-cd "$HOME/src"
-curl -LO https://nginx.org/download/nginx-1.26.3.tar.gz
-tar -xzf nginx-1.26.3.tar.gz
-cd nginx-1.26.3
-```
-
-If the module is being built for a distribution-provided Nginx, use the version
-and configure options from `nginx -V` as the reference. At minimum, use
-`--with-compat` when producing a dynamic module intended for a compatible
-target Nginx.
-
-The repository helper defaults to downloading a GitHub release. The relevant
-variables come from `modules/ModSecurity-test-Framework/ci/common.sh`:
-
-```sh
-NGINX_SOURCE_MODE=github-release
-NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
-NGINX_RELEASE_TAG=latest
-```
-
-For reproducible builds, replace `latest` with a concrete tag:
-
-```sh
-NGINX_RELEASE_TAG=release-1.31.0 \
-REFRESH=1 \
-BUILD_NGINX_FROM_SOURCE=1 \
-BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
-make smoke-nginx
-```
-
-## Compile the Connector as a Dynamic Module
-
-The dynamic build is the main path evidenced by the project.
-
-### Build Through the Repository
+Initialize the framework module before running framework-backed targets:
 
 ```sh
 git submodule update --init --recursive
+```
 
-REFRESH=1 \
+The default framework path is:
+
+```sh
+modules/ModSecurity-test-Framework
+```
+
+When using a separate test-framework checkout, use the README-supported
+`FRAMEWORK_ROOT` override:
+
+```sh
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make quick-check
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make runtime-matrix-all
+```
+
+The same override applies to `make smoke-nginx` when the framework lives
+outside the default submodule path.
+
+## Build Variables
+
+Use the same source-build variables documented in the README:
+
+```sh
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build
+SOURCE_ROOT=$BUILD_ROOT/sources
+MODSECURITY_GIT_REF=v3/master
+MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
+```
+
+Important meanings:
+
+| Variable | Meaning |
+| --- | --- |
+| `BUILD_ROOT` | Local build/output location. It is not a cache contract. |
+| `SOURCE_ROOT` | Source checkout area used by framework helpers. |
+| `MODSECURITY_GIT_REF` | libmodsecurity v3 git ref used by source-fetch helpers. |
+| `MODSECURITY_SOURCE_DIR` | Canonical libmodsecurity v3 source directory for the smoke/build helpers. |
+| `FRAMEWORK_ROOT` | Optional override for the reusable test framework module. |
+
+The NGINX helper also uses NGINX-specific variables such as
+`BUILD_NGINX_FROM_SOURCE`, `NGINX_RELEASE_TAG`, and
+`MODSECURITY_NGINX_SOURCE_DIR`. These are part of the framework-backed helper
+scripts rather than the root README's minimal source-build variable set. Use
+them when you need to pin or override the NGINX source used by the local smoke
+path.
+
+## Recommended Build and Validation Flow
+
+The root README lists the stable public connector targets:
+
+```sh
+make setup-dev
+make lint
+make quick-check
+make generate-test-matrix
+make check-test-matrix
+make runtime-matrix-all
+make smoke-apache
+make smoke-nginx
+make smoke-all
+```
+
+For a normal local setup:
+
+```sh
+git submodule update --init --recursive
+make setup-dev
+make lint
+make quick-check
+make generate-test-matrix
+make check-test-matrix
+```
+
+For a NGINX source-build smoke:
+
+```sh
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build \
+SOURCE_ROOT=$BUILD_ROOT/sources \
+MODSECURITY_GIT_REF=v3/master \
+MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3 \
 BUILD_NGINX_FROM_SOURCE=1 \
-BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
 make smoke-nginx
 ```
 
-Expected artifacts:
+Use `REFRESH=1` when you intentionally want to replace an existing generated
+build tree:
+
+```sh
+REFRESH=1 \
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build \
+SOURCE_ROOT=$BUILD_ROOT/sources \
+MODSECURITY_GIT_REF=v3/master \
+MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3 \
+BUILD_NGINX_FROM_SOURCE=1 \
+make smoke-nginx
+```
+
+The smoke target delegates to the framework module. It builds the local NGINX
+module path only as part of a runtime validation flow; a build artifact alone
+is not promoted as successful runtime evidence.
+
+## What `make smoke-nginx` Builds
+
+The NGINX build helper is provided by the framework module and is invoked
+through the repository Makefile. For the monorepo default it materializes the
+adapter-owned NGINX connector source into:
 
 ```text
-$BUILD_ROOT/nginx-runtime/nginx/sbin/nginx
-$BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
+$BUILD_ROOT/nginx-build/connector-src
+```
+
+The helper then builds libmodsecurity v3 and uses the materialized connector
+source as the NGINX module input. Typical generated artifacts include:
+
+```text
+$BUILD_ROOT/nginx-build/connector-src
 $BUILD_ROOT/nginx-build/output/modsecurity/include/modsecurity/modsecurity.h
 $BUILD_ROOT/nginx-build/output/modsecurity/lib/libmodsecurity.so
+$BUILD_ROOT/nginx-runtime/nginx/sbin/nginx
+$BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
 $BUILD_ROOT/logs/nginx/artifacts.txt
 $BUILD_ROOT/logs/nginx/commands.txt
 ```
 
-`commands.txt` records the commands that were executed. `artifacts.txt`
-records the generated artifacts, resolved Nginx version, and paths used by the
-helper.
+The exact set of generated files depends on the helper configuration and the
+environment. Treat files under `BUILD_ROOT` as generated build/output material.
+Do not edit them as source.
 
-### Manual Dynamic Build
+The productive source remains in:
+
+```text
+connectors/nginx/config
+connectors/nginx/src/
+```
+
+The former upstream reference tree is not a runtime default. Durable
+attribution and source metadata live in the connector metadata and licensing
+paths described by the README.
+
+## Dynamic Module Build
+
+The current repository-supported NGINX proof path builds a dynamic module. This
+matches `connectors/nginx/docs/build.md`, which records the dynamic-module path
+as the active proof-of-concept build path.
+
+The resulting module is expected under the generated NGINX runtime:
+
+```text
+$BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
+```
+
+The generated NGINX binary is expected under:
+
+```text
+$BUILD_ROOT/nginx-runtime/nginx/sbin/nginx
+```
+
+The harness renders an NGINX configuration from
+`connectors/nginx/harness/nginx_smoke.conf`. That template uses:
+
+```nginx
+load_module "@@NGINX_MODULE@@";
+modsecurity on;
+modsecurity_rules_file "@@RULES_FILE@@";
+```
+
+The rules file, request data, response fixtures, audit-log paths, and expected
+status are materialized from framework YAML cases at runtime.
+
+## Static Module Build
+
+General guidance: NGINX third-party modules can often be compiled statically
+with `--add-module=...` instead of `--add-dynamic-module=...`.
+
+This repository does not present static NGINX module builds as the current
+validated path. The local documentation explicitly keeps dynamic module support
+as the active proof path until static behavior is separately proven. If you
+choose to build statically, treat it as an environment-specific build outside
+the repository's current evidence path and validate it with real HTTP smoke
+tests before relying on it.
+
+## General Manual Build Guidance
+
+The repository-specific path above should be preferred. The following commands
+are general NGINX guidance and are not a replacement for `make smoke-nginx`.
+Use them only when you need to reproduce a module build against a separately
+managed NGINX source tree.
 
 ```sh
 export CONNECTOR_ROOT=/path/to/ModSecurity-conector
@@ -215,64 +271,27 @@ cd /path/to/nginx-source
 make modules
 ```
 
-Important options and variables:
-
-| Option or variable | Meaning |
-| --- | --- |
-| `--add-dynamic-module=...` | Builds the connector as a dynamic Nginx module |
-| `--with-compat` | Increases the chance that the module can be loaded by a compatible target Nginx |
-| `MODSECURITY_INC` | Include path for the ModSecurity headers |
-| `MODSECURITY_LIB` | Library path for `libmodsecurity.so` |
-| `MSCONNECTOR_COMMON_INC` | Include path for `common/include`; in the monorepo layout it is also detected automatically |
-| `YAJL_LIB` | Optional library path if `libyajl` is not in a standard path |
-| `NGX_IGNORE_RPATH=YES` | Optional setting to avoid writing RPATH information into the result |
-
-After `make modules`, the module normally appears here:
+The important relationship to the repository is the module source path:
 
 ```text
-objs/ngx_http_modsecurity_module.so
+$CONNECTOR_ROOT/connectors/nginx
 ```
 
-A typical target path:
+The NGINX `config` file in that directory detects libmodsecurity and includes
+the connector-neutral headers from `common/include/msconnector/`.
 
-```sh
-sudo mkdir -p /etc/nginx/modules
-sudo cp objs/ngx_http_modsecurity_module.so /etc/nginx/modules/
-```
+Manual builds must still be validated with a configuration test, real HTTP
+requests, and log inspection. They do not automatically update repository
+evidence under `reports/testing/` or `TEST-COVERAGE-SUMMARY.md`.
 
-## Compile the Connector Statically Into Nginx
+## NGINX Configuration
 
-For a static build, use `--add-module`:
-
-```sh
-export CONNECTOR_ROOT=/path/to/ModSecurity-conector
-export MODSECURITY_INC=/usr/local/modsecurity/include
-export MODSECURITY_LIB=/usr/local/modsecurity/lib
-export MSCONNECTOR_COMMON_INC="$CONNECTOR_ROOT/common/include"
-
-cd /path/to/nginx-source
-
-./configure \
-  --prefix=/opt/nginx-modsec-static \
-  --with-http_ssl_module \
-  --add-module="$CONNECTOR_ROOT/connectors/nginx"
-
-make
-sudo make install
-```
-
-Static compilation can make sense when dynamic modules are not allowed in an
-environment, or when an image must ship a single Nginx binary. The downside is
-that Nginx and the module must always be rebuilt together. Because the local
-project path does not present static builds as the validated default, validate
-this path separately with `nginx -t`, real requests, and log inspection.
-
-## Nginx Configuration
-
-For a dynamic module, `load_module` belongs in the main context:
+For the repository smoke harness, the generated configuration is derived from
+`connectors/nginx/harness/nginx_smoke.conf`. For an operator-managed NGINX
+runtime, a dynamic-module configuration generally needs:
 
 ```nginx
-load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;
+load_module /path/to/ngx_http_modsecurity_module.so;
 
 events {
     worker_connections 1024;
@@ -284,7 +303,7 @@ http {
         server_name example.local;
 
         modsecurity on;
-        modsecurity_rules_file /etc/nginx/modsecurity/main.conf;
+        modsecurity_rules_file /path/to/modsecurity-rules.conf;
 
         location / {
             proxy_pass http://127.0.0.1:8080;
@@ -293,7 +312,8 @@ http {
 }
 ```
 
-A minimal rules file:
+General guidance: the loaded rules file controls engine behavior. A minimal
+test rules file might contain:
 
 ```apache
 SecRuleEngine On
@@ -302,179 +322,151 @@ SecResponseBodyAccess On
 
 SecAuditEngine RelevantOnly
 SecAuditLogType Serial
-SecAuditLog /var/log/nginx/modsec_audit.log
+SecAuditLog /path/to/modsec_audit.log
 
 SecRule ARGS:test "@streq block" \
-  "id:100000,phase:2,deny,status:403,msg:'Nginx connector test rule'"
+  "id:100000,phase:2,deny,status:403,msg:'NGINX connector test rule'"
 ```
 
-Notes:
+Keep path ownership in mind:
 
-- `modsecurity on;` enables the connector in the relevant scope.
-- `modsecurity_rules_file` must be readable by the Nginx worker.
-- Audit log paths must be writable by the worker.
-- `modsecurity_use_error_log off;` affects only the error-log callback, not
-  audit logs or interventions.
-- In the Nginx connector, `modsecurity_transaction_id` may use an Nginx complex
-  value.
+- The NGINX worker must be able to read the rules file.
+- The NGINX worker must be able to write the audit log path if audit logging is
+  enabled.
+- `modsecurity_use_error_log off` suppresses the connector's NGINX error-log
+  write from the libmodsecurity log callback only. Audit logs, interventions,
+  and request/response handling are unchanged.
 
-The local harness uses `connectors/nginx/harness/nginx_smoke.conf` as its
-template. It sets `load_module`, `modsecurity on;`, and
-`modsecurity_rules_file` inside a generated runtime directory.
+## Functional Validation
 
-## Functional Test
-
-Check the configuration:
+Repository validation should use the Makefile target:
 
 ```sh
-nginx -t
-```
-
-For a helper build:
-
-```sh
-BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build"
-"$BUILD_ROOT/nginx-runtime/nginx/sbin/nginx" \
-  -t \
-  -p "$BUILD_ROOT/nginx-runtime/nginx" \
-  -c "$BUILD_ROOT/nginx-runtime/nginx/conf/nginx.conf"
-```
-
-Check version and build options:
-
-```sh
-nginx -V 2>&1
-```
-
-Check runtime dependencies:
-
-```sh
-ldd /etc/nginx/modules/ngx_http_modsecurity_module.so
-```
-
-A simple request test:
-
-```sh
-curl -i "http://127.0.0.1/?test=block"
-```
-
-With the example rule, `403` is expected. A request that does not match should
-pass normally:
-
-```sh
-curl -i "http://127.0.0.1/?test=ok"
-```
-
-Repository smoke test:
-
-```sh
-BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build \
+SOURCE_ROOT=$BUILD_ROOT/sources \
+MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3 \
 make smoke-nginx
 ```
 
-Subset:
+For a single or smaller set of framework cases, use the framework-supported
+smoke-case selection mechanism:
 
 ```sh
-BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build \
 SMOKE_CASES="phase1_header_block phase2_args_block" \
 make smoke-nginx
 ```
 
-Afterwards, inspect the Nginx error log, access log, ModSecurity audit log, and
-for helper builds the logs under `$BUILD_ROOT/logs/nginx/`.
+For a broader evidence run:
+
+```sh
+BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build \
+make runtime-matrix-all
+```
+
+The README's warning applies: runtime and coverage evidence must not be
+inferred from generated metadata alone. XFAIL, pending, future, connector-gap,
+and runtime-difference cases stay evidence classes until explicitly promoted by
+documented runtime proof. `RESPONSE_BODY` remains non-verified and
+non-promoted.
+
+General guidance for an external NGINX runtime:
+
+```sh
+nginx -t
+nginx -V 2>&1
+ldd /path/to/ngx_http_modsecurity_module.so
+curl -i "http://127.0.0.1/?test=block"
+```
+
+With a blocking test rule and `SecRuleEngine On`, a matching request should
+return the rule's disruptive status, commonly `403`. A non-matching request
+should pass normally.
 
 ## Troubleshooting
 
-### Missing Headers or Libraries
+### Missing Framework Module
 
-If `connectors/nginx/config` reports that the ModSecurity library is missing,
-check:
+If `make smoke-nginx` reports that `FRAMEWORK_ROOT` is missing, initialize the
+submodule or set `FRAMEWORK_ROOT` explicitly:
+
+```sh
+git submodule update --init --recursive
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make smoke-nginx
+```
+
+### Existing Build Directory
+
+The helper can block when generated build directories already exist. Use
+`REFRESH=1` only when you intentionally want to replace generated build output:
+
+```sh
+REFRESH=1 BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build make smoke-nginx
+```
+
+### Missing libmodsecurity Headers or Library
+
+For repository builds, confirm that `MODSECURITY_SOURCE_DIR` points at a
+usable libmodsecurity v3 source tree or let the framework fetch sources through
+the documented source variables.
+
+For general manual builds, verify:
 
 ```sh
 test -f "$MODSECURITY_INC/modsecurity/modsecurity.h"
 test -f "$MODSECURITY_LIB/libmodsecurity.so"
 ```
 
-Set the paths correctly:
+### Runtime Linker Cannot Find `libmodsecurity.so`
+
+Generated repository harnesses set the runtime library path to the staged
+libmodsecurity output under `BUILD_ROOT`. For a manually managed runtime,
+check:
 
 ```sh
-export MODSECURITY_INC=/correct/include/path
-export MODSECURITY_LIB=/correct/lib/path
+ldd /path/to/ngx_http_modsecurity_module.so
 ```
 
-### `libmodsecurity.so` Is Not Found at Runtime
+If `libmodsecurity.so` is unresolved, configure the system library path or use
+an environment-specific runtime wrapper.
 
-Check:
+### NGINX Module Compatibility
+
+Dynamic NGINX modules are sensitive to the target NGINX binary and build
+options. For manual builds, compare the target:
 
 ```sh
-ldd /etc/nginx/modules/ngx_http_modsecurity_module.so
+nginx -V 2>&1
 ```
 
-Fix:
+Build the module against a matching source/version and use `--with-compat`
+where appropriate. The repository smoke path avoids this ambiguity by building
+the NGINX binary and module together under `BUILD_ROOT`.
 
-```sh
-sudo sh -c 'echo /usr/local/modsecurity/lib > /etc/ld.so.conf.d/modsecurity.conf'
-sudo ldconfig
+### Rules Are Not Loaded
+
+Use the generated logs under `BUILD_ROOT` for repository builds:
+
+```text
+$BUILD_ROOT/logs/nginx/
 ```
 
-For local tests, `LD_LIBRARY_PATH` can also be set.
-
-### Incompatible Nginx Version
-
-Errors such as `module is not binary compatible` mean the module and Nginx
-binary do not match. Build with the same Nginx version and, as far as possible,
-the same configure options as the target Nginx. Use `--with-compat` for
-dynamic modules.
-
-### Wrong Module Path
-
-`load_module` must point to the actual `.so` file. Absolute paths are more
-robust than relative paths:
-
-```sh
-ls -l /etc/nginx/modules/ngx_http_modsecurity_module.so
-nginx -t
-```
-
-### `unknown directive "modsecurity"`
-
-The module was not loaded, or the static Nginx binary does not include the
-connector. For dynamic modules, `load_module` must appear before the `http`
-block. For static modules, do not use a `load_module` line.
-
-### Invalid ModSecurity Configuration
-
-If `nginx -t` fails because of a rule, check rule syntax, unique `id` values,
-file paths, read permissions, and compatibility with the libmodsecurity version
-being used.
-
-### Permission Problems
-
-Rules files must be readable and audit logs must be writable. Check:
-
-```sh
-namei -l /etc/nginx/modsecurity/main.conf
-namei -l /var/log/nginx/modsec_audit.log
-```
-
-With SELinux or AppArmor, profiles or labels may also be relevant.
-
-### Distribution Differences
-
-Distributions differ in prefix, module path, compiler flags, Nginx patches,
-and security profiles. `nginx -V` and `nginx -T` are the most important
-diagnostic commands.
+For external runtimes, run `nginx -t` and inspect the error log. Typical causes
+are wrong paths, missing read permissions, invalid rule syntax, or a
+libmodsecurity/rule-version mismatch.
 
 ## Best Practices
 
-- Document the Nginx version, configure arguments, libmodsecurity version,
-  connector commit, and build command.
-- Pin `NGINX_RELEASE_TAG` and `MODSECURITY_GIT_REF` for reproducible builds.
-- Rebuild the module after Nginx updates.
-- Validate every configuration change with `nginx -t`.
-- Test in an isolated environment with small rules first.
-- Inspect error logs and audit logs after the first start.
-- Use absolute paths for modules, rules files, and audit logs.
-- Keep `SecRuleEngine DetectionOnly` and `SecRuleEngine On` deliberately
-  separate.
-- Use `make smoke-nginx` to validate the project path with real HTTP requests.
+- Prefer `make smoke-nginx` for repository evidence.
+- Keep `BUILD_ROOT`, `SOURCE_ROOT`, `MODSECURITY_SOURCE_DIR`, and
+  `MODSECURITY_GIT_REF` explicit when sharing reproduction commands.
+- Treat `BUILD_ROOT` as generated output, not source.
+- Keep NGINX runtime behavior in `connectors/nginx/`; do not move hooks,
+  filters, body handling, transaction ownership, or intervention behavior into
+  `common/` without separate design and smoke evidence.
+- Rebuild and rerun smoke tests after NGINX, libmodsecurity, or connector
+  source changes.
+- Use `make lint`, `make quick-check`, `make generate-test-matrix`, and
+  `make check-test-matrix` before relying on generated evidence.
+- Use `make smoke-all` only as evidence when it has actually executed
+  successfully.

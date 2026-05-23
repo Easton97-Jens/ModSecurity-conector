@@ -165,14 +165,6 @@ MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
 runtime validation is local and evidence-based; `make smoke-all` is
 authoritative only when it is actually executed successfully.
 
-## Build Documentation
-
-Detailed build and feature documentation:
-
-- [Compile Nginx](./COMPILE_NGINX.md)
-- [Compile Apache](./COMPILE_APACHE.md)
-- [Shared Features](./SHARED_FEATURES.md)
-
 ## Framework Module Integration
 
 Initialize the framework module before running framework-backed targets:
@@ -201,6 +193,8 @@ Connector-specific generated evidence is written in this repository under
 
 ## Documentation Links
 
+- Build docs: [Compile Nginx](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md)
+- Shared connector feature docs: [Shared Features](./SHARED_FEATURES.md)
 - Architecture docs: `docs/architecture/`
 - Connector docs: `docs/connectors/`
 - Licensing and origin index: `docs/licensing/license-and-origin.md`
