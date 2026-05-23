@@ -25,6 +25,8 @@
 #include <modsecurity/modsecurity.h>
 #include <modsecurity/transaction.h>
 
+#include "msconnector/rule_load_stats.h"
+
 
 /* #define MSC_USE_RULES_SET 1 */
 
@@ -117,6 +119,19 @@ typedef struct {
     ngx_uint_t                 rules_file;
     ngx_uint_t                 rules_remote;
 } ngx_http_modsecurity_main_conf_t;
+
+
+static ngx_inline msconnector_rule_load_stats
+ngx_http_modsecurity_rule_load_stats(const ngx_http_modsecurity_main_conf_t *mmcf)
+{
+    msconnector_rule_load_stats stats;
+
+    stats.inline_rules = (unsigned) mmcf->rules_inline;
+    stats.file_rules = (unsigned) mmcf->rules_file;
+    stats.remote_rules = (unsigned) mmcf->rules_remote;
+
+    return stats;
+}
 
 
 typedef struct {
