@@ -160,12 +160,12 @@ MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
 runtime validation is local and evidence-based; `make smoke-all` is
 authoritative only when it is actually executed successfully.
 
-## Build-Dokumentation
+## Build Documentation
 
-Ausführliche deutschsprachige Build- und Feature-Dokumentation:
+Detailed build and feature documentation:
 
-- [Nginx kompilieren](./COMPILE_NGINX.md)
-- [Apache kompilieren](./COMPILE_APACHE.md)
+- [Compile Nginx](./COMPILE_NGINX.md)
+- [Compile Apache](./COMPILE_APACHE.md)
 - [Shared Features](./SHARED_FEATURES.md)
 
 ## Framework Module Integration

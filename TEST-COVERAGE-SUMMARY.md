@@ -3,19 +3,19 @@ Generated file — do not edit manually.
 # ModSecurity Connector Test Coverage Summary
 
 ## Summary Status
-- Total YAML cases: **133**
+- Total YAML cases: **140**
 - Verified/pass (`runtime_verified=true`): **0**
-- XFAIL cases: **79**
-- Pending runtime verification (`runtime_verified=false`): **86**
-- Pending runtime verification (`runtime_verified=unknown`): **47**
+- XFAIL cases: **80**
+- Pending runtime verification (`runtime_verified=false`): **90**
+- Pending runtime verification (`runtime_verified=unknown`): **50**
 - Connector-gap cases: **11**
 - Runtime-difference cases: **13**
-- Future/experimental cases: **16**
-- RESPONSE_BODY cases: **19**
-- Default runtime-executable YAML cases: **54**
-- Force-all runtime-executable YAML cases: **133**
-- Apache attempted YAML cases in latest runtime snapshot: **126**
-- NGINX attempted YAML cases in latest runtime snapshot: **133**
+- Future/experimental cases: **17**
+- RESPONSE_BODY cases: **24**
+- Default runtime-executable YAML cases: **60**
+- Force-all runtime-executable YAML cases: **140**
+- Apache attempted YAML cases in latest runtime snapshot: **133**
+- NGINX attempted YAML cases in latest runtime snapshot: **0**
 - Mapped-only import inventory entries: **10**
 
 **RESPONSE_BODY is not verified or promoted.** This file is generated reporting, not runtime proof.
@@ -26,25 +26,25 @@ Generated file — do not edit manually.
 - `FRAMEWORK_ROOT` and `CONNECTOR_ROOT` are explicit integration paths; there is no absolute workspace fallback.
 
 ## Case Types
-- Common YAML cases: **126**
+- Common YAML cases: **133**
 - Apache-specific YAML cases: **0**
 - NGINX-specific YAML cases: **7**
-- XFAIL cases: **79**
+- XFAIL cases: **80**
 - Mapped-only import inventory entries: **10** (not counted as runnable YAML cases)
 - Runtime-blocked import inventory entries: **0** (environment/harness blockers, not PASS or XFAIL promotions)
-- Pending/future compatibility cases: **16** future/experimental; **133** not runtime-verified
+- Pending/future compatibility cases: **17** future/experimental; **140** not runtime-verified
 
 ## Status Classes
 | Status | Count |
 |---|---:|
 | active | 7 |
-| imported | 47 |
-| xfail | 79 |
+| imported | 53 |
+| xfail | 80 |
 
 ## Scope
 | Scope | Count |
 |---|---:|
-| common | 126 |
+| common | 133 |
 | apache | 0 |
 | nginx | 7 |
 | unknown | 0 |
@@ -52,9 +52,9 @@ Generated file — do not edit manually.
 ## Coverage By Variable / Collection
 | Variable / Collection | Count |
 |---|---:|
-| `ARGS` | 43 |
+| `ARGS` | 49 |
 | `ARGS_NAMES` | 7 |
-| `REQUEST_HEADERS` | 4 |
+| `REQUEST_HEADERS` | 5 |
 | `REQUEST_HEADERS_NAMES` | 5 |
 | `REQUEST_COOKIES` | 2 |
 | `REQUEST_COOKIES_NAMES` | 4 |
@@ -63,51 +63,54 @@ Generated file — do not edit manually.
 | `FILES` | 2 |
 | `FILES_NAMES` | 2 |
 | `XML` | 5 |
-| `RESPONSE_HEADERS` | 10 |
-| `RESPONSE_BODY` | 19 |
+| `RESPONSE_HEADERS` | 11 |
+| `RESPONSE_BODY` | 20 |
 | `AUDIT_LOG` | 0 |
 
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
-| Phase 1 | 35 |
-| Phase 2 | 69 |
-| Phase 3 | 11 |
-| Phase 4 | 19 |
+| Phase 1 | 36 |
+| Phase 2 | 73 |
+| Phase 3 | 12 |
+| Phase 4 | 20 |
 
 ## Coverage By Topic
 | Topic | Count |
 |---|---:|
-| Operators | 128 |
-| Transformations | 28 |
+| Operators | 135 |
+| Transformations | 31 |
 | Multipart / FILES | 11 |
 | JSON | 7 |
 | XML | 5 |
-| Unicode / Encoding | 16 |
+| Unicode / Encoding | 17 |
 | XSS-like compatibility probes | 2 |
 | SQLi-like compatibility probes | 2 |
-| Audit-log probes | 20 |
-| Response header probes | 10 |
+| Audit-log probes | 24 |
+| Response header probes | 11 |
 | Response body experimental probes | 2 |
 
 ## Runtime Matrix Status
 | Status | Apache | NGINX |
 |---|---:|---:|
-| PASS | 48 | 54 |
-| XFAIL_PASS | 16 | 16 |
-| XFAIL_FAIL | 20 | 21 |
-| PENDING_FAIL | 1 | 1 |
-| FUTURE_PASS | 7 | 7 |
-| FUTURE_FAIL | 9 | 9 |
-| CONNECTOR_GAP_PASS | 4 | 5 |
-| CONNECTOR_GAP_FAIL | 7 | 6 |
-| RUNTIME_DIFFERENCE_PASS | 6 | 6 |
-| RUNTIME_DIFFERENCE_FAIL | 8 | 8 |
+| PASS | 53 | 0 |
+| RESPONSE_BODY_PASS_THROUGH | 1 | 0 |
+| FAIL | 0 | 140 |
+| XFAIL_PASS | 16 | 0 |
+| XFAIL_FAIL | 20 | 0 |
+| PENDING_FAIL | 1 | 0 |
+| FUTURE_PASS | 6 | 0 |
+| FUTURE_RESPONSE_BODY_PASS_THROUGH | 1 | 0 |
+| FUTURE_FAIL | 10 | 0 |
+| CONNECTOR_GAP_PASS | 4 | 0 |
+| CONNECTOR_GAP_FAIL | 7 | 0 |
+| RUNTIME_DIFFERENCE_PASS | 6 | 0 |
+| RUNTIME_DIFFERENCE_FAIL | 8 | 0 |
 | NOT_EXECUTABLE | 7 | 0 |
 | MAPPED_ONLY | 10 | 10 |
 
-- Apache attempted YAML cases from latest summary: **126**
-- NGINX attempted YAML cases from latest summary: **133**
+- Apache attempted YAML cases from latest summary: **133**
+- NGINX attempted YAML cases from latest summary: **0**
 - Apache raw runtime XFAIL observations from latest summary: **0**
 - NGINX raw runtime XFAIL observations from latest summary: **0**
 - Apache NOT EXECUTED YAML rows: **0**
@@ -115,21 +118,22 @@ Generated file — do not edit manually.
 - Apache NOT_EXECUTABLE YAML rows: **7**
 - NGINX NOT_EXECUTABLE YAML rows: **0**
 - Mapped-only import inventory entries: **10**
-- Runtime matrix detail: `reports/testing/generated/runtime-matrix.generated.md`
-- Apache per-case results: `reports/testing/generated/apache-runtime-results.generated.md`
-- NGINX per-case results: `reports/testing/generated/nginx-runtime-results.generated.md`
+- Runtime matrix detail: `docs/testing/generated/runtime-matrix.generated.md`
+- Apache per-case results: `docs/testing/generated/apache-runtime-results.generated.md`
+- NGINX per-case results: `docs/testing/generated/nginx-runtime-results.generated.md`
 - PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence; XFAIL and pending cases are not promoted.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-21** (2026-05-21 21:11:10 CEST)
-- Git: branch `master`, commit `adf9e6d`
-- BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
+- Snapshot: **2026-05-23** (2026-05-23 22:31:08 CEST)
+- Git: branch `master`, commit `8271c70`
+- BUILD_ROOT: `/root/.local/state/ModSecurity-test-framework-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.
 - Per-case PASS/FAIL/BLOCKED/XFAIL values are runtime evidence for this local run only.
 - No xfail/pending YAML case is promoted by this snapshot.
 - RESPONSE_BODY remains non-verified/non-promoted, including pass-through response-body probes.
+- Runtime-passing RESPONSE_BODY cases are marked non-promotable pass-through evidence.
 - Mapped-only import inventory entries remain visible but are not executed runtime cases.
 - make smoke-all is not implied by separate Apache/NGINX runtime matrix runs.
 
@@ -160,8 +164,8 @@ Generated file — do not edit manually.
 ## Runtime Smoke Status
 | Command | Status | Exit | PASS | FAIL | BLOCKED | XFAIL | Evidence |
 |---|---|---|---|---|---|---|---|
-| FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache | FAIL | 2 | 81 | 45 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/apache-summary.json |
-| FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx | FAIL | 2 | 88 | 45 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/nginx-summary.json |
+| FORCE_ALL_CASES=1 make smoke-apache CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 87 | 46 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json |
+| FORCE_ALL_CASES=1 make smoke-nginx CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 0 | 1 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
 
 ## Runtime FAIL Details
@@ -197,6 +201,7 @@ Generated file — do not edit manually.
 | apache | phase4_response_body_html_entity_decode_gap | 403 | 200 | runtime summary reported non-pass |
 | apache | phase4_response_body_html_text_normalization_probe | 403 | 200 | runtime summary reported non-pass |
 | apache | phase4_response_body_unicode_runtime_difference | 403 | 200 | runtime summary reported non-pass |
+| apache | pr70_phase4_response_body_audit_xfail | 403 | 200 | runtime summary reported non-pass |
 | apache | response_body_basic_block | 403 | 200 | runtime summary reported non-pass |
 | apache | response_headers_multi_value_runtime_gap | 403 | 200 | runtime summary reported non-pass |
 | apache | sqli_like_keyword_spacing_probe | 403 | 200 | runtime summary reported non-pass |
@@ -212,51 +217,6 @@ Generated file — do not edit manually.
 | apache | xml_request_body_malformed_connector_gap | 403 | 200 | runtime summary reported non-pass |
 | apache | xss_like_encoded_angles_normalization_probe | 403 | 200 | runtime summary reported non-pass |
 | apache | xss_like_mixed_case_script_token_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | duplicate_args_encoded_separator_edge | 403 | 200 | runtime summary reported non-pass |
-| nginx | duplicate_header_case_normalization_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | edge_semicolon_query_args_names | 403 | 200 | runtime summary reported non-pass |
-| nginx | files_empty_part_future_compatibility | 403 | None | runtime summary reported non-pass |
-| nginx | files_names_mixed_case_filename_gap | 403 | 405 | runtime summary reported non-pass |
-| nginx | json_empty_body_future_compatibility | 403 | None | runtime summary reported non-pass |
-| nginx | multipart_duplicate_field_names_gap | 403 | 405 | runtime summary reported non-pass |
-| nginx | multipart_empty_filename_connector_gap | 403 | None | runtime summary reported non-pass |
-| nginx | nginx_phase4_strict_connection_abort | 403 | 0 | runtime summary reported non-pass |
-| nginx | parser_xml_partial_body_future_target | 403 | 405 | runtime summary reported non-pass |
-| nginx | phase1_vs_phase2_request_body_gap | 403 | 405 | runtime summary reported non-pass |
-| nginx | phase3_response_headers_content_type_charset_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase3_response_headers_duplicate_value_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase3_response_headers_encoded_value_future_target | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase3_response_headers_location_encoded_runtime_diff | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase3_response_headers_multi_value_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase3_response_headers_server_presence_pending | 200 | None | runtime summary reported non-pass |
-| nginx | phase3_response_headers_set_cookie_multi_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_auditlog_outbound_escaped_value_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_auditlog_outbound_matched_var_future | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_auditlog_outbound_message_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_auditlog_outbound_multiline_section_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_auditlog_outbound_rule_id_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_response_body_buffering_order_future_target | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_response_body_chunk_assumption_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_response_body_compressed_assumption_experimental | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_response_body_empty_future_target | 403 | None | runtime summary reported non-pass |
-| nginx | phase4_response_body_html_entity_decode_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_response_body_html_text_normalization_probe | 403 | 200 | runtime summary reported non-pass |
-| nginx | phase4_response_body_unicode_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| nginx | response_body_basic_block | 403 | 200 | runtime summary reported non-pass |
-| nginx | response_headers_multi_value_runtime_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | sqli_like_keyword_spacing_probe | 403 | 200 | runtime summary reported non-pass |
-| nginx | sqli_like_quote_encoding_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| nginx | tfn_chain_lowercase_trim_pass_through | 200 | 0 | runtime summary reported non-pass |
-| nginx | unicode_double_encoded_uri_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| nginx | unicode_whitespace_normalization_gap | 403 | 200 | runtime summary reported non-pass |
-| nginx | v2_transformation_url_decode_invalid_sequence_mapped_candidate | 403 | None | runtime summary reported non-pass |
-| nginx | v3_request_cookies_names_case_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| nginx | v3_request_headers_names_lowercase_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| nginx | xml_deep_nesting_future_target | 403 | 405 | runtime summary reported non-pass |
-| nginx | xml_namespace_edge_connector_gap | 403 | 405 | runtime summary reported non-pass |
-| nginx | xml_request_body_malformed_connector_gap | 403 | 405 | runtime summary reported non-pass |
-| nginx | xss_like_encoded_angles_normalization_probe | 403 | 200 | runtime summary reported non-pass |
-| nginx | xss_like_mixed_case_script_token_gap | 403 | 200 | runtime summary reported non-pass |
 
 ## Runtime Verified Status
 - Runtime matrix records current local Apache and NGINX per-case smoke evidence.
@@ -264,6 +224,7 @@ Generated file — do not edit manually.
 - XFAIL, pending, connector-gap, runtime-difference, future, and mapped-only inventory are not promoted by this snapshot.
 - FORCE_ALL_CASES=1 attempts xfail/pending/future/gap YAML cases where they are applicable to the connector.
 - RESPONSE_BODY remains non-verified/non-promoted.
+- Runtime passed, but this does not verify RESPONSE_BODY support.
 - make smoke-all was not run by runtime-matrix; full-smoke PASS counts remain unknown.
 
 ## Open Runtime Issues
@@ -295,16 +256,16 @@ Generated file — do not edit manually.
 - `make check-test-matrix`
 
 ## Detail Reports
-- `reports/testing/test-coverage-overview.md`
-- `reports/testing/generated/case-matrix.generated.md`
-- `reports/testing/generated/coverage-summary.generated.md`
-- `reports/testing/generated/xfail-summary.generated.md`
-- `reports/testing/generated/connector-gap-summary.generated.md`
-- `reports/testing/generated/phase-coverage.generated.md`
-- `reports/testing/generated/runtime-matrix.generated.md`
-- `reports/testing/generated/apache-runtime-results.generated.md`
-- `reports/testing/generated/nginx-runtime-results.generated.md`
-- `reports/testing/runtime-validation-snapshot.json`
+- `docs/testing/test-coverage-overview.md`
+- `docs/testing/generated/case-matrix.generated.md`
+- `docs/testing/generated/coverage-summary.generated.md`
+- `docs/testing/generated/xfail-summary.generated.md`
+- `docs/testing/generated/connector-gap-summary.generated.md`
+- `docs/testing/generated/phase-coverage.generated.md`
+- `docs/testing/generated/runtime-matrix.generated.md`
+- `docs/testing/generated/apache-runtime-results.generated.md`
+- `docs/testing/generated/nginx-runtime-results.generated.md`
+- `docs/testing/runtime-validation-snapshot.json`
 
 ## Important Note
 Generated coverage is reporting only; it is not runtime evidence by itself.

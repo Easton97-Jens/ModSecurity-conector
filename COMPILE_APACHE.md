@@ -1,49 +1,51 @@
-# Apache kompilieren
+# Compile Apache
 
-Diese Anleitung beschreibt, wie der ModSecurity-Connector aus diesem
-Repository als Apache/httpd-Modul gebaut und aktiviert wird. Der lokale
-Connector liegt unter `connectors/apache/`, verwendet Autotools und wird über
-`apxs` gegen eine konkrete Apache-Installation gebaut.
+This guide explains how to build and enable the ModSecurity connector from this
+repository as an Apache/httpd module. The local connector lives under
+`connectors/apache/`, uses Autotools, and is built with `apxs` against a
+specific Apache installation.
 
-## Überblick
+## Overview
 
-Der Apache-Connector ist ein Dynamic Shared Object für Apache/httpd. Er wird
-über `LoadModule` geladen, registriert Apache-Hooks und Filter und übergibt
-Request-/Response-Daten an libmodsecurity v3. Im Unterschied zum Nginx-
-Connector wird kein Nginx-Quellbaum erweitert; stattdessen nutzt der Build
-`apxs`, um Compiler-Flags, Include-Pfade und Modulpfade der Ziel-Apache-
-Installation zu erhalten.
+The Apache connector is a Dynamic Shared Object for Apache/httpd. It is loaded
+with `LoadModule`, registers Apache hooks and filters, and passes request and
+response data to libmodsecurity v3. Unlike the Nginx connector, it does not
+extend an Nginx source tree. Instead, the build uses `apxs` to obtain compiler
+flags, include paths, and module paths for the target Apache installation.
 
-`apxs` ist deshalb wichtig:
+`apxs` is important because:
 
-- Es gehört zur Apache-Development-Umgebung.
-- Es kennt das Modulverzeichnis über `apxs -q LIBEXECDIR`.
-- Es kennt Compiler und Include-Pfade über `apxs -q CC` und
+- It belongs to the Apache development environment.
+- It knows the module directory through `apxs -q LIBEXECDIR`.
+- It knows the compiler and include paths through `apxs -q CC` and
   `apxs -q INCLUDEDIR`.
-- Es installiert Module bei Bedarf passend zur Apache-Installation.
+- It can install modules in a way that matches the Apache installation.
 
-Der lokale Build verwendet:
+The local build uses:
 
-| Datei oder Verzeichnis | Bedeutung |
+| File or directory | Purpose |
 | --- | --- |
-| `connectors/apache/autogen.sh` | Erzeugt `configure` über `autoreconf --install` |
-| `connectors/apache/configure.ac` | Sucht APXS, Apache und libmodsecurity |
-| `connectors/apache/Makefile.am` | Ruft den APXS-Wrapper und das Install-Ziel auf |
-| `connectors/apache/build/` | Autoconf-Makros und APXS-Wrapper-Vorlage |
-| `connectors/apache/src/` | Produktive Apache-Connector-Quellen |
+| `connectors/apache/autogen.sh` | Generates `configure` through `autoreconf --install` |
+| `connectors/apache/configure.ac` | Finds APXS, Apache, and libmodsecurity |
+| `connectors/apache/Makefile.am` | Invokes the APXS wrapper and install target |
+| `connectors/apache/build/` | Autoconf macros and APXS wrapper template |
+| `connectors/apache/src/` | Productive Apache connector sources |
 
-Das erwartete Build-Artefakt ist:
+The expected build artifact is:
 
 ```text
 mod_security3.so
 ```
 
-Im Repository-Helfer wird es nach
-`$BUILD_ROOT/apache-build/output/apache/mod_security3.so` kopiert.
+The repository helper copies it to:
 
-## Voraussetzungen
+```text
+$BUILD_ROOT/apache-build/output/apache/mod_security3.so
+```
 
-Für Debian/Ubuntu:
+## Prerequisites
+
+For Debian/Ubuntu:
 
 ```sh
 sudo apt-get update
@@ -56,41 +58,42 @@ sudo apt-get install -y \
   libcurl4-openssl-dev
 ```
 
-Falls verfügbar:
+If available:
 
 ```sh
 sudo apt-get install -y libmodsecurity-dev
 ```
 
-Auf Debian/Ubuntu heißt APXS häufig `apxs2`. Auf RHEL/Fedora kommt APXS meist
-aus `httpd-devel` und heißt `apxs`. Andere Distributionen verwenden andere
-Paketnamen. Entscheidend ist, dass Apache, Apache-Development-Dateien, APXS,
-Compiler, Autotools und libmodsecurity-v3-Header vorhanden sind.
+On Debian/Ubuntu, APXS is often named `apxs2`. On RHEL/Fedora, APXS usually
+comes from `httpd-devel` and is named `apxs`. Other distributions use other
+package names. What matters is that Apache, Apache development files, APXS, a
+compiler, Autotools, and libmodsecurity-v3 headers are present.
 
-Für libmodsecurity benötigt der Connector:
+The connector needs these libmodsecurity files:
 
-- `modsecurity/modsecurity.h`,
-- `modsecurity/intervention.h`,
-- `modsecurity/transaction.h`,
-- je nach Version `modsecurity/rules_set.h` oder `modsecurity/rules.h`,
-- `libmodsecurity.so`.
+- `modsecurity/modsecurity.h`
+- `modsecurity/intervention.h`
+- `modsecurity/transaction.h`
+- either `modsecurity/rules_set.h` or `modsecurity/rules.h`, depending on the
+  version
+- `libmodsecurity.so`
 
-Der Repository-Helper baut und staged libmodsecurity unter:
+The repository helper builds and stages libmodsecurity under:
 
 ```text
 $BUILD_ROOT/apache-build/output/modsecurity/include
 $BUILD_ROOT/apache-build/output/modsecurity/lib
 ```
 
-Bei manuellen Builds kann ein vorhandener Prefix angegeben werden:
+For manual builds, an existing prefix can be supplied:
 
 ```sh
 ./configure --with-libmodsecurity=/usr/local/modsecurity
 ```
 
-## Repository vorbereiten
+## Prepare the Repository
 
-Nach einem frischen Clone:
+After a fresh clone:
 
 ```sh
 git clone <repository-url> ModSecurity-conector
@@ -98,21 +101,21 @@ cd ModSecurity-conector
 git submodule update --init --recursive
 ```
 
-Das Submodul `modules/ModSecurity-test-Framework` wird für Makefile-Ziele,
-Materialisierung und Smoke-Tests benötigt.
+The `modules/ModSecurity-test-Framework` submodule is required for Makefile
+targets, materialization, and smoke tests.
 
-Wichtige Pfade:
+Important paths:
 
-| Pfad | Bedeutung |
+| Path | Purpose |
 | --- | --- |
-| `connectors/apache/` | Apache-Connector-Root |
-| `connectors/apache/src/` | Apache-Modulquellen |
-| `connectors/apache/build/` | M4-Makros und APXS-Wrapper |
-| `common/include/msconnector/` | Gemeinsame Direktiven-, Options- und Rule-Load-Stats-Header |
-| `connectors/apache/harness/` | Runtime-Smoke-Harness |
-| `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` | Build-Helper |
+| `connectors/apache/` | Apache connector root |
+| `connectors/apache/src/` | Apache module sources |
+| `connectors/apache/build/` | M4 macros and APXS wrapper |
+| `common/include/msconnector/` | Shared directive, option, and rule-load-stat headers |
+| `connectors/apache/harness/` | Runtime smoke harness |
+| `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` | Build helper |
 
-Der vorhandene Build-/Smoke-Pfad:
+The repository-provided build and smoke path:
 
 ```sh
 REFRESH=1 \
@@ -121,16 +124,15 @@ BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
 make smoke-apache
 ```
 
-Dieser Pfad baut oder staged libmodsecurity v3, materialisiert den Apache-
-Connector nach `$BUILD_ROOT/apache-build/connector-src`, baut bei Bedarf Apache
-httpd aus Quellcode, führt `./autogen.sh`, `./configure` und `make` im
-materialisierten Connector-Quellbaum aus und startet anschließend echte HTTP-
-Smoke-Tests.
+This path builds or stages libmodsecurity v3, materializes the Apache connector
+into `$BUILD_ROOT/apache-build/connector-src`, builds Apache httpd from source
+when requested, runs `./autogen.sh`, `./configure`, and `make` in the
+materialized connector source tree, and then starts real HTTP smoke tests.
 
-## Apache-Entwicklungsumgebung prüfen
+## Check the Apache Development Environment
 
-Vor einem manuellen Build sollte klar sein, welches Apache und welches APXS
-verwendet werden.
+Before a manual build, be explicit about which Apache and which APXS will be
+used.
 
 Debian/Ubuntu:
 
@@ -141,7 +143,7 @@ apache2 -v
 apache2 -V
 ```
 
-Andere Distributionen:
+Other distributions:
 
 ```sh
 command -v apxs
@@ -150,7 +152,7 @@ httpd -v
 httpd -V
 ```
 
-Nützliche APXS-Abfragen:
+Useful APXS queries:
 
 ```sh
 apxs2 -q CC
@@ -160,28 +162,27 @@ apxs2 -q SBINDIR
 apxs2 -q PROGNAME
 ```
 
-Wenn `apxs2` nicht vorhanden ist, verwende `apxs`. `LIBEXECDIR` ist der
-übliche Modulpfad. `SBINDIR` und `PROGNAME` helfen, das zugehörige Apache-
-Binary zu finden.
+If `apxs2` is not available, use `apxs`. `LIBEXECDIR` is the usual module
+path. `SBINDIR` and `PROGNAME` help identify the matching Apache binary.
 
-Geladene Module prüfen:
+Check loaded modules:
 
 ```sh
 apache2ctl -M 2>/dev/null | head
 ```
 
-oder:
+or:
 
 ```sh
 httpd -M 2>/dev/null | head
 ```
 
-Wenn die Systeminstallation schwer zu verwenden ist, kann der isolierte
-Repository-Pfad mit `BUILD_HTTPD_FROM_SOURCE=1` einfacher sein.
+If the system installation is difficult to use, the isolated repository path
+with `BUILD_HTTPD_FROM_SOURCE=1` may be simpler.
 
-## Connector kompilieren
+## Compile the Connector
 
-### Build über das Repository
+### Build Through the Repository
 
 ```sh
 git submodule update --init --recursive
@@ -192,7 +193,7 @@ BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
 make smoke-apache
 ```
 
-Erwartete Artefakte:
+Expected artifacts:
 
 ```text
 $BUILD_ROOT/apache-build/output/apache/mod_security3.so
@@ -204,13 +205,13 @@ $BUILD_ROOT/logs/apache/artifacts.txt
 $BUILD_ROOT/logs/apache/commands.txt
 ```
 
-`commands.txt` dokumentiert die ausgeführten Build-Befehle. Das ist hilfreich,
-um Fehler auf einer anderen Maschine nachzustellen.
+`commands.txt` records the build commands that were executed. This is useful
+when reproducing a failure on another machine.
 
-### Manueller Build
+### Manual Build
 
 ```sh
-cd /pfad/zu/ModSecurity-conector/connectors/apache
+cd /path/to/ModSecurity-conector/connectors/apache
 
 ./autogen.sh
 
@@ -222,48 +223,48 @@ cd /pfad/zu/ModSecurity-conector/connectors/apache
 make
 ```
 
-Wichtige Optionen:
+Important options:
 
-| Option | Bedeutung |
+| Option | Meaning |
 | --- | --- |
-| `--with-libmodsecurity=...` | Prefix mit libmodsecurity-Headern und Bibliothek |
-| `--with-apxs=...` | APXS der Ziel-Apache-Installation |
-| `--with-apache=...` | Apache/httpd-Binary der Zielinstallation |
+| `--with-libmodsecurity=...` | Prefix containing libmodsecurity headers and library |
+| `--with-apxs=...` | APXS for the target Apache installation |
+| `--with-apache=...` | Apache/httpd binary for the target installation |
 
-Das lokale Build-Artefakt liegt typischerweise hier:
+The local build artifact typically appears here:
 
 ```text
 connectors/apache/src/.libs/mod_security3.so
 ```
 
-Installation über APXS:
+Install through APXS:
 
 ```sh
 sudo make install
 ```
 
-Das Install-Ziel ruft APXS mit `-i -n mod_security3` auf. In Paket- oder
-Container-Builds ist es oft besser, die `.so` in ein Staging-Verzeichnis zu
-kopieren und die Apache-Konfiguration separat zu verwalten.
+The install target invokes APXS with `-i -n mod_security3`. In package or
+container builds, it is often better to copy the `.so` into a staging directory
+and manage the Apache configuration separately.
 
-## Apache-Modul aktivieren
+## Enable the Apache Module
 
-### Debian/Ubuntu mit `a2enmod`
+### Debian/Ubuntu with `a2enmod`
 
-Beispiel für eine Load-Datei:
+Example load file:
 
 ```apache
 LoadModule security3_module /usr/lib/apache2/modules/mod_security3.so
 ```
 
-Aktivieren:
+Enable it:
 
 ```sh
 sudo sh -c 'printf "%s\n" "LoadModule security3_module /usr/lib/apache2/modules/mod_security3.so" > /etc/apache2/mods-available/security3.load'
 sudo a2enmod security3
 ```
 
-Beispielkonfiguration:
+Example configuration:
 
 ```apache
 <IfModule security3_module>
@@ -272,7 +273,7 @@ Beispielkonfiguration:
 </IfModule>
 ```
 
-### Manuelle `LoadModule`-Direktive
+### Manual `LoadModule` Directive
 
 ```apache
 LoadModule security3_module "/opt/httpd/modules/mod_security3.so"
@@ -281,7 +282,7 @@ modsecurity on
 modsecurity_rules_file "/opt/httpd/conf/modsecurity/main.conf"
 ```
 
-Minimale Rules-Datei:
+Minimal rules file:
 
 ```apache
 SecRuleEngine On
@@ -296,87 +297,87 @@ SecRule ARGS:test "@streq block" \
   "id:200000,phase:2,deny,status:403,msg:'Apache connector test rule'"
 ```
 
-Hinweise:
+Notes:
 
-- `modsecurity on` aktiviert den Connector.
-- `modsecurity_rules_file` lädt lokale Regeln über libmodsecurity.
-- `modsecurity_rules` lädt Inline-Regeln.
-- `modsecurity_rules_remote` lädt Remote-Regeln.
-- `modsecurity_transaction_id` akzeptiert im Apache-Connector eine statische
-  Zeichenkette. Es werden keine Apache-Ausdrücke ausgewertet.
-- Ohne gesetzte Transaktions-ID versucht der Connector `UNIQUE_ID` zu nutzen
-  und erzeugt sonst eine Transaktion ohne explizite ID.
-- `modsecurity_use_error_log off` betrifft nur den Error-Log-Callback, nicht
-  Audit-Logs, Interventions oder Request-/Response-Verarbeitung.
+- `modsecurity on` enables the connector.
+- `modsecurity_rules_file` loads local rules through libmodsecurity.
+- `modsecurity_rules` loads inline rules.
+- `modsecurity_rules_remote` loads remote rules.
+- In the Apache connector, `modsecurity_transaction_id` accepts a static
+  string. Apache expressions are not evaluated.
+- Without a configured transaction ID, the connector tries to use `UNIQUE_ID`
+  and otherwise creates a transaction without an explicit ID.
+- `modsecurity_use_error_log off` affects only the error-log callback, not
+  audit logs, interventions, or request/response processing.
 
-Rules-Dateien müssen lesbar sein. Audit-Log-Dateien oder -Verzeichnisse müssen
-für den Apache-Prozess schreibbar sein.
+Rules files must be readable. Audit log files or directories must be writable
+by the Apache process.
 
-## Funktionstest
+## Functional Test
 
-Konfiguration prüfen:
+Check the configuration:
 
 ```sh
 sudo apachectl configtest
 ```
 
-oder:
+or:
 
 ```sh
 sudo apache2ctl -t
 ```
 
-Bei eigenständigem httpd:
+For a standalone httpd:
 
 ```sh
 /opt/httpd/bin/httpd -t -f /opt/httpd/conf/httpd.conf
 ```
 
-Apache neu laden:
+Reload Apache:
 
 ```sh
 sudo systemctl reload apache2
 ```
 
-oder:
+or:
 
 ```sh
 sudo systemctl reload httpd
 ```
 
-Geladenes Modul prüfen:
+Check that the module is loaded:
 
 ```sh
 apache2ctl -M 2>/dev/null | grep -i security
 ```
 
-oder:
+or:
 
 ```sh
 httpd -M 2>/dev/null | grep -i security
 ```
 
-Request-Test:
+Request test:
 
 ```sh
 curl -i "http://127.0.0.1/?test=block"
 ```
 
-Bei der Beispielregel und `SecRuleEngine On` wird `403` erwartet. Ein Request,
-der nicht matcht, sollte normal passieren:
+With the example rule and `SecRuleEngine On`, `403` is expected. A request that
+does not match should pass normally:
 
 ```sh
 curl -i "http://127.0.0.1/?test=ok"
 ```
 
-Repository-Smoke:
+Repository smoke test:
 
 ```sh
 BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
 make smoke-apache
 ```
 
-Teilmenge:
+Subset:
 
 ```sh
 BUILD_ROOT="$HOME/.local/state/ModSecurity-conector-build" \
@@ -384,128 +385,129 @@ SMOKE_CASES="phase1_header_block phase2_args_block" \
 make smoke-apache
 ```
 
-Prüfe Apache Error Log, Access Log, ModSecurity Audit Log und bei Helper-
-Builds die Logs unter `$BUILD_ROOT/logs/apache/` sowie
+Inspect the Apache error log, access log, ModSecurity audit log, and, for
+helper builds, the logs under `$BUILD_ROOT/logs/apache/` and
 `$BUILD_ROOT/logs/apache-runtime/`.
 
 ## Troubleshooting
 
-### `apxs` nicht gefunden
+### `apxs` Not Found
 
-Installiere das Apache-Development-Paket:
+Install the Apache development package:
 
 ```sh
 sudo apt-get install -y apache2-dev
 ```
 
-oder auf RHEL/Fedora sinngemäß:
+or, on RHEL/Fedora-style systems:
 
 ```sh
 sudo dnf install -y httpd-devel
 ```
 
-Prüfen:
+Check:
 
 ```sh
 command -v apxs2 || command -v apxs
 ```
 
-Beim Configure kann der Pfad explizit gesetzt werden:
+The path can be supplied explicitly to configure:
 
 ```sh
 ./configure --with-apxs=/usr/bin/apxs2 --with-apache=/usr/sbin/apache2
 ```
 
-### Apache-Development-Paket fehlt
+### Missing Apache Development Package
 
-Fehlende Header wie `httpd.h`, `http_config.h` oder APR-Header deuten auf ein
-fehlendes Development-Paket hin.
+Missing headers such as `httpd.h`, `http_config.h`, or APR headers indicate
+that the development package is missing.
 
 ```sh
 apxs2 -q INCLUDEDIR
 ls "$(apxs2 -q INCLUDEDIR)/httpd.h"
 ```
 
-### Compiler- oder Linkerfehler
+### Compiler or Linker Errors
 
-Prüfe bei Repository-Builds:
+For repository builds, inspect:
 
 ```text
 $BUILD_ROOT/logs/apache/commands.txt
 ```
 
-Bei manuellen Builds:
+For manual builds:
 
 ```sh
 make V=1
 ```
 
-Typische Ursachen sind falsches APXS, fehlende APR/APR-util-Header, fehlende
-libmodsecurity-Header, inkompatible Compiler-Flags oder alte Artefakte in einem
-wiederverwendeten Build-Verzeichnis.
+Typical causes include the wrong APXS, missing APR/APR-util headers, missing
+libmodsecurity headers, incompatible compiler flags, or stale artifacts in a
+reused build directory.
 
-### Fehlende libmodsecurity-Abhängigkeiten
+### Missing libmodsecurity Dependencies
 
-Prüfen:
+Check:
 
 ```sh
 test -f /usr/local/modsecurity/include/modsecurity/modsecurity.h
 test -f /usr/local/modsecurity/lib/libmodsecurity.so
-ldd /pfad/zu/mod_security3.so
+ldd /path/to/mod_security3.so
 ```
 
-Wenn `libmodsecurity.so` nicht gefunden wird:
+If `libmodsecurity.so` is not found:
 
 ```sh
 sudo sh -c 'echo /usr/local/modsecurity/lib > /etc/ld.so.conf.d/modsecurity.conf'
 sudo ldconfig
 ```
 
-Für lokale Tests kann `LD_LIBRARY_PATH` gesetzt werden.
+For local tests, `LD_LIBRARY_PATH` can be set.
 
-### Modul kann nicht geladen werden
+### Module Cannot Be Loaded
 
-Prüfe, ob der Pfad in `LoadModule` stimmt, ob die Datei existiert, ob `ldd`
-fehlende Libraries zeigt und ob das Modul mit dem passenden APXS gebaut wurde.
+Check that the path in `LoadModule` is correct, that the file exists, that
+`ldd` does not show missing libraries, and that the module was built with the
+matching APXS.
 
-### Fehlerhafte Rules-Datei
+### Invalid Rules File
 
-Wenn `apachectl configtest` eine ModSecurity-Regelmeldung ausgibt, prüfe
-Syntax, eindeutige `id`-Werte, Pfade, Leserechte und Kompatibilität der Regeln
-mit der verwendeten libmodsecurity-Version.
+If `apachectl configtest` prints a ModSecurity rule error, check syntax, unique
+`id` values, paths, read permissions, and compatibility between the rules and
+the libmodsecurity version being used.
 
-### Rechteprobleme
+### Permission Problems
 
-Apache läuft je nach Distribution als `www-data`, `apache` oder ein anderer
-Benutzer. Prüfe:
+Depending on the distribution, Apache runs as `www-data`, `apache`, or another
+user. Check:
 
 ```sh
 namei -l /etc/apache2/modsecurity/main.conf
 namei -l /var/log/apache2/modsec_audit.log
 ```
 
-Bei SELinux:
+With SELinux:
 
 ```sh
 getenforce
 ausearch -m avc -ts recent
 ```
 
-### Unterschiede zwischen Distributionen
+### Distribution Differences
 
-Binary-Namen, APXS-Namen, Modulverzeichnisse, Default-MPMs, systemd-Units und
-Sicherheitsprofile unterscheiden sich. Verlasse dich auf `apxs -q ...`,
-`apachectl -V` und `apachectl -M` statt auf angenommene Pfade.
+Binary names, APXS names, module directories, default MPMs, systemd units, and
+security profiles differ by distribution. Rely on `apxs -q ...`,
+`apachectl -V`, and `apachectl -M` instead of assumed paths.
 
 ## Best Practices
 
-- Dokumentiere Apache-Version, APXS-Pfad, libmodsecurity-Version,
-  Connector-Commit und Build-Befehl.
-- Berücksichtige Apache-, APR-, APR-util- und APXS-Updates.
-- Teste Builds in einer sauberen Umgebung.
-- Führe vor jedem Reload `apachectl configtest` oder `apache2ctl -t` aus.
-- Starte mit kleinen Regeln, bevor ein großes Regelwerk aktiviert wird.
-- Trenne `SecRuleEngine DetectionOnly` und `SecRuleEngine On` bewusst.
-- Prüfe Error-Logs und Audit-Logs regelmäßig.
-- Nutze `make smoke-apache`, um den Projektpfad mit echten HTTP-Requests zu
-  validieren.
+- Document the Apache version, APXS path, libmodsecurity version, connector
+  commit, and build command.
+- Account for Apache, APR, APR-util, and APXS updates.
+- Test builds in a clean environment.
+- Run `apachectl configtest` or `apache2ctl -t` before every reload.
+- Start with small rules before enabling a large rule set.
+- Keep `SecRuleEngine DetectionOnly` and `SecRuleEngine On` deliberately
+  separate.
+- Inspect error logs and audit logs regularly.
+- Use `make smoke-apache` to validate the project path with real HTTP requests.

@@ -1,118 +1,114 @@
 # Shared Features
 
-Diese Dokumentation beschreibt die gemeinsamen Funktionen und Konzepte des
-ModSecurity-Connector-Monorepos. Sie basiert auf dem aktuellen Repository-Stand
-und auf den vorhandenen Quellen und Dokumenten. Wo die Codebasis keine
-gemeinsame Runtime-Implementierung belegt, wird das ausdrücklich so benannt.
+This document describes the shared functions and concepts in the ModSecurity
+connector monorepo. It is based on the current repository state and on the
+available source code and documentation. Where the codebase does not prove a
+shared runtime implementation, that is stated explicitly.
 
-## Überblick
+## Overview
 
-Mit „Shared Features“ sind in diesem Projekt nicht alle Apache- und
-Nginx-Laufzeitpfade gemeint. Die gemeinsame Schicht liegt vor allem in
-connector-neutralen Datenformen, Direktivenamen, Optionswerten,
-Rule-Load-Statistiken, Metadaten und Test-/Reporting-Konzepten. Die echten
-Server-Integrationen bleiben adapter-eigen:
+In this project, “Shared Features” does not mean that every Apache and Nginx
+runtime path is common code. The shared layer is mainly made of
+connector-neutral data shapes, directive names, option values, rule-load
+statistics, metadata, and test/reporting concepts. The real server
+integrations remain adapter-owned:
 
-- Apache besitzt eigene Hooks, Filter, APXS-/Autotools-Buildlogik und
-  Konfigurationsparser unter `connectors/apache/`.
-- Nginx besitzt eigene Nginx-Phasenhandler, Header-/Body-Filter,
-  Third-Party-Module-Buildlogik und Konfigurationsparser unter
-  `connectors/nginx/`.
-- `common/` enthält neutrale Header und kleine Hilfsfunktionen, aber keine
-  Apache- oder Nginx-SDK-Typen und keine libmodsecurity-Transaktionslogik.
+- Apache owns its hooks, filters, APXS/Autotools build logic, and
+  configuration parser under `connectors/apache/`.
+- Nginx owns its Nginx phase handlers, header/body filters, third-party module
+  build logic, and configuration parser under `connectors/nginx/`.
+- `common/` contains neutral headers and small helper functions, but no Apache
+  or Nginx SDK types and no libmodsecurity transaction logic.
 
-Gemeinsame Features sind wichtig, weil beide produktiven Connectoren dieselben
-ModSecurity-Konzepte bereitstellen sollen: Aktivierung, Rules-Dateien,
-Inline-Regeln, Remote-Regeln, Transaktions-ID, Error-Log-Policy,
-Rule-Load-Metadaten und eine vergleichbare Testauswertung. Gemeinsame
-Metadaten vermeiden, dass Direktivenamen oder Statusbegriffe zwischen
-Connectoren auseinanderlaufen, ohne die sehr unterschiedlichen Server-APIs zu
-vermischen.
+Shared features matter because both productive connectors should expose the
+same ModSecurity concepts: enablement, rules files, inline rules, remote rules,
+transaction ID, error-log policy, rule-load metadata, and comparable test
+reporting. Shared metadata prevents directive names and status terms from
+drifting between connectors without mixing the very different server APIs.
 
-Relevante projektübergreifende Teile:
+Relevant cross-project parts:
 
-| Pfad | Rolle |
+| Path | Role |
 | --- | --- |
-| `common/include/msconnector/directives.h` | Gemeinsame Direktivenamen |
-| `common/include/msconnector/options.h` | Gemeinsame boolsche Werte, Defaults und Optionsnamen |
-| `common/include/msconnector/rule_load_stats.h` | Gemeinsame Datenform für geladene Regeln |
-| `common/include/msconnector/request.h` | Neutrale Request-Datenform |
-| `common/include/msconnector/response.h` | Neutrale Response-Datenform |
-| `common/include/msconnector/transaction.h` | Neutrale Phasen- und Transaktionssicht |
-| `common/include/msconnector/intervention.h` | Neutrale Interventionsdatenform |
-| `common/include/msconnector/status.h` | Neutrale Statuswerte |
-| `common/include/msconnector/capabilities.h` | Neutrale Capability-Flags |
-| `common/include/msconnector/origin.h` | Neutrale Herkunfts-/Provenance-Datenform |
-| `common/src/` | Kleine Implementierungen für Status, Intervention, Origin und Capabilities |
-| `modules/ModSecurity-test-Framework/` | Gemeinsame YAML-Fälle, Runner, Normalizer und Smoke-Helfer |
+| `common/include/msconnector/directives.h` | Shared directive names |
+| `common/include/msconnector/options.h` | Shared boolean values, defaults, and option names |
+| `common/include/msconnector/rule_load_stats.h` | Shared data shape for loaded rules |
+| `common/include/msconnector/request.h` | Neutral request data shape |
+| `common/include/msconnector/response.h` | Neutral response data shape |
+| `common/include/msconnector/transaction.h` | Neutral phase and transaction view |
+| `common/include/msconnector/intervention.h` | Neutral intervention data shape |
+| `common/include/msconnector/status.h` | Neutral status values |
+| `common/include/msconnector/capabilities.h` | Neutral capability flags |
+| `common/include/msconnector/origin.h` | Neutral origin/provenance data shape |
+| `common/src/` | Small implementations for status, intervention, origin, and capabilities |
+| `modules/ModSecurity-test-Framework/` | Shared YAML cases, runners, normalizers, and smoke helpers |
 
-## Gemeinsame Architektur
+## Shared Architecture
 
-Die Architektur ist bewusst zweigeteilt:
+The architecture is intentionally split in two:
 
-1. `common/` definiert neutrale Formen und Konstanten.
-2. `connectors/apache/` und `connectors/nginx/` übersetzen konkrete
-   Serverzustände in libmodsecurity-Aufrufe.
+1. `common/` defines neutral shapes and constants.
+2. `connectors/apache/` and `connectors/nginx/` translate concrete server
+   state into libmodsecurity calls.
 
-Die Datei `docs/architecture/architecture.md` beschreibt den Zielablauf:
+`docs/architecture/architecture.md` describes the intended flow:
 
-1. Ein Server-Hook oder Filter erhält Request-/Response-Zustand.
-2. Der Connector-Adapter übersetzt diesen Zustand in eine Form, die an
-   libmodsecurity übergeben werden kann.
-3. Der Adapter ruft die libmodsecurity-v3-C-API in Phasen auf.
-4. Interventions werden zurück in Serververhalten übersetzt.
-5. Connector-spezifische Tests belegen Timing, Artefakte und HTTP-Verhalten.
+1. A server hook or filter receives request/response state.
+2. The connector adapter translates that state into a form that can be passed
+   to libmodsecurity.
+3. The adapter calls the libmodsecurity-v3 C API in phase order.
+4. Interventions are translated back into server behavior.
+5. Connector-specific tests prove timing, artifacts, and HTTP behavior.
 
-Die gemeinsamen Header enthalten keine Apache-Typen wie `request_rec`, keine
-Nginx-Typen wie `ngx_http_request_t` und keine Ownership-Regeln für
-`ModSecurity`, `RulesSet` oder `Transaction`. Diese Grenze ist in
-`docs/architecture/common-runtime-boundaries.md` ausdrücklich dokumentiert.
+The shared headers contain no Apache types such as `request_rec`, no Nginx
+types such as `ngx_http_request_t`, and no ownership rules for `ModSecurity`,
+`RulesSet`, or `Transaction`. This boundary is documented explicitly in
+`docs/architecture/common-runtime-boundaries.md`.
 
-### Beziehung zu libmodsecurity
+### Relationship to libmodsecurity
 
-Beide Connectoren verwenden libmodsecurity v3 über die öffentliche C-API. In
-den lokalen Quellen sind unter anderem diese Aufrufarten sichtbar:
+Both connectors use libmodsecurity v3 through the public C API. The local
+sources show, among others, these kinds of calls:
 
-- Initialisierung mit `msc_init`,
-- Connector-Information über `msc_set_connector_info`,
-- Log-Callback über `msc_set_log_cb`,
-- Rules-Erzeugung über `msc_create_rules_set`,
-- Rules-Laden über `msc_rules_add`, `msc_rules_add_file` und
-  `msc_rules_add_remote`,
-- Rules-Merge über `msc_rules_merge`,
-- Transaktion über `msc_new_transaction` oder
-  `msc_new_transaction_with_id`,
-- Request-Phasen über `msc_process_connection`, `msc_process_uri`,
+- initialization with `msc_init`
+- connector information through `msc_set_connector_info`
+- log callback through `msc_set_log_cb`
+- rules creation through `msc_create_rules_set`
+- rules loading through `msc_rules_add`, `msc_rules_add_file`, and
+  `msc_rules_add_remote`
+- rules merge through `msc_rules_merge`
+- transaction creation through `msc_new_transaction` or
+  `msc_new_transaction_with_id`
+- request phases through `msc_process_connection`, `msc_process_uri`,
   `msc_add_request_header`/`msc_add_n_request_header`,
-  `msc_process_request_headers`, `msc_append_request_body` und
-  `msc_process_request_body`,
-- Response-Phasen über `msc_add_response_header`/
+  `msc_process_request_headers`, `msc_append_request_body`, and
+  `msc_process_request_body`
+- response phases through `msc_add_response_header`/
   `msc_add_n_response_header`, `msc_process_response_headers`,
-  `msc_append_response_body` und `msc_process_response_body`,
-- Logging über `msc_process_logging`,
-- Interventions über `msc_intervention`.
+  `msc_append_response_body`, and `msc_process_response_body`
+- logging through `msc_process_logging`
+- interventions through `msc_intervention`
 
-Diese API-Nutzung ist konzeptionell gemeinsam, aber die konkreten Hooks,
-Zeitpunkte, Buffer und Fehlerpfade sind connector-spezifisch.
+This API usage is conceptually shared, but the concrete hooks, timing, buffers,
+and error paths are connector-specific.
 
-### Gemeinsame Initialisierung
+### Shared Initialization
 
-Beide produktiven Connectoren erzeugen eine ModSecurity-Instanz und setzen
-Connector-Informationen:
+Both productive connectors create a ModSecurity instance and set connector
+information:
 
-- Apache verwendet in `connectors/apache/src/mod_security3.c`
-  `msc_apache_init`, `msc_init`, `msc_set_connector_info` und
-  `msc_set_log_cb`.
-- Nginx verwendet in `connectors/nginx/src/ngx_http_modsecurity_module.c`
-  `ngx_http_modsecurity_create_main_conf`, `msc_init`,
-  `msc_set_connector_info` und `msc_set_log_cb`.
+- Apache uses `msc_apache_init`, `msc_init`, `msc_set_connector_info`, and
+  `msc_set_log_cb` in `connectors/apache/src/mod_security3.c`.
+- Nginx uses `ngx_http_modsecurity_create_main_conf`, `msc_init`,
+  `msc_set_connector_info`, and `msc_set_log_cb` in
+  `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
-Die Initialisierung ist also fachlich vergleichbar, aber nicht als gemeinsame
-Funktion in `common/src/` implementiert.
+The initialization is therefore conceptually similar, but it is not
+implemented as a shared function in `common/src/`.
 
-### Gemeinsames Laden von Konfigurationen und Regeln
+### Shared Loading of Configuration and Rules
 
-Beide Connectoren registrieren gemeinsame Direktivenamen aus
+Both connectors register shared directive names from
 `common/include/msconnector/directives.h`:
 
 - `modsecurity`
@@ -122,28 +118,27 @@ Beide Connectoren registrieren gemeinsame Direktivenamen aus
 - `modsecurity_transaction_id`
 - `modsecurity_use_error_log`
 
-Nginx registriert zusätzlich Nginx-spezifische Phase-4-Direktiven:
+Nginx additionally registers Nginx-specific phase-4 directives:
 
 - `modsecurity_phase4_mode`
 - `modsecurity_phase4_content_types_file`
 - `modsecurity_phase4_log`
 
-Das Laden der Regeln erfolgt in beiden Connectoren über libmodsecurity, aber in
-eigenen Parserfunktionen:
+Both connectors load rules through libmodsecurity, but through their own parser
+functions:
 
 - Apache: `connectors/apache/src/msc_config.c`
 - Nginx: `connectors/nginx/src/ngx_http_modsecurity_module.c`
 
-## Konfigurationshandling
+## Configuration Handling
 
-Die gemeinsame Konfigurationsebene ist eine Metadaten- und
-Direktivenamen-Ebene. Die eigentliche Server-Konfiguration bleibt
-connector-spezifisch.
+The shared configuration layer is a metadata and directive-name layer. The
+actual server configuration remains connector-specific.
 
-### Gemeinsame Direktiven
+### Shared Directives
 
-`common/include/msconnector/directives.h` definiert die Namen der Direktiven.
-Dadurch verwenden Apache und Nginx dieselben Schreibweisen im Code:
+`common/include/msconnector/directives.h` defines the directive names. This
+lets Apache and Nginx use the same spellings in code:
 
 ```c
 #define MSCONNECTOR_DIRECTIVE_MODSECURITY "modsecurity"
@@ -154,50 +149,49 @@ Dadurch verwenden Apache und Nginx dieselben Schreibweisen im Code:
 #define MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG "modsecurity_use_error_log"
 ```
 
-Die Registrierung ist trotzdem unterschiedlich:
+Registration is still different:
 
-- Apache nutzt `AP_INIT_TAKE1` und `AP_INIT_TAKE2` in
+- Apache uses `AP_INIT_TAKE1` and `AP_INIT_TAKE2` in
   `connectors/apache/src/msc_config.c`.
-- Nginx nutzt ein `ngx_command_t`-Array in
+- Nginx uses a `ngx_command_t` array in
   `connectors/nginx/src/ngx_http_modsecurity_module.c`.
 
-### Aktivieren und Deaktivieren
+### Enabling and Disabling
 
-Die Direktive `modsecurity on|off` ist in beiden Connectoren vorhanden.
-Der gemeinsame Default aus `common/include/msconnector/options.h` ist:
+The `modsecurity on|off` directive exists in both connectors. The shared
+default in `common/include/msconnector/options.h` is:
 
 ```c
 #define MSCONNECTOR_DEFAULT_ENABLE MSCONNECTOR_BOOL_OFF
 ```
 
-Das bedeutet: Ohne Aktivierung verarbeitet der Connector Requests nicht als
-ModSecurity-geschützte Requests. Der konkrete Scope unterscheidet sich:
+This means that without explicit enablement, the connector does not process
+requests as ModSecurity-protected requests. The concrete scope differs:
 
-- Apache registriert die Direktive für Server- und Directory-Kontexte
+- Apache registers the directive for server and directory contexts
   (`RSRC_CONF | ACCESS_CONF`).
-- Nginx registriert sie für Main-, Server- und Location-Kontexte
+- Nginx registers it for main, server, and location contexts
   (`NGX_HTTP_MAIN_CONF`, `NGX_HTTP_SRV_CONF`, `NGX_HTTP_LOC_CONF`).
 
-### Rules-Dateien und Inline-Regeln
+### Rules Files and Inline Rules
 
-Beide Connectoren unterstützen:
+Both connectors support:
 
-- `modsecurity_rules` für Inline-Regeln,
-- `modsecurity_rules_file` für lokale Regeldateien,
-- `modsecurity_rules_remote` für Remote-Regeln.
+- `modsecurity_rules` for inline rules
+- `modsecurity_rules_file` for local rules files
+- `modsecurity_rules_remote` for remote rules
 
-Die geladenen Regeln werden in einem RulesSet gehalten und bei
-Konfigurations-Merges zusammengeführt. Fehler beim Laden werden nicht
-verschluckt:
+Loaded rules are held in a RulesSet and merged during configuration merges.
+Load errors are not swallowed:
 
-- Apache gibt bei einem negativen Rückgabewert von `msc_rules_add*` den
-  libmodsecurity-Fehlerstring an Apache zurück.
-- Nginx gibt bei Fehlern im Konfigurationspfad ebenfalls eine Fehlermeldung
-  zurück, wodurch `nginx -t` oder der Start fehlschlägt.
+- Apache returns the libmodsecurity error string from the configuration handler
+  when `msc_rules_add*` returns a negative value.
+- Nginx also returns an error from the configuration parser on load failures,
+  causing `nginx -t` or startup to fail.
 
-### Rule-Load-Statistiken
+### Rule-Load Statistics
 
-`common/include/msconnector/rule_load_stats.h` definiert:
+`common/include/msconnector/rule_load_stats.h` defines:
 
 ```c
 typedef struct msconnector_rule_load_stats {
@@ -207,187 +201,184 @@ typedef struct msconnector_rule_load_stats {
 } msconnector_rule_load_stats;
 ```
 
-Diese Werte zählen geladene Regeln, nicht die Anzahl der Direktiven. Sie werden
-nur nach erfolgreichen `msc_rules_add*`-Aufrufen erhöht.
+These values count loaded rules, not the number of directives. They are
+increased only after successful `msc_rules_add*` calls.
 
-Aktueller Stand:
+Current state:
 
-- Apache speichert die Werte in `msc_conf_t` und addiert sie beim
-  Directory-Config-Merge. Sie werden derzeit nicht im Post-Config-Log
-  ausgegeben.
-- Nginx hält lokale Counter `rules_inline`, `rules_file` und `rules_remote` und
-  kopiert sie über einen kleinen Helper in `msconnector_rule_load_stats`.
-  Nginx gibt diese Werte im Startup-Log aus.
+- Apache stores the values in `msc_conf_t` and adds them during directory
+  configuration merge. They are not currently emitted in the post-config log.
+- Nginx keeps local counters `rules_inline`, `rules_file`, and `rules_remote`,
+  and copies them into `msconnector_rule_load_stats` through a small helper.
+  Nginx emits these values in the startup log.
 
-Die Statistiken ändern keine Runtime-Entscheidung. Sie sind Metadaten.
+The statistics do not change runtime decisions. They are metadata.
 
-### Transaktions-ID
+### Transaction ID
 
-Beide Connectoren unterstützen `modsecurity_transaction_id`, aber mit
-unterschiedlicher Semantik:
+Both connectors support `modsecurity_transaction_id`, but with different
+semantics:
 
-- Apache akzeptiert eine statische Zeichenkette. Wird keine Direktive gesetzt,
-  versucht der Connector `UNIQUE_ID` zu verwenden und fällt danach auf eine
-  Transaktion ohne explizite ID zurück.
-- Nginx verwendet eine Nginx Complex Value. Dadurch können Nginx-Variablen pro
-  Request ausgewertet werden.
+- Apache accepts a static string. If the directive is not set, the connector
+  tries to use `UNIQUE_ID`, then falls back to a transaction without an
+  explicit ID.
+- Nginx uses an Nginx complex value. This allows Nginx variables to be
+  evaluated per request.
 
-Das ist ein bekanntes, dokumentiertes Unterschiedsmerkmal und keine
-gemeinsame Runtime-Implementierung.
+This is a known, documented difference, not a shared runtime implementation.
 
-### Error-Log-Policy
+### Error-Log Policy
 
-`modsecurity_use_error_log on|off` ist in beiden Connectoren vorhanden. Der
-Default aus `common/include/msconnector/options.h` ist:
+`modsecurity_use_error_log on|off` exists in both connectors. The default in
+`common/include/msconnector/options.h` is:
 
 ```c
 #define MSCONNECTOR_DEFAULT_USE_ERROR_LOG MSCONNECTOR_BOOL_ON
 ```
 
-`off` unterdrückt die Weiterleitung des libmodsecurity-Log-Callbacks in das
-jeweilige Server-Error-Log. Es deaktiviert nicht:
+`off` suppresses forwarding of the libmodsecurity log callback to the relevant
+server error log. It does not disable:
 
-- Audit Logging,
-- Interventions,
-- Request-Verarbeitung,
-- Response-Verarbeitung,
-- Rules-Laden,
-- Transaktionsanlage.
+- audit logging
+- interventions
+- request processing
+- response processing
+- rules loading
+- transaction creation
 
 ## Request Processing
 
-Beide Connectoren bilden eingehende Requests auf libmodsecurity-Transaktionen
-ab. Die gemeinsamen fachlichen Schritte sind:
+Both connectors map incoming requests to libmodsecurity transactions. The
+shared conceptual steps are:
 
-1. Transaktion erstellen.
-2. Connection-Metadaten verarbeiten.
-3. URI, Methode und HTTP-Version verarbeiten.
-4. Request-Header an libmodsecurity übergeben.
-5. Request-Body an libmodsecurity übergeben, wenn vorhanden und zugänglich.
-6. Nach relevanten Phasen Interventions prüfen.
+1. Create a transaction.
+2. Process connection metadata.
+3. Process URI, method, and HTTP version.
+4. Pass request headers to libmodsecurity.
+5. Pass request body data to libmodsecurity when present and accessible.
+6. Check interventions after relevant phases.
 
 ### Apache
 
-Apache registriert in `connectors/apache/src/mod_security3.c` unter anderem:
+Apache registers, among others, the following in
+`connectors/apache/src/mod_security3.c`:
 
-- `ap_hook_pre_config`,
-- `ap_hook_post_config`,
-- `ap_hook_post_read_request`,
-- `ap_hook_fixups`,
-- `ap_hook_insert_filter`,
-- `ap_hook_log_transaction`,
-- Input-Filter `MODSECURITY_IN`,
-- Output-Filter `MODSECURITY_OUT`.
+- `ap_hook_pre_config`
+- `ap_hook_post_config`
+- `ap_hook_post_read_request`
+- `ap_hook_fixups`
+- `ap_hook_insert_filter`
+- `ap_hook_log_transaction`
+- input filter `MODSECURITY_IN`
+- output filter `MODSECURITY_OUT`
 
-Die Transaktion wird in `create_tx_context` erzeugt. Request-Header werden in
-`process_request_headers` über `r->headers_in` iteriert und an
-libmodsecurity übergeben. Request-Body-Daten laufen über den Input-Filter in
-`connectors/apache/src/msc_filters.c`, der `msc_append_request_body` und
-`msc_process_request_body` aufruft.
+The transaction is created in `create_tx_context`. Request headers are iterated
+from `r->headers_in` in `process_request_headers` and passed to
+libmodsecurity. Request body data flows through the input filter in
+`connectors/apache/src/msc_filters.c`, which calls `msc_append_request_body`
+and `msc_process_request_body`.
 
 ### Nginx
 
-Nginx registriert in `ngx_http_modsecurity_init` Handler für:
+Nginx registers handlers in `ngx_http_modsecurity_init` for:
 
-- `NGX_HTTP_ACCESS_PHASE`,
-- `NGX_HTTP_LOG_PHASE`,
-- Header-Filter,
-- Body-Filter.
+- `NGX_HTTP_ACCESS_PHASE`
+- `NGX_HTTP_LOG_PHASE`
+- header filter
+- body filter
 
-Die Transaktion wird in `ngx_http_modsecurity_create_ctx` erzeugt. Im
-Access-Handler verarbeitet Nginx:
+The transaction is created in `ngx_http_modsecurity_create_ctx`. In the access
+handler, Nginx processes:
 
-- Client-/Server-Adresse und Ports,
-- Hostname, soweit verfügbar und libmodsecurity-Version passend,
-- URI, Methode und HTTP-Version,
-- Request-Header über `r->headers_in.headers`,
-- Request-Body über `ngx_http_read_client_request_body`, In-Memory-Buffer oder
-  temporäre Datei.
+- client/server address and ports
+- hostname, when available and when the libmodsecurity version supports it
+- URI, method, and HTTP version
+- request headers through `r->headers_in.headers`
+- request body through `ngx_http_read_client_request_body`, in-memory buffers,
+  or a temporary file
 
-### Gemeinsamkeiten und Unterschiede
+### Similarities and Differences
 
-Gemeinsam ist die libmodsecurity-Phasenidee. Unterschiedlich sind Timing,
-Buffering und Server-APIs:
+The shared concept is the libmodsecurity phase model. Timing, buffering, and
+server APIs differ:
 
-- Apache arbeitet mit `request_rec`, APR-Tabellen und Bucket Brigades.
-- Nginx arbeitet mit `ngx_http_request_t`, Nginx-Listen, Chains und
-  Request-Body-Callbacks.
-- Apache besitzt eine statische Transaktions-ID-Option mit `UNIQUE_ID`-Fallback.
-- Nginx kann Transaktions-IDs über Nginx-Variablen pro Request erzeugen.
+- Apache works with `request_rec`, APR tables, and bucket brigades.
+- Nginx works with `ngx_http_request_t`, Nginx lists, chains, and request-body
+  callbacks.
+- Apache has a static transaction-ID option with a `UNIQUE_ID` fallback.
+- Nginx can derive transaction IDs from Nginx variables per request.
 
-`common/include/msconnector/request.h` definiert zwar eine neutrale
-Request-Datenform, aber die produktiven Connectoren verwenden aktuell ihre
-eigenen Serverdaten direkt in ihren Adapterpfaden. Die neutrale Datenform ist
-keine vollständig extrahierte Runtime-API.
+`common/include/msconnector/request.h` defines a neutral request data shape,
+but the productive connectors currently use their own server data directly in
+their adapter paths. The neutral data shape is not a fully extracted runtime
+API.
 
 ## Response Processing
 
-Beide Connectoren enthalten Code, der Response-Header und Response-Body an
-libmodsecurity weitergibt. Dieser Bereich ist im Projekt besonders vorsichtig
-dokumentiert, weil Response-Body-Blocking und späte Interventions stark vom
-Server-Filtermodell abhängen.
+Both connectors contain code that passes response headers and response bodies
+to libmodsecurity. The project documents this area carefully because response
+body blocking and late interventions strongly depend on the server filter
+model.
 
 ### Apache
 
-Der Apache-Output-Filter in `connectors/apache/src/msc_filters.c`:
+The Apache output filter in `connectors/apache/src/msc_filters.c`:
 
-- liest `r->err_headers_out`,
-- liest `r->headers_out`,
-- ruft `msc_add_response_header`,
-- ruft `msc_process_response_headers`,
-- iteriert über die Bucket Brigade,
-- ruft `msc_append_response_body`,
-- ruft `msc_process_response_body`,
-- prüft Interventions.
+- reads `r->err_headers_out`
+- reads `r->headers_out`
+- calls `msc_add_response_header`
+- calls `msc_process_response_headers`
+- iterates over the bucket brigade
+- calls `msc_append_response_body`
+- calls `msc_process_response_body`
+- checks interventions
 
-Die README weist darauf hin, dass Apache-Response-Body-Verhalten nicht
-promoted ist und `RESPONSE_BODY` nicht als verifizierte Blocking-Capability
-behandelt wird.
+The README states that Apache response-body behavior is not promoted, and that
+`RESPONSE_BODY` is not treated as a verified blocking capability.
 
 ### Nginx
 
-Der Nginx-Header-Filter in
-`connectors/nginx/src/ngx_http_modsecurity_header_filter.c` übergibt
-Standard- und Listenheader an libmodsecurity und ruft
-`msc_process_response_headers`.
+The Nginx header filter in
+`connectors/nginx/src/ngx_http_modsecurity_header_filter.c` passes standard
+and list headers to libmodsecurity and calls `msc_process_response_headers`.
 
-Der Nginx-Body-Filter in
-`connectors/nginx/src/ngx_http_modsecurity_body_filter.c` übergibt
-Response-Body-Chunks an `msc_append_response_body` und ruft am Ende
-`msc_process_response_body`. Zusätzlich gibt es Nginx-spezifische Phase-4-
-Direktiven für spätes Interventionsverhalten:
+The Nginx body filter in
+`connectors/nginx/src/ngx_http_modsecurity_body_filter.c` passes response body
+chunks to `msc_append_response_body` and calls `msc_process_response_body` at
+the end. Nginx also has Nginx-specific phase-4 directives for late intervention
+behavior:
 
-- `modsecurity_phase4_mode minimal|safe|strict`,
-- `modsecurity_phase4_content_types_file <path>`,
-- `modsecurity_phase4_log <path>`.
+- `modsecurity_phase4_mode minimal|safe|strict`
+- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_log <path>`
 
-Diese Direktiven sind ausdrücklich Nginx-spezifisch und nicht Teil eines
-gemeinsamen Apache/Nginx-Vertrags.
+These directives are explicitly Nginx-specific and are not part of a shared
+Apache/Nginx contract.
 
-### Gemeinsame Limitierungen
+### Shared Limitations
 
-Aus den vorhandenen Dokumenten ergibt sich:
+The available documentation indicates:
 
-- Response-Header-Verarbeitung ist in beiden Connectoren implementiert.
-- Response-Body-Pfade existieren in beiden Connectoren.
-- Stabiles Response-Body-Blocking ist nicht als gemeinsame verifizierte
-  Capability promotet.
-- Unterschiede im Filterzeitpunkt können zu unterschiedlichem Verhalten führen,
-  besonders wenn Header bereits gesendet wurden.
+- Response header processing is implemented in both connectors.
+- Response body paths exist in both connectors.
+- Stable response-body blocking is not promoted as a shared verified
+  capability.
+- Filter timing differences can lead to different behavior, especially after
+  headers have already been sent.
 
-## Logging und Audit Logging
+## Logging and Audit Logging
 
-Beide Connectoren setzen einen libmodsecurity-Log-Callback:
+Both connectors set a libmodsecurity log callback:
 
-- Apache: `modsecurity_log_cb`,
-- Nginx: `ngx_http_modsecurity_log`.
+- Apache: `modsecurity_log_cb`
+- Nginx: `ngx_http_modsecurity_log`
 
-Diese Callbacks schreiben in das jeweilige Server-Error-Log, sofern
-`modsecurity_use_error_log` nicht auf `off` gesetzt wurde.
+These callbacks write to the corresponding server error log unless
+`modsecurity_use_error_log` is set to `off`.
 
-Audit Logging wird nicht durch eine eigene gemeinsame Connector-Schicht
-erzeugt. Es wird über libmodsecurity und die geladenen ModSecurity-Regeln
-gesteuert, zum Beispiel über Direktiven wie:
+Audit logging is not produced by a custom shared connector layer. It is
+controlled by libmodsecurity and the loaded ModSecurity rules, for example with
+directives such as:
 
 ```apache
 SecAuditEngine RelevantOnly
@@ -395,90 +386,89 @@ SecAuditLogType Serial
 SecAuditLog /var/log/modsec_audit.log
 ```
 
-Die Smoke-Harnesses materialisieren Audit-Log-Pfade in generierten
-Runtime-Verzeichnissen:
+The smoke harnesses materialize audit log paths in generated runtime
+directories:
 
-- Nginx-Harness: `connectors/nginx/harness/run_nginx_smoke.sh`,
-- Apache-Harness: `connectors/apache/harness/run_apache_smoke.sh`.
+- Nginx harness: `connectors/nginx/harness/run_nginx_smoke.sh`
+- Apache harness: `connectors/apache/harness/run_apache_smoke.sh`
 
-Debugging-Hinweise:
+Debugging guidance:
 
-- Bei fehlenden Error-Log-Meldungen zuerst `modsecurity_use_error_log` prüfen.
-- Bei fehlenden Audit-Logs zuerst `SecAuditEngine`, `SecAuditLog`,
-  Dateirechte und Worker-Benutzer prüfen.
-- Bei Nginx zusätzlich prüfen, ob `modsecurity_phase4_log` gesetzt ist, wenn
-  Phase-4-Diagnosen erwartet werden.
-- Bei Helper-Builds liegen Build-Logs und Runtime-Logs unter `BUILD_ROOT`.
+- If error-log messages are missing, check `modsecurity_use_error_log` first.
+- If audit logs are missing, first check `SecAuditEngine`, `SecAuditLog`, file
+  permissions, and the worker user.
+- For Nginx, also check whether `modsecurity_phase4_log` is set when phase-4
+  diagnostics are expected.
+- For helper builds, build logs and runtime logs are under `BUILD_ROOT`.
 
 ## Error Handling
 
-Fehlerbehandlung ist fachlich ähnlich, aber technisch connector-spezifisch.
+Error handling is conceptually similar, but technically connector-specific.
 
-### Fehlerhafte Regeln
+### Invalid Rules
 
-Beim Laden von Regeln geben `msc_rules_add`, `msc_rules_add_file` und
-`msc_rules_add_remote` einen negativen Wert und einen Fehlerstring zurück, wenn
-libmodsecurity die Regel nicht akzeptiert.
+When loading rules, `msc_rules_add`, `msc_rules_add_file`, and
+`msc_rules_add_remote` return a negative value and an error string when
+libmodsecurity rejects a rule.
 
-- Apache gibt diesen Fehlerstring aus dem Config-Handler zurück. Dadurch kann
-  der Apache-Configtest fehlschlagen.
-- Nginx gibt im Konfigurationsparser einen Fehler zurück. Dadurch schlägt
-  `nginx -t` oder der Start fehl.
+- Apache returns this error string from the configuration handler. This can
+  make the Apache configuration test fail.
+- Nginx returns an error from the configuration parser. This can make
+  `nginx -t` or startup fail.
 
-Rule-Load-Stats werden nur bei erfolgreichen Ladevorgängen erhöht.
+Rule-load statistics are increased only after successful loads.
 
-### Fehlende oder ungültige Konfiguration
+### Missing or Invalid Configuration
 
-Wenn `modsecurity` nicht aktiviert ist, lehnen die Runtime-Pfade die
-Verarbeitung ab und lassen den Request durch den normalen Serverpfad laufen.
-Das ist kein Fehler, sondern der dokumentierte Default.
+If `modsecurity` is not enabled, the runtime paths decline processing and let
+the request continue through the normal server path. This is not an error; it
+is the documented default.
 
-Wenn eine Rules-Datei nicht lesbar ist, eine Remote-Regel nicht geladen werden
-kann oder eine Regel syntaktisch ungültig ist, wird die Server-Konfiguration
-typischerweise nicht erfolgreich geladen.
+If a rules file cannot be read, a remote rule cannot be loaded, or a rule is
+syntactically invalid, the server configuration typically does not load
+successfully.
 
-### Interne ModSecurity-Fehler
+### Internal ModSecurity Errors
 
-Interventions werden in beiden Connectoren nach relevanten Phasen geprüft:
+Interventions are checked in both connectors after relevant phases:
 
-- Apache verwendet `process_intervention` und gibt bei disruptiven
-  Interventions HTTP-Status oder Redirect-Verhalten an Apache zurück.
-- Nginx verwendet `ngx_http_modsecurity_process_intervention` und übersetzt
-  Status oder Redirect in Nginx-Verhalten. Bei spät erkannten
-  Response-Body-Interventions gelten zusätzlich Nginx-spezifische Phase-4-
-  Regeln.
+- Apache uses `process_intervention` and returns HTTP status or redirect
+  behavior to Apache for disruptive interventions.
+- Nginx uses `ngx_http_modsecurity_process_intervention` and translates status
+  or redirect into Nginx behavior. For late response-body interventions,
+  additional Nginx-specific phase-4 rules apply.
 
-Bei internen Fehlern im Connector, zum Beispiel fehlendem Transaktionskontext,
-können beide Connectoren mit Serverfehlern oder Filterfehlern reagieren. Diese
-Pfade sind nicht in `common/` vereinheitlicht.
+On internal connector errors, such as a missing transaction context, both
+connectors may return server errors or filter errors. These paths are not
+unified in `common/`.
 
-## Build- und Runtime-Abhängigkeiten
+## Build and Runtime Dependencies
 
-Gemeinsame Abhängigkeiten:
+Shared dependencies:
 
-- C-Compiler,
-- Make,
-- libmodsecurity-v3-Header,
-- `libmodsecurity.so`,
-- ModSecurity-Regeln,
-- passende Runtime-Library-Suchpfade.
+- C compiler
+- Make
+- libmodsecurity-v3 headers
+- `libmodsecurity.so`
+- ModSecurity rules
+- correct runtime library search paths
 
-Nginx-spezifisch:
+Nginx-specific:
 
-- Nginx-Quellcode,
-- Nginx-Build-Abhängigkeiten wie PCRE/PCRE2, zlib und optional OpenSSL,
-- Nginx-Third-Party-Module-Konfiguration `connectors/nginx/config`,
-- dynamische Modulkompatibilität zwischen Modul und Ziel-Nginx.
+- Nginx source code
+- Nginx build dependencies such as PCRE/PCRE2, zlib, and optionally OpenSSL
+- Nginx third-party module configuration `connectors/nginx/config`
+- dynamic module compatibility between the module and the target Nginx
 
-Apache-spezifisch:
+Apache-specific:
 
-- Apache/httpd,
-- Apache-Development-Paket,
-- `apxs` oder `apxs2`,
-- APR/APR-util,
-- Autotools für den Build aus `connectors/apache/`.
+- Apache/httpd
+- Apache development package
+- `apxs` or `apxs2`
+- APR/APR-util
+- Autotools for the build from `connectors/apache/`
 
-Die vorhandenen Makefile-Ziele delegieren an das Test-Framework:
+The available Makefile targets delegate to the test framework:
 
 ```sh
 make smoke-nginx
@@ -487,193 +477,186 @@ make smoke-all
 make runtime-matrix-all
 ```
 
-Die Default-Buildpfade liegen unter:
+Default build paths are under:
 
 ```text
 $HOME/.local/state/ModSecurity-conector-build
 ```
 
-oder unter einem explizit gesetzten `BUILD_ROOT`.
+or under an explicitly set `BUILD_ROOT`.
 
-## Sicherheitsrelevante Hinweise
+## Security Notes
 
-Der Connector allein schützt keine Anwendung. Wirksamer Schutz entsteht erst
-durch:
+The connector alone does not protect an application. Effective protection
+requires:
 
-- aktivierten Connector,
-- geladene Regeln,
-- korrekten `SecRuleEngine`-Modus,
-- passende Request-/Response-Body-Einstellungen,
-- korrekt schreibbare Audit-Logs,
-- getestete False-Positive-Ausnahmen.
+- the connector to be enabled
+- rules to be loaded
+- the correct `SecRuleEngine` mode
+- suitable request/response body settings
+- writable audit logs
+- tested false-positive exceptions
 
-`SecRuleEngine DetectionOnly` und `SecRuleEngine On` müssen bewusst gewählt
-werden:
+Choose `SecRuleEngine DetectionOnly` and `SecRuleEngine On` deliberately:
 
-- `DetectionOnly` protokolliert Treffer, blockiert aber nicht disruptiv.
-- `On` erlaubt disruptives Verhalten wie `deny,status:403`.
+- `DetectionOnly` records matches but does not block disruptively.
+- `On` allows disruptive behavior such as `deny,status:403`.
 
-Für neue Regelwerke empfiehlt sich:
+For new rule sets, a safe workflow is:
 
-1. In einer Testumgebung starten.
-2. Audit-Logs prüfen.
-3. False Positives identifizieren.
-4. Ausnahmen dokumentieren.
-5. Erst danach Blocking aktivieren.
+1. Start in a test environment.
+2. Inspect audit logs.
+3. Identify false positives.
+4. Document exceptions.
+5. Enable blocking only after that.
 
-Da Apache und Nginx unterschiedliche Hook- und Filtermodelle haben, kann das
-Verhalten bei Randfällen unterschiedlich sein. Das gilt besonders für
-Response-Body-Verarbeitung, Header, die spät durch andere Module ergänzt
-werden, und Interventions nachdem Header bereits an den Client gesendet wurden.
+Because Apache and Nginx have different hook and filter models, behavior can
+differ in edge cases. This is especially true for response body processing,
+headers added late by other modules, and interventions after headers have
+already been sent to the client.
 
-## Feature-Matrix
+## Feature Matrix
 
-Die folgende Tabelle beschreibt den aktuellen, aus Repository-Code und
-Dokumentation ableitbaren Stand. „Teilweise“ bedeutet, dass Code oder Tests
-vorhanden sind, aber keine vollständige gemeinsame oder produktiv verallgemeinerte
-Garantie dokumentiert ist.
+The following table describes the current state that can be inferred from the
+repository code and documentation. “Partial” means that code or tests exist,
+but no complete shared or production-generalized guarantee is documented.
 
-| Feature | Nginx | Apache | Hinweise |
+| Feature | Nginx | Apache | Notes |
 | --- | --- | --- | --- |
-| Request Header Inspection | Ja | Ja | Beide Connectoren übergeben eingehende Header an libmodsecurity und rufen Request-Header-Verarbeitung auf. |
-| Request Body Inspection | Ja | Ja | Beide Connectoren übergeben Request-Body-Daten an libmodsecurity. Details zu Buffering und Timing sind server-spezifisch. |
-| Response Header Inspection | Ja | Ja | Beide Connectoren enthalten Response-Header-Pfade und rufen `msc_process_response_headers`. |
-| Response Body Inspection | Teilweise | Teilweise | Codepfade existieren, aber `RESPONSE_BODY` ist laut Projektdokumentation nicht als verifizierte Blocking-Capability promotet. |
-| Audit Logging | Teilweise | Teilweise | Audit-Logs werden über libmodsecurity-Regeln konfiguriert; stabile Audit-Feld-Parität ist nicht als gemeinsame Runtime-Schicht implementiert. |
-| Rules File Loading | Ja | Ja | `modsecurity_rules_file` ist in beiden Connectoren vorhanden und nutzt libmodsecurity. |
-| Inline Rules Loading | Ja | Ja | `modsecurity_rules` ist in beiden Connectoren vorhanden. |
-| Remote Rules Loading | Ja | Ja | `modsecurity_rules_remote` ist in beiden Connectoren vorhanden. |
-| Blocking Mode | Ja | Ja | Disruptive Interventions werden in beiden Connectoren ausgewertet; Response-Body-Blocking bleibt gesondert vorsichtig zu betrachten. |
-| DetectionOnly Mode | Ja | Ja | Wird über ModSecurity-Regeln und libmodsecurity gesteuert, nicht über eine eigene Connector-Direktive. |
-| Transaction ID | Ja | Ja | Nginx unterstützt Complex Values; Apache unterstützt statische Strings mit `UNIQUE_ID`-Fallback. |
-| Error-Log-Forwarding-Policy | Ja | Ja | `modsecurity_use_error_log on|off`; wirkt nur auf den Error-Log-Callback. |
-| Rule-Load-Stats Metadata | Ja | Ja | Gemeinsame Datenform; Nginx loggt die Werte beim Start, Apache hält sie intern. |
-| Phase-4 Mode Controls | Ja | Nein | Nginx-spezifische Direktiven; keine Apache-Parität im aktuellen Code. |
+| Request Header Inspection | Yes | Yes | Both connectors pass incoming headers to libmodsecurity and invoke request-header processing. |
+| Request Body Inspection | Yes | Yes | Both connectors pass request body data to libmodsecurity. Buffering and timing details are server-specific. |
+| Response Header Inspection | Yes | Yes | Both connectors contain response-header paths and call `msc_process_response_headers`. |
+| Response Body Inspection | Partial | Partial | Code paths exist, but `RESPONSE_BODY` is not promoted as a verified blocking capability in the project documentation. |
+| Audit Logging | Partial | Partial | Audit logs are configured through libmodsecurity rules; stable audit-field parity is not implemented as a shared runtime layer. |
+| Rules File Loading | Yes | Yes | `modsecurity_rules_file` exists in both connectors and uses libmodsecurity. |
+| Inline Rules Loading | Yes | Yes | `modsecurity_rules` exists in both connectors. |
+| Remote Rules Loading | Yes | Yes | `modsecurity_rules_remote` exists in both connectors. |
+| Blocking Mode | Yes | Yes | Disruptive interventions are evaluated in both connectors; response-body blocking still requires special caution. |
+| DetectionOnly Mode | Yes | Yes | Controlled through ModSecurity rules and libmodsecurity, not through a connector-specific directive. |
+| Transaction ID | Yes | Yes | Nginx supports complex values; Apache supports static strings with a `UNIQUE_ID` fallback. |
+| Error-Log Forwarding Policy | Yes | Yes | `modsecurity_use_error_log on|off`; affects only the error-log callback. |
+| Rule-Load-Stats Metadata | Yes | Yes | Shared data shape; Nginx logs the values at startup, Apache keeps them internally. |
+| Phase-4 Mode Controls | Yes | No | Nginx-specific directives; no Apache parity in the current code. |
 
-## Bekannte Unterschiede zwischen Nginx und Apache
+## Known Differences Between Nginx and Apache
 
-### Transaktions-ID
+### Transaction ID
 
-Apache akzeptiert bei `modsecurity_transaction_id` eine statische Zeichenkette.
-Nginx akzeptiert eine Nginx Complex Value und kann dadurch Nginx-Variablen pro
-Request auswerten.
+Apache accepts a static string for `modsecurity_transaction_id`. Nginx accepts
+an Nginx complex value and can therefore evaluate Nginx variables per request.
 
-### Konfigurations-Scope
+### Configuration Scope
 
-Apache verwendet Apache-Kontexte über `RSRC_CONF | ACCESS_CONF`. Nginx
-registriert die Direktiven für Main-, Server- und Location-Kontexte. Die
-Merge-Logik ist entsprechend unterschiedlich.
+Apache uses Apache contexts through `RSRC_CONF | ACCESS_CONF`. Nginx registers
+the directives for main, server, and location contexts. The merge logic differs
+accordingly.
 
-### Rule-Load-Stats-Ausgabe
+### Rule-Load-Stats Reporting
 
-Nginx gibt Rule-Load-Statistiken im Startup-Log aus. Apache speichert die
-Statistiken aktuell intern in `msc_conf_t`, gibt sie aber nicht im Post-Config-
-Log aus.
+Nginx emits rule-load statistics in the startup log. Apache currently stores
+the statistics internally in `msc_conf_t`, but does not emit them in the
+post-config log.
 
-### Phase-4-Direktiven
+### Phase-4 Directives
 
-Nur Nginx unterstützt:
+Only Nginx supports:
 
-- `modsecurity_phase4_mode`,
-- `modsecurity_phase4_content_types_file`,
-- `modsecurity_phase4_log`.
+- `modsecurity_phase4_mode`
+- `modsecurity_phase4_content_types_file`
+- `modsecurity_phase4_log`
 
-Diese Direktiven steuern Nginx-spezifisches Verhalten bei späten
-Response-Body-Interventions. Apache implementiert sie nicht.
+These directives control Nginx-specific behavior for late response-body
+interventions. Apache does not implement them.
 
 ### Response Body
 
-Beide Connectoren haben Response-Body-Codepfade. Die Projektdokumentation
-kennzeichnet Response-Body-Blocking jedoch nicht als gemeinsam verifizierte
-Capability. Bei Unsicherheit müssen echte Runtime-Smokes und Audit-/Error-Logs
-herangezogen werden.
+Both connectors have response-body code paths. However, the project
+documentation does not mark response-body blocking as a shared verified
+capability. When in doubt, use real runtime smokes and audit/error logs.
 
-## Troubleshooting für Shared Features
+## Troubleshooting Shared Features
 
-### Rules werden nicht geladen
+### Rules Are Not Loaded
 
-Prüfen:
+Check:
 
 ```sh
 nginx -t
 apachectl configtest
 ```
 
-Typische Ursachen:
+Typical causes:
 
-- falscher Pfad in `modsecurity_rules_file`,
-- fehlende Leserechte,
-- ungültige Regel-Syntax,
-- nicht eindeutige Rule-ID,
-- libmodsecurity-Version unterstützt eine verwendete Regelkonstruktion nicht.
+- wrong path in `modsecurity_rules_file`
+- missing read permissions
+- invalid rule syntax
+- non-unique rule ID
+- the libmodsecurity version does not support a rule construct being used
 
-Bei Nginx kann der Startup-Log zusätzlich die Anzahl geladener Inline-/File-/
-Remote-Regeln zeigen. Bei Apache ist diese Statistik aktuell intern.
+For Nginx, the startup log may also show the number of loaded inline, file, and
+remote rules. For Apache, that statistic is currently internal.
 
-### Requests werden nicht blockiert
+### Requests Are Not Blocked
 
-Prüfen:
+Check:
 
-- Ist `modsecurity on` im passenden Scope gesetzt?
-- Ist `SecRuleEngine On` gesetzt oder nur `DetectionOnly`?
-- Matcht die Regel tatsächlich auf den Request?
-- Läuft der Test gegen den erwarteten `server`-/`location`- oder
-  Directory-Scope?
-- Wird ein Request-Body erwartet, aber nicht gesendet oder anders codiert?
-- Wird eine Response-Body-Regel getestet, obwohl dieser Bereich nicht als
-  gemeinsame Blocking-Capability promotet ist?
+- Is `modsecurity on` set in the relevant scope?
+- Is `SecRuleEngine On` set, or only `DetectionOnly`?
+- Does the rule actually match the request?
+- Is the test hitting the expected `server`/`location` or directory scope?
+- Is a request body expected but not sent, or encoded differently?
+- Is a response-body rule being tested even though that area is not promoted as
+  a shared blocking capability?
 
-Ein minimaler Testfall mit `ARGS:test` ist oft besser als direkt ein großes
-Regelwerk zu debuggen.
+A minimal test case using `ARGS:test` is often better for debugging than
+starting with a large rule set.
 
-### Audit-Logs erscheinen nicht
+### Audit Logs Do Not Appear
 
-Prüfen:
+Check:
 
-- `SecAuditEngine` ist gesetzt,
-- `SecAuditLog` zeigt auf einen schreibbaren Pfad,
-- der Server-Worker hat Schreibrechte,
-- SELinux/AppArmor blockiert den Pfad nicht,
-- die Regel erzeugt überhaupt ein audit-relevantes Ereignis,
-- `nolog` ist nicht in der Regel gesetzt.
+- `SecAuditEngine` is set.
+- `SecAuditLog` points to a writable path.
+- The server worker has write permissions.
+- SELinux/AppArmor is not blocking the path.
+- The rule actually creates an audit-relevant event.
+- The rule does not use `nolog`.
 
-`modsecurity_use_error_log off` betrifft nicht das Audit-Log. Wenn Error-Log-
-Meldungen fehlen, kann diese Direktive relevant sein; bei Audit-Logs ist sie
-nicht die Ursache.
+`modsecurity_use_error_log off` does not affect the audit log. It can explain
+missing error-log messages, but it is not the cause of missing audit logs.
 
-### Unterschiedliches Verhalten zwischen Nginx und Apache
+### Different Behavior Between Nginx and Apache
 
-Mögliche Ursachen:
+Possible causes:
 
-- unterschiedliche Hook-Zeitpunkte,
-- unterschiedliches Request-Body-Buffering,
-- unterschiedliche Header-Normalisierung oder Reihenfolge,
-- Nginx-Complex-Value bei Transaktions-ID gegenüber statischem Apache-Wert,
-- Nginx-spezifischer Phase-4-Modus,
-- verschiedene libmodsecurity-Versionen oder Regeldateien,
-- verschiedene Servermodule, die Header vor oder nach ModSecurity ändern.
+- different hook timing
+- different request-body buffering
+- different header normalization or ordering
+- Nginx complex value for transaction ID versus static Apache value
+- Nginx-specific phase-4 mode
+- different libmodsecurity versions or rules files
+- different server modules that modify headers before or after ModSecurity
 
-Zur Eingrenzung sollten beide Connectoren mit derselben libmodsecurity-Version,
-derselben Rules-Datei und einem minimalen reproduzierbaren Request getestet
-werden.
+To narrow this down, test both connectors with the same libmodsecurity version,
+the same rules file, and a minimal reproducible request.
 
-### Fehlende Runtime-Abhängigkeiten
+### Missing Runtime Dependencies
 
-Wenn ein Modul gebaut wurde, aber nicht lädt, prüfe:
+If a module was built but does not load, check:
 
 ```sh
-ldd /pfad/zu/ngx_http_modsecurity_module.so
-ldd /pfad/zu/mod_security3.so
+ldd /path/to/ngx_http_modsecurity_module.so
+ldd /path/to/mod_security3.so
 ```
 
-Fehlt `libmodsecurity.so`, muss der Library-Suchpfad angepasst werden. Bei
-lokalen Helper-Runs setzen die Harnesses `LD_LIBRARY_PATH` auf die staged
-libmodsecurity-Verzeichnisse unter `BUILD_ROOT`.
+If `libmodsecurity.so` is missing, fix the runtime library search path. In
+local helper runs, the harnesses set `LD_LIBRARY_PATH` to the staged
+libmodsecurity directories under `BUILD_ROOT`.
 
-## Weiterführende Hinweise
+## Further Reading
 
-- [Nginx kompilieren](./COMPILE_NGINX.md)
-- [Apache kompilieren](./COMPILE_APACHE.md)
+- [Compile Nginx](./COMPILE_NGINX.md)
+- [Compile Apache](./COMPILE_APACHE.md)
 - `README.md`
 - `docs/architecture/architecture.md`
 - `docs/architecture/common-runtime-boundaries.md`
