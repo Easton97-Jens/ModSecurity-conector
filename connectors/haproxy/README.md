@@ -32,11 +32,22 @@ connectors/haproxy/
 │   ├── architecture.md
 │   ├── build.md
 │   ├── public-sources.md
+│   ├── test-framework-contract.md
 │   └── validation.md
 ├── harness/
 │   └── README.md
-├── src/
-│   └── README.md
-└── tests/
+├── poc/
+│   └── spoe/
+│       ├── README.md
+│       ├── agent/
+│       ├── harness/
+│       ├── reports/
+│       ├── haproxy.cfg.example
+│       └── spoe-agent.conf.example
+└── src/
     └── README.md
 ```
+
+No tests are stored in this connector repository.
+All test definitions, test execution, runners, and generated reports belong to
+Easton97-Jens/ModSecurity-test-Framework.

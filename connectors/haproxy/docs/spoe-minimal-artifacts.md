@@ -28,17 +28,15 @@ aktuellen Repository)
 | `connectors/haproxy/poc/spoe/spoe-agent.conf.example` | Beispielkonfiguration | Engine-/SPOE-Agent-Konfiguration. | planned only | Belegt später die notwendigen SPOE-Engine-/Agent-Parameter. | Exakte Direktiven extern zu verifizieren. |
 | `connectors/haproxy/poc/spoe/agent/README.md` | Dokumentation | Platzhalter für externe SPOA-Komponente. | planned only | Dokumentiert, welche Agent-Rolle im PoC erwartet wird. | Sprache/Implementierungsmodell noch zu prüfen. |
 | `connectors/haproxy/poc/spoe/harness/README.md` | Dokumentation | Geplante Harness-Hooks dokumentieren. | planned only | Align mit Hook-Modell (`prepare/start/send_request/...`). | HAProxy-spezifische Exit-Kriterien noch zu prüfen. |
-| `connectors/haproxy/poc/spoe/tests/README.md` | Dokumentation | Geplante Minimaltests dokumentieren. | planned only | Testfälle vor Implementierung klar trennen. | Daten-/Erwartungswerte noch zu prüfen. |
-| `connectors/haproxy/poc/spoe/reports/README.md` | Dokumentation | Geplantes Report-Format dokumentieren. | planned only | Einheitliche Evidenzablage vorbereiten. | Finales Feldermodell noch zu prüfen. |
-| `reports/testing/haproxy-spoe-poc-results.generated.md` | generierter Report | Späterer Evidenzreport. | planned only | Runtime-Ergebnisse nachvollziehbar dokumentieren. | Erst nach echter Runtime-Ausführung erzeugen; aktuell nicht erstellen. |
+| `connectors/haproxy/poc/spoe/reports/README.md` | Dokumentation | Ownership-Hinweis für Framework-seitige Reports. | planned only | Trennt Connector-Doku von zentraler Report-Erzeugung. | Framework-Schema noch zu prüfen. |
+| Framework-side tests | Zentraler Framework-Inhalt | Framework-side tests: planned in ModSecurity-test-Framework, not in this repository. | planned only | Connector-Repo enthält keine Tests. | Extern zu verifizieren. |
+| Framework-side report output | Zentraler Framework-Inhalt | Geplanter Evidenzreport aus zentralem Framework. | planned only | Reports gehören nicht ins Connector-Repo. | Erst nach echter Runtime-Ausführung erzeugen. |
 
 ## Nicht jetzt erstellen
-- keine `haproxy.cfg.example`
-- keine `spoe-agent.conf.example`
-- keine Agent-Dateien
-- keine Harness-Dateien
-- keine Testdateien
-- keine Reports
+- keine lokalen Testdateien
+- keine lokalen Testpläne
+- keine lokalen Test-READMEs
+- keine lokalen Reports
 - keine Makefile-Targets
 - keine CI-Workflows
 
@@ -51,7 +49,7 @@ Alle Schritte: **planned only**
 4. SPOE-Agent-Konfiguration entwerfen. (planned only)
 5. Stub-Agent-Design dokumentieren. (planned only)
 6. Harness-Hooks dokumentieren. (planned only)
-7. Minimaltests dokumentieren. (planned only)
+7. Framework-side tests im ModSecurity-test-Framework planen. (planned only)
 8. Erst danach entscheiden, ob Code geschrieben werden darf. (planned only)
 
 ## Akzeptanzkriterien für diesen Artefaktplan
@@ -60,7 +58,7 @@ Dieser Plan ist akzeptiert, wenn:
 - keine ausführbaren Dateien erstellt wurden,
 - keine Funktionsfähigkeit behauptet wird,
 - offene HAProxy/SPOE-Fragen klar markiert sind,
-- der spätere Report nicht als vorhanden dargestellt wird.
+- lokale Tests und lokale Reports nicht als vorhanden dargestellt werden.
 
 ## Risiken
 

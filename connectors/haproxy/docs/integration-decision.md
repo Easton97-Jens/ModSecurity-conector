@@ -31,6 +31,10 @@ beanspruchen.
 
 ## Bewertungsfragen pro Option
 
+Für alle untenstehenden Fragen gilt:
+- Testdefinition und Testausführung erfolgen ausschließlich im ModSecurity-test-Framework.
+- No tests are stored in this connector repository.
+
 ### 1) SPOE / SPOA-Agent
 
 #### Request Inspection
@@ -64,14 +68,16 @@ beanspruchen.
 #### Harness Requirements
 - prepare / start / stop / send_request / collect_logs / cleanup: Im Repo als erwartete Harness-Aufgaben beschrieben, aber ohne HAProxy-Implementierung. **Im Repo belegt (ohne Implementierung).**
 
-#### Minimal Tests
-- HAProxy config syntax: **Im Repo als Mindestanforderung ableitbar, aber nicht implementiert.**
-- HAProxy starts: **Im Repo als Mindestanforderung belegt, aber nicht umgesetzt.**
-- Connector component starts: **Im Repo als Mindestanforderung belegt, aber nicht umgesetzt.**
-- benign request allowed: **Im Repo als Mindestanforderung ableitbar, nicht verifiziert.**
-- malicious request blocked: **Im Repo als Mindestanforderung ableitbar, nicht verifiziert.**
-- logs emitted: **Im Repo als Mindestanforderung belegt, aber nicht verifiziert.**
-- report generated: **Im Repo als Mindestanforderung belegt, aber nicht verifiziert.**
+#### Framework-seitige Testerwartungen
+- haproxy_config_syntax
+- haproxy_startup
+- spoa_component_startup
+- benign_request_allowed
+- malicious_request_block_signal
+- logs_emitted
+- report_generated
+
+Status: **Noch zu prüfen.**
 
 ### 2) HAProxy native Filter / native Extension
 
@@ -106,8 +112,9 @@ beanspruchen.
 #### Harness Requirements
 - prepare / start / stop / send_request / collect_logs / cleanup: **Im Repo belegt (als Erwartung), nicht implementiert.**
 
-#### Minimal Tests
-- HAProxy config syntax / HAProxy starts / Connector component starts / benign request allowed / malicious request blocked / logs emitted / report generated: **Als Anforderungen im Repo belegt, aber nicht runtime-verifiziert.**
+#### Framework-seitige Testerwartungen
+- wie oben, zentral im ModSecurity-test-Framework.
+Status: **Noch zu prüfen.**
 
 ### 3) Lua-basierte Integration
 
@@ -142,8 +149,9 @@ beanspruchen.
 #### Harness Requirements
 - prepare / start / stop / send_request / collect_logs / cleanup: **Im Repo belegt (als Erwartung), nicht implementiert.**
 
-#### Minimal Tests
-- HAProxy config syntax / HAProxy starts / Connector component starts / benign request allowed / malicious request blocked / logs emitted / report generated: **Als Anforderungen im Repo belegt, aber nicht runtime-verifiziert.**
+#### Framework-seitige Testerwartungen
+- wie oben, zentral im ModSecurity-test-Framework.
+Status: **Noch zu prüfen.**
 
 ### 4) Externer HTTP-Service / Sidecar
 
@@ -178,8 +186,9 @@ beanspruchen.
 #### Harness Requirements
 - prepare / start / stop / send_request / collect_logs / cleanup: **Im Repo belegt (als Erwartung), nicht implementiert.**
 
-#### Minimal Tests
-- HAProxy config syntax / HAProxy starts / Connector component starts / benign request allowed / malicious request blocked / logs emitted / report generated: **Als Anforderungen im Repo belegt, aber nicht runtime-verifiziert.**
+#### Framework-seitige Testerwartungen
+- wie oben, zentral im ModSecurity-test-Framework.
+Status: **Noch zu prüfen.**
 
 ## Aktueller Stand aus dem Repository
 
@@ -187,7 +196,7 @@ beanspruchen.
 - `connectors/haproxy/TODO.md`: Integrationsstrategie, Request/Response-Pfad, Intervention-Mapping, Logging, Build/Betrieb sind offen.
 - `connectors/haproxy/docs/architecture.md`: Optionen genannt, keine Entscheidung getroffen.
 - `connectors/haproxy/docs/build.md`: Build-Fragen offen, keine funktionierende Pipeline behauptet.
-- `connectors/haproxy/docs/validation.md`: Mindestanforderungen an Runtime-Evidence dokumentiert.
+- `connectors/haproxy/docs/validation.md`: Mindestanforderungen an Runtime-Evidence dokumentiert (framework-seitig).
 - `docs/connectors/future-connectors.md`: HAProxy erwartet SPOE oder native extension; schwierige Bereiche benannt.
 - `docs/architecture/connector-adapter-interface.md`: Required Hooks und Connector-/Runner-Grenzen definiert.
 

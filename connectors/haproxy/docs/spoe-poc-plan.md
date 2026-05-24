@@ -37,7 +37,7 @@ Der PoC muss mindestens beantworten:
 3. Kann eine harmlose Anfrage erlaubt werden? (Noch zu prüfen.)
 4. Kann eine bösartige Anfrage blockiert oder als block-würdig markiert werden? (Noch zu prüfen.)
 5. Kann das Ergebnis nachvollziehbar geloggt werden? (Noch zu prüfen.)
-6. Kann ein reproduzierbarer Report erzeugt werden? (Noch zu prüfen.)
+6. Kann ein reproduzierbarer Report erzeugt werden? (Noch zu prüfen; zentral im ModSecurity-test-Framework.)
 7. Welche Daten fehlen für ModSecurity? (Noch zu prüfen.)
 8. Ist Response-Header-Inspection möglich? (Extern zu verifizieren.)
 9. Ist Response-Body-Inspection möglich oder explizit nicht im Scope? (Extern zu verifizieren.)
@@ -50,7 +50,7 @@ In Scope:
 - Ein benign request wird erlaubt. (Noch zu prüfen.)
 - Ein malicious request wird blockiert oder eindeutig als block-würdig signalisiert. (Noch zu prüfen.)
 - Logs werden gesammelt. (Noch zu prüfen.)
-- Ein Report wird erzeugt. (Noch zu prüfen.)
+- Ein Report wird zentral im ModSecurity-test-Framework erzeugt. (Noch zu prüfen.)
 
 Out of Scope:
 - Produktionsreife.
@@ -74,18 +74,19 @@ Out of Scope:
 
 Hinweis: Hook-Namen sind als allgemeine Harness-Aufgaben im Repository belegt,
 aber die HAProxy-spezifische Umsetzung ist extern zu verifizieren.
+Die konkrete Testdefinition liegt ausschließlich im ModSecurity-test-Framework.
 
-## Minimaltests
+## Framework-seitige Testerwartungen
+Diese Punkte sind nur Framework-Erwartungen (keine lokalen Tests in diesem Repository):
+- haproxy_config_syntax
+- haproxy_startup
+- spoa_component_startup
+- benign_request_allowed
+- malicious_request_block_signal
+- logs_emitted
+- report_generated
 
-| Test | Zweck | Erwartetes Ergebnis | Status |
-|---|---|---|---|
-| haproxy_config_syntax | Prüfen, ob Testkonfiguration gültig ist | Noch zu prüfen. | planned |
-| haproxy_startup | Prüfen, ob HAProxy startet | Noch zu prüfen. | planned |
-| spoa_component_startup | Prüfen, ob externe Komponente startet | Noch zu prüfen. | planned |
-| benign_request_allowed | Harmlose Anfrage wird erlaubt | Noch zu prüfen. | planned |
-| malicious_request_block_signal | Bösartige Anfrage wird blockiert oder markiert | Noch zu prüfen. | planned |
-| logs_emitted | Logs entstehen | Noch zu prüfen. | planned |
-| report_generated | Report wird erzeugt | Noch zu prüfen. | planned |
+No tests are stored in this connector repository.
 
 ## Evidenzformat
 Definiere ein minimales Report-Format als Dokumentation:

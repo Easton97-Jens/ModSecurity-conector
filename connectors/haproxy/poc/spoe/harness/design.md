@@ -22,6 +22,8 @@ beweist keine Laufzeitfähigkeit.
 - Er würde später einen Report erzeugen.
 - Alles ist planned only / Noch zu prüfen.
 
+The harness contract would be consumed by the central ModSecurity-test-Framework; no tests are stored here.
+
 ## Nicht-Ziele
 - Kein ausführbarer Harness.
 - Keine Prozesssteuerung.
@@ -39,11 +41,11 @@ beweist keine Laufzeitfähigkeit.
 |---|---|---|---|---|---|
 | prepare | PoC-Verzeichnisse/Platzhalterzustand vorbereiten | Geplante Pfade, geplante Konfig-Platzhalter | Geplanter Arbeitsbereich | Noch zu prüfen. | planned only |
 | start | Geplante Startphase für HAProxy und SPOA-Komponente | Geplante Konfigpfade, geplante Prozessparameter | Geplante Prozesszustände | Noch zu prüfen. | planned only |
-| send_request | Geplante Auslösung von benign/malicious Requests | Geplante Requestdefinitionen | Geplante allow/block-Signale | Noch zu prüfen. | planned only |
-| collect_logs | Geplante Logsammlung | Geplante Logquellen | Geplante Logartefakte | Noch zu prüfen. | planned only |
+| send_request | Framework-seitig auszulösende benign/malicious Requests | Geplante Requestdefinitionen aus zentralem Framework | Geplante allow/block-Signale | Noch zu prüfen. | planned only |
+| collect_logs | Geplante Logsammlung für Framework-Evidenz | Geplante Logquellen | Geplante Logartefakte | Noch zu prüfen. | planned only |
 | stop | Geplantes Stoppen der Prozesse | Geplante Prozessreferenzen | Geplanter Stoppzustand | Noch zu prüfen. | planned only |
 | cleanup | Geplantes Aufräumen temporärer Artefakte | Geplante Artefaktliste | Geplanter bereinigter Zustand | Noch zu prüfen. | planned only |
-| generate_report | Geplante Reportgenerierung | Geplante Testergebnisse/Logreferenzen | Geplanter Reportpfad | Noch zu prüfen. | planned only |
+| generate_report | Framework-seitige Reportgenerierung | Geplante Testergebnisse/Logreferenzen | Geplanter Reportpfad im zentralen Framework | Noch zu prüfen. | planned only |
 
 ## Hook-Details
 
@@ -89,33 +91,15 @@ beweist keine Laufzeitfähigkeit.
 - Status: planned only.
 
 ### generate_report
-- geplanter Report:
-  `reports/testing/haproxy-spoe-poc-results.generated.md`
+- geplanter Report liegt ausschließlich im zentralen Test-Framework.
 - aktuell nicht vorhanden.
 - runtime_verified muss false bleiben, bis echte Ausführung erfolgt.
 - Reportfeld-Semantik: Noch zu prüfen.
 - Status: planned only.
 
 ## Geplantes Report-Schema
-Nur planned only:
-
-```json
-{
-  "connector": "haproxy",
-  "integration_model": "spoe_spoa",
-  "validation_mode": "poc",
-  "runtime_verified": false,
-  "syntax_executed": false,
-  "tests": [
-    {
-      "name": "benign_request_allowed",
-      "status": "planned",
-      "evidence": []
-    }
-  ],
-  "open_questions": []
-}
-```
+Nur planned only; die konkrete Erzeugung erfolgt zentral im
+ModSecurity-test-Framework.
 
 ## Grenzen / Nicht belegt
 - Dass dieser Harness lauffähig ist: Nicht belegbar aus dem aktuellen Repository.

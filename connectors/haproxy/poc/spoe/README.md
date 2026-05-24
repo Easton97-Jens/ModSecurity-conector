@@ -19,7 +19,19 @@ This directory does not contain a runnable HAProxy SPOE/SPOA PoC.
 ## Geplante, aber nicht erstellte Artefakte (planned only)
 - `connectors/haproxy/poc/spoe/haproxy.cfg.example` (planned only)
 - `connectors/haproxy/poc/spoe/spoe-agent.conf.example` (planned only)
-- `reports/testing/haproxy-spoe-poc-results.generated.md` (planned only)
+- Framework-side tests: planned in ModSecurity-test-Framework, not in this repository.
+- Framework-side report outputs: planned in ModSecurity-test-Framework, not in this repository.
+
+The example configuration files are illustrative only and not runtime verified.
+
+## Test- und Report-Ownership
+No tests are stored in this connector repository.
+
+All test definitions, test execution, runners, and generated reports belong to
+Easton97-Jens/ModSecurity-test-Framework.
+
+runtime_verified must remain false in this repository until external framework
+evidence is produced.
 
 ## Nicht-Ziele
 - Keine Runtime-Implementierung.
@@ -33,9 +45,3 @@ This directory does not contain a runnable HAProxy SPOE/SPOA PoC.
 - Exakte SPOE/SPOP-Konfigurationsdetails: Extern zu verifizieren.
 - Vollständige ModSecurity-Semantik: Nicht belegbar aus dem aktuellen Repository.
 - Request-/Response-/Intervention-Details: Noch zu prüfen.
-
-## Example files
-- `haproxy.cfg.example` (example only)
-- `spoe-agent.conf.example` (example only)
-
-The example configuration files are illustrative only and not runtime verified.

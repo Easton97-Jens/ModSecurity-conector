@@ -5,7 +5,15 @@
 Strukturchecks allein reichen nicht. Für HAProxy sind echte Runtime-Nachweise
 mit reproduzierbaren Artefakten erforderlich.
 
+No tests are stored in this connector repository.
+
+All test definitions, test execution, runners, and generated reports belong to
+Easton97-Jens/ModSecurity-test-Framework.
+
 ## Mindestanforderungen (Runtime Evidence)
+
+Für einen neuen Connector sind mindestens folgende Nachweise erforderlich
+(Framework-seitig):
 
 1. **HAProxy startet mit Testkonfiguration**
    - Konfiguration lädt ohne kritische Fehler.
