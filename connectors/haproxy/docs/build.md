@@ -1,11 +1,30 @@
-# HAProxy Build
+# HAProxy Scaffold Build Plan
 
-Status: unknown
+## Hinweis
 
-No build is implemented.
+Dieses Dokument beschreibt offene Build-Fragen. Es behauptet keine
+funktionierende Build-Pipeline.
 
-Open work is tracked in `docs/roadmap/todo-inventory.md`:
+## Offene Build-Fragen (noch zu prüfen)
 
-- If SPOE is chosen, document service build and HAProxy configuration files.
-- If Lua is chosen, document script packaging and runtime limits.
-- If a native filter is chosen, document HAProxy source/build requirements.
+- [ ] Wird ein kompilierter Connector-Bestandteil benötigt?
+- [ ] Wird ein separater SPOA-Agent gebaut?
+- [ ] Welche Abhängigkeiten/Versionen sind erforderlich?
+- [ ] Gibt es HAProxy-Testcontainer für reproduzierbare Läufe?
+- [ ] Welche Artefakte entstehen und wo werden sie abgelegt?
+
+## Build-Isolation (noch zu prüfen)
+
+- [ ] Alle generierten Artefakte unter `BUILD_ROOT` halten.
+- [ ] Keine Seiteneffekte außerhalb der vorgesehenen Build-Verzeichnisse.
+
+## Makefile-Integration (später, noch zu prüfen)
+
+- [ ] `smoke-haproxy` Target definieren.
+- [ ] Optional `build-haproxy`/`check-haproxy` Targets definieren.
+- [ ] Erforderliche Umgebungsvariablen dokumentieren.
+
+## Nicht enthalten
+
+- Keine finalen Build-Kommandos.
+- Keine Aussage, dass ein HAProxy-Build aktuell möglich ist.
