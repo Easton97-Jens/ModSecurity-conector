@@ -1,6 +1,15 @@
-# HAProxy Source
+# HAProxy Connector Source Placeholder
 
-Status: scaffolded
+Dieses Verzeichnis ist ein Platzhalter für spätere HAProxy-spezifische
+Implementierungsteile.
 
-HAProxy-specific adapter or service source belongs here after an integration
-path is selected.
+Aktuell gilt:
+
+- Keine produktive Runtime-Implementierung enthalten.
+- Kein produktiver C-Code enthalten.
+- Keine Aussage über Funktionsfähigkeit.
+
+Warnung:
+
+Apache-/NGINX-Code darf nicht kopiert werden, solange HAProxy-Lifecycle,
+Integrationspfade und APIs nicht separat bewiesen sind (noch zu prüfen).
