@@ -1,0 +1,37 @@
+# example_only: true
+# runtime_verified: false
+# purpose: illustrative SPOE engine/agent configuration placeholder
+# warning: Not guaranteed to run. Syntax and behavior must be externally verified.
+# documentation only
+
+# Extern zu verifizieren.
+# Diese Datei ist ein nicht-ausführender Beispielaufbau für SPOE/SPOA.
+# Keine Aussage, dass ModSecurity integriert ist.
+
+# Engine/Agent-Struktur (Platzhalter)
+# Extern zu verifizieren.
+[spoe-engine placeholder]
+spoe-agent backend be_spoe_agent_poc
+
+# Messages/Events (Platzhalter)
+# Extern zu verifizieren.
+[spoe-message check-request]
+event on-frontend-http-request
+
+# Geplante Request-Metadatenfelder (Platzhalter)
+# Extern zu verifizieren.
+# - method
+# - path
+# - query
+# - headers
+# Request Body: Noch zu prüfen.
+
+# Geplantes Intervention-Ergebnisfeld (Platzhalter)
+# Extern zu verifizieren.
+# - intervention_action = allow|block|log (placeholder semantics)
+# Intervention-Mapping: Noch zu prüfen.
+
+# Response Body: Noch zu prüfen.
+# Nicht belegbar aus dem aktuellen Repository:
+# - Vollständige Feld-/Direktivkompatibilität dieser Beispieldatei.
+# - Vollständige ModSecurity-Semantik über SPOE/SPOA.

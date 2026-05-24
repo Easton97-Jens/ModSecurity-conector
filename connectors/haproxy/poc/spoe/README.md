@@ -33,3 +33,9 @@ This directory does not contain a runnable HAProxy SPOE/SPOA PoC.
 - Exakte SPOE/SPOP-Konfigurationsdetails: Extern zu verifizieren.
 - Vollständige ModSecurity-Semantik: Nicht belegbar aus dem aktuellen Repository.
 - Request-/Response-/Intervention-Details: Noch zu prüfen.
+
+## Example files
+- `haproxy.cfg.example` (example only)
+- `spoe-agent.conf.example` (example only)
+
+The example configuration files are illustrative only and not runtime verified.

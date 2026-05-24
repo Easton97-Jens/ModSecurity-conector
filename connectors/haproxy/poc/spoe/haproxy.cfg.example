@@ -1,0 +1,55 @@
+# example_only: true
+# runtime_verified: false
+# purpose: illustrative HAProxy SPOE/SPOA PoC configuration placeholder
+# warning: Not guaranteed to run. Syntax and behavior must be externally verified.
+# documentation only
+
+# Extern zu verifizieren.
+# Diese Datei ist ein nicht-ausführender Beispielaufbau.
+# Keine Produktionswerte, keine Security-Claims.
+
+global
+    # Extern zu verifizieren.
+    # Example placeholder only; keine Produktionsparameter.
+    log stdout format raw local0
+
+defaults
+    # Extern zu verifizieren.
+    # Example placeholder only; keine finalen Timeout-/Mode-Werte.
+    mode http
+    timeout connect 5s   # example placeholder
+    timeout client  30s  # example placeholder
+    timeout server  30s  # example placeholder
+
+frontend fe_spoe_poc
+    # Extern zu verifizieren.
+    # Port ist ein Beispiel-Placeholder, nicht als Produktionswert zu verstehen.
+    bind :8080
+
+    # Extern zu verifizieren.
+    # Kommentierte SPOE-Filter-Stelle als Platzhalter.
+    # filter spoe engine spoe-modsecurity config /path/to/spoe-agent.conf
+
+    default_backend be_app_poc
+
+backend be_app_poc
+    # Extern zu verifizieren.
+    # Beispiel-Backend für normale Testantworten.
+    # Server/Port sind Platzhalter.
+    server app1 127.0.0.1:18080
+
+backend be_spoe_agent_poc
+    # Extern zu verifizieren.
+    # Dediziertes Backend für eine externe SPOA-Komponente (Platzhalter).
+    # Server/Port sind Platzhalter.
+    server spoa1 127.0.0.1:19090
+
+# Noch zu prüfen.
+# - Vollständige Request-Metadatenabdeckung
+# - Response-Header-Inspection
+# - Response-Body-Inspection
+# - Intervention-Mapping
+# - Fail-open/Fail-closed Verhalten
+
+# Nicht belegbar aus dem aktuellen Repository.
+# - Dass diese Beispielkonfiguration in einer realen Umgebung lauffähig ist.
