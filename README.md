@@ -30,12 +30,19 @@ fetched as runtime defaults.
 
 | Connector | Status | Primary path |
 | --- | --- | --- |
-| Apache | adapter-owned scaffold with source-build smoke harness | `connectors/apache/` |
-| NGINX | adapter-owned scaffold with source-build smoke harness | `connectors/nginx/` |
-| Envoy | placeholder scaffold | `connectors/envoy/` |
-| HAProxy | placeholder scaffold | `connectors/haproxy/` |
-| Lighttpd | placeholder scaffold | `connectors/lighttpd/` |
-| Traefik | placeholder scaffold | `connectors/traefik/` |
+| Apache | adapter-owned source tree with real-world smoke harness; evidence-scoped, not blanket stable | `connectors/apache/` |
+| NGINX | adapter-owned source tree with real-world smoke harness; evidence-scoped, not blanket stable | `connectors/nginx/` |
+| Envoy | deferred placeholder scaffold | `connectors/envoy/` |
+| HAProxy | deferred placeholder scaffold | `connectors/haproxy/` |
+| Lighttpd | deferred placeholder scaffold | `connectors/lighttpd/` |
+| Traefik | deferred placeholder scaffold | `connectors/traefik/` |
+
+Apache and NGINX pass claims must be tied to a specific smoke result. The
+current local `$BUILD_ROOT/results/connector-summary.json` can record default
+real-world connector PASS evidence, while the tracked force-all runtime matrix
+still records expected FAIL classes for xfail, future, connector-gap,
+runtime-difference, and response-body cases. API-only smokes are not connector
+proof.
 
 ## Connector Feature Status
 
@@ -137,8 +144,8 @@ connector and framework documentation without linking connector runtime code.
 
 ## Build And Runtime Integration
 
-The public connector targets remain stable and delegate to the framework module
-where appropriate:
+The public connector target names remain unchanged and delegate to the
+framework module where appropriate:
 
 ```sh
 make setup-dev
@@ -146,7 +153,10 @@ make lint
 make quick-check
 make generate-test-matrix
 make check-test-matrix
+make summary
+make case-matrix
 make runtime-matrix-all
+make smoke-common
 make smoke-apache
 make smoke-nginx
 make smoke-all
@@ -195,9 +205,20 @@ Connector-specific generated evidence is written in this repository under
 
 - Build docs: [Compile Nginx](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md)
 - Shared connector feature docs: [Shared Features](./SHARED_FEATURES.md)
-- Architecture docs: `docs/architecture/`
-- Connector docs: `docs/connectors/`
-- Licensing and origin index: `docs/licensing/license-and-origin.md`
+- Roadmap: [docs/roadmap/roadmap.md](./docs/roadmap/roadmap.md)
+- Architecture docs: [docs/architecture/](./docs/architecture/)
+- Capability model: [docs/architecture/capability-model.md](./docs/architecture/capability-model.md)
+- Status model: [docs/architecture/status-model.md](./docs/architecture/status-model.md)
+- Connector adapter interface: [docs/architecture/connector-adapter-interface.md](./docs/architecture/connector-adapter-interface.md)
+- Connector docs: [docs/connectors/](./docs/connectors/)
+- Rule-load stats: [docs/connectors/rule-load-stats.md](./docs/connectors/rule-load-stats.md)
+- YAML schema notes: [modules/ModSecurity-test-Framework/docs/imports/common/schema.md](./modules/ModSecurity-test-Framework/docs/imports/common/schema.md)
+- Shared fixtures: [modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md](./modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md)
+- Smoke target semantics: [modules/ModSecurity-test-Framework/docs/testing/fast-checks.md](./modules/ModSecurity-test-Framework/docs/testing/fast-checks.md)
+- Real-world connector validation: [reports/testing/real-world-connector-validation.md](./reports/testing/real-world-connector-validation.md)
+- Case matrix reports: [reports/testing/case-matrix.md](./reports/testing/case-matrix.md), [reports/testing/generated/case-matrix.generated.md](./reports/testing/generated/case-matrix.generated.md)
+- PR/source evidence: [reports/testing/evidence/pr-evidence-summary.md](./reports/testing/evidence/pr-evidence-summary.md), [reports/testing/evidence/raw-args-pr3564.md](./reports/testing/evidence/raw-args-pr3564.md)
+- Licensing and origin index: [docs/licensing/license-and-origin.md](./docs/licensing/license-and-origin.md)
 - Framework docs: `modules/ModSecurity-test-Framework/README.md`
 - Connector test evidence: `reports/testing/`
 - Generated coverage summary: `TEST-COVERAGE-SUMMARY.md`

@@ -2,21 +2,20 @@
 
 Status: implemented
 
-This directory is grouped by topic so the framework can stay navigable as the
-connector evidence grows.
+This directory is grouped by topic so connector-owned architecture, roadmap,
+and source-attribution docs stay navigable as the framework-owned case corpus
+and generated reports grow.
 
 ## Main Sections
 
 | Section | Purpose |
 | --- | --- |
 | `architecture/` | Common C-first model, adapter boundaries, status/capability models, and refactor plans |
-| `connectors/` | Apache/NGINX PoCs, real-world connector validation, and future connector planning |
-| `testing/` | YAML smoke cases, compatibility evidence, case matrix, and xfail investigations |
-| `imports/` | Source inventories, connector code import plans, import analyses, and pruning evidence |
-| `roadmap/` | Current roadmap and TODO inventory |
+| `connectors/` | Apache/NGINX directive/rule-load docs and future connector planning |
+| `roadmap/` | Current connector roadmap |
 | `licensing/` | License and origin policy for imported connector sources |
-| `evidence/` | PR-focused evidence summaries and mapped-only feature evidence |
-| `quality/` | SonarCloud and maintenance remediation tracking |
+| `../reports/testing/` | Connector-owned generated evidence, real-world validation notes, case matrix, and PR/source evidence |
+| `../modules/ModSecurity-test-Framework/docs/` | Framework-owned YAML schema, fixtures, case corpus, import analyses, TODO inventory, and reusable testing docs |
 
 ## Source References
 
@@ -33,7 +32,17 @@ variables and the upstream URLs above.
 ## First Reads
 
 - Architecture boundary: `architecture/architecture.md`
-- Real connector proof mode: `connectors/real-world-connector-validation.md`
-- Current compatibility evidence: `testing/compatibility.md`
-- Roadmap and open work: `roadmap/roadmap.md` and `roadmap/todo-inventory.md`
+- Capability model: `architecture/capability-model.md`
+- Status model: `architecture/status-model.md`
+- Real connector proof mode: `../reports/testing/real-world-connector-validation.md`
+- Current compatibility evidence: `../reports/testing/test-coverage-overview.md`
+- Case matrix: `../reports/testing/case-matrix.md` and
+  `../reports/testing/generated/case-matrix.generated.md`
+- Roadmap and open work: `roadmap/roadmap.md` and
+  `../modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`
+- YAML schema and shared fixtures:
+  `../modules/ModSecurity-test-Framework/docs/imports/common/schema.md` and
+  `../modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md`
+- PR/source evidence: `../reports/testing/evidence/pr-evidence-summary.md`
+  and `../reports/testing/evidence/raw-args-pr3564.md`
 - License and origin: `licensing/license-and-origin.md` and `../licenses/README.md`

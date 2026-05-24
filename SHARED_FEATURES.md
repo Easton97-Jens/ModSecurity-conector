@@ -110,6 +110,20 @@ The README's evidence rule is important: `make smoke-all` is authoritative only
 when it is actually executed successfully. Generated coverage is reporting, not
 runtime proof by itself.
 
+Current reference points:
+
+| Topic | Reference |
+| --- | --- |
+| YAML schema shape | `modules/ModSecurity-test-Framework/docs/imports/common/schema.md` |
+| Shared fixtures | `modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md` |
+| Smoke target semantics | `modules/ModSecurity-test-Framework/docs/testing/fast-checks.md` |
+| Capability model | `docs/architecture/capability-model.md` |
+| Status model | `docs/architecture/status-model.md` |
+| Origin/provenance and licenses | `docs/licensing/license-and-origin.md` |
+| Real-world connector path | `reports/testing/real-world-connector-validation.md` |
+| Case matrix | `reports/testing/case-matrix.md` and `reports/testing/generated/case-matrix.generated.md` |
+| PR/source evidence | `reports/testing/evidence/pr-evidence-summary.md` |
+
 ## Shared Build Variables
 
 The README documents the shared source-build variable pattern:

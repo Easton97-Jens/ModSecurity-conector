@@ -35,6 +35,11 @@ stay unchanged. Python/Shell runners mirror this mapping through
 `modules/ModSecurity-test-Framework/tests/runners/msconnector_models.py`; they do not load the C helper through
 FFI.
 
+Default smoke summaries, force-all runtime-matrix snapshots, and combined
+`make smoke-all` results are separate evidence classes. A PASS in one result
+file must not be generalized to mapped-only, xfail, future, connector-gap,
+runtime-difference, or blocked cases.
+
 ## Import Status
 
 | Status | Meaning |
@@ -68,3 +73,7 @@ HTTP response remains available as `expected_status`.
 
 `audit_behavior` is `unstable` while the `nolog,pass` no-audit case remains an
 xfail due the local/GitHub Actions difference.
+
+`RESPONSE_BODY` pass-through evidence is not response-body blocking support.
+RAW argument collections remain mapped-only until local PR #3564 support and
+Apache/NGINX real-world connector passes are present.
