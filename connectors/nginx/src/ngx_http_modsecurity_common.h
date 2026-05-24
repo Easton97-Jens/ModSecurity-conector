@@ -126,9 +126,13 @@ ngx_http_modsecurity_rule_load_stats(const ngx_http_modsecurity_main_conf_t *mmc
 {
     msconnector_rule_load_stats stats;
 
-    stats.inline_rules = (unsigned) mmcf->rules_inline;
-    stats.file_rules = (unsigned) mmcf->rules_file;
-    stats.remote_rules = (unsigned) mmcf->rules_remote;
+    msconnector_rule_load_stats_init(&stats);
+    msconnector_rule_load_stats_add_inline(&stats,
+                                           (unsigned) mmcf->rules_inline);
+    msconnector_rule_load_stats_add_file(&stats,
+                                         (unsigned) mmcf->rules_file);
+    msconnector_rule_load_stats_add_remote(&stats,
+                                           (unsigned) mmcf->rules_remote);
 
     return stats;
 }
