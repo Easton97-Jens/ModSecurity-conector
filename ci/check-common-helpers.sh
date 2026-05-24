@@ -44,6 +44,7 @@ int main(void) {
     msconnector_intervention intervention;
     msconnector_origin origin;
     msconnector_rule_load_stats rule_stats = {1, 2, 3};
+    msconnector_rule_load_stats added_stats = {4, 5, 6};
 
     assert(strcmp(msconnector_status_name(MSCONNECTOR_STATUS_OK), "ok") == 0);
     assert(strcmp(msconnector_status_name(MSCONNECTOR_STATUS_ERROR), "error") == 0);
@@ -87,6 +88,20 @@ int main(void) {
     assert(rule_stats.inline_rules == 1);
     assert(rule_stats.file_rules == 2);
     assert(rule_stats.remote_rules == 3);
+    msconnector_rule_load_stats_init(&rule_stats);
+    assert(rule_stats.inline_rules == 0);
+    assert(rule_stats.file_rules == 0);
+    assert(rule_stats.remote_rules == 0);
+    msconnector_rule_load_stats_add_inline(&rule_stats, 7);
+    msconnector_rule_load_stats_add_file(&rule_stats, 8);
+    msconnector_rule_load_stats_add_remote(&rule_stats, 9);
+    assert(rule_stats.inline_rules == 7);
+    assert(rule_stats.file_rules == 8);
+    assert(rule_stats.remote_rules == 9);
+    msconnector_rule_load_stats_add(&rule_stats, &added_stats);
+    assert(rule_stats.inline_rules == 11);
+    assert(rule_stats.file_rules == 13);
+    assert(rule_stats.remote_rules == 15);
     return 0;
 }
 EOF

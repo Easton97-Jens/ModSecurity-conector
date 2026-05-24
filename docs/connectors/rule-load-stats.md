@@ -23,6 +23,12 @@ rules loaded from rule files; it does not count the number of files. The
 structure contains no Apache types, no NGINX types, no libmodsecurity ownership
 objects, and no runtime callbacks.
 
+The common header also provides small inline helpers to initialize a stats
+struct and add inline, file, remote, or aggregate counts. These helpers are
+pure counter operations. They do not allocate memory, log, include server
+headers, or accept ownership of any connector runtime object. Callers pass valid
+stats pointers; the helpers do not define a silent NULL-pointer path.
+
 ## Semantics
 
 Rule-load stats are metadata. They are increased only after successful
@@ -60,6 +66,9 @@ The Apache parser paths update the stats only after successful rules loading:
 Apache directory config merge adds parent and child stats as metadata. It does
 not use `msc_rules_merge()` return values as counters, and it does not change
 the RulesSet merge behavior.
+
+Apache uses the common inline helper functions for initialization, successful
+load increments, and metadata-only merge addition.
 
 No Apache runtime path reads the stats. Hooks, filters, bucket brigades,
 intervention handling, transaction ownership, request body handling, and

@@ -104,7 +104,8 @@ static const char *msc_config_load_rules(cmd_parms *cmd, void *_cnf,
         return error;
     }
 
-    cnf->rule_load_stats.inline_rules += (unsigned) ret;
+    msconnector_rule_load_stats_add_inline(&cnf->rule_load_stats,
+        (unsigned) ret);
 
     return NULL;
 }
@@ -124,7 +125,8 @@ static const char *msc_config_load_rules_file(cmd_parms *cmd, void *_cnf,
         return error;
     }
 
-    cnf->rule_load_stats.file_rules += (unsigned) ret;
+    msconnector_rule_load_stats_add_file(&cnf->rule_load_stats,
+        (unsigned) ret);
 
     return NULL;
 }
@@ -144,7 +146,8 @@ static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_cnf,
         return error;
     }
 
-    cnf->rule_load_stats.remote_rules += (unsigned) ret;
+    msconnector_rule_load_stats_add_remote(&cnf->rule_load_stats,
+        (unsigned) ret);
 
     return NULL;
 }
@@ -241,9 +244,7 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
     cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
     cnf->transaction_id = NULL;
     cnf->transaction_id_expr = NULL;
-    cnf->rule_load_stats.inline_rules = 0;
-    cnf->rule_load_stats.file_rules = 0;
-    cnf->rule_load_stats.remote_rules = 0;
+    msconnector_rule_load_stats_init(&cnf->rule_load_stats);
     if (cnf->rules_set == NULL)
     {
         ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
@@ -384,22 +385,14 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
 
     if (cnf_p != NULL)
     {
-        cnf_new->rule_load_stats.inline_rules +=
-            cnf_p->rule_load_stats.inline_rules;
-        cnf_new->rule_load_stats.file_rules +=
-            cnf_p->rule_load_stats.file_rules;
-        cnf_new->rule_load_stats.remote_rules +=
-            cnf_p->rule_load_stats.remote_rules;
+        msconnector_rule_load_stats_add(&cnf_new->rule_load_stats,
+            &cnf_p->rule_load_stats);
     }
 
     if (cnf_c != NULL)
     {
-        cnf_new->rule_load_stats.inline_rules +=
-            cnf_c->rule_load_stats.inline_rules;
-        cnf_new->rule_load_stats.file_rules +=
-            cnf_c->rule_load_stats.file_rules;
-        cnf_new->rule_load_stats.remote_rules +=
-            cnf_c->rule_load_stats.remote_rules;
+        msconnector_rule_load_stats_add(&cnf_new->rule_load_stats,
+            &cnf_c->rule_load_stats);
     }
 
     return cnf_new;
