@@ -38,9 +38,7 @@ Evidence/paths:
   records Apache 54 PASS and NGINX 60 PASS, both with 0 FAIL and 0 BLOCKED.
 - Current `/src` With-CRS evidence:
   `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs`
-  records Apache 54 PASS / 1 FAIL and NGINX 60 PASS / 1 FAIL. The failing
-  case for both connectors is `action_status_401_phase1_block`, expected 401
-  and actual 403.
+  records Apache 55 PASS and NGINX 61 PASS, both with 0 FAIL and 0 BLOCKED.
 - Current With-CRS CRS case evidence: `crs_sqli_anomaly_block` PASS for
   Apache and NGINX, expected 403 and actual 403.
 - Historical NGINX 11 BLOCKED rows are resolved in the current `/src` reruns
@@ -91,17 +89,14 @@ complete matrix evidence.
 
 ## Test Variant Decision
 
-Question: How should the new `test-no-crs` and `test-with-crs` targets affect
+Question: How should the `test-no-crs` and `test-with-crs` targets affect
 connector scaffold and coverage decisions?
 
-Decision: accepted for target ownership and separated reporting; deferred for
-With-CRS full PASS.
+Decision: accepted for target ownership and separated reporting.
 
-Reason: Both targets are present in the parent `Makefile`. `test-no-crs`
-passed in the current `/src` run for Apache and NGINX. `test-with-crs` ran CRS
-fetch/prepare and verified the CRS SQLi anomaly case for both connectors, but
-the overall target failed because one Phase 1 status-code case returned HTTP
-403 instead of expected HTTP 401 for both connectors.
+Reason: Both targets are present in the parent `Makefile`. `test-no-crs` and
+`test-with-crs` passed in the current `/src` run for Apache and NGINX. The
+With-CRS run also verified the CRS SQLi anomaly case for both connectors.
 
 Evidence/paths:
 
@@ -115,12 +110,11 @@ Evidence/paths:
 
 Impact on new connectors: new connector docs must report No-CRS and With-CRS
 separately. A CRS-specific PASS may be claimed only for cases that passed under
-`test-with-crs`; it does not make the whole With-CRS target PASS when another
-case failed.
+`test-with-crs`.
 
-Follow-up change or needed evidence: keep With-CRS full-target PASS deferred
-until `make test-with-crs` exits 0 for the relevant connectors or the failing
-case expectation is changed with repository-backed evidence.
+Follow-up change or needed evidence: keep full promotion beyond `partial`
+deferred until RESPONSE_BODY blocking and the complete minimum matrix are
+documented.
 
 ## Decision 1: Roadmap References
 
@@ -248,6 +242,8 @@ Status vocabulary:
   provenance and metadata.
 - `runtime-smoke-verified`: only specific smoke cases with recorded command and
   result are verified.
+- `crs-verified`: With-CRS target or case claim has recorded command, CRS
+  evidence, and result.
 - `partial`: structure or partial runtime evidence exists, but full validation
   is not proven.
 - `not-verified`: insufficient runtime evidence.
@@ -344,14 +340,12 @@ treated as more than partially complete?
 Decision: deferred.
 
 Reason: The current `/src` common runtime run provides partial evidence only.
-Apache has 54 PASS and 0 BLOCKED in the final common summary, and NGINX now
-has 54 PASS and 0 BLOCKED in the final common summary. The current NGINX
-all-scope smoke also has 60 PASS and 0 BLOCKED. The current No-CRS target
-passed for Apache and NGINX. The current With-CRS target ran and failed with
-one failing Phase 1 status-code case for both connectors. These runs improve
-the documented runtime status, but RESPONSE_BODY blocking is not verified,
-With-CRS is not fully passing, and generated reports are not runtime PASS
-proof.
+Apache has 54 PASS and 0 BLOCKED in the final common summary, and NGINX has
+54 PASS and 0 BLOCKED in the final common summary. The current No-CRS target
+passed for Apache and NGINX, and the current With-CRS target also passed for
+Apache and NGINX. These runs improve the documented runtime status, but
+RESPONSE_BODY blocking is not verified and generated reports are not runtime
+PASS proof.
 
 Evidence/paths:
 

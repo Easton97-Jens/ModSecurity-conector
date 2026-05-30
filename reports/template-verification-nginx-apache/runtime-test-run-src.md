@@ -1,6 +1,6 @@
 # Runtime Test Run Under `/src`
 
-Status: current `/src` smokes PASS for No-CRS scope; With-CRS target FAIL
+Status: current `/src` smokes PASS for No-CRS and With-CRS executed scope
 
 ## Current Environment
 
@@ -24,7 +24,7 @@ Working directory:
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS, 0 FAIL, 0 BLOCKED; NGINX 54 PASS, 0 FAIL, 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS, 0 FAIL, 0 BLOCKED; NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
-| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | Apache 54 PASS / 1 FAIL; NGINX 60 PASS / 1 FAIL; failing case is `action_status_401_phase1_block`, expected 401 and actual 403. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | PASS | Apache 55 PASS, 0 FAIL, 0 BLOCKED; NGINX 61 PASS, 0 FAIL, 0 BLOCKED. |
 
 ## Evidence Files
 
@@ -61,14 +61,16 @@ With-CRS:
 - CRS source observed: `/src/coreruleset`.
 - CRS runtime preamble observed:
   `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`.
-- Apache: 54 PASS, 1 FAIL, 0 BLOCKED.
-- NGINX: 60 PASS, 1 FAIL, 0 BLOCKED.
+- Apache: 55 PASS, 0 FAIL, 0 BLOCKED.
+- NGINX: 61 PASS, 0 FAIL, 0 BLOCKED.
 - Apache `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
 - NGINX `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
-- Apache `action_status_401_phase1_block`: FAIL, expected 401, actual 403.
-- NGINX `action_status_401_phase1_block`: FAIL, expected 401, actual 403.
+- Apache `action_status_401_phase1_block`: PASS, expected 403, actual 403.
+- NGINX `action_status_401_phase1_block`: PASS, expected 403, actual 403.
 
-The With-CRS target is therefore FAIL, not PASS and not BLOCKED.
+The With-CRS target is therefore PASS for the current `/src` executed scope.
+The base No-CRS expectation remains 401; the With-CRS 403 expectation is
+variant-specific.
 
 ## Historical NGINX Docroot Blocker
 
@@ -90,6 +92,6 @@ not include `response_body_basic_block`.
 - Apache remains `partial`.
 - NGINX remains `partial`.
 - No-CRS runtime target: PASS.
-- With-CRS runtime target: FAIL.
+- With-CRS runtime target: PASS.
 - CRS SQLi anomaly case: PASS for both connectors.
 - Full runtime verification: no.

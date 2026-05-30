@@ -1,33 +1,56 @@
-# Build – Connector Template
+# Build - Connector Template
 
-## Zweck
+## Purpose
 
-Platzhalter für die Build-Strategie eines konkreten neuen Connectors.
+This document records the build evidence a concrete connector must provide.
+The template itself does not contain build commands for a not-yet-implemented
+connector.
 
-## Grundsatz
+## Build checklist
 
-Jeder Connector benötigt eigene, server-spezifische Build-Regeln. Ein
-Build-Rezept aus Apache oder NGINX darf nur nach technischer Prüfung und
-Anpassung übernommen werden.
+- [ ] Build command documented.
+- [ ] Include paths documented.
+- [ ] Library paths documented.
+- [ ] Build artifacts documented.
+- [ ] Build log path documented.
+- [ ] Clean/refresh behavior documented.
+- [ ] External dependency versions or pins documented.
+- [ ] Build output location under `BUILD_ROOT` documented.
+- [ ] Compiler/linker failures documented without guessing.
 
-## Mindestinhalte (noch zu prüfen)
+## Required fields for a concrete connector
 
-- Build-Voraussetzungen (Compiler, SDKs, Server-Header, libmodsecurity)
-- Verzeichnislayout für Build-Artefakte unter `BUILD_ROOT`
-- Schritte zur lokalen Reproduktion (clean build)
-- Fehlerbilder und Troubleshooting
-- Versionierung/Pinning der externen Quellen
+```text
+Connector:
+Source path:
+Build command:
+Environment:
+Include paths:
+Library paths:
+Artifacts:
+Build log:
+Exit code:
+```
 
-## Makefile-Integration (TODO)
+## Makefile integration checklist
 
-Für einen konkreten Connector sind TODOs zu prüfen:
+- [ ] `smoke-<name>` target found or added with evidence.
+- [ ] Optional `build-<name>` or `check-<name>` target documented, if present.
+- [ ] Required environment variables documented.
+- [ ] Artifacts remain below the documented build root.
+- [ ] No global source tree is deleted or overwritten by the build flow.
 
-- [ ] `smoke-<name>` Target ergänzen
-- [ ] optional `build-<name>`/`check-<name>` Targets ergänzen
-- [ ] Dokumentation der notwendigen Umgebungsvariablen ergänzen
-- [ ] sicherstellen, dass keine Artefakte außerhalb `BUILD_ROOT` entstehen
+## Evidence rules
 
-## Nicht enthalten
+- A build claim requires the exact command, exit code, artifact path, and log
+  path.
+- A copied build recipe from Apache or NGINX must be reviewed against the new
+  server's build system.
+- Include/library paths must be found in the build command, generated Makefile,
+  or build log.
+- If a dependency path is not found, document `Nicht im Repository gefunden`.
 
-Dieses Template liefert absichtlich keine konkreten Build-Kommandos für einen
-noch nicht implementierten Connector.
+## Not included
+
+This template intentionally does not provide concrete build commands, compiler
+flags, server SDK assumptions, or generated artifacts for a future connector.

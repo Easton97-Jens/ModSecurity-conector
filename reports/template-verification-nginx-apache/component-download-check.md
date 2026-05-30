@@ -32,7 +32,7 @@ the Apache and NGINX connector verification.
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS, NGINX 54 PASS; both 0 FAIL and 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS, NGINX 60 PASS; both 0 FAIL and 0 BLOCKED. |
-| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | Apache 54 PASS / 1 FAIL; NGINX 60 PASS / 1 FAIL; both fail `action_status_401_phase1_block`, expected 401 and actual 403. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | PASS | Apache 55 PASS, 0 FAIL, 0 BLOCKED; NGINX 61 PASS, 0 FAIL, 0 BLOCKED. |
 
 Evidence files:
 
@@ -61,9 +61,9 @@ CRS case evidence:
 - Apache `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
 - NGINX `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
 
-The overall With-CRS target remains FAIL because
-`action_status_401_phase1_block` returned 403 instead of expected 401 for both
-connectors.
+The overall With-CRS target is now PASS for the current `/src` executed scope.
+`action_status_401_phase1_block` is expected 403 and actual 403 in With-CRS;
+the base No-CRS expectation remains 401.
 
 ## NGINX Build Include Contract
 
@@ -103,7 +103,7 @@ evidence.
 
 ## Decision
 
-Component preparation is sufficient for the documented `/src` No-CRS and
-common smoke evidence. CRS fetch/prepare ran for With-CRS and the CRS SQLi case
-passed for both connectors, but the With-CRS target is not passing overall.
-Full runtime verification and RESPONSE_BODY blocking remain not verified.
+Component preparation is sufficient for the documented `/src` No-CRS,
+With-CRS, and common smoke evidence. CRS fetch/prepare ran for With-CRS and
+the CRS SQLi case passed for both connectors. Full runtime verification and
+RESPONSE_BODY blocking remain not verified.

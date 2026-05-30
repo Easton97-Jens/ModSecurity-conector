@@ -1,103 +1,233 @@
 # Connector Template
 
 Status:
+
+- template: yes
 - scaffolded: yes
 - implemented: no
 - build_verified: no
 - runtime_verified: no
 - promoted: no
 
-## Zweck
+## Purpose
 
-Dieses Verzeichnis ist ein **generisches, adapter-owned Connector-Template** für
-neue Integrationen. Es liefert nur Struktur, Dokumentation und Checklisten.
+This directory is a repeatable documentation scaffold for future
+`connectors/<name>/` implementations. It describes what a new connector must
+fill in before it may claim build or runtime behavior.
 
-## Wichtige Warnung
+It is not a productive connector implementation. It intentionally contains no
+productive adapter code, no local test suite, and no server-specific runtime
+claims.
 
-Dieses Template ist **keine Implementierung** eines produktiven Connectors.
-Es enthält absichtlich **keinen produktiven C-Code** und macht **keine Aussage**,
-dass ein neuer Connector funktioniert.
+## When to use this template
 
-Alles, was nicht durch echte Build- und Runtime-Evidenz belegt ist, bleibt
-"TODO" oder "noch zu prüfen".
+Use this template when creating a new connector tree that still needs
+repository-backed evidence for origin, metadata, build integration, runtime
+behavior, and promotion status.
 
-## Status-Vokabular
+Do not use this template to claim that Apache, NGINX, or any other connector
+behavior is automatically portable to a new server. Server lifecycle, hook
+model, request/response body handling, logging, and intervention mapping must
+be proven for each connector.
 
-- `template`: generische Vorlage, keine Implementierung.
-- `scaffolded`: Struktur vorhanden, aber keine belegte Adapter-Implementierung.
-- `adapter-owned`: produktiver Connector-Code liegt im Connector-Baum mit
-  Herkunft und Metadaten.
-- `runtime-smoke-verified`: nur konkret gelaufene Smoke-Fälle mit Command und
-  Ergebnis.
-- `partial`: Struktur oder Teilruntime ist belegt, aber keine vollständige
-  Verifikation.
-- `not-verified`: keine ausreichende Runtime-Evidenz.
+## Files to create for a new connector
 
-## Erwartete Ordnerstruktur
+Copy this structure into `connectors/<name>/` and replace placeholders only
+with evidence found in the repository or produced by executed commands:
 
 ```text
-connectors/_template/
-├── README.md
-├── TODO.md
-├── docs/
-│   ├── architecture.md
-│   ├── build.md
-│   ├── coverage-decision-matrix.md
-│   └── validation.md
-├── harness/
-│   └── README.md
-├── src/
-│   └── README.md
+connectors/<name>/
+|-- README.md
+|-- TODO.md
+|-- ORIGIN.md
+|-- SOURCE_MAP.json
+|-- metadata.c or metadata.*
+|-- docs/
+|   |-- architecture.md
+|   |-- build.md
+|   |-- coverage-decision-matrix.md
+|   `-- validation.md
+|-- harness/
+|   `-- README.md
+`-- src/
+    `-- README.md
 ```
 
-## Herkunft des Musters (belegt)
+Do not create `connectors/<name>/tests`. Executable connector tests are
+framework-owned, not connector-local.
 
-Die Struktur orientiert sich an den im Repository vorhandenen adapter-owned
-Connector-Bäumen (insbesondere Apache und NGINX), ohne deren Runtime-Verhalten
-als generisch zu behaupten.
+## Required metadata
 
-## Nutzungshinweis
+- [ ] `metadata.*` created.
+- [ ] Connector name is unique.
+- [ ] Upstream project and version documented.
+- [ ] Build mode documented.
+- [ ] Maintainer or ownership documented.
+- [ ] Status vocabulary used consistently.
 
-Für einen konkreten neuen Connector sollte dieses Template nach
-`connectors/<name>/` kopiert und anschließend ausschließlich mit nachweisbarer
-Build-/Runtime-Evidenz weiterentwickelt werden.
+## Required origin/license evidence
 
-Runtime-Claims dürfen erst gesetzt werden, wenn der konkrete Command, das
-Ergebnis und die betroffenen Fälle dokumentiert sind. Ein Strukturcheck oder
-ein Build-Artefakt ist kein Runtime-PASS.
+- [ ] `ORIGIN.md` created.
+- [ ] Upstream source documented.
+- [ ] License documented.
+- [ ] Imported files documented.
+- [ ] Local changes documented.
+- [ ] Source map or equivalent provenance file documented.
 
-## Tests
+No upstream source, file, license, or version may be guessed. If it is not
+found, write `Nicht im Repository gefunden` or keep the item open.
 
-Dieses Template enthält keinen lokalen `tests`-Ordner. Neue Connectoren dürfen
-keinen lokalen `connectors/<name>/tests`-Ordner anlegen. Ausführbare Tests
-werden nicht connector-lokal gepflegt.
+## Required build evidence
 
-Belegte externe Framework-Pfade für neue Connector-Dokumentation:
+- [ ] Build command documented.
+- [ ] Include paths documented.
+- [ ] Library paths documented.
+- [ ] Build artifacts documented.
+- [ ] Build log path documented.
+- [ ] Clean or refresh behavior documented.
+- [ ] External dependency versions or pins documented when found.
+
+A build claim requires the exact command, result, and log path. Static file
+presence alone is not build verification.
+
+## Required runtime evidence
+
+- [ ] `make test-no-crs` executed, if the target exists.
+- [ ] `make test-with-crs` executed, if the target exists.
+- [ ] `make smoke-common` executed, if the target exists.
+- [ ] Apache/NGINX or connector-specific scope documented.
+- [ ] PASS/FAIL/BLOCKED counts documented.
+- [ ] Summary JSON paths documented.
+- [ ] RESPONSE_BODY blocking checked.
+- [ ] Negative/pass-through checked.
+- [ ] Audit/log evidence checked.
+
+Runtime claims require executed commands and result files. Generated coverage
+reports can support planning, but they are not runtime proof by themselves.
+
+## No-CRS validation
+
+For a concrete connector, document the exact No-CRS command and result:
+
+```sh
+SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-no-crs
+```
+
+Record:
+
+- command and exit code
+- connector scope
+- PASS/FAIL/BLOCKED counts
+- relevant case-level expected and actual statuses
+- summary JSON paths
+
+A No-CRS PASS does not imply a With-CRS PASS.
+
+## With-CRS validation
+
+For a concrete connector, document the exact With-CRS command and result:
+
+```sh
+SOURCE_ROOT=<path> BUILD_ROOT=<path> REFRESH=1 make test-with-crs
+```
+
+Record:
+
+- command and exit code
+- CRS source path
+- CRS runtime preamble path
+- connector scope
+- PASS/FAIL/BLOCKED counts
+- CRS-specific case evidence
+- summary JSON paths
+
+If a case has different valid expectations in No-CRS and With-CRS modes, the
+expectation model must keep those variants separate. Do not change a base
+No-CRS expectation to satisfy a With-CRS result.
+
+## Coverage decision matrix
+
+Each concrete connector must maintain `docs/coverage-decision-matrix.md`.
+The matrix must separate:
+
+- framework case availability
+- No-CRS runtime result
+- With-CRS runtime result
+- evidence path
+- promotion decision
+
+The matrix must cover at least phase 1, phase 2, phase 3, phase 4,
+RESPONSE_BODY blocking, negative/pass-through behavior, audit/log evidence,
+startup/reload validation, and remaining FAIL/BLOCKED rows.
+
+## Promotion gates
+
+`scaffolded`:
+
+- structure exists
+- documentation foundation exists
+- no runtime claims
+
+`adapter-owned`:
+
+- source, build, metadata, and origin files exist
+- provenance and local changes are documented
+
+`runtime-smoke-verified`:
+
+- current `make test-no-crs` PASS for the claimed connector/scope
+- current connector smoke PASS for the claimed connector/scope
+- command and result paths documented
+
+`crs-verified`:
+
+- current `make test-with-crs` PASS for the claimed connector/scope
+- CRS loaded/effective evidence documented
+- CRS-specific expectations documented
+
+`more-than-partial`:
+
+- No-CRS PASS
+- With-CRS PASS
+- phase 1/2/3/4 minimum matrix PASS
+- negative/pass-through PASS
+- audit/log evidence present
+- RESPONSE_BODY blocking verified, or explicitly documented as unsupported or
+  a known gap with evidence
+- no open FAIL/BLOCKED rows in the defined minimum matrix
+
+## Status vocabulary
+
+- `template`: generic starting point, not an implementation.
+- `scaffolded`: structure exists, no repository-backed adapter implementation
+  is proven.
+- `adapter-owned`: productive connector code lives in the connector tree with
+  provenance and metadata.
+- `runtime-smoke-verified`: only specific smoke cases with recorded command and
+  result are verified.
+- `crs-verified`: With-CRS target or case claim has recorded command, CRS
+  evidence, and result.
+- `partial`: structure or partial runtime evidence exists, but full validation
+  is not proven.
+- `not-verified`: insufficient runtime evidence.
+
+## What must not be claimed
+
+- Do not claim a local `connectors/<name>/tests` suite exists.
+- Do not claim runtime PASS without a command, exit code, and result path.
+- Do not claim With-CRS PASS from No-CRS evidence.
+- Do not claim RESPONSE_BODY blocking from pass-through or log-only evidence.
+- Do not claim a connector is more than `partial` while the minimum matrix has
+  unaddressed FAIL/BLOCKED rows.
+- Do not invent upstream source, license, build flags, APIs, tests, or
+  framework paths.
+
+## External framework tests
+
+Repository-backed framework paths used by connector documentation:
 
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/<connector>/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
-Wenn die Make-Targets im konkreten Repository vorhanden sind, muessen
-Runtime-Ergebnisse fuer CRS-Varianten getrennt dokumentiert werden:
-
-- `make test-no-crs`: lokale YAML-Regeln ohne CRS.
-- `make test-with-crs`: CRS vorbereiten/laden und danach lokale YAML-Regeln
-  ausfuehren.
-
-Ein PASS in `test-no-crs` ist kein PASS fuer `test-with-crs`. Ein einzelner
-PASS eines CRS-Falls ist kein Gesamt-PASS fuer `test-with-crs`, wenn ein
-anderer Fall FAIL ist.
-
-## Coverage / Runtime Decision Matrix
-
-Neue Connectoren muessen `docs/coverage-decision-matrix.md` ausfuellen. Die
-Matrix trennt Framework-Coverage von Runtime-Verifikation und zeigt, welche
-Evidenz erforderlich ist, bevor ein Connector mehr als `partial` sein darf.
-
-## RESPONSE_BODY
-
-`RESPONSE_BODY` bleibt `not-verified`, bis mindestens diese Evidenz vorhanden
-ist: belegbarer Runtime-Testcase im Framework, erwarteter blockierender
-Response-Body-Trigger, tatsächliches blockierendes Ergebnis wie HTTP 403,
-Log-/Report-Evidence, ausgeführter Command und betroffener Connector.
+Make targets must be cited only when present in the parent `Makefile`.

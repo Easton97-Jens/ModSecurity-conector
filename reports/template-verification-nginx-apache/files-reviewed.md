@@ -85,6 +85,8 @@
 - `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 - `modules/ModSecurity-test-Framework/tests/runners/runner_core.py`
+- `modules/ModSecurity-test-Framework/tests/README.md`
+- `modules/ModSecurity-test-Framework/tests/runners/README.md`
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/README.md`
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/README.md`
@@ -116,9 +118,11 @@
 - `/src/ModSecurity-conector-build/results/no-crs/connector-summary.json`
 - `/src/ModSecurity-conector-build/results/no-crs/connector-summary.txt`
 - `/src/ModSecurity-conector-build/results/with-crs/apache-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/apache-summary.txt`
 - `/src/ModSecurity-conector-build/results/with-crs/apache-results.jsonl`
 - `/src/ModSecurity-conector-build/results/with-crs/apache.rc`
 - `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.txt`
 - `/src/ModSecurity-conector-build/results/with-crs/nginx-results.jsonl`
 - `/src/ModSecurity-conector-build/results/with-crs/nginx.rc`
 - `/src/ModSecurity-conector-build/results/with-crs/connector-summary.json`

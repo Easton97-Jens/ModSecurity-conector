@@ -13,13 +13,12 @@ still need evidence. Full decision details are in
 - Last documented default blocker:
   `/root/.local/state/ModSecurity-conector-build/sources/ModSecurity_V3`
   missing.
-- Current `/src` runtime evidence: Apache 54 PASS and NGINX 54 PASS in
-  `make smoke-common`.
-- Current `/src` NGINX all-scope evidence: 60 PASS, 0 FAIL, 0 BLOCKED.
-- Current `/src` `make test-no-crs`: PASS; Apache 54 PASS, NGINX 60 PASS,
+- Current `/src` `make smoke-common`: PASS; Apache 54 PASS and NGINX 54 PASS,
   both 0 FAIL and 0 BLOCKED.
-- Current `/src` `make test-with-crs`: FAIL; Apache 54 PASS / 1 FAIL and
-  NGINX 60 PASS / 1 FAIL.
+- Current `/src` `make test-no-crs`: PASS; Apache 54 PASS and NGINX 60 PASS,
+  both 0 FAIL and 0 BLOCKED.
+- Current `/src` `make test-with-crs`: PASS; Apache 55 PASS and NGINX 61 PASS,
+  both 0 FAIL and 0 BLOCKED.
 - Current With-CRS CRS evidence: `crs_sqli_anomaly_block` PASS for Apache and
   NGINX, expected 403 and actual 403.
 - RESPONSE_BODY blocking: not verified.
@@ -35,31 +34,31 @@ still need evidence. Full decision details are in
   Executable tests are framework-owned and referenced through
   `modules/ModSecurity-test-Framework/tests/cases/`,
   `modules/ModSecurity-test-Framework/tests/cases/connector-specific/<connector>/`,
-  `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`, and the
-  repository `smoke-*` Make targets.
+  `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`, and
+  repository Make targets when present.
 - NGINX-specific framework YAML cases are available under
   `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`.
 - The current NGINX build contract is
   `MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include`.
 - The current NGINX docroot work-parent contract is
   `NGINX_HARNESS_PARENT=$(BUILD_ROOT)`.
-- The historical NGINX 11 BLOCKED rows are classified as an environment/docroot
-  permission blocker and are resolved in the current `/src` reruns.
+- Historical NGINX 11 BLOCKED rows are classified as an environment/docroot
+  permission blocker and are resolved in current `/src` reruns.
 - `make test-no-crs` is a documented target and currently passed for Apache
   and NGINX under `/src`.
-- `make test-with-crs` is a documented target and currently ran with CRS
-  preparation; the target is FAIL, not BLOCKED, because
-  `action_status_401_phase1_block` returned 403 instead of expected 401 for
-  both connectors.
-- CRS loading is evidenced for the current With-CRS run by
-  `/src/coreruleset` and
-  `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`.
-- `action_status_401_phase1_block` is not evidenced as a connector-specific
-  Apache-only or NGINX-only bug. Both connectors pass the same case in No-CRS
-  scope and fail with the same 401/403 mismatch in With-CRS scope. Detailed
-  analysis is in `crs-action-status-401-analysis.md`.
+- `make test-with-crs` is a documented target and currently passed for Apache
+  and NGINX under `/src`.
+- CRS loading is evidenced for the current With-CRS run by `/src/coreruleset`,
+  `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`, and
+  `crs_sqli_anomaly_block` PASS for both connectors.
+- `action_status_401_phase1_block` is now resolved for the current `/src`
+  runs by a With-CRS-specific expectation: No-CRS remains expected/actual 401,
+  With-CRS is expected/actual 403.
 - The shared scaffold status vocabulary is: `template`, `scaffolded`,
-  `adapter-owned`, `runtime-smoke-verified`, `partial`, and `not-verified`.
+  `adapter-owned`, `runtime-smoke-verified`, `crs-verified`, `partial`, and
+  `not-verified`.
+- Template promotion gates are documented: `scaffolded`, `adapter-owned`,
+  `runtime-smoke-verified`, `crs-verified`, and `more-than-partial`.
 
 ## Still Open / Deferred
 
@@ -71,15 +70,10 @@ still need evidence. Full decision details are in
   runtime testcase, expected blocking response-body trigger, actual blocking
   result such as HTTP 403, log/report evidence, executed command, affected
   connector, and separate Apache/NGINX documentation for any shared claim.
-- With-CRS overall PASS remains deferred. Needed evidence: rerun
-  `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs`
-  with 0 FAIL and 0 BLOCKED, or document a repository-backed expected-status
-  change for `action_status_401_phase1_block`.
-- Exact cause for the With-CRS `action_status_401_phase1_block` 401/403
-  mismatch remains deferred. Needed evidence: per-connector audit evidence,
-  targeted isolation of CRS/default-action behavior, or a repository-backed
-  testcase decision proving whether With-CRS should expect 401, expect 403, or
-  exclude this non-CRS action/status case.
+- Exact CRS/default-action or ModSecurity action-merging cause for the
+  With-CRS 403 response remains deferred. Needed evidence: per-connector audit
+  evidence or targeted isolation proving the final disruptive rule/action
+  mechanics. The runtime mismatch itself is resolved by scoped expectations.
 - NGINX-specific `nginx_phase4_strict_connection_abort` runtime status remains
   deferred for the current target summaries. Needed evidence: a current
   summary/result entry for that case and its command result. The YAML file
@@ -91,7 +85,8 @@ still need evidence. Full decision details are in
   evidence: documented runtime results for `phase1_header_block`,
   request-body blocking, response-header blocking when framework-supported,
   response-body blocking, audit/log evidence, connector startup/reload
-  validation, and a negative/pass-through case.
+  validation, and a negative/pass-through case, with no open FAIL/BLOCKED rows
+  in the claimed minimum matrix.
 - Default `make smoke-common` without explicit `/src` environment remains
   deferred for this workspace. Needed evidence: run `make fetch-deps` for the
   default `BUILD_ROOT`/`SOURCE_ROOT`, or provide a valid

@@ -12,7 +12,7 @@ runtime rows.
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS, 0 FAIL, 0 BLOCKED; NGINX 54 PASS, 0 FAIL, 0 BLOCKED |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED |
-| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | NGINX 60 PASS, 1 FAIL, 0 BLOCKED; failing case is `action_status_401_phase1_block`, expected 401 and actual 403 |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | PASS | NGINX 61 PASS, 0 FAIL, 0 BLOCKED |
 
 Current evidence:
 
@@ -71,8 +71,8 @@ Current classification: resolved for `/src` runs with
 No historical blocked case is counted as PASS for the old run. The PASS status
 comes only from the new reruns listed above.
 
-The current With-CRS FAIL is not a recurrence of the docroot BLOCKED issue. It
-is a runtime expectation failure for `action_status_401_phase1_block`.
+The former With-CRS expectation mismatch is resolved in the current `/src`
+run. It was not a recurrence of the docroot BLOCKED issue.
 
 RESPONSE_BODY blocking remains `not verified`: `response_body_pass` is a
 pass-through case, not a blocking response-body testcase.

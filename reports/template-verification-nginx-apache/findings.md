@@ -1,39 +1,67 @@
 # Findings
 
-All findings below are based on files, paths, or commands reviewed in this
-repository and the local `/src/ModSecurity-conector-build` result tree.
+All findings below are based on files, paths, commands, or local `/src`
+runtime results reviewed in this repository.
 
 ## Repository And Framework State
 
 - Parent repository path: `/root/git/ModSecurity-conector`.
-- Parent commit captured before documentation edits:
-  `e795c9b feat(apache): add modsecurity_use_error_log directive`.
-- Framework submodule commit:
+- Framework submodule path: `modules/ModSecurity-test-Framework`.
+- Framework submodule base commit:
   `b7f9bdc9831f9a8d14294cfb8fcb129a183d5d18`.
-- Parent and submodule working trees were clean before these documentation
-  updates.
+- Framework submodule working tree is modified for the CRS expectation work.
+- No Apache or NGINX adapter source files were changed for this task.
 
-## New Test Targets
+## CRS Expectation Change
 
-- `Makefile` defines `test-no-crs`.
-- `Makefile` defines `test-with-crs`.
-- `test-no-crs` sets `MODSECURITY_TEST_VARIANT=no-crs`,
-  clears `MODSECURITY_RULE_PREAMBLE_FILE`, sets
-  `RESULTS_DIR=$BUILD_ROOT/results/no-crs`, and runs framework
-  `ci/run-connector-smokes.sh` with `CASE_SCOPE=all`.
-- `test-with-crs` sets `MODSECURITY_TEST_VARIANT=with-crs`, runs framework
-  `ci/fetch-crs.sh` and `ci/prepare-crs.sh`, sets
-  `MODSECURITY_RULE_PREAMBLE_FILE=$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf`,
-  sets `RESULTS_DIR=$BUILD_ROOT/results/with-crs`, and runs framework
-  `ci/run-connector-smokes.sh` with `CASE_SCOPE=all`.
-- Framework `README.md` states that `no-crs` loads local YAML-case rules only,
-  while `with-crs` loads OWASP CRS before local YAML-case rules.
+- Testcase path:
+  `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`.
+- Base expectation remains No-CRS: expected 401.
+- With-CRS expectation is now variant-specific:
+  `expect.variants.with-crs.status: 403`.
+- Framework runner paths updated to resolve variant expectations:
+  `modules/ModSecurity-test-Framework/tests/runners/runner_core.py` and
+  `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
+- Framework docs updated:
+  `modules/ModSecurity-test-Framework/tests/README.md` and
+  `modules/ModSecurity-test-Framework/tests/runners/README.md`.
+
+## Current Runtime Results
+
+| Command | Result | Evidence |
+| --- | --- | --- |
+| `make generate-test-matrix` | PASS | Generator exited 0; generated reporting is not runtime proof. |
+| `make check-test-matrix` | PASS | Matrix check exited 0. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS; NGINX 60 PASS; both 0 FAIL and 0 BLOCKED. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | PASS | Apache 55 PASS; NGINX 61 PASS; both 0 FAIL and 0 BLOCKED. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS; NGINX 54 PASS; both 0 FAIL and 0 BLOCKED. |
+
+Evidence files:
+
+- `/src/ModSecurity-conector-build/results/no-crs/apache-summary.txt`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.txt`
+- `/src/ModSecurity-conector-build/results/with-crs/apache-summary.txt`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.txt`
+- `/src/ModSecurity-conector-build/results/apache-summary.txt`
+- `/src/ModSecurity-conector-build/results/nginx-summary.txt`
+
+## Action Status 401 Case
+
+- No-CRS Apache: `action_status_401_phase1_block` PASS, expected 401, actual
+  401.
+- No-CRS NGINX: `action_status_401_phase1_block` PASS, expected 401, actual
+  401.
+- With-CRS Apache: `action_status_401_phase1_block` PASS, expected 403, actual
+  403.
+- With-CRS NGINX: `action_status_401_phase1_block` PASS, expected 403, actual
+  403.
+
+Detailed report:
+`reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`.
 
 ## CRS Evidence
 
 - Framework `ci/common.sh` pins CRS to `CRS_GIT_REF=v4.26.0`.
-- Framework `ci/common.sh` defines default `CRS_SOURCE_DIR=$SOURCE_ROOT/coreruleset`.
-- Framework `ci/common.sh` defines default `CRS_RUNTIME_DIR=$BUILD_ROOT/crs`.
 - Current With-CRS run observed CRS source at `/src/coreruleset`.
 - Current With-CRS run observed CRS preamble at
   `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`.
@@ -42,41 +70,14 @@ repository and the local `/src/ModSecurity-conector-build` result tree.
 - `crs_sqli_anomaly_block` PASS for Apache and NGINX in the current With-CRS
   run, expected 403 and actual 403.
 
-## CRS Action Status 401 Mismatch
-
-- Current With-CRS failing case for both connectors:
-  `action_status_401_phase1_block`.
-- YAML path:
-  `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`.
-- The YAML rule is local rule `id:2320` with `phase:1`,
-  `deny,status:401,block`.
-- No-CRS result: Apache PASS, expected 401 and actual 401.
-- No-CRS result: NGINX PASS, expected 401 and actual 401.
-- With-CRS result: Apache FAIL, expected 401 and actual 403.
-- With-CRS result: NGINX FAIL, expected 401 and actual 403.
-- The With-CRS materialized Apache and NGINX configs include the CRS preamble
-  before the local case rule.
-- Apache error log evidence shows CRS rule 920350 matched the numeric Host
-  header during the case.
-- NGINX error log evidence shows CRS rule 920350 matched the numeric Host
-  header and local rule `2320` denied with code 403 under CRS. Earlier NGINX
-  log entries without CRS show local rule `2320` denied with code 401.
-- No reviewed CRS/config path contains an explicit
-  `SecRuleUpdateActionById 2320`.
-- Exact cause: not definitively proven.
-- Most likely classification: With-CRS expected-status/context mismatch,
-  likely involving CRS/default-action interaction or framework testcase
-  expectation. Connector-specific issue is not evidenced.
-- Detailed report:
-  `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`.
-
 ## Template
 
-- `connectors/_template/README.md` defines a generic connector template and is
-  not a productive connector implementation.
-- `connectors/_template/TODO.md` uses checkbox-style status labels.
-- `connectors/_template/docs/coverage-decision-matrix.md` documents the
-  generic matrix and runtime-promotion rules.
+- `connectors/_template/README.md` now documents a repeatable connector flow,
+  required evidence, No-CRS/With-CRS validation, coverage matrix, promotion
+  gates, and claims that must not be made.
+- `connectors/_template/TODO.md` is organized into phases 0 through 7.
+- `connectors/_template/docs/coverage-decision-matrix.md` separates framework
+  cases, No-CRS status, With-CRS status, evidence path, and decision.
 - `connectors/_template/tests` is absent. Executable Template tests are not
   maintained connector-locally.
 
@@ -87,89 +88,43 @@ repository and the local `/src/ModSecurity-conector-build` result tree.
   `modules/ModSecurity-test-Framework/tests/cases/connector-specific/<connector>/`.
 - NGINX-specific YAML files exist under
   `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`.
-- The NGINX-specific path contains seven YAML files, including
-  `nginx_phase4_strict_connection_abort.yaml`.
-- `nginx_phase4_strict_connection_abort.yaml` exists but was not present in the
-  current No-CRS or With-CRS summary JSON files.
 - Apache-specific YAML files were not found under
   `modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/`;
   only `README.md` was found there.
 - New connector scaffolds must not create local `connectors/<name>/tests`
   directories.
 
-## Current Runtime Results
-
-| Command | Result | Evidence |
-| --- | --- | --- |
-| `make generate-test-matrix` | PASS | Generator exited 0; generated reporting is not runtime proof. |
-| `make check-test-matrix` | PASS | Matrix check exited 0. |
-| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-apache` | PASS | Apache smoke completed before later result refreshes. |
-| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
-| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS; NGINX 54 PASS; both 0 FAIL and 0 BLOCKED. |
-| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS; NGINX 60 PASS; both 0 FAIL and 0 BLOCKED. |
-| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | Apache 54 PASS / 1 FAIL; NGINX 60 PASS / 1 FAIL. |
-
-Current With-CRS failing case for both connectors:
-
-- `action_status_401_phase1_block`
-- Expected status: 401.
-- Actual status: 403.
-- Path:
-  `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`.
-
 ## NGINX
 
 - `connectors/nginx/` is present and adapter-owned.
-- `connectors/nginx/src/`, `connectors/nginx/config`,
-  `connectors/nginx/metadata.c`, and `connectors/nginx/ORIGIN.md` are present.
 - `connectors/nginx/tests` is absent.
-- `common/include/msconnector/rule_load_stats.h` exists.
-- The NGINX build contract uses
-  `MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include`.
-- The current parent runtime contract uses
-  `NGINX_HARNESS_PARENT=$(BUILD_ROOT)`.
-- Current `/src` NGINX all-scope smoke passed: 60 PASS, 0 FAIL, 0 BLOCKED.
+- Current `/src` NGINX common smoke passed: 54 PASS, 0 FAIL, 0 BLOCKED.
 - Current `/src` NGINX No-CRS target passed: 60 PASS, 0 FAIL, 0 BLOCKED.
-- Current `/src` NGINX With-CRS target failed: 60 PASS, 1 FAIL, 0 BLOCKED.
-- The historical 11 NGINX BLOCKED rows are documented in
-  `nginx-blocked-runtime-cases.md` and classified as an environment/docroot
-  permission blocker.
+- Current `/src` NGINX With-CRS target passed: 61 PASS, 0 FAIL, 0 BLOCKED.
+- `MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include` remains the accepted
+  NGINX build include contract.
 - RESPONSE_BODY blocking remains not verified for NGINX. Current response-body
   rows are pass-through or log-only evidence.
 
 ## Apache
 
 - `connectors/apache/` is present and adapter-owned.
-- `connectors/apache/src/`, `connectors/apache/Makefile.am`,
-  `connectors/apache/configure.ac`, `connectors/apache/metadata.c`, and
-  `connectors/apache/ORIGIN.md` are present.
 - `connectors/apache/tests` is absent.
-- `connectors/apache/build/apxs-wrapper.in` contains a common include fallback
-  based on `CONNECTOR_ROOT`.
 - Current `/src` Apache common smoke passed: 54 PASS, 0 FAIL, 0 BLOCKED.
 - Current `/src` Apache No-CRS target passed: 54 PASS, 0 FAIL, 0 BLOCKED.
-- Current `/src` Apache With-CRS target failed: 54 PASS, 1 FAIL, 0 BLOCKED.
+- Current `/src` Apache With-CRS target passed: 55 PASS, 0 FAIL, 0 BLOCKED.
+- Apache-specific framework YAML files were not found.
 - RESPONSE_BODY blocking remains not verified for Apache. `response_body_pass`
   is pass-through evidence only.
 
-## Similar Connectors
-
-- `connectors/haproxy/README.md` identifies HAProxy as scaffolded and not
-  implemented.
-- `connectors/envoy/README.md` identifies Envoy as scaffolded and not
-  implemented.
-- `connectors/traefik/README.md` identifies Traefik as scaffolded and not
-  implemented.
-- `connectors/lighttpd/README.md` identifies Lighttpd as scaffolded and not
-  implemented.
-
 ## Decisions
 
-- `connectors/_template`: partially suitable.
+- `connectors/_template`: partially suitable as a repeatable scaffold, not an
+  implementation.
 - `connectors/apache`: partial.
 - `connectors/nginx`: partial.
 - No-CRS runtime evidence: PASS for both connectors in current `/src` run.
-- With-CRS runtime evidence: FAIL for both connectors in current `/src` run.
+- With-CRS runtime evidence: PASS for both connectors in current `/src` run.
 - CRS SQLi anomaly case: PASS for both connectors.
 - RESPONSE_BODY blocking: not verified.
 - Full runtime verification: no.

@@ -1,171 +1,207 @@
-# TODO - Neuer Connector auf Basis des Templates
+# TODO - New Connector From Template
 
-Status: teilweise geeignet
+Status: partially suitable
 
-Template-Bewertung: teilweise geeignet
+Template evaluation: partially suitable
 
-Begründung: Die Grundstruktur, vorsichtige Warnungen und Planungsdokumente
-sind im Template vorhanden. Das Template ist aber nur teilweise geeignet, weil
-konkrete Herkunfts-/Metadatenfelder, Build-Nachweise und Runtime-Nachweise
-nicht im Template selbst belegt sind. Der lokale `tests`-Ordner wurde entfernt;
-ausführbare Template-Tests werden nicht connector-lokal gepflegt.
+Reason: the template now describes a repeatable connector flow, but it is still
+not an implementation. Origin, metadata, build, runtime, CRS, and promotion
+evidence must be provided by each concrete connector.
 
-Legende:
+Legend:
 
-- [x] erledigt / durch Template-Dateien belegt
-- [ ] offen / fuer konkrete Connectoren noch zu klaeren
-- [ ] blockiert / ohne konkrete Quellen, Build-Artefakte oder Runtime-Setup
-      nicht pruefbar
-- [ ] nicht verifiziert / keine ausreichende Repo-Evidenz gefunden
+- [x] done / backed by template files
+- [ ] open / must be answered for a concrete connector
+- [ ] blocked / cannot be checked without connector source, build artifacts,
+      or runtime setup
+- [ ] not verified / no sufficient runtime evidence
 
-Status-Vokabular:
+Status vocabulary:
 
-- `template`: generische Vorlage, keine Implementierung.
-- `scaffolded`: Struktur vorhanden, keine belegte Adapter-Implementierung.
-- `adapter-owned`: produktiver Connector-Code liegt im Connector-Baum mit
-  Herkunft und Metadaten.
-- `runtime-smoke-verified`: nur konkret gelaufene Smoke-Fälle mit Command und
-  Ergebnis.
-- `partial`: Struktur oder Teilruntime ist belegt, aber keine vollständige
-  Verifikation.
-- `not-verified`: keine ausreichende Runtime-Evidenz.
+- `template`: generic starting point, not an implementation.
+- `scaffolded`: structure exists, no repository-backed adapter implementation
+  is proven.
+- `adapter-owned`: productive connector code lives in the connector tree with
+  provenance and metadata.
+- `runtime-smoke-verified`: only specific smoke cases with recorded command and
+  result are verified.
+- `crs-verified`: With-CRS target or case claim has recorded command, CRS
+  evidence, and result.
+- `partial`: structure or partial runtime evidence exists, but full validation
+  is not proven.
+- `not-verified`: insufficient runtime evidence.
 
-## 1) Template-Grundstruktur
+## Phase 0: Scaffold erstellen
 
-- [x] Status: erledigt - `README.md` vorhanden.
-- [x] Status: erledigt - `TODO.md` vorhanden.
-- [x] Status: erledigt - `docs/architecture.md` vorhanden.
-- [x] Status: erledigt - `docs/build.md` vorhanden.
-- [x] Status: erledigt - `docs/validation.md` vorhanden.
-- [x] Status: erledigt - `harness/README.md` vorhanden.
-- [x] Status: erledigt - `src/README.md` vorhanden.
-- [x] Status: erledigt - Lokaler Template-Tests-Ordner wurde entfernt.
-- [x] Status: erledigt - Template warnt, dass es keine produktive
-      Implementierung ist.
+Status: partially complete for the generic template.
 
-## 2) Template-Eignung
+- [x] `README.md` vorhanden.
+- [x] `TODO.md` vorhanden.
+- [x] `docs/architecture.md` vorhanden.
+- [x] `docs/build.md` vorhanden.
+- [x] `docs/validation.md` vorhanden.
+- [x] `docs/coverage-decision-matrix.md` vorhanden.
+- [x] `harness/README.md` vorhanden.
+- [x] `src/README.md` vorhanden.
+- [x] Lokaler Template-Testordner ist entfernt.
+- [x] Template warnt, dass es keine produktive Implementierung ist.
+- [ ] Connector-name-specific placeholders replaced.
+- [ ] No runtime claims added during scaffold creation.
 
-- [x] Status: erledigt - Grundstruktur fuer neue Connector-Verzeichnisse ist
-      beschrieben.
-- [x] Status: erledigt - Architektur-, Build-, Harness-, Source- und
-      Testbereiche werden als Planungsbereiche benannt.
-- [x] Status: erledigt - `docs/validation.md` stellt klar, dass Strukturchecks
-      keine Runtime-Evidenz ersetzen.
-- [x] Status: erledigt - Das Template enthaelt keinen lokalen Testordner mehr.
-- [x] Status: erledigt - Neue Connectoren duerfen keinen lokalen
-      `connectors/<name>/tests`-Ordner anlegen.
-- [x] Status: erledigt - Externe Framework-Testpfade sind im Repository
-      belegt: `modules/ModSecurity-test-Framework/tests/cases/`,
-      `modules/ModSecurity-test-Framework/tests/cases/connector-specific/<connector>/`
-      und `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
-- [ ] Status: offen - `ORIGIN.md`/Lizenz- und Herkunftsangaben muessen fuer
-      konkrete Connectoren separat belegt werden.
-- [ ] Status: offen - Metadaten-Dateien (`metadata.*`) muessen fuer konkrete
-      Connectoren separat belegt werden.
-- [ ] Status: teilweise - Das Template ist als vorsichtiger Scaffold geeignet,
-      aber nicht als vollstaendige Connector-Implementierungsgrundlage ohne
-      weitere Repo-spezifische Bewertung.
+## Phase 1: Origin/Metadata belegen
 
-## 3) Server-spezifische Runtime-Fragen
+Status: open for each concrete connector.
 
-- [ ] Status: offen - Welche Hook-/Filter-/Middleware-Punkte stellt der
-      Zielserver bereit?
-- [ ] Status: offen - Wie wird Request-Body verfuegbar gemacht
-      (Buffering/Streaming)?
-- [ ] Status: offen - Wie wird Response-Body verfuegbar gemacht, falls
-      ueberhaupt?
-- [ ] Status: offen - Wie werden ModSecurity-Interventions korrekt in
-      Server-Aktionen gemappt?
-- [ ] Status: offen - Wie werden Transaktions-IDs serverkonform
-      erzeugt/uebernommen?
-- [ ] Status: offen - Welche Header-/Body-Normalisierungen sind serverbedingt
-      anders?
-- [ ] Status: nicht verifiziert - RESPONSE_BODY blocking ist durch das
-      Template nicht verifiziert. Benötigt werden belegbarer Runtime-Testcase,
-      blockierender Response-Body-Trigger, tatsächliches blockierendes Ergebnis
-      wie HTTP 403, Log-/Report-Evidence, ausgeführter Command und betroffener
-      Connector.
+Metadata checklist:
 
-## 4) Build-Fragen
+- [ ] `metadata.*` angelegt.
+- [ ] Connector-Name eindeutig.
+- [ ] Upstream-Projekt/Version dokumentiert.
+- [ ] Build-Modus dokumentiert.
+- [ ] Maintainer/Ownership dokumentiert.
 
-- [ ] Status: offen - Benötigt der Server eigenes Build-System, zum Beispiel
-      Module-API oder Plugin-SDK?
-- [ ] Status: offen - Wie werden Build-Artefakte unter `BUILD_ROOT` isoliert?
-- [ ] Status: offen - Welche Toolchain-/Dependency-Versionen sind
-      Mindestvoraussetzung?
-- [ ] Status: offen - Wie werden reproduzierbare lokale Builds dokumentiert?
-- [ ] Status: offen - Welche Makefile-Targets muessen ergaenzt werden?
-- [ ] Status: blockiert - Build-Verifikation fuer einen neuen Connector ist
-      ohne konkrete Connector-Quellen und Abhaengigkeiten nicht pruefbar.
+Origin/license checklist:
 
-## 5) Test-Fragen
+- [ ] `ORIGIN.md` angelegt.
+- [ ] Upstream-Quelle dokumentiert.
+- [ ] Lizenz dokumentiert.
+- [ ] importierte Dateien dokumentiert.
+- [ ] lokale Änderungen dokumentiert.
+- [ ] `SOURCE_MAP.json` or equivalent provenance file completed.
 
-- [ ] Status: offen - Gibt es einen lauffaehigen Start/Stop-Smoke fuer den
-      echten Serverprozess?
-- [ ] Status: offen - Koennen YAML-Faelle ueber eine reale HTTP-Kette
-      ausgefuehrt werden?
-- [ ] Status: offen - Sind Interventionen (Allow/Block) nachweisbar?
-- [ ] Status: offen - Sind Log-Artefakte (server/connector/audit/access)
-      auswertbar?
-- [ ] Status: offen - Wird ein kompatibler Summary-Report erzeugt?
-- [x] Status: erledigt - Der lokale Template-Tests-Ordner wurde entfernt.
-- [x] Status: erledigt - Ausfuehrbare Connector-Tests werden nicht
-      connector-lokal gepflegt; neue Connectoren referenzieren die externen
-      Framework-Pfade.
-- [ ] Status: offen - Fuer einen konkreten neuen Connector muss der passende
-      `smoke-<name>` oder ein dokumentierter Runtime-Command belegt werden.
-- [ ] Status: nicht verifiziert - Fuer einen konkreten neuen Connector muss
-      `make test-no-crs` getrennt dokumentiert werden, wenn das Target im
-      Repository vorhanden ist.
-- [ ] Status: nicht verifiziert - Fuer einen konkreten neuen Connector muss
-      `make test-with-crs` getrennt dokumentiert werden, wenn das Target im
-      Repository vorhanden ist.
-- [ ] Status: nicht verifiziert - CRS-Claims duerfen nur aus belegten
-      With-CRS-Commands, CRS-Pfaden, erwarteten/tatsaechlichen Statuswerten
-      und Summary-Dateien abgeleitet werden.
-- [ ] Status: offen - Mehr als `partial` ist erst nach dokumentierter
-      Mindestmatrix belegbar: `phase1_header_block`, Request-Body blocking,
-      Response-Header blocking falls vom Framework unterstuetzt, Response-Body
-      blocking, Audit-/Log-Evidence, Startup/Reload-Validation und
-      Negative/Pass-through-Fall.
-- [x] Status: erledigt - Coverage decision matrix reviewed.
-- [ ] Status: nicht verifiziert - Phase 1 runtime evidence documented.
-- [ ] Status: nicht verifiziert - Phase 2 request-body runtime evidence
-      documented.
-- [ ] Status: nicht verifiziert - Phase 3 response-header runtime evidence
-      documented.
-- [ ] Status: nicht verifiziert - Phase 4 response-body runtime evidence
-      documented.
-- [ ] Status: nicht verifiziert - RESPONSE_BODY blocking verified.
-- [ ] Status: nicht verifiziert - Audit/log evidence documented.
-- [ ] Status: nicht verifiziert - Negative/pass-through case documented.
-- [x] Status: teilweise - Connector status remains `partial` until matrix is
-      complete.
+Blocked until evidence exists:
 
-## 6) Risiken
+- [ ] Do not mark `adapter-owned` until source, build, metadata, and origin
+      evidence exist.
+- [ ] If a source, license, or version is missing, write
+      `Nicht im Repository gefunden`.
 
-- [ ] Status: offen - Risiko: Struktur wird mit Funktionsfaehigkeit
-      verwechselt.
-- [ ] Status: offen - Risiko: Runtime-Code aus Apache/NGINX wird unkritisch
-      kopiert.
-- [ ] Status: offen - Risiko: Connector-spezifische Semantik
-      (Hooks/Filter) wird unterschaetzt.
-- [ ] Status: offen - Risiko: CI-Strukturchecks werden als Runtime-Nachweis
-      fehlgedeutet.
-- [ ] Status: nicht verifiziert - Risiko: RESPONSE_BODY-/Phase-4-Verhalten
-      wird ohne Evidenz behauptet.
+## Phase 2: Build integrieren
 
-## 7) Scaffold-Entscheidungen
+Status: blocked until a concrete connector build exists.
 
-Die verbindlichen Scaffold-Entscheidungen fuer neue Connectoren stehen in:
+Build checklist:
 
-```text
-reports/template-verification-nginx-apache/connector-scaffold-decisions.md
-```
+- [ ] Build-Command dokumentiert.
+- [ ] Include-Pfade dokumentiert.
+- [ ] Library-Pfade dokumentiert.
+- [ ] Build-Artefakte dokumentiert.
+- [ ] Build-Log-Pfad dokumentiert.
+- [ ] Clean/refresh behavior documented.
+- [ ] External dependency version/pin documented when found.
 
-## 8) Vollstaendige Bewertung
+Blocked items:
 
-Die vollstaendige Template-Bewertung steht in:
+- [ ] Server module/plugin SDK identified.
+- [ ] Build output remains below documented `BUILD_ROOT`.
+- [ ] Reproducible local build command exits 0.
+- [ ] Compiler/linker logs reviewed.
+
+## Phase 3: No-CRS Runtime validieren
+
+Status: not verified for the template.
+
+- [ ] `make test-no-crs` ausgeführt, if the target exists.
+- [ ] Connector-specific smoke target executed, if present.
+- [ ] Command, exit code, and environment documented.
+- [ ] PASS/FAIL/BLOCKED counts documented.
+- [ ] Summary JSON paths documented.
+- [ ] `phase1_header_block` or equivalent Phase 1 case documented.
+- [ ] Request-body blocking documented.
+- [ ] Response-header blocking documented, when framework-supported.
+- [ ] Negative/pass-through case documented.
+- [ ] Audit/log evidence documented.
+
+No-CRS PASS must not be used as With-CRS PASS.
+
+## Phase 4: With-CRS Runtime validieren
+
+Status: not verified for the template.
+
+- [ ] `make test-with-crs` ausgeführt, if the target exists.
+- [ ] CRS source path documented.
+- [ ] CRS runtime preamble path documented.
+- [ ] CRS loaded/effective evidence documented.
+- [ ] CRS-specific case result documented.
+- [ ] PASS/FAIL/BLOCKED counts documented.
+- [ ] Summary JSON paths documented.
+- [ ] Cases with No-CRS/With-CRS expectation differences documented as
+      variant-specific expectations.
+
+Do not change a base No-CRS expectation to satisfy a With-CRS result.
+
+## Phase 5: Coverage Matrix ausfüllen
+
+Status: not verified for the template.
+
+- [ ] Framework cases present column completed.
+- [ ] No-CRS status column completed.
+- [ ] With-CRS status column completed.
+- [ ] Evidence path column completed.
+- [ ] Decision column completed.
+- [ ] Phase 1 row completed.
+- [ ] Phase 2 row completed.
+- [ ] Phase 3 row completed.
+- [ ] Phase 4 row completed.
+- [ ] RESPONSE_BODY gate completed.
+- [ ] Negative/pass-through gate completed.
+- [ ] Audit/log gate completed.
+- [ ] Startup/reload validation gate completed.
+- [ ] Promotion gate completed.
+
+Generated coverage is planning evidence. It is not runtime proof by itself.
+
+## Phase 6: Promotion prüfen
+
+Status: blocked until runtime evidence exists.
+
+- [ ] `scaffolded`: structure and docs exist, no runtime claims.
+- [ ] `adapter-owned`: source/build/metadata/origin evidence exists.
+- [ ] `runtime-smoke-verified`: current No-CRS and connector smoke PASS for
+      the claimed scope, with command and result paths.
+- [ ] `crs-verified`: current With-CRS PASS for the claimed scope, CRS
+      evidence, and CRS-specific expectations documented.
+- [ ] `more-than-partial`: full minimum matrix documented with no open
+      FAIL/BLOCKED rows.
+
+More than `partial` requires:
+
+- [ ] No-CRS PASS.
+- [ ] With-CRS PASS.
+- [ ] Phase 1/2/3/4 minimum matrix PASS.
+- [ ] Negative/pass-through PASS.
+- [ ] Audit/log evidence present.
+- [ ] RESPONSE_BODY blocking verified, or explicitly documented as unsupported
+      or known gap with evidence.
+- [ ] Startup/reload validation documented.
+
+## Phase 7: Offene Gaps dokumentieren
+
+Status: open for each concrete connector.
+
+- [ ] Missing upstream/source/license evidence documented.
+- [ ] Missing metadata documented.
+- [ ] Missing build evidence documented.
+- [ ] Missing No-CRS evidence documented.
+- [ ] Missing With-CRS evidence documented.
+- [ ] Any FAIL/BLOCKED row documented without reclassifying it as PASS.
+- [ ] RESPONSE_BODY blocking remains `not-verified` until minimum evidence
+      exists.
+- [ ] Unsupported behavior documented with evidence.
+
+## External tests
+
+- [x] Local Template tests folder removed.
+- [x] New connectors must not create `connectors/<name>/tests`.
+- [x] Executable tests are framework-owned.
+- [x] Framework test paths documented:
+      `modules/ModSecurity-test-Framework/tests/cases/`,
+      `modules/ModSecurity-test-Framework/tests/cases/connector-specific/<connector>/`,
+      `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
+
+## Full evaluation
+
+The complete Template evaluation is documented in:
 
 ```text
 reports/template-verification-nginx-apache/template-evaluation.md

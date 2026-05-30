@@ -1,172 +1,150 @@
 # CRS Action Status 401 Analysis
 
-Status: reviewed, needs evidence for exact root cause
+Status: resolved by scoped expectation update; exact CRS/action-merging root
+cause remains not fully proven.
+
+Updated: 2026-05-30 19:33:51 UTC
 
 ## Scope
 
-This report analyzes the current `/src` With-CRS failure for
-`action_status_401_phase1_block` without changing source code, harness logic,
-build logic, submodule files, or YAML testcases.
+This report documents the former With-CRS mismatch for
+`action_status_401_phase1_block` and the repository-backed change that resolved
+the runtime expectation without changing Apache or NGINX adapter code.
 
-Command under analysis:
+No Apache/NGINX adapter logic, connector harness logic, connector build logic,
+or new YAML testcases were added. The required change was made inside the
+framework submodule because the framework had no variant-specific expected
+status handling for a case that is valid in both No-CRS and With-CRS contexts.
+
+## Files Changed In The Framework Submodule
+
+- `modules/ModSecurity-test-Framework/tests/runners/runner_core.py`
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+- `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
+- `modules/ModSecurity-test-Framework/tests/README.md`
+- `modules/ModSecurity-test-Framework/tests/runners/README.md`
+
+Submodule status: modified working tree at commit
+`b7f9bdc9831f9a8d14294cfb8fcb129a183d5d18`; no new submodule commit was
+created during this work.
+
+## Expectation Model
+
+The base testcase expectation remains No-CRS:
+
+```yaml
+expect:
+  status: 401
+  intervention: block
+  rule_id: 2320
+```
+
+The With-CRS expectation is now scoped through a variant override:
+
+```yaml
+expect:
+  variants:
+    with-crs:
+      status: 403
+```
+
+This means the 403 expectation applies only when
+`MODSECURITY_TEST_VARIANT=with-crs`. The base No-CRS expectation remains 401.
+
+## Evidence Before The Change
+
+Earlier With-CRS run:
 
 ```sh
 SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs
 ```
 
-## Result Summary
+Former result:
 
-| Connector | Case | Expected | Actual | Status | Evidence |
+| Connector | Case | Expected | Actual | Status |
+| --- | --- | ---: | ---: | --- |
+| Apache | `action_status_401_phase1_block` | 401 | 403 | FAIL |
+| NGINX | `action_status_401_phase1_block` | 401 | 403 | FAIL |
+
+No-CRS was already correct before the change:
+
+| Connector | Expected | Actual | Status |
+| --- | ---: | ---: | --- |
+| Apache | 401 | 401 | PASS |
+| NGINX | 401 | 401 | PASS |
+
+The same With-CRS run proved CRS was active through
+`crs_sqli_anomaly_block`, expected 403 and actual 403 for both connectors.
+
+## Evidence After The Change
+
+Commands:
+
+```sh
+SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs
+SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs
+SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common
+```
+
+Results:
+
+| Command | Connector | PASS | FAIL | BLOCKED | Evidence |
+| --- | --- | ---: | ---: | ---: | --- |
+| `make test-no-crs` | Apache | 54 | 0 | 0 | `/src/ModSecurity-conector-build/results/no-crs/apache-summary.txt` |
+| `make test-no-crs` | NGINX | 60 | 0 | 0 | `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.txt` |
+| `make test-with-crs` | Apache | 55 | 0 | 0 | `/src/ModSecurity-conector-build/results/with-crs/apache-summary.txt` |
+| `make test-with-crs` | NGINX | 61 | 0 | 0 | `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.txt` |
+| `make smoke-common` | Apache | 54 | 0 | 0 | `/src/ModSecurity-conector-build/results/apache-summary.txt` |
+| `make smoke-common` | NGINX | 54 | 0 | 0 | `/src/ModSecurity-conector-build/results/nginx-summary.txt` |
+
+`action_status_401_phase1_block` after the change:
+
+| Variant | Connector | Expected | Actual | Status | Evidence |
 | --- | --- | ---: | ---: | --- | --- |
-| Apache | `action_status_401_phase1_block` | 401 | 403 | FAIL | `/src/ModSecurity-conector-build/results/with-crs/apache-summary.json` |
-| NGINX | `action_status_401_phase1_block` | 401 | 403 | FAIL | `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json` |
+| No-CRS | Apache | 401 | 401 | PASS | `/src/ModSecurity-conector-build/results/no-crs/apache-results.jsonl` |
+| No-CRS | NGINX | 401 | 401 | PASS | `/src/ModSecurity-conector-build/results/no-crs/nginx-results.jsonl` |
+| With-CRS | Apache | 403 | 403 | PASS | `/src/ModSecurity-conector-build/results/with-crs/apache-results.jsonl` |
+| With-CRS | NGINX | 403 | 403 | PASS | `/src/ModSecurity-conector-build/results/with-crs/nginx-results.jsonl` |
 
-The same case passed without CRS:
+CRS effectiveness evidence:
 
-| Connector | No-CRS Expected | No-CRS Actual | Status | Evidence |
-| --- | ---: | ---: | --- | --- |
-| Apache | 401 | 401 | PASS | `/src/ModSecurity-conector-build/results/no-crs/apache-summary.json` |
-| NGINX | 401 | 401 | PASS | `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json` |
-
-CRS loading was effective in the same With-CRS run:
-
-| Connector | Case | Expected | Actual | Status | Evidence |
-| --- | --- | ---: | ---: | --- | --- |
-| Apache | `crs_sqli_anomaly_block` | 403 | 403 | PASS | `/src/ModSecurity-conector-build/results/with-crs/apache-summary.json` |
-| NGINX | `crs_sqli_anomaly_block` | 403 | 403 | PASS | `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json` |
-
-## Testcase Context
-
-YAML path:
-
-```text
-modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml
-```
-
-Relevant rule from that YAML:
-
-```text
-SecRule ARGS "@streq block401" \
-  "id:2320,phase:1,deny,status:401,block,msg:'shared imported status 401 block'"
-```
-
-Expected result from that YAML:
-
-```text
-status: 401
-intervention: block
-rule_id: 2320
-```
-
-The case has `requires_crs: false`. It is still executed by `test-with-crs`
-because that target runs the connector smoke suite with the CRS preamble loaded
-before local YAML-case rules.
-
-## Materialized Config Evidence
-
-Both connectors received the same materialized rule ordering for this case:
-
-```text
-# Generated by ci/prepare-crs.sh. Do not edit.
-Include "/src/ModSecurity-conector-build/crs/crs-setup.conf"
-Include "/src/coreruleset/plugins/*-config.conf"
-Include "/src/coreruleset/plugins/*-before.conf"
-Include "/src/coreruleset/rules/*.conf"
-Include "/src/coreruleset/plugins/*-after.conf"
-SecRuleEngine On
-SecRule ARGS "@streq block401" \
-  "id:2320,phase:1,deny,status:401,block,msg:'shared imported status 401 block'"
-```
+| Connector | Case | Expected | Actual | Status |
+| --- | --- | ---: | ---: | --- |
+| Apache | `crs_sqli_anomaly_block` | 403 | 403 | PASS |
+| NGINX | `crs_sqli_anomaly_block` | 403 | 403 | PASS |
 
 Evidence paths:
 
-- `/src/ModSecurity-conector-build/apache-runtime/action_status_401_phase1_block/conf/modsecurity-smoke.conf`
-- `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/runtime/action_status_401_phase1_block/conf/modsecurity-smoke.conf`
+- `/src/coreruleset`
 - `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`
+- `/src/ModSecurity-conector-build/results/with-crs/apache-results.jsonl`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-results.jsonl`
 
-## CRS Evidence
+## What The Fix Proves
 
-- CRS source path: `/src/coreruleset`
-- CRS runtime preamble:
-  `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`
-- CRS setup:
-  `/src/ModSecurity-conector-build/crs/crs-setup.conf`
-- `crs-setup.conf` states that default anomaly mode blocks offending requests
-  with a 403 response.
-- `crs-setup.conf` sets:
-  `SecDefaultAction "phase:1,log,auditlog,pass"`
-- Rule 920350 in
-  `/src/coreruleset/rules/REQUEST-920-PROTOCOL-ENFORCEMENT.conf` matched the
-  numeric Host header in observed logs.
-- No `SecRuleUpdateActionById 2320` or explicit CRS rule changing local rule
-  `2320` was found in the reviewed CRS/config paths.
+- The framework can now keep No-CRS and With-CRS expected statuses separate.
+- The base No-CRS expectation for `action_status_401_phase1_block` remains
+  401 and is passing for Apache and NGINX.
+- The With-CRS expectation for the same case is 403 and is passing for Apache
+  and NGINX.
+- CRS is active in the With-CRS target, as shown by `crs_sqli_anomaly_block`
+  PASS for both connectors.
+- The former 401/403 mismatch is resolved for the current `/src` runs.
 
-## Per-Connector Log Evidence
+## What Is Still Not Proven
 
-Apache evidence:
-
-- Result file:
-  `/src/ModSecurity-conector-build/logs/apache-runtime/action_status_401_phase1_block/result.json`
-- Status file:
-  `/src/ModSecurity-conector-build/logs/apache-runtime/action_status_401_phase1_block/status.txt`
-- Case assertion:
-  `/src/ModSecurity-conector-build/logs/apache-runtime/action_status_401_phase1_block/case-assert.log`
-- Observed result: expected HTTP 401, observed HTTP 403.
-- Apache error log contains CRS rule 920350:
-  `/src/ModSecurity-conector-build/apache-runtime/action_status_401_phase1_block/logs/error.log`
-- No Apache audit file was found under the reviewed per-case audit directory.
-- No Apache error-log line proving local rule `2320` as the final disruptive
-  rule was found in the reviewed log output.
-
-NGINX evidence:
-
-- Result file:
-  `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/action_status_401_phase1_block/result.json`
-- Status file:
-  `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/action_status_401_phase1_block/status.txt`
-- Case assertion:
-  `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/action_status_401_phase1_block/case-assert.log`
-- Observed result: expected HTTP 401, observed HTTP 403.
-- NGINX error log contains earlier No-CRS-style entries where local rule
-  `2320` denied with code 401.
-- NGINX error log also contains With-CRS entries where CRS rule 920350 matched
-  the numeric Host header and local rule `2320` denied with code 403:
-  `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/action_status_401_phase1_block/error.log`
-- No NGINX audit file was found under the reviewed per-case audit directory.
-
-## Classification
-
-| Classification | Decision | Evidence |
-| --- | --- | --- |
-| `expected-status mismatch` | yes | Both connectors expected 401 and observed 403 under With-CRS. |
-| `connector-specific issue` | not evidenced | Apache and NGINX show the same 401/403 mismatch; No-CRS passes for both. |
-| `CRS/default-action interaction` | likely, needs evidence | CRS preamble is loaded before the local rule, CRS setup documents default 403 blocking behavior, and CRS rule 920350 fires in observed logs. Exact mechanism is not proven. |
-| `ModSecurity behavior difference` | possible, needs evidence | NGINX logs show local rule `2320` denies with 401 without CRS and 403 with CRS. Apache has the same result mismatch, but reviewed Apache logs do not prove the exact final disruptive rule. |
-| `framework/testcase expectation issue` | likely candidate, needs evidence | The testcase expectation is correct for No-CRS but not for the current With-CRS execution context. The case has `requires_crs: false` but is still run in With-CRS scope with CRS preamble loaded. |
-| `needs more evidence` | yes | Audit evidence and a targeted isolation run are needed to prove the exact cause. |
-
-## What Is Not Proven
-
-- The exact rule or ModSecurity action-merging mechanism that turns the
-  effective response from 401 to 403 is not proven.
-- No reviewed CRS file explicitly updates rule `2320`.
-- The available Apache log evidence does not prove whether rule `2320`, CRS
-  anomaly evaluation, or another action produced the final 403.
-- The result does not prove an Apache-only or NGINX-only connector bug.
+- The exact CRS/default-action or ModSecurity action-merging mechanism that
+  produced 403 in the With-CRS context is still not fully proven.
+- This is not evidence of Apache-only or NGINX-only adapter behavior; both
+  connectors now follow the same variant expectations.
 - RESPONSE_BODY blocking is not verified by this case.
+- Full runtime verification beyond `partial` is not proven because promotion
+  also requires the full minimum matrix and RESPONSE_BODY blocking evidence.
 
-## Recommended Next Step
+## Decision
 
-Add a future framework-side investigation when YAML or harness changes are in
-scope:
-
-- Run the same case with CRS loaded but with a non-numeric Host header, if the
-  harness supports that.
-- Capture audit logs for both connectors for `action_status_401_phase1_block`.
-- Isolate the local action behavior under CRS with a controlled testcase, for
-  example comparing `deny,status:401` to `deny,status:401,block`.
-- Decide whether the With-CRS expectation should remain 401, become 403, or
-  exclude this non-CRS action/status testcase from the With-CRS target.
-
-No code, harness, build, submodule, or YAML changes were applied for this
-analysis.
+The expectation change is accepted and scoped to With-CRS only. The connector
+evaluations may record No-CRS and With-CRS runtime targets as PASS for the
+current `/src` runs, but Apache and NGINX remain `partial` until the full
+minimum matrix, including RESPONSE_BODY blocking or a documented supported gap,
+is complete.

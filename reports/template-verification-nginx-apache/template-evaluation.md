@@ -4,28 +4,29 @@ Status: reviewed
 
 Template-Bewertung: teilweise geeignet
 
-Begründung: `connectors/_template` enthält eine vorsichtige Scaffold-Struktur
-mit README, TODO, Architektur-, Build-, Validation-, Harness- und
-Source-Platzhaltern. Es ist als Ausgangspunkt geeignet, aber nur teilweise:
-konkrete Herkunfts-/Metadatenanforderungen, Build-Nachweise und
-Runtime-Nachweise sind im Template nicht vollständig belegt. Der lokale
-Template-Tests-Ordner wurde entfernt; ausführbare Template-Tests werden nicht
-connector-lokal gepflegt. Die Scaffold-Entscheidungen fuer neue Connectoren
-sind in `connector-scaffold-decisions.md` dokumentiert. Die aktuelle
-`/src`-Runtime-Evidenz fuer Apache und NGINX in `verified-runtime-run.md`
-promotet das generische Template nicht zu einer Implementierung.
+Begründung: `connectors/_template` enthält jetzt einen konkreteren
+Connector-Ablauf mit README, TODO, Architektur-, Build-, Validation-,
+Coverage-, Harness- und Source-Dokumentation. Es ist als Ausgangspunkt
+geeignet, aber nur teilweise: konkrete Herkunfts-/Metadatenanforderungen,
+Build-Nachweise und Runtime-Nachweise muessen weiterhin pro Connector belegt
+werden. Der lokale Template-Tests-Ordner wurde entfernt; ausführbare
+Template-Tests werden nicht connector-lokal gepflegt. Die
+Scaffold-Entscheidungen fuer neue Connectoren sind in
+`connector-scaffold-decisions.md` dokumentiert. Die aktuelle `/src`-Runtime-
+Evidenz fuer Apache und NGINX in `verified-runtime-run.md` promotet das
+generische Template nicht zu einer Implementierung.
 
 ## Bewertung
 
 | Bereich | Status | Begründung | Beleg/Pfad |
 | --- | --- | --- | --- |
-| README | OK | Datei vorhanden; beschreibt Template als generisch und nicht produktiv. | `connectors/_template/README.md` |
-| TODO | OK | Datei vorhanden und auf GitHub-Checkboxen mit Statuswerten umgestellt. | `connectors/_template/TODO.md` |
+| README | OK | Datei vorhanden; beschreibt Purpose, Nutzung, anzulegende Dateien, Evidenzanforderungen, No-CRS/With-CRS, Matrix, Promotion-Gates und Nicht-Claims. | `connectors/_template/README.md` |
+| TODO | OK | Datei vorhanden und in Phasen 0 bis 7 mit Checkboxen und Statuswerten gegliedert. | `connectors/_template/TODO.md` |
 | Grundstruktur | OK | README listet README, TODO, docs, harness und src; lokaler Testordner ist entfernt. | `connectors/_template/README.md` |
-| Architektur | OK | Beschreibt adapter-owned Prinzip und server-spezifische Grenzen. | `connectors/_template/docs/architecture.md` |
-| Build | Teilweise | Build-Themen sind benannt, konkrete Build-Regeln bleiben fuer Connectoren offen. | `connectors/_template/docs/build.md` |
-| Validation | OK | Stellt klar, dass Runtime-Evidenz erforderlich ist. | `connectors/_template/docs/validation.md` |
-| Coverage Matrix | OK | Generische Matrix trennt Framework-Coverage von Runtime-Verifikation und setzt Template-Defaults auf `not-verified`. | `connectors/_template/docs/coverage-decision-matrix.md` |
+| Architektur | OK | Beschreibt adapter-owned Prinzip, server-spezifische Grenzen und erforderliche Architektur-Evidenz. | `connectors/_template/docs/architecture.md` |
+| Build | OK | Build-Evidenz, Include-/Library-Pfade, Artefakte, Logs und Makefile-Integration sind als Checkliste dokumentiert. | `connectors/_template/docs/build.md` |
+| Validation | OK | Stellt klar, dass Runtime-Evidenz erforderlich ist, und nennt No-CRS, With-CRS, RESPONSE_BODY und Mindestmatrix. | `connectors/_template/docs/validation.md` |
+| Coverage Matrix | OK | Generische Matrix trennt Framework-Coverage, No-CRS-Status, With-CRS-Status, Evidenzpfad und Entscheidung. | `connectors/_template/docs/coverage-decision-matrix.md` |
 | CRS-Varianten | OK | Template-Doku fordert getrennte No-CRS/With-CRS-Dokumentation fuer konkrete Connectoren. | `connectors/_template/README.md`, `connectors/_template/docs/coverage-decision-matrix.md` |
 | Scaffold-Entscheidungen | OK | Status-Vokabular, externe Testpfade, RESPONSE_BODY-Mindest-Evidenz und `partial`-Grenzen sind dokumentiert. | `reports/template-verification-nginx-apache/connector-scaffold-decisions.md` |
 | Aktuelle Runtime-Evidenz | Nicht anwendbar | `verified-runtime-run.md` dokumentiert Apache/NGINX-Runtime-Ergebnisse, aber keine Template-Runtime. | `reports/template-verification-nginx-apache/verified-runtime-run.md` |
@@ -66,9 +67,10 @@ promotet das generische Template nicht zu einer Implementierung.
 
 - Konkrete Anforderungen an `ORIGIN.md`, `SOURCE_MAP.json` oder `metadata.*`
   fuer neue Connectoren.
-- Kriterien, wann ein Template-Connector von Scaffold zu Runtime-validiert
-  wechseln darf, bleiben an die dokumentierte Mindestmatrix und künftige
-  Runtime-Evidenz gebunden.
+- Konkrete `ORIGIN.md`, `SOURCE_MAP.json` und `metadata.*` Dateien muessen fuer
+  neue Connectoren weiterhin erstellt und belegt werden.
+- Der Wechsel von Scaffold zu Runtime-validiert bleibt an die dokumentierte
+  Mindestmatrix und künftige Runtime-Evidenz gebunden.
 
 ## Entscheidung
 
