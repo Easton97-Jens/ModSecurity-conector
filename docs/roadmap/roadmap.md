@@ -1,139 +1,180 @@
 # Roadmap
 
-Status: scaffolded
+Status: current evidence-based roadmap snapshot
 
-## Current Roadmap View
+This roadmap records what the repository can currently prove from checked-in
+code, generated reports, local result summaries, and documentation. Generated
+coverage, mapped-only inventory, API-only smoke results, and source provenance
+are useful evidence, but they do not by themselves promote connector behavior.
 
-| Group | Items |
-| --- | --- |
-| Now | Keep Apache/NGINX real-world smokes stable; maintain docs/index/link hygiene; keep origin and license maps current |
-| Next | Add machine-readable YAML schema; design fixture support for external files; prepare evidence-backed common helpers for config, logging/audit, request/response metadata, status/origin, and intervention representation |
-| Later | Evaluate HAProxy, Envoy, Lighttpd, and Traefik only after Common stabilization and a real-world harness plan for each |
-| Blocked | `RESPONSE_BODY` blocking common PASS, RAW-ARGS active cases until PR #3564 support is present locally, further upstream code reduction until functionality has a proven replacement |
-| Evidence-only | Connector-free v3 API smoke, mapped-only V2/V3 cases, response-body blocking probe, RAW-ARGS PR #3564 evidence |
+## Current Focus
+
+- Keep Apache and NGINX evidence scoped to the real-world connector path:
+  HTTP client to server process to connector module to libmodsecurity to HTTP
+  response.
+- Keep generated report status aligned with `TEST-COVERAGE-SUMMARY.md`,
+  `reports/testing/generated/runtime-matrix.generated.md`, and
+  `reports/testing/test-coverage-overview.md`.
+- Preserve the distinction between default local connector summaries and
+  force-all/runtime-matrix evidence. The tracked 2026-05-24 snapshot records
+  force-all Apache and NGINX failures; it does not imply `make smoke-all`
+  passed.
+- Keep `RESPONSE_BODY` non-verified and non-promoted until both Apache and
+  NGINX return stable HTTP 403 for the same response-body blocking YAML case.
+- Keep RAW argument collection work mapped-only until a configured local
+  ModSecurity v3 source contains PR #3564 behavior and both connectors pass
+  real HTTP smokes for the same YAML cases.
+- Maintain source attribution, license, origin/provenance metadata, and adapter
+  metadata drift checks while Apache and NGINX source stays adapter-owned.
 
 ## Implemented
 
-- Monorepo scaffold.
-- Connector-neutral C-first common headers.
-- Branch-aware source documentation.
-- Test runner and normalizer skeletons.
-- CI workflows for structure and documentation checks.
-- Connector-free libmodsecurity v3 C API smoke probe source, Makefile runner,
-  and prerequisite check.
-- Portable `/src` default build flow for the v3 API smoke probe, with local
-  `primary_args_phase2` pass observed against `/src/ModSecurity_V3_build`.
-- Apache PoC build-preparation helper, runtime smoke harness scaffold, and
-  shared minimal YAML cases.
-- Apache PoC source-built httpd path with local expected HTTP behavior for all
-  current shared minimal cases.
-- NGINX PoC build helper and runtime harness using the same shared minimal cases
-  and the official `nginx/nginx` GitHub release archive flow, with local
-  expected HTTP behavior observed for all current shared minimal cases.
-- Formal smoke orchestration through `make smoke-apache`, `make smoke-nginx`,
-  `make smoke-common`, and `make smoke-all`.
-- Shared YAML schema fields for `capabilities`, pass-through expectations,
-  response body checks, and stable audit-log field checks.
-- Source-derived imported YAML smoke cases from the local Apache and NGINX
-  connector tests, with common vs connector-specific placement documented in
-  the framework-owned test import plan.
-- Deterministic multipart request materialization, per-case response fixtures,
-  and active source-derived common cases for raw JSON body matching, simple
-  multipart text-field blocking, and response-body pass-through.
-- V2/V3-derived common smoke imports for initial operator, transformation,
-  multipart FILES, XML body processor, v3 `@rx`, trim, and `SecAction`
-  behavior.
-- Capability validation/normalization in the shared runner for multipart,
-  files, XML, JSON, response-body, audit-log, collections, operators,
-  transformations, actions, rule-parser, and transaction-lifecycle metadata.
-- `real-world-connector-path` result metadata for Apache and NGINX smokes,
-  including server binary, connector module, libmodsecurity path, and verified
-  variable families derived only from passing cases.
-- Stabilized status/capability documentation in `docs/architecture/capability-model.md` and
-  `docs/architecture/status-model.md`.
-- Connector adapter responsibilities documented in
-  `docs/architecture/connector-adapter-interface.md`.
-- Case matrix generation through `make case-matrix` and
-  the framework-owned case matrix documentation.
-- Maintenance checks through `make lint` and summary rendering through
-  `make summary`.
-- SonarCloud remediation inventory in `modules/ModSecurity-test-Framework/docs/quality/sonarcloud-remediation-plan.md`.
-- Controlled Apache and NGINX connector source imports with file-level origin
-  maps, documented minimal upstream file sets, and central attribution under
-  `licenses/`.
-- First common refactor phase documented in `docs/architecture/refactor-phase-1-plan.md`,
-  limited to connector-neutral data shapes and documentation.
-- Phase 1 connector-neutral common foundation for status, intervention, and
-  origin metadata without Apache/NGINX hook or filter extraction.
-- C-first connector design decision documented; C++ is limited to thin wrappers,
-  test/build tools, and optional helper programs.
-- Harness result metadata aligned with common status, origin, and intervention
-  models while preserving backward-compatible smoke summaries.
-- Apache and NGINX smoke harnesses hardened for generated-runtime pid cleanup
-  and deterministic localhost port selection.
-- NGINX module source migrated to adapter-owned `connectors/nginx/src`, built
-  through `$BUILD_ROOT/nginx-build/connector-src`, with retained upstream
-  attribution and PR #377 phase-4 source provenance.
+- Monorepo layout with repo-local Apache and NGINX adapter-owned connector
+  source trees under `connectors/apache/` and `connectors/nginx/`.
+- Placeholder scaffolds for `connectors/{envoy,haproxy,lighttpd,traefik}/`.
+- Connector-neutral C-first headers in `common/include/msconnector/` for
+  directives, options/defaults, rule-load stats, request, response,
+  transaction, intervention, capability, origin/provenance, logging, and
+  status data shapes.
+- Small connector-neutral helper implementations in `common/src/` for status,
+  intervention, origin, and capability metadata.
+- Apache and NGINX metadata files, `ORIGIN.md` files, `SOURCE_MAP.json` files,
+  central attribution copies under `licenses/`, and drift checks through
+  `ci/check-adapter-metadata-drift.sh`.
+- Adapter-owned Apache build inputs, APXS/Autotools files, harness files, and
+  productive source under `connectors/apache/src/`.
+- Adapter-owned NGINX module `config`, harness files, and productive source
+  under `connectors/nginx/src/`, including recorded PR #377 phase-4 source
+  provenance for NGINX files.
+- Shared directive and option metadata used by Apache and NGINX without moving
+  server hook/filter/runtime ownership into `common/`.
+- Apache and NGINX support for the directive set documented in
+  `docs/connectors/directive-parity.md`; NGINX-only phase-4 controls remain
+  connector-specific.
+- Rule-load stats metadata in
+  `common/include/msconnector/rule_load_stats.h`; NGINX reports through its
+  existing startup log path, while Apache stores the counters as internal
+  config metadata only.
+- Framework-backed public targets in the connector `Makefile`, including
+  `make lint`, `make summary`, `make case-matrix`, `make smoke-common`,
+  `make smoke-apache`, `make smoke-nginx`, and `make smoke-all`.
+- YAML case corpus and generated report flow owned by
+  `modules/ModSecurity-test-Framework`, with connector evidence emitted under
+  `reports/testing/` and root summary copy `TEST-COVERAGE-SUMMARY.md`.
+- Current generated coverage summary for 140 YAML cases, including 80 xfail
+  cases, 10 mapped-only import inventory entries, 11 connector-gap cases,
+  13 runtime-difference cases, and 24 `RESPONSE_BODY` cases that remain
+  non-verified.
+- Runtime result metadata aligned with `msconnector_status`,
+  `msconnector_origin`, and `msconnector_intervention` while keeping the
+  shell/Python harness independent of C FFI.
+- Real-world connector result metadata for Apache and NGINX summaries,
+  including server binary, connector module, libmodsecurity path, origin, and
+  verified variable families derived only from passing active/imported cases.
+- Current local default connector summary data under `$BUILD_ROOT/results/`
+  reports Apache 54 PASS / 0 FAIL / 0 BLOCKED and NGINX 60 PASS / 0 FAIL /
+  0 BLOCKED. This is local default-smoke evidence only; it is not a blanket
+  stability claim for force-all, xfail, mapped-only, future, or blocked cases.
+- This workspace's 2026-05-24 normal-scope refresh executed
+  `make smoke-common`, `make smoke-apache`, `make smoke-nginx`, and
+  `make smoke-all` with exit code 0. These local smoke results remain separate
+  from the tracked force-all runtime-matrix snapshot.
+- The tracked 2026-05-24 runtime matrix snapshot records force-all evidence:
+  Apache 87 PASS / 46 FAIL / 0 BLOCKED and NGINX 94 PASS / 46 FAIL /
+  0 BLOCKED, with xfail, future, connector-gap, runtime-difference, and
+  response-body pass-through results not promoted.
+- Documentation for the capability model, status model, adapter interface,
+  common runtime boundaries, directive parity, rule-load stats, source
+  attribution, and license/origin policy.
 
-## Planned
+## Next Milestones
 
-- Promote the documented YAML shape into a machine-readable schema.
-- Promote imported NGINX-only TX scoring/redirect cases to common only after
-  Apache equivalence is tested and documented.
-- Add fixture support for external-file operators and connector-specific config
-  matrices.
-- Promote multipart file-name/file-collection cases only after Apache and NGINX
-  both pass them through the shared harness.
-- Add a dedicated `smoke-api` target for API-only v3 public C API regression
-  candidates; API-only cases are mapped today but not part of connector
-  `smoke-all`.
-- Expand V2/V3 imports beyond initial text-safe cases after fixture support for
-  external files, schema/DTD files, and binary/NUL payload representation is
-  designed.
-- Re-run SonarCloud after the next CI analysis and close any remaining issues
-  that the source-level refactor did not resolve.
-- Continue reducing adapter-owned Apache and NGINX source only after the
-  equivalent behavior exists in maintained project code, attribution remains
-  under `licenses/`, `ORIGIN.md`, and `SOURCE_MAP.json`, and smoke-all still
-  passes. The former NGINX `upstream/` tree was removed in phase 10; the former
-  Apache `upstream/` tree was removed in phase 11 after materialized build and
-  smoke evidence.
-
-## Unknown
-
-- HAProxy integration path: SPOE service, Lua, or native filter.
-- Envoy integration path: native C++ filter, ext_authz, Lua, or Wasm.
-- Lighttpd integration path: native plugin or `mod_magnet`.
-- Traefik integration path: Yaegi middleware or Wasm middleware.
-
-These future connector decisions are intentionally deferred until Apache/NGINX
-Common metadata and harness behavior remain stable.
-
-## Blocked
-
-- Runtime claims are blocked until each connector has a build, test server,
-  repeatable fixtures, and passing connector-specific tests.
-- Direct libmodsecurity API smoke is not connector proof; connector pass must
-  come from the `real-world-connector-path`.
-- v3 API smoke status is `pass` only when the primary `ARGS:test` scenario
-  observes intervention status `403`; `fallback pass` is only a minimal API
+- Promote the documented YAML case shape into a machine-readable schema after
+  the shared YAML shape and connector-specific extension behavior settle.
+- Extend shared fixture support for external files, schema/DTD/XML fixtures,
+  file-backed operators, binary/NUL payload representation, and larger response
+  fixtures.
+- Keep `reports/testing/case-matrix.md` and generated matrix reports refreshed
+  from current connector summaries without using them as standalone runtime
   proof.
-- Fresh environments remain blocked until
-  `$MODSECURITY_V3_DIR/src/.libs/libmodsecurity.so` exists in a writable build
-  copy.
-- Apache PoC runtime is blocked in fresh environments until source downloads,
-  PCRE/APR/httpd/libmodsecurity builds, and the module build complete.
-- NGINX PoC runtime is blocked in fresh environments until GitHub release
-  resolution/downloads, libmodsecurity v3 build, connector module build, and
-  runtime smokes complete.
-- Response-body blocking remains blocked/xfail for common import until both
-  Apache and NGINX return stable HTTP 403 for the same YAML case. PR #377 source
-  is applied to adapter-owned NGINX source, but it is not a verification result.
-- RAW-ARGS cases remain mapped-only until the configured ModSecurity v3 source
-  contains PR #3564 behavior and both Apache and NGINX pass real HTTP smokes.
-- `v3_action_nolog_pass_no_audit` remains xfail/mapped-only for active common
-  smoke status: local Apache/NGINX probes observed empty audit logs, but GitHub
-  Actions observed unexpected audit output.
+- Reconcile tracked generated runtime reports with any newly executed local
+  smoke results before updating PASS/FAIL wording in status docs.
+- Add clearer connector-specific config-test support for cases that cannot be
+  expressed as plain HTTP smokes, such as invalid NGINX phase-4 config.
+- Add or refine stable audit-log parsers for section-aware checks; keep
+  volatile fields out of required assertions.
+- Promote NGINX-only TX scoring and redirect cases to common only after Apache
+  equivalence is implemented, tested, and documented.
+- Promote multipart filename/file-collection edge cases only after both Apache
+  and NGINX pass the same real-world connector cases.
+
+## Later / Deferred
+
+- HAProxy, Envoy, Lighttpd, and Traefik remain deferred. They need stable
+  Common metadata, stable harness behavior, a selected integration approach,
+  and real-world connector summaries before any compatibility claim.
+- Apache parity for NGINX-specific phase-4 directives remains deferred.
+- Common reporting for rule-load stats and Apache post-config display of those
+  counters remain deferred until aggregation and merge semantics are designed.
+- Further reduction of Apache/NGINX adapter-owned source remains deferred until
+  equivalent behavior exists in maintained local code, attribution stays under
+  `licenses/`, `ORIGIN.md`, and `SOURCE_MAP.json`, and relevant real-world
+  smokes still pass.
+- Full CRS v2/v3 compatibility comparison, performance baselines, graceful
+  restart lifetime checks, vhost/UID audit-log scenarios, HTTP/2, streaming,
+  and body-buffering coverage remain later work.
+- A dedicated `smoke-api` target for connector-free v3 public C API regression
+  candidates remains a possible addition; API-only results must stay separate
+  from connector proof.
+
+## Blocked / Waiting On
+
+- `RESPONSE_BODY` blocking is waiting on stable Apache and NGINX real HTTP 403
+  behavior for the same YAML probe. PR #377 source is recorded for NGINX, but
+  source intake is not response-body validation.
+- RAW argument collections are waiting on local ModSecurity v3 support for
+  PR #3564 plus passing Apache and NGINX real-world smokes.
 - XML schema/DTD validation, parser-error cases, file-backed operators,
-  malformed multipart bodies, and streaming/body-buffering cases remain mapped
-  until the shared harness has explicit fixture and transport support.
+  malformed multipart bodies, HTTP/2, streaming, and large body/response
+  scenarios are waiting on explicit fixture and transport support.
+- `v3_action_nolog_pass_no_audit` remains xfail because local Apache/NGINX
+  observations and GitHub Actions audit behavior have differed.
+- Future connectors are waiting on a selected integration path and a real server
+  harness that can emit the same status/origin/intervention metadata.
+- Fresh environments can still be blocked until source downloads, toolchains,
+  libmodsecurity builds, server builds, and connector module builds complete.
+
+## Unknowns / Design Decisions
+
+- Whether the YAML schema should be JSON Schema, a custom validator, or both.
+- How much connector-specific YAML extension should be allowed in otherwise
+  common cases.
+- Where to draw the first durable Common runtime API boundary beyond metadata
+  helpers without absorbing Apache hooks, NGINX filters, body handling, or
+  transaction lifetime too early.
+- How to represent response-body empty replies, late interventions, and
+  already-sent-header behavior in a stable status model.
+- Whether Apache response-body parity should use shared behavior, Apache-only
+  directives, or a narrower documented support level.
+- HAProxy integration path: SPOE service, Lua, or native filter.
+- Envoy integration path: native C++ filter, external processing, Lua, or Wasm.
+- Lighttpd integration path: native plugin or `mod_magnet`.
+- Traefik integration path: plugin/middleware, Yaegi, Wasm, or another
+  documented integration route.
+
+## Recommended Next Actions
+
+- Run `make lint`, `make summary`, and `make case-matrix` before changing
+  status docs, then record the exact results.
+- Run `make smoke-common`, `make smoke-apache`, `make smoke-nginx`, or
+  `make smoke-all` only when the environment is expected to have the required
+  local source-build prerequisites; record PASS/FAIL/BLOCKED exactly.
+- Refresh generated reports with `make generate-test-matrix` and verify with
+  `make check-test-matrix` whenever YAML cases, import status, or connector
+  summary inputs change.
+- Keep response-body blocking and RAW-ARGS in blocked/waiting-on sections until
+  local source support and both real-world connector smokes prove them.
+- Keep future connector work as design-only/deferred until Common metadata and
+  harness behavior are stable enough to avoid copying Apache/NGINX assumptions.
+- Keep source attribution and license files synchronized whenever connector
+  source is moved, reduced, or refreshed.

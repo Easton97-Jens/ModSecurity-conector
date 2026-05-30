@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure guidance
+    url: https://github.com/Easton97-Jens/ModSecurity-conector/blob/master/README.md
+    about: For sensitive security issues, avoid posting exploit details publicly and provide minimal reproducible context first.

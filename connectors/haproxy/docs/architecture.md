@@ -1,15 +1,36 @@
-# HAProxy Architecture
+# HAProxy Scaffold Architecture
 
-Status: unknown
+## Ziel
 
-Official HAProxy SPOE documentation describes a filter that communicates with an
-external SPOA service over SPOP. This may be a candidate architecture, but this
-repo does not yet prove that it can support all libmodsecurity v3 phases.
+Dieses Dokument überträgt den adapter-owned Ansatz als Scaffold auf HAProxy.
+Es beschreibt Optionen und offene Fragen, keine Implementierungszusage.
 
-Known candidate paths:
+## Adapter-owned Grundsatz
 
-- SPOE/SPOA service.
-- Lua extension.
-- Native HAProxy filter.
+- HAProxy-spezifische Build-/Runtime-Logik bleibt unter `connectors/haproxy/`.
+- Gemeinsame, connector-neutrale Metadaten dürfen genutzt werden, wo passend.
+- Server-Lifecycle und Runtime-Semantik sind HAProxy-spezifisch und noch zu
+  prüfen.
 
-No path is selected yet.
+## HAProxy-Lifecycle (noch zu prüfen)
+
+- Start-/Stop-Verhalten in lokalen und CI-Umgebungen
+- Reload-Semantik und Nebenwirkungen
+- Worker-/Process-Modell und Zustandsgrenzen
+- Request-/Response-Hookpunkte für ModSecurity-Entscheidungen
+
+## Mögliche Integrationsmodelle (Optionen, keine Entscheidung)
+
+- SPOE/SPOA-Modell
+- Native Erweiterung/Filtermodell
+- Lua-basierter Ansatz
+- Externer Prüfservice
+
+Hinweis: Diese Optionen sind als Arbeitsliste zu verstehen. Keine Option ist
+hier als entschieden oder funktionsfähig belegt.
+
+## Klare Nicht-Zusagen
+
+- Apache-/NGINX-Runtime-Code darf nicht ungeprüft kopiert werden.
+- Es wird keine Runtime-Parität mit Apache/NGINX behauptet.
+- Response-Body-/Streaming-Verhalten ist noch zu prüfen.

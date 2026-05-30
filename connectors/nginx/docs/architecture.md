@@ -14,7 +14,7 @@ C APIs. Observed connector-specific concepts include:
 
 These are not connector-neutral and must remain under `connectors/nginx/`.
 
-Open work is tracked in `docs/roadmap/todo-inventory.md`:
+Open work is tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`:
 
 - Define the exact phase and filter ordering for this repo.
 - Prove request/response body buffering behavior with connector tests.

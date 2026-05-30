@@ -4,17 +4,21 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   common-structure:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
+          persist-credentials: false
       - name: Setup python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: '3.13'
       - name: Check common scaffold
         run: |
           set -eu
@@ -44,6 +48,7 @@ jobs:
           test -f docs/connectors/future-connectors.md
           test -f ci/check-common-helpers.sh
       - name: Lightweight framework checks
+        if: github.event_name != 'pull_request'
         run: |
           make setup-dev
           make quick-check

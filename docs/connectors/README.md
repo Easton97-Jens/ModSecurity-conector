@@ -2,19 +2,18 @@
 
 Status: implemented
 
-Connector docs explain the real-world Apache and NGINX PoCs and the requirements
-future connectors must meet before claiming compatibility.
+Connector docs explain current Apache and NGINX adapter-owned behavior and the
+requirements future connectors must meet before claiming compatibility.
 
 ## Documents
 
 | Document | Use |
 | --- | --- |
-| `apache-poc.md` | Apache source-build, module build, and smoke harness status |
-| `nginx-poc.md` | NGINX source-build, dynamic module, and smoke harness status |
-| `nginx-poc-plan.md` | NGINX lifecycle and build model notes |
-| `apache-vs-nginx-poc.md` | Shared YAML evidence and connector lifecycle differences |
-| `real-world-connector-validation.md` | Required proof path through real server connector modules |
+| `directive-parity.md` | Current Apache and NGINX directive support and semantics |
+| `rule-load-stats.md` | Common rule-load metadata shape and Apache/NGINX adapter semantics |
 | `future-connectors.md` | HAProxy, Envoy, Lighttpd, and Traefik planning constraints |
+| `../../reports/testing/real-world-connector-validation.md` | Current real-world connector proof model and smoke evidence caveats |
+| `../../reports/testing/evidence/pr-evidence-summary.md` | PR #377 and PR #3564 evidence boundaries |
 
 ## Upstream References
 
@@ -28,4 +27,6 @@ future connectors must meet before claiming compatibility.
 | Traefik | https://github.com/traefik/traefik |
 
 No future connector is implemented until it can prove a real HTTP client to
-server connector to libmodsecurity path.
+server connector to libmodsecurity path. HAProxy, Envoy, Lighttpd, and Traefik
+remain deferred until the Common metadata and harness behavior are stable enough
+to design connector-specific proof paths.

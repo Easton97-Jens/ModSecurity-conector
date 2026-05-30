@@ -9,4 +9,4 @@ Source references used for this scaffold:
 - Apache httpd source: https://github.com/apache/httpd
 
 Tracked follow-up: document official Apache module and hook references before
-any maintained Apache adapter rewrite. See `docs/roadmap/todo-inventory.md`.
+any maintained Apache adapter rewrite. See `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.

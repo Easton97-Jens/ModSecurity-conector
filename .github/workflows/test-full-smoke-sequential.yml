@@ -3,10 +3,19 @@ name: manual-heavy-runtime-validation
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   manual-heavy-runtime-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - no-crs
+          - with-crs
     env:
       MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
       MODSECURITY_GIT_REF: v3/master
@@ -20,9 +29,10 @@ jobs:
       SMOKE_LOCK_MODE: wait
       SMOKE_LOCK_TIMEOUT_SECONDS: "1800"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
+          persist-credentials: false
 
       - name: Initialize paths
         id: paths
@@ -46,21 +56,31 @@ jobs:
         run: |
           make setup-dev
           make lint
-          .venv/bin/python -m py_compile modules/ModSecurity-test-Framework/tests/normalizers/*.py modules/ModSecurity-test-Framework/tests/runners/*.py modules/ModSecurity-test-Framework/ci/*.py
+          .venv/bin/python -P -m py_compile modules/ModSecurity-test-Framework/tests/normalizers/*.py modules/ModSecurity-test-Framework/tests/runners/*.py modules/ModSecurity-test-Framework/ci/*.py
           git diff --check
 
       - name: Sequential full smoke
         run: |
           set -eu
-          SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 BUILD_ROOT="${{ steps.paths.outputs.build_root_apache }}" make smoke-apache
-          SMOKE_PREPARE_TIMEOUT_SECONDS=3600 BUILD_ROOT="${{ steps.paths.outputs.build_root_apache }}" make smoke-all
-          SMOKE_PREPARE_TIMEOUT_SECONDS=3600 BUILD_ROOT="${{ steps.paths.outputs.build_root }}" make smoke-all
+          make fetch-deps
+          case "${{ matrix.variant }}" in
+            no-crs)
+              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-no-crs
+              ;;
+            with-crs)
+              SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-with-crs
+              ;;
+            *)
+              echo "unknown test variant: ${{ matrix.variant }}" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Upload smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: full-smoke-sequential-artifacts
+          name: full-smoke-sequential-${{ matrix.variant }}-artifacts
           if-no-files-found: ignore
           path: |
             ${{ steps.paths.outputs.build_root_apache }}/logs
