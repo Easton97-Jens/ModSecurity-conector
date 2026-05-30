@@ -11,6 +11,8 @@ runtime rows.
 | --- | --- | --- |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS, 0 FAIL, 0 BLOCKED; NGINX 54 PASS, 0 FAIL, 0 BLOCKED |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | NGINX 60 PASS, 1 FAIL, 0 BLOCKED; failing case is `action_status_401_phase1_block`, expected 401 and actual 403 |
 
 Current evidence:
 
@@ -18,6 +20,8 @@ Current evidence:
 - `/src/ModSecurity-conector-build/results/connector-summary.json`
 - `/src/ModSecurity-conector-build/results/nginx.rc`
 - `/src/ModSecurity-conector-build/results/apache.rc`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json`
 
 ## Historical BLOCKED Cases
 
@@ -66,6 +70,9 @@ Current classification: resolved for `/src` runs with
 
 No historical blocked case is counted as PASS for the old run. The PASS status
 comes only from the new reruns listed above.
+
+The current With-CRS FAIL is not a recurrence of the docroot BLOCKED issue. It
+is a runtime expectation failure for `action_status_401_phase1_block`.
 
 RESPONSE_BODY blocking remains `not verified`: `response_body_pass` is a
 pass-through case, not a blocking response-body testcase.

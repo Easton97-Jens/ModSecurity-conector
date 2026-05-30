@@ -86,14 +86,23 @@ Current repository evidence keeps Apache `partial`: `phase1_header_block` has
 runtime-smoke evidence with HTTP 403, but Apache-specific YAML cases were not
 found beyond `README.md`, and `RESPONSE_BODY` blocking remains not verified.
 
+Current `/src` CRS-variant evidence is documented in
+`reports/template-verification-nginx-apache/verified-runtime-run.md`:
+
+- `make test-no-crs`: Apache PASS, 54 PASS, 0 FAIL, 0 BLOCKED.
+- `make test-with-crs`: Apache FAIL, 54 PASS, 1 FAIL, 0 BLOCKED.
+- With-CRS `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
+- With-CRS failing case: `action_status_401_phase1_block`, expected 401,
+  actual 403.
+
 ## Coverage / Runtime Decision Matrix
 
 See `docs/coverage-decision-matrix.md`.
 
-Apache currently remains `partial`: `/src phase1_header_block` is documented as
-PASS, but generated coverage reporting is not automatic runtime promotion, the
-force-all runtime snapshot has overall FAIL status, and `RESPONSE_BODY`
-blocking remains not verified.
+Apache currently remains `partial`: `/src phase1_header_block` and the No-CRS
+target are documented as PASS for their executed scope, but the current
+With-CRS target has one FAIL, generated coverage reporting is not automatic
+runtime promotion, and `RESPONSE_BODY` blocking remains not verified.
 
 See `docs/connectors/directive-parity.md` and
 `connectors/apache/harness/README.md`.

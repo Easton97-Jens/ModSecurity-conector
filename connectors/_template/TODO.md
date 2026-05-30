@@ -114,6 +114,15 @@ Status-Vokabular:
       Framework-Pfade.
 - [ ] Status: offen - Fuer einen konkreten neuen Connector muss der passende
       `smoke-<name>` oder ein dokumentierter Runtime-Command belegt werden.
+- [ ] Status: nicht verifiziert - Fuer einen konkreten neuen Connector muss
+      `make test-no-crs` getrennt dokumentiert werden, wenn das Target im
+      Repository vorhanden ist.
+- [ ] Status: nicht verifiziert - Fuer einen konkreten neuen Connector muss
+      `make test-with-crs` getrennt dokumentiert werden, wenn das Target im
+      Repository vorhanden ist.
+- [ ] Status: nicht verifiziert - CRS-Claims duerfen nur aus belegten
+      With-CRS-Commands, CRS-Pfaden, erwarteten/tatsaechlichen Statuswerten
+      und Summary-Dateien abgeleitet werden.
 - [ ] Status: offen - Mehr als `partial` ist erst nach dokumentierter
       Mindestmatrix belegbar: `phase1_header_block`, Request-Body blocking,
       Response-Header blocking falls vom Framework unterstuetzt, Response-Body

@@ -2,15 +2,17 @@
 
 Status: reviewed
 
-Apache-Bewertung: partial mit aktuellem `/src` Common-Runtime-PASS-Scope
+Apache-Bewertung: partial mit aktuellem `/src` No-CRS-PASS und With-CRS-FAIL-Scope
 
 Begründung: `connectors/apache` enthält eine adapter-owned Quellstruktur,
 Autotools/APXS-Builddateien, Metadaten, Herkunftsdokumentation, Harness und
 Dokumentation. Die Bewertung ist aber nur teilweise vollständig, weil der
-aktuelle `/src` Common-Runtime-Run nur die ausgefuehrten Apache-Fälle belegt,
-nicht die vollständige Mindestmatrix. Apache-spezifische YAML-Fälle
-wurden nicht gefunden, Status-Angaben sind nicht konsistent, und RESPONSE_BODY
-blocking ist laut Repo-Evidenz nicht verifiziert.
+aktuelle `/src` Common-Runtime-Run und `test-no-crs` nur die ausgefuehrten
+Apache-Faelle belegen, nicht die vollstaendige Mindestmatrix. `test-with-crs`
+lief, ist aber wegen `action_status_401_phase1_block` FAIL: erwartet 401,
+tatsaechlich 403. Apache-spezifische YAML-Faelle wurden nicht gefunden,
+Status-Angaben sind nicht konsistent, und RESPONSE_BODY blocking ist laut
+Repo-Evidenz nicht verifiziert.
 
 Scaffold-Regeln fuer neue Connectoren und die Grenze zwischen `partial`,
 `runtime-smoke-verified` und `not-verified` sind in
@@ -34,6 +36,9 @@ Scaffold-Regeln fuer neue Connectoren und die Grenze zwischen `partial`,
 | `/src` Runtime-Prüflauf | Teilweise OK | Der aktuelle `/src` Common-Run hat 54 PASS, 0 FAIL und 0 BLOCKED fuer Apache; das ist kein vollstaendiger Runtime-Nachweis und kein RESPONSE_BODY-Blocking-Nachweis. | `reports/template-verification-nginx-apache/verified-runtime-run.md` |
 | Gemeinsamer Include-Pfad | OK fuer Build | Der Apache-Buildlog zeigt `-I/root/git/ModSecurity-conector/common/include`; derselbe Header `msconnector/rule_load_stats.h` wird in `connectors/apache/src/mod_security3.h` eingebunden. | `/src/ModSecurity-conector-build/logs/apache/apache-make.log`, `connectors/apache/build/apxs-wrapper.in`, `connectors/apache/src/mod_security3.h` |
 | Smoke-Test aktuell ausführbar | Teilweise OK | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-apache` bestand; die finalen Apache-Resultate aus `make smoke-common` zeigen 54 PASS, 0 FAIL und 0 BLOCKED. | `reports/template-verification-nginx-apache/verified-runtime-run.md` |
+| No-CRS Runtime aktuell | OK | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` zeigt Apache 54 PASS, 0 FAIL und 0 BLOCKED. | `/src/ModSecurity-conector-build/results/no-crs/apache-summary.json` |
+| With-CRS Runtime aktuell | FAIL | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` zeigt Apache 54 PASS, 1 FAIL und 0 BLOCKED; `action_status_401_phase1_block` erwartete 401 und erhielt 403. | `/src/ModSecurity-conector-build/results/with-crs/apache-summary.json` |
+| CRS SQLi Case aktuell | OK | `crs_sqli_anomaly_block` bestand mit erwarteten 403 und tatsächlichen 403. | `/src/ModSecurity-conector-build/results/with-crs/apache-summary.json` |
 | Direktes Harness-Skript | OK fuer einen Fall | `connectors/apache/harness/run_apache_smoke.sh` wurde versucht und bestand fuer `phase1_header_block` mit HTTP 403. | `connectors/apache/harness/run_apache_smoke.sh`, `reports/template-verification-nginx-apache/runtime-test-run-src.md` |
 | Coverage Matrix | Teilweise | Matrix angelegt; `TEST-COVERAGE-SUMMARY.md` meldet 140 YAML-Fälle, Apache attempted 133, FORCE_ALL Apache Snapshot FAIL mit 87 PASS und 46 FAIL; der aktuelle `/src` Common-Run hat 54 PASS, aber RESPONSE_BODY blocking bleibt nicht verifiziert. | `connectors/apache/docs/coverage-decision-matrix.md`, `TEST-COVERAGE-SUMMARY.md`, `reports/template-verification-nginx-apache/verified-runtime-run.md` |
 | Apache-spezifische YAML-Fälle | Fehlt | Im Apache-spezifischen Framework-Case-Ordner wurde nur `README.md` gefunden. | `modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/README.md` |
@@ -59,6 +64,13 @@ Scaffold-Regeln fuer neue Connectoren und die Grenze zwischen `partial`,
       `phase1_header_block` bestand mit HTTP 403.
 - [x] Status: erledigt - aktueller `/src` Common-Run dokumentiert Apache mit
       54 PASS, 0 FAIL und 0 BLOCKED.
+- [x] Status: erledigt - aktueller `/src` No-CRS-Run dokumentiert Apache mit
+      54 PASS, 0 FAIL und 0 BLOCKED.
+- [ ] Status: fail - aktueller `/src` With-CRS-Run dokumentiert Apache mit
+      54 PASS, 1 FAIL und 0 BLOCKED. FAIL:
+      `action_status_401_phase1_block`, erwartet 401, tatsaechlich 403.
+- [x] Status: erledigt - aktueller `/src` With-CRS-Run dokumentiert
+      `crs_sqli_anomaly_block` mit erwarteten 403 und tatsaechlichen 403.
 - [x] Status: erledigt - der Apache-Buildlog enthaelt den gemeinsamen
       Include-Pfad `common/include`.
 - [x] Status: erledigt - Direktes Apache-Harness bestand fuer
@@ -75,8 +87,9 @@ Scaffold-Regeln fuer neue Connectoren und die Grenze zwischen `partial`,
 Apache bleibt `partial`. Die Connector-Struktur und dokumentierte
 Repo-Evidenz sind vorhanden. Der aktuelle `/src` Common-Run dokumentiert
 Apache mit 54 PASS, 0 FAIL und 0 BLOCKED, einschliesslich
-`phase1_header_block` mit HTTP 403. Das ist kein vollstaendiger
-Runtime-Nachweis. Der Apache-Buildlog enthaelt den
-gemeinsamen Include-Pfad `common/include`; Status-Angaben sind teilweise
-uneinheitlich, Apache-spezifische YAML-Fälle wurden nicht gefunden, und
-RESPONSE_BODY blocking ist nicht verifiziert.
+`phase1_header_block` mit HTTP 403. Der aktuelle No-CRS-Run ist PASS. Der
+aktuelle With-CRS-Run ist FAIL, obwohl `crs_sqli_anomaly_block` fuer Apache
+PASS ist. Das ist kein vollstaendiger Runtime-Nachweis. Der Apache-Buildlog
+enthaelt den gemeinsamen Include-Pfad `common/include`; Status-Angaben sind
+teilweise uneinheitlich, Apache-spezifische YAML-Faelle wurden nicht gefunden,
+und RESPONSE_BODY blocking ist nicht verifiziert.

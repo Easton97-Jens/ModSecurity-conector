@@ -35,11 +35,22 @@ make quick-check
 make smoke-apache
 make smoke-common
 make smoke-all
+make test-no-crs
+make test-with-crs
 make runtime-matrix-all
 ```
 
 `make smoke-apache` is the connector-specific runtime target. A passing build or
 static check alone is not documented as an Apache runtime pass.
+
+`make test-no-crs` and `make test-with-crs` are CRS-variant targets and must be
+reported separately. Current `/src` evidence:
+
+- `make test-no-crs`: Apache PASS, 54 PASS, 0 FAIL, 0 BLOCKED.
+- `make test-with-crs`: Apache FAIL, 54 PASS, 1 FAIL, 0 BLOCKED.
+- With-CRS `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
+- With-CRS failing case: `action_status_401_phase1_block`, expected 401,
+  actual 403.
 
 ## Test Ownership
 
@@ -67,8 +78,9 @@ case files and matching runtime evidence are present.
   is not proven.
 - `not-verified`: insufficient runtime evidence.
 
-Apache remains `partial` while only `phase1_header_block` is runtime-smoke
-verified and RESPONSE_BODY blocking remains `not-verified`.
+Apache remains `partial`. Current common and No-CRS `/src` evidence is PASS for
+the executed scope, but the current With-CRS target is FAIL and RESPONSE_BODY
+blocking remains `not-verified`.
 
 ## Not Claimed
 

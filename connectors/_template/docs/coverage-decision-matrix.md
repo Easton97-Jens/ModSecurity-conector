@@ -17,6 +17,16 @@ A connector-specific verified runtime claim must link to
 equivalent evidence file that records command, result, exit code, and report
 paths.
 
+Connector test variants must be reported separately when present:
+
+- `make test-no-crs`: local YAML-case rules without CRS.
+- `make test-with-crs`: CRS-prepared variant that loads CRS before local
+  YAML-case rules.
+
+No-CRS PASS evidence does not imply With-CRS PASS evidence, and a passing
+single CRS case does not make the whole With-CRS target pass if another case
+fails.
+
 ## Status Vocabulary
 
 - `framework-covered`: a YAML/framework case exists, but the connector is not
@@ -44,6 +54,10 @@ paths.
       command/result/log evidence.
 - [ ] Status: not-verified - Audit/log evidence documented.
 - [ ] Status: not-verified - Negative/pass-through case documented.
+- [ ] Status: not-verified - No-CRS target result documented for the concrete
+      connector.
+- [ ] Status: not-verified - With-CRS target result documented for the concrete
+      connector.
 - [x] Status: partial - Connector remains `partial` until required matrix is
       complete.
 
@@ -69,6 +83,18 @@ Evidence source: `TEST-COVERAGE-SUMMARY.md`.
 | Phase 4 / Response body / outbound | framework-covered if cases exist; generated snapshot records Phase 4 count 20 and RESPONSE_BODY count 20 by collection | yes | not-verified | Blocking evidence, logs, report path |
 | Audit/log evidence | framework-covered only if probes exist; generated snapshot records Audit-log probes 24 and `AUDIT_LOG` collection count 0 | yes | not-verified | Audit/log report evidence |
 | Negative/pass-through | framework-covered if case exists; generated snapshot includes RESPONSE_BODY pass-through classes but no promotion | yes | not-verified | Expected non-blocking result |
+
+## CRS Variant Gate
+
+| Gate | No-CRS Status | With-CRS Status | Evidence required | Decision |
+| --- | --- | --- | --- | --- |
+| Basic target | not-verified | not-verified | Command, exit code, connector summary JSON | Report separately; do not merge counts. |
+| CRS loading | not applicable | not-verified | CRS source path, CRS runtime preamble path, command output/result summary | Required before CRS claims. |
+| CRS-specific case | not applicable | not-verified | Case path, expected status, actual status, connector result | Claim only the case that passed. |
+| Phase 1 | not-verified | not-verified | Phase counts and failing case list | Partial unless complete and passing. |
+| Phase 2 | not-verified | not-verified | Phase counts and failing case list | Partial unless complete and passing. |
+| Phase 3 | not-verified | not-verified | Phase counts and failing case list | Partial unless complete and passing. |
+| Phase 4 / RESPONSE_BODY | not-verified | not-verified | Blocking response-body case, HTTP result, logs, report path | Do not promote pass-through/log-only rows. |
 
 ## Minimum Evidence For More Than `partial`
 

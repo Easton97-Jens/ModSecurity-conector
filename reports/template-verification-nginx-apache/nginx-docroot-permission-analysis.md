@@ -95,6 +95,8 @@ Commands executed:
 ```text
 SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx
 SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common
+SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs
+SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs
 ```
 
 Results:
@@ -103,12 +105,16 @@ Results:
 | --- | --- | --- |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | `nginx-summary.json`: 60 PASS, 0 FAIL, 0 BLOCKED |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | `connector-summary.json`: Apache 54 PASS, NGINX 54 PASS |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | `results/no-crs/nginx-summary.json`: 60 PASS, 0 FAIL, 0 BLOCKED |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | `results/with-crs/nginx-summary.json`: 60 PASS, 1 FAIL, 0 BLOCKED; failure is `action_status_401_phase1_block`, expected 401 and actual 403 |
 
 Current summary files:
 
 - `/src/ModSecurity-conector-build/results/nginx-summary.json`
 - `/src/ModSecurity-conector-build/results/apache-summary.json`
 - `/src/ModSecurity-conector-build/results/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json`
 
 Current RC files:
 
@@ -119,6 +125,8 @@ Current RC files:
 
 The 11 prior NGINX BLOCKED rows are classified as an environment/docroot
 permission blocker. The current `/src` runs no longer have NGINX BLOCKED rows.
+The current With-CRS target has one FAIL, but it is not a docroot permission
+blocker.
 
 NGINX still remains `partial` because full runtime promotion requires the
 minimum matrix and RESPONSE_BODY blocking evidence. `response_body_pass` is

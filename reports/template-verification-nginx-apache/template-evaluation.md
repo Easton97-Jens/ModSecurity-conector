@@ -26,6 +26,7 @@ promotet das generische Template nicht zu einer Implementierung.
 | Build | Teilweise | Build-Themen sind benannt, konkrete Build-Regeln bleiben fuer Connectoren offen. | `connectors/_template/docs/build.md` |
 | Validation | OK | Stellt klar, dass Runtime-Evidenz erforderlich ist. | `connectors/_template/docs/validation.md` |
 | Coverage Matrix | OK | Generische Matrix trennt Framework-Coverage von Runtime-Verifikation und setzt Template-Defaults auf `not-verified`. | `connectors/_template/docs/coverage-decision-matrix.md` |
+| CRS-Varianten | OK | Template-Doku fordert getrennte No-CRS/With-CRS-Dokumentation fuer konkrete Connectoren. | `connectors/_template/README.md`, `connectors/_template/docs/coverage-decision-matrix.md` |
 | Scaffold-Entscheidungen | OK | Status-Vokabular, externe Testpfade, RESPONSE_BODY-Mindest-Evidenz und `partial`-Grenzen sind dokumentiert. | `reports/template-verification-nginx-apache/connector-scaffold-decisions.md` |
 | Aktuelle Runtime-Evidenz | Nicht anwendbar | `verified-runtime-run.md` dokumentiert Apache/NGINX-Runtime-Ergebnisse, aber keine Template-Runtime. | `reports/template-verification-nginx-apache/verified-runtime-run.md` |
 | Harness | Teilweise | Erwartete Hooks sind benannt, aber nicht implementiert. | `connectors/_template/harness/README.md` |
@@ -44,6 +45,8 @@ promotet das generische Template nicht zu einer Implementierung.
 - [x] Keine produktive Funktionsbehauptung im Template gefunden.
 - [x] Validation-Dokument fordert Runtime-Evidenz.
 - [x] Coverage-Decision-Matrix vorhanden.
+- [x] No-CRS/With-CRS getrennt als Regel fuer konkrete Connectoren
+      dokumentiert.
 - [ ] Status: teilweise - Harness ist dokumentiert, aber nicht implementiert.
 - [x] Lokaler Template-Testordner entfernt.
 - [ ] Status: nicht verifiziert - Ausführbare Template-Tests werden nicht

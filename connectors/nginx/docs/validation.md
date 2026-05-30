@@ -35,11 +35,22 @@ make quick-check
 make smoke-nginx
 make smoke-common
 make smoke-all
+make test-no-crs
+make test-with-crs
 make runtime-matrix-all
 ```
 
 `make smoke-nginx` is the connector-specific runtime target. A passing build or
 static check alone is not documented as an NGINX runtime pass.
+
+`make test-no-crs` and `make test-with-crs` are CRS-variant targets and must be
+reported separately. Current `/src` evidence:
+
+- `make test-no-crs`: NGINX PASS, 60 PASS, 0 FAIL, 0 BLOCKED.
+- `make test-with-crs`: NGINX FAIL, 60 PASS, 1 FAIL, 0 BLOCKED.
+- With-CRS `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
+- With-CRS failing case: `action_status_401_phase1_block`, expected 401,
+  actual 403.
 
 ## Test Ownership
 
@@ -77,8 +88,9 @@ MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include
   is not proven.
 - `not-verified`: insufficient runtime evidence.
 
-NGINX remains `partial` while only `phase1_header_block` is runtime-smoke
-verified and RESPONSE_BODY blocking remains `not-verified`.
+NGINX remains `partial`. Current common, all-scope, and No-CRS `/src` evidence
+is PASS for the executed scope, but the current With-CRS target is FAIL and
+RESPONSE_BODY blocking remains `not-verified`.
 
 ## Not Claimed
 

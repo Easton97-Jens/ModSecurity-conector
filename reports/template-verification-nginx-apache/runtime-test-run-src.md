@@ -1,6 +1,6 @@
 # Runtime Test Run Under `/src`
 
-Status: current `/src` smokes PASS for executed scope
+Status: current `/src` smokes PASS for No-CRS scope; With-CRS target FAIL
 
 ## Current Environment
 
@@ -20,40 +20,55 @@ Working directory:
 
 | Command | Result | Summary |
 | --- | --- | --- |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-apache` | PASS | Apache source-build smoke completed before later result directories were refreshed. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS, 0 FAIL, 0 BLOCKED; NGINX 54 PASS, 0 FAIL, 0 BLOCKED. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS, 0 FAIL, 0 BLOCKED; NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | Apache 54 PASS / 1 FAIL; NGINX 60 PASS / 1 FAIL; failing case is `action_status_401_phase1_block`, expected 401 and actual 403. |
 
 ## Evidence Files
 
+Common smoke:
+
 - `/src/ModSecurity-conector-build/results/apache-summary.json`
-- `/src/ModSecurity-conector-build/results/apache-results.jsonl`
-- `/src/ModSecurity-conector-build/results/apache.rc`
 - `/src/ModSecurity-conector-build/results/nginx-summary.json`
-- `/src/ModSecurity-conector-build/results/nginx-results.jsonl`
-- `/src/ModSecurity-conector-build/results/nginx.rc`
 - `/src/ModSecurity-conector-build/results/connector-summary.json`
-- `/src/ModSecurity-conector-build/results/connector-summary.txt`
 
-## Apache
+No-CRS:
 
-- Current common scope: 54 PASS, 0 FAIL, 0 BLOCKED.
-- `phase1_header_block`: PASS, expected 403, actual 403.
-- `response_body_pass`: PASS, expected 200, actual 200.
-- `response_body_basic_block`: not executed.
+- `/src/ModSecurity-conector-build/results/no-crs/apache-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/connector-summary.json`
 
-Apache remains `partial` because RESPONSE_BODY blocking and full matrix
-promotion are not verified.
+With-CRS:
 
-## NGINX
+- `/src/ModSecurity-conector-build/results/with-crs/apache-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/connector-summary.json`
 
-- Current common scope: 54 PASS, 0 FAIL, 0 BLOCKED.
-- Current all scope: 60 PASS, 0 FAIL, 0 BLOCKED.
-- `phase1_header_block`: PASS, expected 403, actual 403.
-- `response_body_pass`: PASS, expected 200, actual 200.
-- `response_body_basic_block`: not executed.
+## No-CRS
 
-NGINX remains `partial` because RESPONSE_BODY blocking and full matrix
-promotion are not verified.
+- Apache: 54 PASS, 0 FAIL, 0 BLOCKED.
+- NGINX: 60 PASS, 0 FAIL, 0 BLOCKED.
+- Apache `phase1_header_block`: PASS, expected 403, actual 403.
+- NGINX `phase1_header_block`: PASS, expected 403, actual 403.
+- Apache `response_body_pass`: PASS, expected 200, actual 200.
+- NGINX `response_body_pass`: PASS, expected 200, actual 200.
+- `response_body_basic_block`: not present in the No-CRS summaries.
+
+## With-CRS
+
+- CRS source observed: `/src/coreruleset`.
+- CRS runtime preamble observed:
+  `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`.
+- Apache: 54 PASS, 1 FAIL, 0 BLOCKED.
+- NGINX: 60 PASS, 1 FAIL, 0 BLOCKED.
+- Apache `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
+- NGINX `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
+- Apache `action_status_401_phase1_block`: FAIL, expected 401, actual 403.
+- NGINX `action_status_401_phase1_block`: FAIL, expected 401, actual 403.
+
+The With-CRS target is therefore FAIL, not PASS and not BLOCKED.
 
 ## Historical NGINX Docroot Blocker
 
@@ -66,5 +81,15 @@ BLOCKED rows after the NGINX harness work parent was placed below
 
 RESPONSE_BODY blocking verified: no.
 
-`response_body_pass` is a pass-through case. It does not prove response-body
-blocking for either Apache or NGINX.
+`response_body_pass` is a pass-through case. NGINX phase-4 pass-through/log-only
+rows are not blocking evidence. The current No-CRS and With-CRS summaries do
+not include `response_body_basic_block`.
+
+## Decisions
+
+- Apache remains `partial`.
+- NGINX remains `partial`.
+- No-CRS runtime target: PASS.
+- With-CRS runtime target: FAIL.
+- CRS SQLi anomaly case: PASS for both connectors.
+- Full runtime verification: no.

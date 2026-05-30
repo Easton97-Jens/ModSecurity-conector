@@ -16,6 +16,12 @@ still need evidence. Full decision details are in
 - Current `/src` runtime evidence: Apache 54 PASS and NGINX 54 PASS in
   `make smoke-common`.
 - Current `/src` NGINX all-scope evidence: 60 PASS, 0 FAIL, 0 BLOCKED.
+- Current `/src` `make test-no-crs`: PASS; Apache 54 PASS, NGINX 60 PASS,
+  both 0 FAIL and 0 BLOCKED.
+- Current `/src` `make test-with-crs`: FAIL; Apache 54 PASS / 1 FAIL and
+  NGINX 60 PASS / 1 FAIL.
+- Current With-CRS CRS evidence: `crs_sqli_anomaly_block` PASS for Apache and
+  NGINX, expected 403 and actual 403.
 - RESPONSE_BODY blocking: not verified.
 - Vollstaendige Runtime-Verifikation: nein.
 
@@ -39,6 +45,15 @@ still need evidence. Full decision details are in
   `NGINX_HARNESS_PARENT=$(BUILD_ROOT)`.
 - The historical NGINX 11 BLOCKED rows are classified as an environment/docroot
   permission blocker and are resolved in the current `/src` reruns.
+- `make test-no-crs` is a documented target and currently passed for Apache
+  and NGINX under `/src`.
+- `make test-with-crs` is a documented target and currently ran with CRS
+  preparation; the target is FAIL, not BLOCKED, because
+  `action_status_401_phase1_block` returned 403 instead of expected 401 for
+  both connectors.
+- CRS loading is evidenced for the current With-CRS run by
+  `/src/coreruleset` and
+  `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`.
 - The shared scaffold status vocabulary is: `template`, `scaffolded`,
   `adapter-owned`, `runtime-smoke-verified`, `partial`, and `not-verified`.
 
@@ -52,6 +67,14 @@ still need evidence. Full decision details are in
   runtime testcase, expected blocking response-body trigger, actual blocking
   result such as HTTP 403, log/report evidence, executed command, affected
   connector, and separate Apache/NGINX documentation for any shared claim.
+- With-CRS overall PASS remains deferred. Needed evidence: rerun
+  `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs`
+  with 0 FAIL and 0 BLOCKED, or document a repository-backed expected-status
+  change for `action_status_401_phase1_block`.
+- NGINX-specific `nginx_phase4_strict_connection_abort` runtime status remains
+  deferred for the current target summaries. Needed evidence: a current
+  summary/result entry for that case and its command result. The YAML file
+  exists, but it was not present in the current No-CRS or With-CRS summaries.
 - The alternative of generating a materialized `common/include` layout remains
   deferred. Needed evidence: implemented materialization behavior, generated
   path evidence, compiler lines using that path, and runtime smoke results.

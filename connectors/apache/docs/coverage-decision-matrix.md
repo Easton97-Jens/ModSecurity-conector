@@ -35,6 +35,12 @@ Evidence sources:
       smoke PASS documented.
 - [x] Status: runtime-smoke-verified - Current `/src` common runtime run
       documented in `verified-runtime-run.md`.
+- [x] Status: runtime-smoke-verified - Current `/src` No-CRS run documented:
+      54 PASS, 0 FAIL, 0 BLOCKED.
+- [ ] Status: fail - Current `/src` With-CRS run documented: 54 PASS,
+      1 FAIL, 0 BLOCKED.
+- [x] Status: runtime-smoke-verified - Current `/src` With-CRS
+      `crs_sqli_anomaly_block` documented: expected 403, actual 403.
 - [ ] Status: blocked - Default `make smoke-common` readiness in default
       buildroot.
 - [ ] Status: partial - Phase 2 request-body matrix fully verified.
@@ -81,6 +87,31 @@ Evidence source: `reports/template-verification-nginx-apache/verified-runtime-ru
 - `response_body_pass`: PASS, expected 200, actual 200.
 - `response_body_basic_block`: not executed.
 - RESPONSE_BODY blocking: not verified.
+
+## CRS Variant Runtime Runs
+
+Evidence source: `reports/template-verification-nginx-apache/verified-runtime-run.md`.
+
+| Gate | No-CRS Status | With-CRS Status | Evidence | Decision |
+| --- | --- | --- | --- | --- |
+| Basic target | PASS: 54 PASS, 0 FAIL, 0 BLOCKED | FAIL: 54 PASS, 1 FAIL, 0 BLOCKED | `/src/ModSecurity-conector-build/results/no-crs/apache-summary.json`, `/src/ModSecurity-conector-build/results/with-crs/apache-summary.json` | No-CRS verified for executed scope; With-CRS not fully passing. |
+| CRS loading | not applicable | PASS for setup evidence and CRS case; overall target FAIL | `/src/coreruleset`, `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`, `crs_sqli_anomaly_block` | CRS case may be cited as PASS; target remains FAIL. |
+| Phase 1 | 17 PASS | 16 PASS, 1 FAIL | Summary JSON | Partial; With-CRS fail is `action_status_401_phase1_block`, expected 401 and actual 403. |
+| Phase 2 | 34 PASS | 35 PASS | Summary JSON | Partial; includes `crs_sqli_anomaly_block` PASS under With-CRS. |
+| Phase 3 | 2 PASS | 2 PASS | Summary JSON | Partial for executed scope. |
+| Phase 4 | 1 PASS | 1 PASS | Summary JSON | `response_body_pass` only; RESPONSE_BODY blocking not promoted. |
+| Request body | 12 PASS | 12 PASS | Summary JSON | Runtime-smoke-verified for executed scope only. |
+| RESPONSE_BODY | 1 PASS | 1 PASS | Summary JSON | Pass-through only; blocking not verified. |
+| Negative/pass-through | 10 PASS | 10 PASS | Summary JSON | Runtime-smoke-verified for executed scope only. |
+| Audit/log | 5 PASS | 5 PASS | Summary JSON | Partial; complete audit/log matrix not proven. |
+
+Current With-CRS failing case:
+
+- `action_status_401_phase1_block`
+- Expected: 401
+- Actual: 403
+- Path:
+  `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
 
 ## Framework Coverage By Phase
 
@@ -148,7 +179,9 @@ promoted.
 
 ## Decision
 
-Apache remains `partial`. The current `/src` common run has 54 PASS and 0
-BLOCKED/FAIL rows, including `phase1_header_block`, but it does not execute
-`response_body_basic_block`, does not verify RESPONSE_BODY blocking, and does
-not prove the full minimum matrix.
+Apache remains `partial`. The current `/src` common and No-CRS runs are PASS
+for their executed scopes, including `phase1_header_block`. The current
+With-CRS run is FAIL because `action_status_401_phase1_block` returned 403
+instead of expected 401, even though `crs_sqli_anomaly_block` is PASS. The
+current runs do not execute `response_body_basic_block`, do not verify
+RESPONSE_BODY blocking, and do not prove the full minimum matrix.

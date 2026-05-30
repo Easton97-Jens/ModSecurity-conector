@@ -33,6 +33,16 @@ Evidence/paths:
 - Current `/src` NGINX all-scope evidence:
   `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx`
   records NGINX 60 PASS, 0 FAIL, and 0 BLOCKED.
+- Current `/src` No-CRS evidence:
+  `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs`
+  records Apache 54 PASS and NGINX 60 PASS, both with 0 FAIL and 0 BLOCKED.
+- Current `/src` With-CRS evidence:
+  `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs`
+  records Apache 54 PASS / 1 FAIL and NGINX 60 PASS / 1 FAIL. The failing
+  case for both connectors is `action_status_401_phase1_block`, expected 401
+  and actual 403.
+- Current With-CRS CRS case evidence: `crs_sqli_anomaly_block` PASS for
+  Apache and NGINX, expected 403 and actual 403.
 - Historical NGINX 11 BLOCKED rows are resolved in the current `/src` reruns
   and classified as an environment/docroot permission blocker.
 - RESPONSE_BODY: not verified.
@@ -78,6 +88,39 @@ Follow-up change: Template, Apache, and NGINX README/TODO files now link or
 refer to coverage-decision matrix requirements. Apache and NGINX remain
 `partial`; RESPONSE_BODY remains `not-verified`; more than `partial` requires
 complete matrix evidence.
+
+## Test Variant Decision
+
+Question: How should the new `test-no-crs` and `test-with-crs` targets affect
+connector scaffold and coverage decisions?
+
+Decision: accepted for target ownership and separated reporting; deferred for
+With-CRS full PASS.
+
+Reason: Both targets are present in the parent `Makefile`. `test-no-crs`
+passed in the current `/src` run for Apache and NGINX. `test-with-crs` ran CRS
+fetch/prepare and verified the CRS SQLi anomaly case for both connectors, but
+the overall target failed because one Phase 1 status-code case returned HTTP
+403 instead of expected HTTP 401 for both connectors.
+
+Evidence/paths:
+
+- `Makefile`
+- `modules/ModSecurity-test-Framework/README.md`
+- `modules/ModSecurity-test-Framework/ci/common.sh`
+- `/src/ModSecurity-conector-build/results/no-crs/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/connector-summary.json`
+- `modules/ModSecurity-test-Framework/tests/cases/security/crs/crs_sqli_anomaly_block.yaml`
+- `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
+
+Impact on new connectors: new connector docs must report No-CRS and With-CRS
+separately. A CRS-specific PASS may be claimed only for cases that passed under
+`test-with-crs`; it does not make the whole With-CRS target PASS when another
+case failed.
+
+Follow-up change or needed evidence: keep With-CRS full-target PASS deferred
+until `make test-with-crs` exits 0 for the relevant connectors or the failing
+case expectation is changed with repository-backed evidence.
 
 ## Decision 1: Roadmap References
 
@@ -303,9 +346,12 @@ Decision: deferred.
 Reason: The current `/src` common runtime run provides partial evidence only.
 Apache has 54 PASS and 0 BLOCKED in the final common summary, and NGINX now
 has 54 PASS and 0 BLOCKED in the final common summary. The current NGINX
-all-scope smoke also has 60 PASS and 0 BLOCKED. These runs improve the NGINX
-runtime status, but RESPONSE_BODY blocking is not verified and generated
-reports are not runtime PASS proof.
+all-scope smoke also has 60 PASS and 0 BLOCKED. The current No-CRS target
+passed for Apache and NGINX. The current With-CRS target ran and failed with
+one failing Phase 1 status-code case for both connectors. These runs improve
+the documented runtime status, but RESPONSE_BODY blocking is not verified,
+With-CRS is not fully passing, and generated reports are not runtime PASS
+proof.
 
 Evidence/paths:
 
@@ -314,6 +360,8 @@ Evidence/paths:
 - `reports/template-verification-nginx-apache/nginx-docroot-permission-analysis.md`
 - `reports/template-verification-nginx-apache/nginx-blocked-runtime-cases.md`
 - `reports/template-verification-nginx-apache/summary.md`
+- `/src/ModSecurity-conector-build/results/no-crs/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/connector-summary.json`
 - `modules/ModSecurity-test-Framework/docs/testing/test-import-plan.md`
 - `reports/testing/generated/apache-runtime-results.generated.md`
 - `reports/testing/generated/nginx-runtime-results.generated.md`

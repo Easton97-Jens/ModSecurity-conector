@@ -74,7 +74,10 @@
 
 ## Framework Paths
 
+- `modules/ModSecurity-test-Framework/README.md`
 - `modules/ModSecurity-test-Framework/ci/common.sh`
+- `modules/ModSecurity-test-Framework/ci/fetch-crs.sh`
+- `modules/ModSecurity-test-Framework/ci/prepare-crs.sh`
 - `modules/ModSecurity-test-Framework/ci/run-nginx-smoke.sh`
 - `modules/ModSecurity-test-Framework/ci/run-apache-smoke.sh`
 - `modules/ModSecurity-test-Framework/ci/run-connector-smokes.sh`
@@ -86,6 +89,10 @@
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/README.md`
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/README.md`
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/*.yaml`
+- `modules/ModSecurity-test-Framework/tests/cases/security/crs/crs_sqli_anomaly_block.yaml`
+- `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
+- `modules/ModSecurity-test-Framework/tests/cases/response/body/response_body_basic_block.yaml`
+- `modules/ModSecurity-test-Framework/tests/cases/response/body/response_body_pass.yaml`
 
 ## Runtime Evidence
 
@@ -99,6 +106,24 @@
 - `/src/ModSecurity-conector-build/results/nginx.rc`
 - `/src/ModSecurity-conector-build/results/connector-summary.json`
 - `/src/ModSecurity-conector-build/results/connector-summary.txt`
+- `/src/ModSecurity-conector-build/results/no-crs/apache-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/apache-results.jsonl`
+- `/src/ModSecurity-conector-build/results/no-crs/apache.rc`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-results.jsonl`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx.rc`
+- `/src/ModSecurity-conector-build/results/no-crs/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/connector-summary.txt`
+- `/src/ModSecurity-conector-build/results/with-crs/apache-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/apache-results.jsonl`
+- `/src/ModSecurity-conector-build/results/with-crs/apache.rc`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-results.jsonl`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx.rc`
+- `/src/ModSecurity-conector-build/results/with-crs/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/connector-summary.txt`
+- `/src/coreruleset`
+- `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`
 - `/src/ModSecurity-conector-build/logs/nginx/`
 - `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/`
 

@@ -31,14 +31,39 @@ the Apache and NGINX connector verification.
 | --- | --- | --- |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS, NGINX 54 PASS; both 0 FAIL and 0 BLOCKED. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS, NGINX 60 PASS; both 0 FAIL and 0 BLOCKED. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | Apache 54 PASS / 1 FAIL; NGINX 60 PASS / 1 FAIL; both fail `action_status_401_phase1_block`, expected 401 and actual 403. |
 
 Evidence files:
 
 - `/src/ModSecurity-conector-build/results/apache-summary.json`
 - `/src/ModSecurity-conector-build/results/nginx-summary.json`
 - `/src/ModSecurity-conector-build/results/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/connector-summary.json`
 - `/src/ModSecurity-conector-build/results/apache.rc`
 - `/src/ModSecurity-conector-build/results/nginx.rc`
+
+## CRS Preparation Evidence
+
+The current With-CRS target used the repository-backed framework CRS flow:
+
+- `modules/ModSecurity-test-Framework/ci/fetch-crs.sh`
+- `modules/ModSecurity-test-Framework/ci/prepare-crs.sh`
+- CRS pin in `modules/ModSecurity-test-Framework/ci/common.sh`:
+  `CRS_GIT_REF=v4.26.0`
+- Observed CRS source path: `/src/coreruleset`
+- Observed CRS runtime preamble:
+  `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`
+
+CRS case evidence:
+
+- Apache `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
+- NGINX `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
+
+The overall With-CRS target remains FAIL because
+`action_status_401_phase1_block` returned 403 instead of expected 401 for both
+connectors.
 
 ## NGINX Build Include Contract
 
@@ -78,5 +103,7 @@ evidence.
 
 ## Decision
 
-Component preparation is sufficient for the documented `/src` smoke evidence.
+Component preparation is sufficient for the documented `/src` No-CRS and
+common smoke evidence. CRS fetch/prepare ran for With-CRS and the CRS SQLi case
+passed for both connectors, but the With-CRS target is not passing overall.
 Full runtime verification and RESPONSE_BODY blocking remain not verified.

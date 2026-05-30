@@ -4,7 +4,7 @@ Status: reviewed
 
 This report folder documents the verification work for turning the connector
 template into Apache and NGINX connector documentation, external-test rules,
-runtime evidence, and scaffold decisions.
+runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 
 ## Current State
 
@@ -17,6 +17,10 @@ runtime evidence, and scaffold decisions.
   NGINX 54 PASS, 0 FAIL, 0 BLOCKED.
 - Current `/src` `make smoke-nginx` all-scope: NGINX 60 PASS, 0 FAIL,
   0 BLOCKED.
+- Current `/src` `make test-no-crs`: PASS; Apache 54 PASS and NGINX 60 PASS.
+- Current `/src` `make test-with-crs`: FAIL; Apache and NGINX each have one
+  failing case, `action_status_401_phase1_block`, expected 401 and actual 403.
+- Current With-CRS `crs_sqli_anomaly_block`: PASS for Apache and NGINX.
 - Historical NGINX 11 BLOCKED rows were a docroot permission/environment
   blocker and are resolved in the current `/src` runs.
 - RESPONSE_BODY blocking remains not verified.
@@ -28,7 +32,8 @@ runtime evidence, and scaffold decisions.
 - `template-evaluation.md`: Template suitability evaluation.
 - `apache-evaluation.md`: Apache connector evaluation.
 - `nginx-evaluation.md`: NGINX connector evaluation.
-- `verified-runtime-run.md`: current `/src` runtime evidence.
+- `verified-runtime-run.md`: current `/src` runtime evidence, including
+  No-CRS and With-CRS sections.
 - `nginx-docroot-permission-analysis.md`: NGINX docroot blocker cause and fix.
 - `nginx-blocked-runtime-cases.md`: historical 11 BLOCKED rows and current
   resolution.
@@ -50,9 +55,22 @@ runtime evidence, and scaffold decisions.
 `partial` does not mean failed. It means some runtime evidence exists, but the
 minimum matrix for promotion beyond partial is not complete.
 
+## CRS And No-CRS
+
+No-CRS and With-CRS results are documented separately:
+
+- No-CRS: current `/src` target PASS for Apache and NGINX.
+- With-CRS: current `/src` target FAIL for Apache and NGINX because
+  `action_status_401_phase1_block` returned 403 instead of expected 401.
+- CRS SQLi anomaly: current With-CRS case PASS for both connectors.
+
+The With-CRS target result is not blocked. It ran and failed.
+
 ## RESPONSE_BODY
 
 RESPONSE_BODY blocking is not verified. The current `response_body_pass` rows
-are pass-through evidence only. A blocking claim still requires a real
-response-body blocking testcase, expected blocking trigger, actual blocking
-result such as HTTP 403, logs/reports, command, and per-connector evidence.
+are pass-through evidence only, and NGINX-specific phase-4 rows in the current
+summaries are pass-through/log-only evidence. A blocking claim still requires a
+real response-body blocking testcase, expected blocking trigger, actual
+blocking result such as HTTP 403, logs/reports, command, and per-connector
+evidence.

@@ -2,14 +2,17 @@
 
 Status: reviewed
 
-NGINX rating: partial with current `/src` smoke PASS scope
+NGINX rating: partial with current `/src` No-CRS PASS and With-CRS FAIL scope
 
 Reason: `connectors/nginx` contains an adapter-owned source tree, metadata,
 origin documentation, harness files, and connector docs. The current `/src`
 runtime evidence is improved: NGINX common smoke has 54 PASS, 0 FAIL,
-0 BLOCKED, and NGINX all-scope smoke has 60 PASS, 0 FAIL, 0 BLOCKED. The
-connector still remains `partial` because RESPONSE_BODY blocking and the full
-minimum runtime matrix are not verified.
+0 BLOCKED; NGINX all-scope smoke has 60 PASS, 0 FAIL, 0 BLOCKED; and the
+No-CRS target has 60 PASS, 0 FAIL, 0 BLOCKED. The With-CRS target ran but
+failed with one Phase 1 status-code mismatch: `action_status_401_phase1_block`
+expected 401 and observed 403. The connector still remains `partial` because
+With-CRS is not fully passing, RESPONSE_BODY blocking is not verified, and the
+full minimum runtime matrix is not verified.
 
 ## Evidence Summary
 
@@ -22,6 +25,9 @@ minimum runtime matrix are not verified.
 | Docroot runtime work parent | OK for `/src` | Parent `Makefile` exports `NGINX_HARNESS_PARENT=$(BUILD_ROOT)`; current runtime path is below `/src/ModSecurity-conector-build`. |
 | Current `make smoke-nginx` | PASS | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx`: 60 PASS, 0 FAIL, 0 BLOCKED. |
 | Current `make smoke-common` | PASS | Apache 54 PASS; NGINX 54 PASS; both 0 FAIL and 0 BLOCKED. |
+| Current `make test-no-crs` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
+| Current `make test-with-crs` | FAIL | NGINX 60 PASS, 1 FAIL, 0 BLOCKED; `action_status_401_phase1_block` expected 401 and actual 403. |
+| Current CRS case | PASS | `crs_sqli_anomaly_block` expected 403 and actual 403. |
 | Historical 11 BLOCKED rows | Resolved | Classified as environment/docroot permission blocker in `nginx-blocked-runtime-cases.md`. |
 | RESPONSE_BODY blocking | Not verified | `response_body_pass` is pass-through only; no blocking response-body testcase with HTTP 403 was executed for both connectors. |
 | More than `partial` | Not allowed | Full minimum matrix evidence is incomplete. |
@@ -32,6 +38,8 @@ minimum runtime matrix are not verified.
 | --- | --- | ---: | ---: | ---: | ---: |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | all | 60 | 0 | 0 | 0 |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | common | 54 | 0 | 0 | 0 |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | all/no-crs | 60 | 0 | 0 | 0 |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | all/with-crs | 60 | 1 | 0 | 0 |
 
 Evidence files:
 
@@ -39,6 +47,16 @@ Evidence files:
 - `/src/ModSecurity-conector-build/results/nginx-results.jsonl`
 - `/src/ModSecurity-conector-build/results/nginx.rc`
 - `/src/ModSecurity-conector-build/results/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json`
+
+Current With-CRS fail:
+
+- Case: `action_status_401_phase1_block`
+- Expected: 401
+- Actual: 403
+- Path:
+  `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
 
 ## Historical Blocker
 
@@ -57,6 +75,9 @@ same cases. See `nginx-docroot-permission-analysis.md` and
 - [x] NGINX build can find `common/include/msconnector/rule_load_stats.h`.
 - [x] Current `/src` NGINX all-scope smoke passed.
 - [x] Current `/src` NGINX common smoke passed.
+- [x] Current `/src` NGINX No-CRS target passed.
+- [ ] Current `/src` NGINX With-CRS target passed.
+- [x] Current `/src` NGINX CRS SQLi anomaly case passed.
 - [x] Historical 11 BLOCKED rows documented and rerun.
 - [ ] RESPONSE_BODY blocking verified.
 - [ ] Full minimum runtime matrix verified.
@@ -64,5 +85,7 @@ same cases. See `nginx-docroot-permission-analysis.md` and
 
 ## Decision
 
-NGINX remains `partial`. The current `/src` smokes are PASS for their executed
-scope, but runtime completeness and RESPONSE_BODY blocking remain unverified.
+NGINX remains `partial`. The current `/src` common, all-scope, and No-CRS
+smokes are PASS for their executed scope. The current With-CRS target is FAIL
+because one Phase 1 status-code case returned 403 instead of 401. Runtime
+completeness and RESPONSE_BODY blocking remain unverified.

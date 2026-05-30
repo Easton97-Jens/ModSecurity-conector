@@ -102,14 +102,23 @@ post-fix runtime-smoke evidence with HTTP 403, and NGINX-specific YAML cases
 exist in the framework path, but broad runtime coverage and `RESPONSE_BODY`
 blocking remain not verified.
 
+Current `/src` CRS-variant evidence is documented in
+`reports/template-verification-nginx-apache/verified-runtime-run.md`:
+
+- `make test-no-crs`: NGINX PASS, 60 PASS, 0 FAIL, 0 BLOCKED.
+- `make test-with-crs`: NGINX FAIL, 60 PASS, 1 FAIL, 0 BLOCKED.
+- With-CRS `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
+- With-CRS failing case: `action_status_401_phase1_block`, expected 401,
+  actual 403.
+
 ## Coverage / Runtime Decision Matrix
 
 See `docs/coverage-decision-matrix.md`.
 
-NGINX currently remains `partial`: `/src phase1_header_block` is documented as
-PASS, but generated coverage reporting is not automatic runtime promotion, the
-force-all runtime snapshot has overall FAIL status, and `RESPONSE_BODY`
-blocking remains not verified.
+NGINX currently remains `partial`: `/src phase1_header_block`, all-scope, and
+No-CRS are documented as PASS for their executed scope, but the current
+With-CRS target has one FAIL, generated coverage reporting is not automatic
+runtime promotion, and `RESPONSE_BODY` blocking remains not verified.
 
 See `docs/connectors/directive-parity.md` for the current Apache/NGINX
 directive matrix.

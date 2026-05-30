@@ -39,6 +39,8 @@ Post-fix build/runtime commands:
 | --- | --- | --- |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-nginx` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS; NGINX 54 PASS; both 0 FAIL and 0 BLOCKED. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
+| `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | FAIL | NGINX built and ran; NGINX result was 60 PASS, 1 FAIL, 0 BLOCKED. Failing case: `action_status_401_phase1_block`, expected 401 and actual 403. |
 
 Current evidence files:
 
@@ -46,6 +48,11 @@ Current evidence files:
 - `/src/ModSecurity-conector-build/nginx-build/nginx-src/objs/Makefile`
 - `/src/ModSecurity-conector-build/results/nginx-summary.json`
 - `/src/ModSecurity-conector-build/results/connector-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json`
+
+The With-CRS failure is a runtime expectation failure after a successful NGINX
+build. It is not the earlier include-path build failure.
 
 ## Relationship To Docroot Blocker
 
@@ -68,5 +75,6 @@ pass-through evidence only.
 ## Decision
 
 The NGINX build failure is fixed for the documented `/src` source-build flow.
-NGINX still remains `partial` because full runtime matrix evidence and
-RESPONSE_BODY blocking are not verified.
+NGINX No-CRS passed in the current run. NGINX With-CRS built and ran but has
+one FAIL. NGINX still remains `partial` because full runtime matrix evidence,
+With-CRS full-target PASS, and RESPONSE_BODY blocking are not verified.

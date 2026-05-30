@@ -20,6 +20,11 @@ Tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.
 - [x] No local tests folder.
 - [x] External framework test paths referenced.
 - [x] `phase1_header_block` runtime smoke PASS documented.
+- [x] Current `/src` `make test-no-crs` PASS documented.
+- [ ] Current `/src` `make test-with-crs` PASS documented; current result is
+      FAIL because `action_status_401_phase1_block` expected 401 and observed
+      403.
+- [x] Current `/src` With-CRS `crs_sqli_anomaly_block` PASS documented.
 - [ ] Phase 1 runtime evidence documented for more than the current smoke case.
 - [ ] Phase 2 request-body runtime evidence documented.
 - [ ] Phase 3 response-header runtime evidence documented.

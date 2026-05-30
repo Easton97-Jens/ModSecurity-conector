@@ -78,6 +78,17 @@ Belegte externe Framework-Pfade für neue Connector-Dokumentation:
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/<connector>/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
+Wenn die Make-Targets im konkreten Repository vorhanden sind, muessen
+Runtime-Ergebnisse fuer CRS-Varianten getrennt dokumentiert werden:
+
+- `make test-no-crs`: lokale YAML-Regeln ohne CRS.
+- `make test-with-crs`: CRS vorbereiten/laden und danach lokale YAML-Regeln
+  ausfuehren.
+
+Ein PASS in `test-no-crs` ist kein PASS fuer `test-with-crs`. Ein einzelner
+PASS eines CRS-Falls ist kein Gesamt-PASS fuer `test-with-crs`, wenn ein
+anderer Fall FAIL ist.
+
 ## Coverage / Runtime Decision Matrix
 
 Neue Connectoren muessen `docs/coverage-decision-matrix.md` ausfuellen. Die

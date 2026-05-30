@@ -41,6 +41,12 @@ Evidence sources:
       0 FAIL, and 0 BLOCKED for NGINX.
 - [x] Status: runtime-smoke-verified - Current `/src` NGINX all-scope smoke
       has 60 PASS, 0 FAIL, and 0 BLOCKED.
+- [x] Status: runtime-smoke-verified - Current `/src` No-CRS run documented:
+      60 PASS, 0 FAIL, 0 BLOCKED.
+- [ ] Status: fail - Current `/src` With-CRS run documented: 60 PASS,
+      1 FAIL, 0 BLOCKED.
+- [x] Status: runtime-smoke-verified - Current `/src` With-CRS
+      `crs_sqli_anomaly_block` documented: expected 403, actual 403.
 - [x] Status: partial - The historical 11 BLOCKED rows were environment/docroot
       blockers and are resolved in the current run.
 - [ ] Status: blocked - Default `make smoke-common` readiness in the default
@@ -84,6 +90,38 @@ Evidence source: `reports/template-verification-nginx-apache/verified-runtime-ru
 - `response_body_pass`: PASS, expected 200, actual 200.
 - `response_body_basic_block`: not executed.
 - RESPONSE_BODY blocking: not verified.
+
+## CRS Variant Runtime Runs
+
+Evidence source: `reports/template-verification-nginx-apache/verified-runtime-run.md`.
+
+| Gate | No-CRS Status | With-CRS Status | Evidence | Decision |
+| --- | --- | --- | --- | --- |
+| Basic target | PASS: 60 PASS, 0 FAIL, 0 BLOCKED | FAIL: 60 PASS, 1 FAIL, 0 BLOCKED | `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json`, `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json` | No-CRS verified for executed scope; With-CRS not fully passing. |
+| CRS loading | not applicable | PASS for setup evidence and CRS case; overall target FAIL | `/src/coreruleset`, `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`, `crs_sqli_anomaly_block` | CRS case may be cited as PASS; target remains FAIL. |
+| Phase 1 | 18 PASS | 17 PASS, 1 FAIL | Summary JSON | Partial; With-CRS fail is `action_status_401_phase1_block`, expected 401 and actual 403. |
+| Phase 2 | 36 PASS | 37 PASS | Summary JSON | Partial; includes `crs_sqli_anomaly_block` PASS under With-CRS. |
+| Phase 3 | 2 PASS | 2 PASS | Summary JSON | Partial for executed scope. |
+| Phase 4 | 4 PASS | 4 PASS | Summary JSON | Pass-through/log-only rows plus `response_body_pass`; RESPONSE_BODY blocking not promoted. |
+| Request body | 12 PASS | 12 PASS | Summary JSON | Runtime-smoke-verified for executed scope only. |
+| RESPONSE_BODY | 4 PASS | 4 PASS | Summary JSON | Pass-through/log-only only; blocking not verified. |
+| Negative/pass-through | 13 PASS | 13 PASS | Summary JSON | Runtime-smoke-verified for executed scope only. |
+| Audit/log | 5 PASS | 5 PASS | Summary JSON | Partial; complete audit/log matrix not proven. |
+
+Current With-CRS failing case:
+
+- `action_status_401_phase1_block`
+- Expected: 401
+- Actual: 403
+- Path:
+  `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
+
+NGINX-specific YAML note:
+
+- `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml`
+  exists.
+- That case was not present in the current No-CRS or With-CRS summary JSON
+  files and is not counted as PASS here.
 
 ## Framework Coverage By Phase
 
@@ -159,6 +197,9 @@ promoted.
 
 NGINX remains `partial`. The current `/src` smoke evidence is materially
 better than the historical blocked run: NGINX now has 54 PASS / 0 BLOCKED in
-common scope and 60 PASS / 0 BLOCKED in all scope. The connector is still not
-more than `partial` because RESPONSE_BODY blocking and the complete minimum
-matrix are not verified.
+common scope and 60 PASS / 0 BLOCKED in all and No-CRS scope. The current
+With-CRS run is FAIL because `action_status_401_phase1_block` returned 403
+instead of expected 401, even though `crs_sqli_anomaly_block` is PASS. The
+connector is still not more than `partial` because With-CRS is not fully
+passing, RESPONSE_BODY blocking and the complete minimum matrix are not
+verified.
