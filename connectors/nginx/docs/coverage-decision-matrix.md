@@ -9,6 +9,7 @@ Evidence sources:
 
 - `TEST-COVERAGE-SUMMARY.md`
 - `reports/template-verification-nginx-apache/verified-runtime-run.md`
+- `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`
 - `reports/template-verification-nginx-apache/nginx-docroot-permission-analysis.md`
 - `reports/template-verification-nginx-apache/nginx-blocked-runtime-cases.md`
 - `reports/template-verification-nginx-apache/runtime-test-run-src.md`
@@ -115,6 +116,11 @@ Current With-CRS failing case:
 - Actual: 403
 - Path:
   `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
+- Analysis:
+  `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`
+- Decision: exact cause not proven; likely With-CRS expected-status/context
+  mismatch involving CRS/default-action behavior or testcase expectation. Not
+  evidenced as NGINX-specific because Apache shows the same result.
 
 NGINX-specific YAML note:
 
@@ -200,6 +206,7 @@ better than the historical blocked run: NGINX now has 54 PASS / 0 BLOCKED in
 common scope and 60 PASS / 0 BLOCKED in all and No-CRS scope. The current
 With-CRS run is FAIL because `action_status_401_phase1_block` returned 403
 instead of expected 401, even though `crs_sqli_anomaly_block` is PASS. The
-connector is still not more than `partial` because With-CRS is not fully
-passing, RESPONSE_BODY blocking and the complete minimum matrix are not
-verified.
+exact cause is not proven and the current evidence does not show an
+NGINX-specific connector bug. The connector is still not more than `partial`
+because With-CRS is not fully passing, RESPONSE_BODY blocking and the complete
+minimum matrix are not verified.

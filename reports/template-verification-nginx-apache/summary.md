@@ -19,6 +19,13 @@ Status: reviewed
 - Current `/src` `make test-with-crs`: FAIL.
 - RESPONSE_BODY blocking: not verified.
 - Vollstaendige Runtime-Verifikation: nein.
+- Current With-CRS 401/403 mismatch analysis:
+  `crs-action-status-401-analysis.md`.
+- Cause for `action_status_401_phase1_block`: not definitive. The most likely
+  classification from reviewed evidence is a With-CRS expected-status/context
+  mismatch, likely involving CRS/default-action interaction or testcase
+  expectation. A connector-specific issue is not evidenced because Apache and
+  NGINX show the same result.
 
 ## Current Repo State Captured
 
@@ -46,6 +53,8 @@ Status: reviewed
   actual 403.
 - Overall `make test-with-crs`: FAIL because `action_status_401_phase1_block`
   returned 403 instead of expected 401 for both connectors.
+- Detailed analysis:
+  `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`.
 
 ## Decisions
 
@@ -122,6 +131,7 @@ Executable connector tests are framework-owned and are not maintained in local
 - `nginx-build-fail-analysis.md`
 - `nginx-docroot-permission-analysis.md`
 - `nginx-blocked-runtime-cases.md`
+- `crs-action-status-401-analysis.md`
 - `summary.md`
 - `findings.md`
 - `files-reviewed.md`

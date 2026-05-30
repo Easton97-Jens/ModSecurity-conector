@@ -155,6 +155,17 @@ Failing case for both connectors:
 | Apache | `action_status_401_phase1_block` | 401 | 403 | `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml` |
 | NGINX | `action_status_401_phase1_block` | 401 | 403 | `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml` |
 
+Analysis:
+
+- Detailed report:
+  `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`.
+- The exact root cause is not proven.
+- The most likely classification from reviewed evidence is a With-CRS
+  expected-status/context mismatch, likely involving CRS/default-action
+  interaction or framework testcase expectation. It is not evidenced as a
+  connector-specific Apache-only or NGINX-only bug because both connectors pass
+  the same case without CRS and both return 403 with CRS loaded.
+
 CRS-specific case evidence:
 
 | Connector | Case | Status | Expected | Actual | Path |

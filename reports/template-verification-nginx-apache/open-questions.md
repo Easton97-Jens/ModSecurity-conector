@@ -54,6 +54,10 @@ still need evidence. Full decision details are in
 - CRS loading is evidenced for the current With-CRS run by
   `/src/coreruleset` and
   `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`.
+- `action_status_401_phase1_block` is not evidenced as a connector-specific
+  Apache-only or NGINX-only bug. Both connectors pass the same case in No-CRS
+  scope and fail with the same 401/403 mismatch in With-CRS scope. Detailed
+  analysis is in `crs-action-status-401-analysis.md`.
 - The shared scaffold status vocabulary is: `template`, `scaffolded`,
   `adapter-owned`, `runtime-smoke-verified`, `partial`, and `not-verified`.
 
@@ -71,6 +75,11 @@ still need evidence. Full decision details are in
   `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs`
   with 0 FAIL and 0 BLOCKED, or document a repository-backed expected-status
   change for `action_status_401_phase1_block`.
+- Exact cause for the With-CRS `action_status_401_phase1_block` 401/403
+  mismatch remains deferred. Needed evidence: per-connector audit evidence,
+  targeted isolation of CRS/default-action behavior, or a repository-backed
+  testcase decision proving whether With-CRS should expect 401, expect 403, or
+  exclude this non-CRS action/status case.
 - NGINX-specific `nginx_phase4_strict_connection_abort` runtime status remains
   deferred for the current target summaries. Needed evidence: a current
   summary/result entry for that case and its command result. The YAML file

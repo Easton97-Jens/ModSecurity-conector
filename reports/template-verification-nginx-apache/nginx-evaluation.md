@@ -12,7 +12,10 @@ No-CRS target has 60 PASS, 0 FAIL, 0 BLOCKED. The With-CRS target ran but
 failed with one Phase 1 status-code mismatch: `action_status_401_phase1_block`
 expected 401 and observed 403. The connector still remains `partial` because
 With-CRS is not fully passing, RESPONSE_BODY blocking is not verified, and the
-full minimum runtime matrix is not verified.
+full minimum runtime matrix is not verified. The separate analysis
+`crs-action-status-401-analysis.md` does not prove the exact cause and does not
+evidence an NGINX-specific connector bug because Apache shows the same
+With-CRS mismatch.
 
 ## Evidence Summary
 
@@ -27,6 +30,7 @@ full minimum runtime matrix is not verified.
 | Current `make smoke-common` | PASS | Apache 54 PASS; NGINX 54 PASS; both 0 FAIL and 0 BLOCKED. |
 | Current `make test-no-crs` | PASS | NGINX 60 PASS, 0 FAIL, 0 BLOCKED. |
 | Current `make test-with-crs` | FAIL | NGINX 60 PASS, 1 FAIL, 0 BLOCKED; `action_status_401_phase1_block` expected 401 and actual 403. |
+| With-CRS 401/403 analysis | Needs evidence | Exact cause not proven; likely With-CRS expected-status/context mismatch involving CRS/default-action behavior or testcase expectation. Not evidenced as NGINX-specific because Apache shows the same result. |
 | Current CRS case | PASS | `crs_sqli_anomaly_block` expected 403 and actual 403. |
 | Historical 11 BLOCKED rows | Resolved | Classified as environment/docroot permission blocker in `nginx-blocked-runtime-cases.md`. |
 | RESPONSE_BODY blocking | Not verified | `response_body_pass` is pass-through only; no blocking response-body testcase with HTTP 403 was executed for both connectors. |
@@ -77,6 +81,7 @@ same cases. See `nginx-docroot-permission-analysis.md` and
 - [x] Current `/src` NGINX common smoke passed.
 - [x] Current `/src` NGINX No-CRS target passed.
 - [ ] Current `/src` NGINX With-CRS target passed.
+- [ ] Exact cause for the With-CRS 401/403 mismatch proved.
 - [x] Current `/src` NGINX CRS SQLi anomaly case passed.
 - [x] Historical 11 BLOCKED rows documented and rerun.
 - [ ] RESPONSE_BODY blocking verified.
@@ -88,4 +93,6 @@ same cases. See `nginx-docroot-permission-analysis.md` and
 NGINX remains `partial`. The current `/src` common, all-scope, and No-CRS
 smokes are PASS for their executed scope. The current With-CRS target is FAIL
 because one Phase 1 status-code case returned 403 instead of 401. Runtime
-completeness and RESPONSE_BODY blocking remain unverified.
+analysis currently classifies that as a likely With-CRS expectation/context
+mismatch, with exact cause still needing evidence. Runtime completeness and
+RESPONSE_BODY blocking remain unverified.

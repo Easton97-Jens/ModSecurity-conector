@@ -42,6 +42,34 @@ repository and the local `/src/ModSecurity-conector-build` result tree.
 - `crs_sqli_anomaly_block` PASS for Apache and NGINX in the current With-CRS
   run, expected 403 and actual 403.
 
+## CRS Action Status 401 Mismatch
+
+- Current With-CRS failing case for both connectors:
+  `action_status_401_phase1_block`.
+- YAML path:
+  `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`.
+- The YAML rule is local rule `id:2320` with `phase:1`,
+  `deny,status:401,block`.
+- No-CRS result: Apache PASS, expected 401 and actual 401.
+- No-CRS result: NGINX PASS, expected 401 and actual 401.
+- With-CRS result: Apache FAIL, expected 401 and actual 403.
+- With-CRS result: NGINX FAIL, expected 401 and actual 403.
+- The With-CRS materialized Apache and NGINX configs include the CRS preamble
+  before the local case rule.
+- Apache error log evidence shows CRS rule 920350 matched the numeric Host
+  header during the case.
+- NGINX error log evidence shows CRS rule 920350 matched the numeric Host
+  header and local rule `2320` denied with code 403 under CRS. Earlier NGINX
+  log entries without CRS show local rule `2320` denied with code 401.
+- No reviewed CRS/config path contains an explicit
+  `SecRuleUpdateActionById 2320`.
+- Exact cause: not definitively proven.
+- Most likely classification: With-CRS expected-status/context mismatch,
+  likely involving CRS/default-action interaction or framework testcase
+  expectation. Connector-specific issue is not evidenced.
+- Detailed report:
+  `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`.
+
 ## Template
 
 - `connectors/_template/README.md` defines a generic connector template and is

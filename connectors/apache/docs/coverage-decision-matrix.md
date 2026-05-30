@@ -9,6 +9,7 @@ Evidence sources:
 
 - `TEST-COVERAGE-SUMMARY.md`
 - `reports/template-verification-nginx-apache/verified-runtime-run.md`
+- `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`
 - `reports/template-verification-nginx-apache/runtime-test-run-src.md`
 - `reports/template-verification-nginx-apache/summary.md`
 - `reports/testing/generated/apache-runtime-results.generated.md`
@@ -112,6 +113,11 @@ Current With-CRS failing case:
 - Actual: 403
 - Path:
   `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
+- Analysis:
+  `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`
+- Decision: exact cause not proven; likely With-CRS expected-status/context
+  mismatch involving CRS/default-action behavior or testcase expectation. Not
+  evidenced as Apache-specific because NGINX shows the same result.
 
 ## Framework Coverage By Phase
 
@@ -183,5 +189,7 @@ Apache remains `partial`. The current `/src` common and No-CRS runs are PASS
 for their executed scopes, including `phase1_header_block`. The current
 With-CRS run is FAIL because `action_status_401_phase1_block` returned 403
 instead of expected 401, even though `crs_sqli_anomaly_block` is PASS. The
-current runs do not execute `response_body_basic_block`, do not verify
+exact cause is not proven and the current evidence does not show an
+Apache-specific connector bug. The current runs do not execute
+`response_body_basic_block`, do not verify
 RESPONSE_BODY blocking, and do not prove the full minimum matrix.

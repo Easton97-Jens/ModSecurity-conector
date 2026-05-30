@@ -93,6 +93,7 @@
 - `modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml`
 - `modules/ModSecurity-test-Framework/tests/cases/response/body/response_body_basic_block.yaml`
 - `modules/ModSecurity-test-Framework/tests/cases/response/body/response_body_pass.yaml`
+- `modules/ModSecurity-test-Framework/tests/runners/runner_core.py`
 
 ## Runtime Evidence
 
@@ -123,7 +124,20 @@
 - `/src/ModSecurity-conector-build/results/with-crs/connector-summary.json`
 - `/src/ModSecurity-conector-build/results/with-crs/connector-summary.txt`
 - `/src/coreruleset`
+- `/src/coreruleset/rules/REQUEST-920-PROTOCOL-ENFORCEMENT.conf`
+- `/src/coreruleset/rules/REQUEST-949-BLOCKING-EVALUATION.conf`
 - `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`
+- `/src/ModSecurity-conector-build/crs/crs-setup.conf`
+- `/src/ModSecurity-conector-build/apache-runtime/action_status_401_phase1_block/conf/modsecurity-smoke.conf`
+- `/src/ModSecurity-conector-build/apache-runtime/action_status_401_phase1_block/logs/error.log`
+- `/src/ModSecurity-conector-build/logs/apache-runtime/action_status_401_phase1_block/result.json`
+- `/src/ModSecurity-conector-build/logs/apache-runtime/action_status_401_phase1_block/status.txt`
+- `/src/ModSecurity-conector-build/logs/apache-runtime/action_status_401_phase1_block/case-assert.log`
+- `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/runtime/action_status_401_phase1_block/conf/modsecurity-smoke.conf`
+- `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/action_status_401_phase1_block/error.log`
+- `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/action_status_401_phase1_block/result.json`
+- `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/action_status_401_phase1_block/status.txt`
+- `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/action_status_401_phase1_block/case-assert.log`
 - `/src/ModSecurity-conector-build/logs/nginx/`
 - `/src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/`
 
@@ -140,6 +154,7 @@
 - `reports/template-verification-nginx-apache/nginx-build-fail-analysis.md`
 - `reports/template-verification-nginx-apache/nginx-docroot-permission-analysis.md`
 - `reports/template-verification-nginx-apache/nginx-blocked-runtime-cases.md`
+- `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`
 - `reports/template-verification-nginx-apache/summary.md`
 - `reports/template-verification-nginx-apache/findings.md`
 - `reports/template-verification-nginx-apache/files-reviewed.md`

@@ -20,6 +20,9 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 - Current `/src` `make test-no-crs`: PASS; Apache 54 PASS and NGINX 60 PASS.
 - Current `/src` `make test-with-crs`: FAIL; Apache and NGINX each have one
   failing case, `action_status_401_phase1_block`, expected 401 and actual 403.
+- `action_status_401_phase1_block` cause: not definitive. Current evidence
+  points to a With-CRS expected-status/context mismatch rather than a
+  connector-specific issue.
 - Current With-CRS `crs_sqli_anomaly_block`: PASS for Apache and NGINX.
 - Historical NGINX 11 BLOCKED rows were a docroot permission/environment
   blocker and are resolved in the current `/src` runs.
@@ -37,6 +40,8 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 - `nginx-docroot-permission-analysis.md`: NGINX docroot blocker cause and fix.
 - `nginx-blocked-runtime-cases.md`: historical 11 BLOCKED rows and current
   resolution.
+- `crs-action-status-401-analysis.md`: current With-CRS 401/403 mismatch
+  analysis for `action_status_401_phase1_block`.
 - `nginx-build-fail-analysis.md`: earlier NGINX include-path build failure and
   build-contract verification.
 - `summary.md`: final summary and readiness status.
@@ -62,6 +67,7 @@ No-CRS and With-CRS results are documented separately:
 - No-CRS: current `/src` target PASS for Apache and NGINX.
 - With-CRS: current `/src` target FAIL for Apache and NGINX because
   `action_status_401_phase1_block` returned 403 instead of expected 401.
+- Detailed 401/403 analysis: `crs-action-status-401-analysis.md`.
 - CRS SQLi anomaly: current With-CRS case PASS for both connectors.
 
 The With-CRS target result is not blocked. It ran and failed.
