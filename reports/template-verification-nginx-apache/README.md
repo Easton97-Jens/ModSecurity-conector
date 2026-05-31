@@ -13,6 +13,12 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
   `connectors/_template/tests`, `connectors/apache/tests`, and
   `connectors/nginx/tests`.
 - Executable connector tests are framework-owned, not connector-local.
+- Actual framework path: `modules/ModSecurity-test-Framework`.
+- Current framework commit referenced by the parent:
+  `4bec4d960fea89525db9e439ea567df15943a2e7`.
+- Framework-local `make lint`: PASS.
+- Framework-local `make quick-check`: target not found; framework-local
+  `make check-test-matrix` was run and exited 0.
 - Current `/src` `make smoke-common`: Apache 54 PASS, 0 FAIL, 0 BLOCKED;
   NGINX 54 PASS, 0 FAIL, 0 BLOCKED.
 - Current `/src` `make smoke-nginx` all-scope: NGINX 60 PASS, 0 FAIL,

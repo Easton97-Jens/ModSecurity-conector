@@ -54,6 +54,9 @@ still need evidence. Full decision details are in
 - `action_status_401_phase1_block` is now resolved for the current `/src`
   runs by a With-CRS-specific expectation: No-CRS remains expected/actual 401,
   With-CRS is expected/actual 403.
+- Framework-local `make quick-check` is resolved as not available in the
+  framework Makefile for this workspace; framework-local `make lint` and
+  `make check-test-matrix` were run instead and exited 0.
 - The shared scaffold status vocabulary is: `template`, `scaffolded`,
   `adapter-owned`, `runtime-smoke-verified`, `crs-verified`, `partial`, and
   `not-verified`.

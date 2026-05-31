@@ -32,6 +32,9 @@ runtime results reviewed in this repository.
 | --- | --- | --- |
 | `make generate-test-matrix` | PASS | Generator exited 0; generated reporting is not runtime proof. |
 | `make check-test-matrix` | PASS | Matrix check exited 0. |
+| `modules/ModSecurity-test-Framework: make lint` | PASS | Framework-local lint exited 0. |
+| `modules/ModSecurity-test-Framework: make quick-check` | not found | No `quick-check` target was found in the framework Makefile. |
+| `modules/ModSecurity-test-Framework: make check-test-matrix` | PASS | Framework-local matrix check exited 0 with a warning about missing `config/testing/import-status.json`. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS; NGINX 60 PASS; both 0 FAIL and 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | PASS | Apache 55 PASS; NGINX 61 PASS; both 0 FAIL and 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache 54 PASS; NGINX 54 PASS; both 0 FAIL and 0 BLOCKED. |

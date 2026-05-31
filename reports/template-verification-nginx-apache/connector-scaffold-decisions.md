@@ -23,6 +23,9 @@ Evidence/paths:
 - `reports/template-verification-nginx-apache/summary.md`
 - `reports/template-verification-nginx-apache/runtime-test-run-src.md`
 - `reports/template-verification-nginx-apache/findings.md`
+- Actual framework path: `modules/ModSecurity-test-Framework`.
+- Current framework commit referenced by the parent:
+  `4bec4d960fea89525db9e439ea567df15943a2e7`.
 - Default runtime smoke readiness: blocked.
 - Reason: `/root/.local/state/ModSecurity-conector-build/sources/ModSecurity_V3`
   missing.
@@ -41,6 +44,11 @@ Evidence/paths:
   records Apache 55 PASS and NGINX 61 PASS, both with 0 FAIL and 0 BLOCKED.
 - Current With-CRS CRS case evidence: `crs_sqli_anomaly_block` PASS for
   Apache and NGINX, expected 403 and actual 403.
+- Framework-local `make lint`: PASS.
+- Framework-local `make quick-check`: target not found in the framework
+  Makefile.
+- Framework-local `make check-test-matrix`: PASS, with a warning that
+  framework-local `config/testing/import-status.json` was not found.
 - Historical NGINX 11 BLOCKED rows are resolved in the current `/src` reruns
   and classified as an environment/docroot permission blocker.
 - RESPONSE_BODY: not verified.

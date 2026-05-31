@@ -75,6 +75,7 @@
 ## Framework Paths
 
 - `modules/ModSecurity-test-Framework/README.md`
+- `modules/ModSecurity-test-Framework/Makefile`
 - `modules/ModSecurity-test-Framework/ci/common.sh`
 - `modules/ModSecurity-test-Framework/ci/fetch-crs.sh`
 - `modules/ModSecurity-test-Framework/ci/prepare-crs.sh`
