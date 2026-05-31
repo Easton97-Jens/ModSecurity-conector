@@ -2,7 +2,7 @@
 
 Status: reviewed
 
-Updated: 2026-05-30 19:33:51 UTC
+Updated: 2026-05-30 20:55:03 UTC
 
 ## Readiness
 
@@ -22,7 +22,8 @@ Updated: 2026-05-30 19:33:51 UTC
 - RESPONSE_BODY blocking: not verified.
 - Vollstaendige Runtime-Verifikation: nein.
 - Submodule changed: yes; `modules/ModSecurity-test-Framework` has a modified
-  working tree at commit `b7f9bdc9831f9a8d14294cfb8fcb129a183d5d18`.
+  framework commit relative to the earlier baseline. Current parent HEAD points
+  at framework commit `4bec4d960fea89525db9e439ea567df15943a2e7`.
 
 ## CRS Expectation Result
 
@@ -50,9 +51,9 @@ Detailed analysis:
 
 | Target | Decision | Reason |
 | --- | --- | --- |
-| `connectors/_template` | partially suitable | The template now documents a repeatable connector flow, required evidence, external tests, and promotion gates; it is still not an implementation. |
-| `connectors/nginx` | partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; RESPONSE_BODY blocking and full minimum matrix remain unverified. |
-| `connectors/apache` | partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; Apache-specific YAML cases are still not found; RESPONSE_BODY blocking and full minimum matrix remain unverified. |
+| `connectors/_template` | suitable scaffold, not runtime-verified | The template documents a repeatable connector flow, external tests, and promotion gates. It is intentionally not a productive implementation; origin, metadata, build, No-CRS, With-CRS, coverage matrix, and runtime evidence are required per connector. |
+| `connectors/nginx` | aligned with current Template gates for executed scope; runtime status partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; RESPONSE_BODY blocking and full minimum matrix remain unverified. See `nginx-template-alignment.md`. |
+| `connectors/apache` | aligned with current Template gates for executed scope; runtime status partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; Apache-specific YAML cases are still not found; RESPONSE_BODY blocking and full minimum matrix remain unverified. See `apache-template-alignment.md`. |
 | RESPONSE_BODY | not verified | Current evidence includes pass-through/log-only response-body rows, not a blocking response-body HTTP result. |
 
 ## Current Runtime Evidence
@@ -111,9 +112,13 @@ Executable connector tests are framework-owned and are not maintained in local
 | `make check-test-matrix` | PASS | Command exited 0. |
 | `make lint` | PASS | `actionlint unavailable` was informational; command exited 0. |
 | `make quick-check` | PASS | Command exited 0. |
+| `modules/ModSecurity-test-Framework: make lint` | PASS | Command exited 0. |
+| `modules/ModSecurity-test-Framework: make quick-check` | not found | No `quick-check` target was found in the framework Makefile. |
+| `modules/ModSecurity-test-Framework: make check-test-matrix` | PASS | Command exited 0; it printed a warning that framework-local `config/testing/import-status.json` was not found. |
 | `rg -n "[ \t]+$" connectors reports/template-verification-nginx-apache` | PASS | No trailing whitespace matches; `rg` exited 1 because no matches were found. |
-| `git status --short` | PASS with expected modifications | Shows documentation/report changes plus modified framework submodule. |
-| `git submodule status` | PASS with dirty submodule noted | Pointer remains `b7f9bdc9831f9a8d14294cfb8fcb129a183d5d18`; submodule working tree is modified. |
+| `rg -n "[ \t]+$" connectors reports/template-verification-nginx-apache modules/ModSecurity-test-Framework` | PASS | No trailing whitespace matches; `rg` exited 1 because no matches were found. |
+| `git status --short` | pending docs/report updates | Parent status shows only report documentation updates from this verification pass. |
+| `git submodule status` | PASS | Parent points to `4bec4d960fea89525db9e439ea567df15943a2e7`; submodule working tree is clean. |
 
 ## Not Verified
 

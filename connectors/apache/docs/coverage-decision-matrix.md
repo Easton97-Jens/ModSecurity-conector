@@ -5,9 +5,17 @@ Status: partial
 This file evaluates Apache coverage using repository evidence only. Generated
 coverage reporting is not automatically runtime promotion.
 
+Template alignment report:
+`reports/template-verification-nginx-apache/apache-template-alignment.md`.
+
+Apache is aligned with the current Template for scaffold, metadata, build,
+harness, No-CRS, and With-CRS executed runtime scope. It remains `partial`
+because RESPONSE_BODY blocking and the full minimum matrix are not verified.
+
 Evidence sources:
 
 - `TEST-COVERAGE-SUMMARY.md`
+- `reports/template-verification-nginx-apache/apache-template-alignment.md`
 - `reports/template-verification-nginx-apache/verified-runtime-run.md`
 - `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`
 - `/src/ModSecurity-conector-build/results/no-crs/apache-summary.json`

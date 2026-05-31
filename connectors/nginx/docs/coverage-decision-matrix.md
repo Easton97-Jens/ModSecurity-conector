@@ -8,12 +8,20 @@ coverage reporting is not automatically runtime promotion.
 Evidence sources:
 
 - `TEST-COVERAGE-SUMMARY.md`
+- `reports/template-verification-nginx-apache/nginx-template-alignment.md`
 - `reports/template-verification-nginx-apache/verified-runtime-run.md`
 - `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`
 - `reports/template-verification-nginx-apache/nginx-blocked-runtime-cases.md`
 - `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.json`
 - `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.json`
 - `/src/ModSecurity-conector-build/results/nginx-summary.json`
+
+Template alignment report:
+`reports/template-verification-nginx-apache/nginx-template-alignment.md`.
+
+NGINX is aligned with the current Template for scaffold, metadata, build,
+harness, No-CRS, and With-CRS executed runtime scope. It remains `partial`
+because RESPONSE_BODY blocking and the full minimum matrix are not verified.
 
 ## Status Vocabulary
 

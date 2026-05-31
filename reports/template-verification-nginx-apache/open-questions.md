@@ -54,11 +54,21 @@ still need evidence. Full decision details are in
 - `action_status_401_phase1_block` is now resolved for the current `/src`
   runs by a With-CRS-specific expectation: No-CRS remains expected/actual 401,
   With-CRS is expected/actual 403.
+- Framework-local `make quick-check` is resolved as not available in the
+  framework Makefile for this workspace; framework-local `make lint` and
+  `make check-test-matrix` were run instead and exited 0.
 - The shared scaffold status vocabulary is: `template`, `scaffolded`,
   `adapter-owned`, `runtime-smoke-verified`, `crs-verified`, `partial`, and
   `not-verified`.
 - Template promotion gates are documented: `scaffolded`, `adapter-owned`,
   `runtime-smoke-verified`, `crs-verified`, and `more-than-partial`.
+- Template status is normalized as suitable scaffold, not runtime-verified.
+  Origin, metadata, build, No-CRS, With-CRS, coverage matrix, runtime evidence,
+  and RESPONSE_BODY blocking are per-connector gates, not Template defects.
+- Apache and NGINX phase-by-phase Template alignment reports were added:
+  `apache-template-alignment.md` and `nginx-template-alignment.md`.
+  Both are aligned for scaffold, origin/license, metadata, build, harness,
+  external tests, and executed No-CRS/With-CRS scope; both remain `partial`.
 
 ## Still Open / Deferred
 

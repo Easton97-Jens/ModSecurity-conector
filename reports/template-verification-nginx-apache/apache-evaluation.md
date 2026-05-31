@@ -5,6 +5,11 @@ Status: reviewed
 Apache-Bewertung: partial with current `/src` No-CRS PASS and With-CRS PASS
 for executed scope.
 
+Template alignment: aligned for scaffold, origin/license, metadata, build,
+harness, external-test references, and executed No-CRS/With-CRS runtime scope.
+Detailed phase-by-phase alignment:
+`reports/template-verification-nginx-apache/apache-template-alignment.md`.
+
 Reason: `connectors/apache` contains an adapter-owned source structure,
 Autotools/APXS build files, metadata, origin documentation, harness, and
 documentation. Current `/src` runtime targets pass for the executed scope, but
@@ -28,6 +33,7 @@ complete.
 | RESPONSE_BODY blocking | Not verified | `response_body_pass` is pass-through evidence only. |
 | Apache-specific YAML cases | Missing | Only `README.md` found under framework Apache-specific path. |
 | More than `partial` | Not allowed | Full matrix and RESPONSE_BODY blocking evidence remain incomplete. |
+| Template phase alignment | Aligned | See `apache-template-alignment.md`. |
 
 ## Current Runtime Counts
 

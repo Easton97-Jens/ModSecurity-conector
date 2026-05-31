@@ -4,6 +4,7 @@ Status:
 
 - template: yes
 - scaffolded: yes
+- suitable_scaffold: yes
 - implemented: no
 - build_verified: no
 - runtime_verified: no
@@ -18,6 +19,10 @@ fill in before it may claim build or runtime behavior.
 It is not a productive connector implementation. It intentionally contains no
 productive adapter code, no local test suite, and no server-specific runtime
 claims.
+
+Template status: suitable scaffold, not runtime-verified.
+
+Deutsch: geeignet als Scaffold-Vorlage, nicht runtime-verifiziert.
 
 ## When to use this template
 
@@ -58,6 +63,9 @@ framework-owned, not connector-local.
 
 ## Required metadata
 
+Required per connector. This is not a Template defect. Every new connector must
+create `metadata.*` or the metadata form expected by this repository.
+
 - [ ] `metadata.*` created.
 - [ ] Connector name is unique.
 - [ ] Upstream project and version documented.
@@ -66,6 +74,9 @@ framework-owned, not connector-local.
 - [ ] Status vocabulary used consistently.
 
 ## Required origin/license evidence
+
+Required per connector. This is not a Template defect. Every new connector must
+document `ORIGIN.md`, license/origin evidence, and imported files.
 
 - [ ] `ORIGIN.md` created.
 - [ ] Upstream source documented.
@@ -92,6 +103,9 @@ presence alone is not build verification.
 
 ## Required runtime evidence
 
+Not applicable to template. Runtime evidence can only be produced by concrete
+connectors.
+
 - [ ] `make test-no-crs` executed, if the target exists.
 - [ ] `make test-with-crs` executed, if the target exists.
 - [ ] `make smoke-common` executed, if the target exists.
@@ -104,6 +118,13 @@ presence alone is not build verification.
 
 Runtime claims require executed commands and result files. Generated coverage
 reports can support planning, but they are not runtime proof by themselves.
+
+RESPONSE_BODY blocking is a runtime promotion gate. Concrete connectors may
+mark it verified only after repository-backed runtime evidence proves a
+blocking response-body trigger and blocking result.
+
+Harness contract is documented by the Template. Harness implementation is
+required per connector.
 
 ## No-CRS validation
 

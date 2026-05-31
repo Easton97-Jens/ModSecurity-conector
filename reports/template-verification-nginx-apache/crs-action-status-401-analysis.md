@@ -3,7 +3,7 @@
 Status: resolved by scoped expectation update; exact CRS/action-merging root
 cause remains not fully proven.
 
-Updated: 2026-05-30 19:33:51 UTC
+Updated: 2026-05-30 20:55:03 UTC
 
 ## Scope
 
@@ -24,9 +24,12 @@ status handling for a case that is valid in both No-CRS and With-CRS contexts.
 - `modules/ModSecurity-test-Framework/tests/README.md`
 - `modules/ModSecurity-test-Framework/tests/runners/README.md`
 
-Submodule status: modified working tree at commit
-`b7f9bdc9831f9a8d14294cfb8fcb129a183d5d18`; no new submodule commit was
-created during this work.
+Framework path used by the parent repository:
+`modules/ModSecurity-test-Framework`.
+
+Submodule status after the current checks: parent points to framework commit
+`4bec4d960fea89525db9e439ea567df15943a2e7`; the framework working tree is
+clean.
 
 ## Expectation Model
 
@@ -119,6 +122,14 @@ Evidence paths:
 - `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`
 - `/src/ModSecurity-conector-build/results/with-crs/apache-results.jsonl`
 - `/src/ModSecurity-conector-build/results/with-crs/nginx-results.jsonl`
+
+Framework checks:
+
+| Command | Result | Note |
+| --- | --- | --- |
+| `modules/ModSecurity-test-Framework: make lint` | PASS | Command exited 0. |
+| `modules/ModSecurity-test-Framework: make quick-check` | not found | No `quick-check` target was found in the framework Makefile. |
+| `modules/ModSecurity-test-Framework: make check-test-matrix` | PASS | Command exited 0; it printed a warning that framework-local `config/testing/import-status.json` was not found. |
 
 ## What The Fix Proves
 

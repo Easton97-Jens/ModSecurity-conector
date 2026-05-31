@@ -13,6 +13,12 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
   `connectors/_template/tests`, `connectors/apache/tests`, and
   `connectors/nginx/tests`.
 - Executable connector tests are framework-owned, not connector-local.
+- Actual framework path: `modules/ModSecurity-test-Framework`.
+- Current framework commit referenced by the parent:
+  `4bec4d960fea89525db9e439ea567df15943a2e7`.
+- Framework-local `make lint`: PASS.
+- Framework-local `make quick-check`: target not found; framework-local
+  `make check-test-matrix` was run and exited 0.
 - Current `/src` `make smoke-common`: Apache 54 PASS, 0 FAIL, 0 BLOCKED;
   NGINX 54 PASS, 0 FAIL, 0 BLOCKED.
 - Current `/src` `make smoke-nginx` all-scope: NGINX 60 PASS, 0 FAIL,
@@ -35,6 +41,10 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 - `template-evaluation.md`: Template suitability evaluation.
 - `apache-evaluation.md`: Apache connector evaluation.
 - `nginx-evaluation.md`: NGINX connector evaluation.
+- `apache-template-alignment.md`: Apache phase-by-phase alignment against the
+  current Template gates.
+- `nginx-template-alignment.md`: NGINX phase-by-phase alignment against the
+  current Template gates.
 - `verified-runtime-run.md`: current `/src` runtime evidence, including
   No-CRS and With-CRS sections.
 - `nginx-docroot-permission-analysis.md`: NGINX docroot blocker cause and fix.
@@ -53,12 +63,16 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 
 | Target | Rating |
 | --- | --- |
-| `connectors/_template` | partially suitable |
-| `connectors/apache` | partial |
-| `connectors/nginx` | partial |
+| `connectors/_template` | suitable scaffold, not runtime-verified |
+| `connectors/apache` | aligned with Template gates for executed scope; runtime status partial |
+| `connectors/nginx` | aligned with Template gates for executed scope; runtime status partial |
 
-`partial` does not mean failed. It means some runtime evidence exists, but the
-minimum matrix for promotion beyond partial is not complete.
+For the Template, `suitable scaffold, not runtime-verified` means it is a
+usable scaffold for new connectors, not a productive connector implementation.
+Origin, metadata, build, No-CRS, With-CRS, coverage matrix, and runtime
+evidence are required per concrete connector. For Apache and NGINX, `partial`
+does not mean failed. It means some runtime evidence exists, but the minimum
+matrix for promotion beyond partial is not complete.
 
 ## CRS And No-CRS
 

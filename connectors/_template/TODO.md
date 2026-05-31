@@ -1,12 +1,13 @@
 # TODO - New Connector From Template
 
-Status: partially suitable
+Status: suitable scaffold, not runtime-verified
 
-Template evaluation: partially suitable
+Template evaluation: geeignet als Scaffold-Vorlage, nicht runtime-verifiziert
 
-Reason: the template now describes a repeatable connector flow, but it is still
-not an implementation. Origin, metadata, build, runtime, CRS, and promotion
-evidence must be provided by each concrete connector.
+Reason: the template describes a repeatable connector flow and is suitable as a
+scaffold. It is intentionally not a productive connector implementation and is
+not runtime-verified. Origin, metadata, build, No-CRS, With-CRS, coverage
+matrix, runtime evidence, and promotion evidence are required per connector.
 
 Legend:
 
@@ -33,7 +34,7 @@ Status vocabulary:
 
 ## Phase 0: Scaffold erstellen
 
-Status: partially complete for the generic template.
+Status: complete for the generic scaffold.
 
 - [x] `README.md` vorhanden.
 - [x] `TODO.md` vorhanden.
@@ -45,12 +46,16 @@ Status: partially complete for the generic template.
 - [x] `src/README.md` vorhanden.
 - [x] Lokaler Template-Testordner ist entfernt.
 - [x] Template warnt, dass es keine produktive Implementierung ist.
-- [ ] Connector-name-specific placeholders replaced.
-- [ ] No runtime claims added during scaffold creation.
+- [x] Keine Runtime-Claims im Template.
+- [ ] Connector-name-specific placeholders replaced per connector.
 
 ## Phase 1: Origin/Metadata belegen
 
-Status: open for each concrete connector.
+Status: required per connector.
+
+This is not a Template defect. Every concrete connector must provide origin,
+license, source-map, and metadata evidence before it can be rated beyond a
+scaffold.
 
 Metadata checklist:
 
@@ -99,7 +104,7 @@ Blocked items:
 
 ## Phase 3: No-CRS Runtime validieren
 
-Status: not verified for the template.
+Status: not applicable to template; required per connector.
 
 - [ ] `make test-no-crs` ausgeführt, if the target exists.
 - [ ] Connector-specific smoke target executed, if present.
@@ -116,7 +121,7 @@ No-CRS PASS must not be used as With-CRS PASS.
 
 ## Phase 4: With-CRS Runtime validieren
 
-Status: not verified for the template.
+Status: not applicable to template; required per connector.
 
 - [ ] `make test-with-crs` ausgeführt, if the target exists.
 - [ ] CRS source path documented.
@@ -132,7 +137,8 @@ Do not change a base No-CRS expectation to satisfy a With-CRS result.
 
 ## Phase 5: Coverage Matrix ausfüllen
 
-Status: not verified for the template.
+Status: scaffold contract documented; matrix completion required per
+connector.
 
 - [ ] Framework cases present column completed.
 - [ ] No-CRS status column completed.
@@ -153,7 +159,7 @@ Generated coverage is planning evidence. It is not runtime proof by itself.
 
 ## Phase 6: Promotion prüfen
 
-Status: blocked until runtime evidence exists.
+Status: runtime promotion gates required per connector.
 
 - [ ] `scaffolded`: structure and docs exist, no runtime claims.
 - [ ] `adapter-owned`: source/build/metadata/origin evidence exists.
@@ -175,9 +181,14 @@ More than `partial` requires:
       or known gap with evidence.
 - [ ] Startup/reload validation documented.
 
+RESPONSE_BODY blocking is a runtime promotion gate. It is not a Template
+failure. Concrete connectors may mark it verified only after a
+repository-backed runtime test proves a blocking response-body trigger and
+blocking result.
+
 ## Phase 7: Offene Gaps dokumentieren
 
-Status: open for each concrete connector.
+Status: required per connector.
 
 - [ ] Missing upstream/source/license evidence documented.
 - [ ] Missing metadata documented.
@@ -193,11 +204,20 @@ Status: open for each concrete connector.
 
 - [x] Local Template tests folder removed.
 - [x] New connectors must not create `connectors/<name>/tests`.
-- [x] Executable tests are framework-owned.
+- [x] Executable tests are intentionally external and framework-owned.
+- [x] Tests must be referenced, not copied into `connectors/_template/tests`.
 - [x] Framework test paths documented:
       `modules/ModSecurity-test-Framework/tests/cases/`,
       `modules/ModSecurity-test-Framework/tests/cases/connector-specific/<connector>/`,
       `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
+
+## Final Template Decision
+
+Das Template ist als Scaffold-Vorlage geeignet. Es ist bewusst nicht
+runtime-verifiziert und enthält keine produktive Connector-Implementierung.
+Neue Connectoren müssen die per-connector Gates für Origin, Metadata, Build,
+No-CRS, With-CRS, Coverage Matrix und Runtime Evidence erfüllen, bevor sie über
+partial hinaus bewertet werden können.
 
 ## Full evaluation
 

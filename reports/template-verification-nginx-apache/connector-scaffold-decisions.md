@@ -23,6 +23,9 @@ Evidence/paths:
 - `reports/template-verification-nginx-apache/summary.md`
 - `reports/template-verification-nginx-apache/runtime-test-run-src.md`
 - `reports/template-verification-nginx-apache/findings.md`
+- Actual framework path: `modules/ModSecurity-test-Framework`.
+- Current framework commit referenced by the parent:
+  `4bec4d960fea89525db9e439ea567df15943a2e7`.
 - Default runtime smoke readiness: blocked.
 - Reason: `/root/.local/state/ModSecurity-conector-build/sources/ModSecurity_V3`
   missing.
@@ -41,6 +44,11 @@ Evidence/paths:
   records Apache 55 PASS and NGINX 61 PASS, both with 0 FAIL and 0 BLOCKED.
 - Current With-CRS CRS case evidence: `crs_sqli_anomaly_block` PASS for
   Apache and NGINX, expected 403 and actual 403.
+- Framework-local `make lint`: PASS.
+- Framework-local `make quick-check`: target not found in the framework
+  Makefile.
+- Framework-local `make check-test-matrix`: PASS, with a warning that
+  framework-local `config/testing/import-status.json` was not found.
 - Historical NGINX 11 BLOCKED rows are resolved in the current `/src` reruns
   and classified as an environment/docroot permission blocker.
 - RESPONSE_BODY: not verified.
@@ -86,6 +94,33 @@ Follow-up change: Template, Apache, and NGINX README/TODO files now link or
 refer to coverage-decision matrix requirements. Apache and NGINX remain
 `partial`; RESPONSE_BODY remains `not-verified`; more than `partial` requires
 complete matrix evidence.
+
+## Template Scaffold Decision
+
+Question: Should `connectors/_template` be evaluated like a completed
+connector?
+
+Decision: accepted as scaffold only.
+
+Reason: `connectors/_template` documents the expected connector structure,
+external framework test ownership, status vocabulary, and promotion gates. It
+intentionally contains no productive connector implementation, no local tests,
+and no runtime evidence.
+
+Evidence/paths:
+
+- `connectors/_template/README.md`
+- `connectors/_template/TODO.md`
+- `connectors/_template/docs/coverage-decision-matrix.md`
+- `reports/template-verification-nginx-apache/template-evaluation.md`
+
+Impact on new connectors: origin/license proof, metadata, build evidence,
+No-CRS, With-CRS, coverage matrix, RESPONSE_BODY blocking, and runtime evidence
+are required per connector. Missing concrete connector evidence is not a
+Template defect.
+
+Follow-up change or needed evidence: concrete connectors must satisfy those
+gates before they can be rated beyond `partial`.
 
 ## Test Variant Decision
 

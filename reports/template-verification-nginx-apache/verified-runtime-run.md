@@ -3,7 +3,7 @@
 Status: partial runtime evidence, current `/src` No-CRS and With-CRS targets
 passing for executed scope
 
-Updated: 2026-05-30 19:33:51 UTC
+Updated: 2026-05-30 20:55:03 UTC
 
 ## Environment
 
@@ -36,6 +36,14 @@ Framework root:
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS; NGINX 60 PASS; both 0 FAIL and 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | PASS | Apache 55 PASS; NGINX 61 PASS; both 0 FAIL and 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache common 54 PASS; NGINX common 54 PASS; both 0 FAIL and 0 BLOCKED. |
+
+Framework-local checks:
+
+| Command | Result | Notes |
+| --- | --- | --- |
+| `modules/ModSecurity-test-Framework: make lint` | PASS | Command exited 0. |
+| `modules/ModSecurity-test-Framework: make quick-check` | not found | No `quick-check` target was found in the framework Makefile. |
+| `modules/ModSecurity-test-Framework: make check-test-matrix` | PASS | Command exited 0; it printed a warning that framework-local `config/testing/import-status.json` was not found. |
 
 Earlier `/src` connector smokes are still documented in other reports, but the
 current target evidence above is the basis for this file.
