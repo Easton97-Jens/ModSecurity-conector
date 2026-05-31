@@ -102,3 +102,15 @@ still need evidence. Full decision details are in
   default `BUILD_ROOT`/`SOURCE_ROOT`, or provide a valid
   `MODSECURITY_SOURCE_DIR`/`MODSECURITY_V3_SOURCE_DIR`, then rerun
   `make smoke-common` and record the result.
+
+## HAProxy Open Items
+
+- Select and document an SPOP parser or SPOE/SPOA protocol library before the
+  starter can become a compatible SPOA service.
+- Add a HAProxy runtime harness that starts HAProxy with verified SPOE/SPOA
+  configuration and the starter/agent endpoint.
+- Select and implement the HAProxy-specific libmodsecurity binding strategy.
+- Add runtime evidence for No-CRS, With-CRS, RESPONSE_BODY blocking,
+  negative/pass-through behavior, and audit/log artifacts.
+- Promote beyond `spoa-agent-starter` only after productive adapter build and
+  runtime evidence are recorded.

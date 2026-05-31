@@ -1,44 +1,80 @@
 # HAProxy Connector TODO
 
-Status: scaffolded
+Status: spoa-agent-starter
+Runtime status: not-verified
 
-Alle Punkte in diesem Dokument sind **noch zu prüfen**, sofern nicht separat
-mit Runtime-/Build-Evidenz im Repository belegt.
+Global gate definitions:
 
-## Integrationsstrategie (noch zu prüfen)
+- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
 
-- [ ] Welche Integrationsstrategie wird verwendet?
-- [ ] SPOE?
-- [ ] Native HAProxy-Filter?
-- [ ] Lua?
-- [ ] Externer Service?
-- [ ] Anderer Ansatz?
-- [ ] Welche Entscheidungskriterien gelten (Sicherheit, Performance,
-      Wartbarkeit, Betrieb)?
+## Phase 0: Scaffold
 
-## Request-/Response-Pfad (noch zu prüfen)
+- [x] Connector directory created
+- [x] README present
+- [x] TODO present
+- [x] docs present
+- [x] harness contract documented
+- [x] src placeholder documented
+- [x] no local `connectors/haproxy/tests` folder
 
-- [ ] Wie werden Requests an die Connector-Komponente übergeben?
-- [ ] Welche Header-/Body-Daten sind in welcher Phase verfügbar?
-- [ ] Wie werden Response Headers behandelt?
-- [ ] Wie werden Response Bodies behandelt?
-- [ ] Wie werden Streaming- und Buffering-Grenzen umgesetzt?
+## Phase 1: Origin / Metadata
 
-## Intervention und Action-Mapping (noch zu prüfen)
+- [x] `ORIGIN.md` added for the current repo-authored starter
+- [x] `SOURCE_MAP.json` added for the current repo-authored starter
+- [x] `metadata.c` and `metadata.h` added
+- [x] local SPOA agent starter source documented
+- [ ] upstream HAProxy source selected and documented
+- [ ] upstream HAProxy integration headers/API documented
+- [ ] productive-source license documented
 
-- [ ] Wie werden ModSecurity-Interventions auf HAProxy-Actions gemappt?
-- [ ] Welche Block-/Allow-Semantik ist technisch sauber abbildbar?
-- [ ] Wie werden Fehlerpfade (z. B. Connector nicht erreichbar) behandelt?
+## Phase 2: Build
 
-## Logging und Nachweis (noch zu prüfen)
+- [x] metadata build-starter approach documented
+- [x] metadata object build command documented
+- [x] local SPOA agent starter build documented
+- [x] local SPOA agent starter self-test documented
+- [x] shared include/source paths documented
+- [x] starter artifact path documented
+- [ ] SPOP parser/library selected
+- [ ] productive HAProxy adapter build approach documented
+- [ ] productive include paths documented
+- [ ] productive library paths documented
+- [ ] productive adapter artifact path documented
+- [ ] productive adapter build logs documented
 
-- [ ] Welche Logs gelten als Mindestnachweis (HAProxy/Connector/Audit)?
-- [ ] Wie wird die Korrelation zwischen Request, Entscheidung und Log sichergestellt?
-- [ ] Wie wird Logging-Validierung automatisiert?
+## Phase 3: Harness
 
-## Build und Betrieb (noch zu prüfen)
+- [ ] HAProxy runtime harness implemented
+- [ ] harness command documented
+- [ ] harness evidence path documented
+- [ ] HAProxy binary/container/source-build documented
+- [ ] HAProxy config documented
+- [ ] SPOE/SPOA config documented and verified
+- [ ] starter/agent endpoint documented
+- [ ] ModSecurity integration point documented
 
-- [ ] Wird ein kompilierter Bestandteil benötigt?
-- [ ] Wird ein SPOA-Agent gebaut?
-- [ ] Welche Laufzeitumgebung ist erforderlich?
-- [ ] Wie werden Build-/Runtime-Artefakte strikt unter `BUILD_ROOT` isoliert?
+## Phase 4: No-CRS Runtime
+
+- [ ] `make test-no-crs` executed for HAProxy scope
+- [ ] PASS/FAIL/BLOCKED counts documented
+
+## Phase 5: With-CRS Runtime
+
+- [ ] `make test-with-crs` executed for HAProxy scope
+- [ ] CRS loaded/effective evidence documented
+- [ ] PASS/FAIL/BLOCKED counts documented
+
+## Phase 6: Coverage Matrix
+
+- [x] Phase 0/1/2 starter status documented
+- [ ] productive Phase 2/3/4 status documented
+- [ ] negative/pass-through status documented
+- [ ] audit/log evidence documented
+- [ ] RESPONSE_BODY blocking evaluated
+
+## Phase 7: Promotion
+
+- [ ] eligible for `adapter-owned`
+- [ ] eligible for `runtime-smoke-verified`
+- [ ] eligible for `crs-verified`
+- [ ] eligible for more than `partial`

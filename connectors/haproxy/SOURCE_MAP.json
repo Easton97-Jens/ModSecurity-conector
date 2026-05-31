@@ -1,0 +1,77 @@
+{
+  "connector": "haproxy",
+  "status": "spoa-agent-starter",
+  "runtime_status": "not-verified",
+  "upstream_source": "not selected",
+  "imported_productive_source_files": [],
+  "repo_authored_files": [
+    {
+      "path": "connectors/haproxy/metadata.c",
+      "purpose": "metadata for the HAProxy starter; no HAProxy API or runtime adapter logic"
+    },
+    {
+      "path": "connectors/haproxy/metadata.h",
+      "purpose": "metadata declarations for the HAProxy starter"
+    },
+    {
+      "path": "connectors/haproxy/Makefile",
+      "purpose": "compile the metadata object and local SPOA agent starter"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_spoa_agent_starter.c",
+      "purpose": "local request-decision starter logic; no SPOP frame parser and no HAProxy runtime handling"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_spoa_agent_starter.h",
+      "purpose": "local request-decision starter declarations"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_spoa_main.c",
+      "purpose": "CLI entry point for --describe and --self-test only"
+    }
+  ],
+  "shared_inputs": [
+    {
+      "path": "common/include/msconnector/origin.h",
+      "purpose": "connector-neutral origin metadata shape"
+    },
+    {
+      "path": "common/include/msconnector/request.h",
+      "purpose": "connector-neutral request shape used by the local starter self-test"
+    },
+    {
+      "path": "common/include/msconnector/intervention.h",
+      "purpose": "connector-neutral intervention shape used by the local starter self-test"
+    },
+    {
+      "path": "common/include/msconnector/status.h",
+      "purpose": "connector-neutral status values used by the local starter self-test"
+    },
+    {
+      "path": "common/src/intervention.c",
+      "purpose": "connector-neutral intervention helper linked into the local starter binary"
+    }
+  ],
+  "starter_capabilities": [
+    "compile local SPOA agent starter binary",
+    "run local self-test for synthetic request allow/block decisions",
+    "print explicit limitations via --describe"
+  ],
+  "blocked_dependencies": [
+    "SPOP frame parser or selected SPOE/SPOA protocol library",
+    "HAProxy runtime harness support",
+    "HAProxy binary/container/source-build evidence",
+    "HAProxy SPOE/SPOA configuration verified against a running HAProxy",
+    "selected libmodsecurity binding strategy for HAProxy",
+    "CRS loading path for HAProxy runtime"
+  ],
+  "claims_not_made": [
+    "full HAProxy adapter implementation",
+    "HAProxy runtime compatibility",
+    "SPOE/SPOA protocol compatibility",
+    "libmodsecurity transaction integration",
+    "No-CRS runtime PASS",
+    "With-CRS runtime PASS",
+    "RESPONSE_BODY blocking"
+  ]
+}

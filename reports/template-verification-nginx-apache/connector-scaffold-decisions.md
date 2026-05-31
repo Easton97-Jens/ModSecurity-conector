@@ -409,3 +409,52 @@ Needed evidence:
 - negative/pass-through case
 - Apache and NGINX separately documented with commands and results when those
   connectors are part of the claim
+
+## Decision 10: HAProxy Uses Shared Gates With Local SPOA Agent Starter
+
+Question: Should the HAProxy connector duplicate global connector gates while
+adding a minimal SPOE/SPOA-oriented next step?
+
+Decision: rejected for duplication; accepted for a local SPOA agent starter.
+
+Reason: The Template coverage matrix and this decision file already define the
+shared status vocabulary, scaffold rules, promotion gates, No-CRS/With-CRS
+separation, RESPONSE_BODY minimum evidence, external framework ownership, and
+runtime-evidence expectations. HAProxy-specific files should reference those
+rules and record only HAProxy-specific status. The repository has reusable
+common request, intervention, status, and origin shapes, so a local starter can
+compile and self-test synthetic request-decision logic without inventing HAProxy
+API, SPOP frame handling, or libmodsecurity runtime logic.
+
+HAProxy-specific application:
+
+- `connectors/haproxy` is `spoa-agent-starter`.
+- Runtime status is `not-verified`.
+- Template alignment is `scaffold-aligned plus local SPOA agent starter`.
+- No local `connectors/haproxy/tests` folder is used.
+- `connectors/haproxy/src/haproxy_spoa_agent_starter.*` and
+  `connectors/haproxy/src/haproxy_spoa_main.c` are repo-authored local starter
+  files, not productive adapter code.
+- `make -C connectors/haproxy build-spoa-starter` may compile the local starter
+  binary only; it does not build HAProxy, a HAProxy module, a complete SPOA
+  service, libmodsecurity integration, or runtime adapter logic.
+- `make -C connectors/haproxy self-test-spoa` may verify local synthetic
+  request allow/block decisions only; it is not a HAProxy runtime smoke.
+- Productive HAProxy adapter build is BLOCKED until an SPOP parser or
+  SPOE/SPOA protocol library, HAProxy runtime harness, HAProxy configuration,
+  libmodsecurity binding strategy, and runtime evidence are selected and
+  recorded.
+- No HAProxy runtime result, adapter behavior, CRS behavior, or RESPONSE_BODY
+  blocking result is claimed.
+- Future executable tests remain framework-owned under
+  `modules/ModSecurity-test-Framework/tests/cases/` and runner paths such as
+  `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
+- Future evidence may reference parent targets `make test-no-crs`,
+  `make test-with-crs`, and `make smoke-common` only after an explicit
+  HAProxy runtime scope exists and is executed.
+
+Impact: HAProxy may be documented as a local SPOA agent starter without
+creating duplicated connector-local gates or YAML test cases. Promotion beyond
+spoa-agent-starter/partial is not allowed until HAProxy-specific productive
+source origin, runtime build, harness, No-CRS, With-CRS, RESPONSE_BODY,
+negative/pass-through, and audit/log evidence is recorded.

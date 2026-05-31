@@ -130,3 +130,19 @@ Executable connector tests are framework-owned and are not maintained in local
 - Exact CRS/default-action or ModSecurity action-merging mechanism that made
   With-CRS return 403 before the expectation model was updated.
 - Default `make smoke-common` without preparing the default build root.
+
+## HAProxy Current Summary
+
+- HAProxy now has repo-authored ORIGIN/SOURCE_MAP metadata, metadata source, and
+  a local SPOA agent starter with a local self-test.
+- Build status: `spoa-agent-starter` for
+  `make -C connectors/haproxy build-spoa-starter`; productive HAProxy adapter
+  build remains BLOCKED.
+- Self-test status: PASS for `make -C connectors/haproxy self-test-spoa`.
+- Runtime status: `not-verified`.
+- No HAProxy API, SPOP frame parser, complete SPOE/SPOA implementation,
+  libmodsecurity binding, CRS loading, or runtime harness is present.
+- No local `connectors/haproxy/tests` folder is used.
+- RESPONSE_BODY blocking remains not verified.
+- HAProxy-specific alignment is documented in
+  `reports/template-verification-nginx-apache/haproxy-template-alignment.md`.

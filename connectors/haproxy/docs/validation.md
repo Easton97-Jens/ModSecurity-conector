@@ -1,41 +1,47 @@
-# HAProxy Runtime Validation Requirements
+# HAProxy Validation
 
-## Grundsatz
+Status: spoa-agent-starter
+Runtime status: not-verified
 
-Strukturchecks allein reichen nicht. Für HAProxy sind echte Runtime-Nachweise
-mit reproduzierbaren Artefakten erforderlich.
+HAProxy runtime validation is not run. No runtime result is claimed.
 
-No tests are stored in this connector repository.
+Global runtime rules and promotion gates are defined in:
 
-All test definitions, test execution, runners, and generated reports belong to
-Easton97-Jens/ModSecurity-test-Framework.
+- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+- `connectors/_template/docs/coverage-decision-matrix.md`
 
-## Mindestanforderungen (Runtime Evidence)
+## Current HAProxy Validation Status
 
-Für einen neuen Connector sind mindestens folgende Nachweise erforderlich
-(Framework-seitig):
+- Metadata build-starter: buildable as a compile-time object target.
+- SPOA agent starter: buildable as a local binary with local self-test.
+- Productive adapter build: BLOCKED.
+- HAProxy runtime harness: not implemented.
+- No-CRS: not run.
+- With-CRS: not run.
+- RESPONSE_BODY: not verified.
+- Negative/pass-through: not verified.
+- Audit/log: not verified.
 
-1. **HAProxy startet mit Testkonfiguration**
-   - Konfiguration lädt ohne kritische Fehler.
-2. **Connector-Komponente startet**
-   - Alle erforderlichen Komponenten laufen stabil.
-3. **Request wird geprüft**
-   - Ein realer Request durchläuft den vorgesehenen Prüfpfad.
-4. **Block/Allow wird nachweisbar gemappt**
-   - Interventionen werden korrekt in HAProxy-Actions umgesetzt.
-5. **Logs werden erzeugt**
-   - Relevante HAProxy-/Connector-/Audit-Logs sind vorhanden.
-6. **Report wird generiert**
-   - Ergebnisbericht/JSON im erwarteten Schema liegt vor.
+Executable tests are framework-owned and must use evidence from paths such as:
 
-## Ergänzende Prüfungen (noch zu prüfen)
+- `modules/ModSecurity-test-Framework/tests/cases/`
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
-- Streaming-/Buffering-Randfälle
-- Fehlerpfade bei Ausfall einzelner Komponenten
-- Wiederholbarkeit über mehrere Durchläufe
+Future HAProxy validation may reference these parent Make targets only after an
+explicit HAProxy runtime scope exists and is executed:
 
-## Nicht ausreichend
+- `make test-no-crs`
+- `make test-with-crs`
+- `make smoke-common`
 
-- Nur Datei-/Ordner-Existenztests
-- Nur Lint/Syntaxchecks ohne reale Request-Ausführung
-- Unbelegte Funktionsbehauptungen
+## Harness Blocker
+
+No HAProxy runtime harness is implemented in this connector. The local self-test
+runs only synthetic in-process request-decision logic.
+
+A future harness must provide HAProxy binary/container/source-build evidence,
+HAProxy config, SPOE/SPOA config, agent endpoint, ModSecurity integration point
+evidence, result JSON, and PASS/FAIL/BLOCKED counts.
+
+HAProxy cannot be promoted beyond spoa-agent-starter or partial status without
+recorded runtime evidence.

@@ -1,15 +1,23 @@
-# HAProxy Connector Source Placeholder
+# HAProxy Source
 
-Dieses Verzeichnis ist ein Platzhalter für spätere HAProxy-spezifische
-Implementierungsteile.
+Status: spoa-agent-starter
+Runtime status: not-verified
 
-Aktuell gilt:
+This directory contains a local HAProxy SPOA agent starter, not a productive
+runtime adapter.
 
-- Keine produktive Runtime-Implementierung enthalten.
-- Kein produktiver C-Code enthalten.
-- Keine Aussage über Funktionsfähigkeit.
+Current starter files:
 
-Warnung:
+- `haproxy_spoa_agent_starter.c`
+- `haproxy_spoa_agent_starter.h`
+- `haproxy_spoa_main.c`
 
-Apache-/NGINX-Code darf nicht kopiert werden, solange HAProxy-Lifecycle,
-Integrationspfade und APIs nicht separat bewiesen sind (noch zu prüfen).
+The starter can be compiled and self-tested locally. It evaluates synthetic
+in-process requests with repository-owned request/intervention/status shapes.
+It does not implement SPOP frame parsing, HAProxy network handling,
+libmodsecurity transaction handling, CRS loading, request or response inspection
+through HAProxy, HAProxy intervention mapping, logging, or runtime behavior.
+
+Productive source may only be added with ORIGIN/license/metadata evidence,
+including the future HAProxy source origin, license, imported files, local
+changes, and build/runtime evidence.
