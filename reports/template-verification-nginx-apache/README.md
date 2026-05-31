@@ -59,12 +59,16 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 
 | Target | Rating |
 | --- | --- |
-| `connectors/_template` | partially suitable |
+| `connectors/_template` | suitable scaffold, not runtime-verified |
 | `connectors/apache` | partial |
 | `connectors/nginx` | partial |
 
-`partial` does not mean failed. It means some runtime evidence exists, but the
-minimum matrix for promotion beyond partial is not complete.
+For the Template, `suitable scaffold, not runtime-verified` means it is a
+usable scaffold for new connectors, not a productive connector implementation.
+Origin, metadata, build, No-CRS, With-CRS, coverage matrix, and runtime
+evidence are required per concrete connector. For Apache and NGINX, `partial`
+does not mean failed. It means some runtime evidence exists, but the minimum
+matrix for promotion beyond partial is not complete.
 
 ## CRS And No-CRS
 

@@ -122,8 +122,8 @@ Detailed report:
 
 ## Decisions
 
-- `connectors/_template`: partially suitable as a repeatable scaffold, not an
-  implementation.
+- `connectors/_template`: suitable scaffold, not runtime-verified; not a
+  productive connector implementation.
 - `connectors/apache`: partial.
 - `connectors/nginx`: partial.
 - No-CRS runtime evidence: PASS for both connectors in current `/src` run.

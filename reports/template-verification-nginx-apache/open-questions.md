@@ -62,6 +62,9 @@ still need evidence. Full decision details are in
   `not-verified`.
 - Template promotion gates are documented: `scaffolded`, `adapter-owned`,
   `runtime-smoke-verified`, `crs-verified`, and `more-than-partial`.
+- Template status is normalized as suitable scaffold, not runtime-verified.
+  Origin, metadata, build, No-CRS, With-CRS, coverage matrix, runtime evidence,
+  and RESPONSE_BODY blocking are per-connector gates, not Template defects.
 
 ## Still Open / Deferred
 

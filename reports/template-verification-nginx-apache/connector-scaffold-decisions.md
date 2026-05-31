@@ -95,6 +95,33 @@ refer to coverage-decision matrix requirements. Apache and NGINX remain
 `partial`; RESPONSE_BODY remains `not-verified`; more than `partial` requires
 complete matrix evidence.
 
+## Template Scaffold Decision
+
+Question: Should `connectors/_template` be evaluated like a completed
+connector?
+
+Decision: accepted as scaffold only.
+
+Reason: `connectors/_template` documents the expected connector structure,
+external framework test ownership, status vocabulary, and promotion gates. It
+intentionally contains no productive connector implementation, no local tests,
+and no runtime evidence.
+
+Evidence/paths:
+
+- `connectors/_template/README.md`
+- `connectors/_template/TODO.md`
+- `connectors/_template/docs/coverage-decision-matrix.md`
+- `reports/template-verification-nginx-apache/template-evaluation.md`
+
+Impact on new connectors: origin/license proof, metadata, build evidence,
+No-CRS, With-CRS, coverage matrix, RESPONSE_BODY blocking, and runtime evidence
+are required per connector. Missing concrete connector evidence is not a
+Template defect.
+
+Follow-up change or needed evidence: concrete connectors must satisfy those
+gates before they can be rated beyond `partial`.
+
 ## Test Variant Decision
 
 Question: How should the `test-no-crs` and `test-with-crs` targets affect
