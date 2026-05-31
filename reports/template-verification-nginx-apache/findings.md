@@ -137,3 +137,22 @@ Detailed report:
 - CRS SQLi anomaly case: PASS for both connectors.
 - RESPONSE_BODY blocking: not verified.
 - Full runtime verification: no.
+
+## lighttpd Bridge-Starter Finding
+
+- `connectors/lighttpd` is bridge-starter only and runtime status is
+  not-verified.
+- Repo-owned metadata/probe source, bridge-starter source, `build/*.sh`, and
+  local Make targets provide compile/self-test checks using shared `common/`
+  helpers.
+- `connectors/lighttpd/build/build_starter.sh`, `make -C connectors/lighttpd
+  build-bridge-starter`, and `make -C connectors/lighttpd self-test-bridge`
+  PASS prove only local starter compilation/self-test; the bridge probe reports
+  a blocked local decision.
+- The lighttpd docs reference global connector gates instead of copying status
+  vocabulary, promotion gates, No-CRS/With-CRS separation, runtime evidence
+  rules, and RESPONSE_BODY requirements into connector-specific docs.
+- No local `connectors/lighttpd/tests` folder is present or required.
+- No lighttpd API, FastCGI/SCGI protocol implementation, ModSecurity API,
+  runtime harness, runtime evidence, adapter implementation, or runtime
+  PASS/FAIL/BLOCKED count is claimed.

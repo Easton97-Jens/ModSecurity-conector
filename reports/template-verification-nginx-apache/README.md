@@ -34,6 +34,9 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
   blocker and are resolved in the current `/src` runs.
 - RESPONSE_BODY blocking remains not verified.
 - Full runtime verification remains no.
+- `connectors/lighttpd` now has a repo-owned decision-service bridge starter,
+  uses global/shared connector gates, has no runtime evidence, and has no local
+  `connectors/lighttpd/tests` folder.
 
 ## Key Reports
 
@@ -45,6 +48,8 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
   current Template gates.
 - `nginx-template-alignment.md`: NGINX phase-by-phase alignment against the
   current Template gates.
+- `lighttpd-template-alignment.md`: lighttpd bridge-starter alignment against
+  the current Template gates.
 - `verified-runtime-run.md`: current `/src` runtime evidence, including
   No-CRS and With-CRS sections.
 - `nginx-docroot-permission-analysis.md`: NGINX docroot blocker cause and fix.
@@ -66,6 +71,7 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 | `connectors/_template` | suitable scaffold, not runtime-verified |
 | `connectors/apache` | aligned with Template gates for executed scope; runtime status partial |
 | `connectors/nginx` | aligned with Template gates for executed scope; runtime status partial |
+| `connectors/lighttpd` | bridge-starter only; runtime status not-verified |
 
 For the Template, `suitable scaffold, not runtime-verified` means it is a
 usable scaffold for new connectors, not a productive connector implementation.
@@ -94,3 +100,14 @@ summaries are pass-through/log-only evidence. A blocking claim still requires a
 real response-body blocking testcase, expected blocking trigger, actual
 blocking result such as HTTP 403, logs/reports, command, and per-connector
 evidence.
+
+## lighttpd Bridge-Starter
+
+`connectors/lighttpd` contains repo-owned metadata/probe source plus a local
+decision-service bridge starter. This starter uses shared `common/`
+origin/status/intervention/capability helpers and does not include lighttpd
+headers, call lighttpd APIs, implement FastCGI/SCGI, call ModSecurity APIs, or
+provide runtime evidence. A real lighttpd adapter build remains blocked by
+missing selected production integration path, lighttpd headers/SDK/source or
+bridge dependencies, ModSecurity integration code, and a framework-owned runtime
+harness.

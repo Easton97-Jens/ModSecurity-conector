@@ -102,3 +102,21 @@ still need evidence. Full decision details are in
   default `BUILD_ROOT`/`SOURCE_ROOT`, or provide a valid
   `MODSECURITY_SOURCE_DIR`/`MODSECURITY_V3_SOURCE_DIR`, then rerun
   `make smoke-common` and record the result.
+
+## lighttpd Open Gates
+
+The lighttpd bridge-starter is created/checked, but adapter and runtime gates
+remain open or not verified:
+
+- Upstream lighttpd source/version and a concrete integration path are not
+  selected.
+- Real native-module build is blocked by missing lighttpd headers/SDK/source.
+- Real FastCGI/SCGI bridge is blocked by missing protocol adapter and lighttpd
+  runtime configuration.
+- ModSecurity integration code for lighttpd is not implemented.
+- Harness is contract only.
+- No-CRS and With-CRS runtime have not been run for lighttpd.
+- RESPONSE_BODY blocking, negative/pass-through, and audit/log evidence are not
+  verified for lighttpd.
+- Promotion beyond bridge-starter/partial is not allowed without per-connector
+  runtime evidence.
