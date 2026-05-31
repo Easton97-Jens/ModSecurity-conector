@@ -137,3 +137,44 @@ Detailed report:
 - CRS SQLi anomaly case: PASS for both connectors.
 - RESPONSE_BODY blocking: not verified.
 - Full runtime verification: no.
+
+## Envoy Scaffold Finding
+
+- `connectors/envoy` exists as a sidecar/HTTP bridge-starter connector.
+- Envoy follows global/shared connector gates from
+  `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+  and references `connectors/_template/docs/coverage-decision-matrix.md` for
+  shared matrix semantics.
+- No local `connectors/envoy/tests` folder exists.
+- No Envoy runtime evidence, productive adapter-owned source, production build
+  evidence, or harness implementation is documented.
+- Envoy runtime status is `not-verified`; promotion beyond bridge-starter
+  is not allowed without future evidence.
+
+## Envoy Build-Starter Finding
+
+- Envoy has `ORIGIN.md`, `SOURCE_MAP.json`, `metadata.c`, `metadata.h`, a local
+  `Makefile`, `build/build_metadata.sh`, and `src/envoy_bridge*` for local
+  bridge-starter compilation.
+- The bridge starter uses `common/include/msconnector/request.h`,
+  `intervention.h`, `status.h`, `origin.h`, and `capabilities.h`, plus the
+  corresponding common helper sources.
+- No real Envoy API is used because no Envoy SDK/API dependency is present in
+  this repository.
+- ModSecurity bridge, Envoy runtime harness, No-CRS, With-CRS, and RESPONSE_BODY
+  validation remain blocked/deferred.
+
+## Envoy Build-Starter Result
+
+- `make -C connectors/envoy build-starter` passed for bridge-starter compilation.
+- `make -C connectors/envoy self-test` passed for local allow/block decision logic.
+- The result does not use Envoy API and does not prove runtime compatibility.
+
+## Envoy Bridge-Starter Finding
+
+- The selected Envoy path is a sidecar/HTTP bridge starter, not a native Envoy
+  filter, ext_proc service, or proxy-wasm module.
+- The local bridge self-test can model request header and URI/query data and
+  return a 403 `msconnector_intervention`.
+- The self-test does not use Envoy API, libmodsecurity API, CRS, or framework
+  YAML cases.
