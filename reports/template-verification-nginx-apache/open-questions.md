@@ -65,6 +65,10 @@ still need evidence. Full decision details are in
 - Template status is normalized as suitable scaffold, not runtime-verified.
   Origin, metadata, build, No-CRS, With-CRS, coverage matrix, runtime evidence,
   and RESPONSE_BODY blocking are per-connector gates, not Template defects.
+- Apache and NGINX phase-by-phase Template alignment reports were added:
+  `apache-template-alignment.md` and `nginx-template-alignment.md`.
+  Both are aligned for scaffold, origin/license, metadata, build, harness,
+  external tests, and executed No-CRS/With-CRS scope; both remain `partial`.
 
 ## Still Open / Deferred
 

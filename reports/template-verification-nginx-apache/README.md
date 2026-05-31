@@ -41,6 +41,10 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 - `template-evaluation.md`: Template suitability evaluation.
 - `apache-evaluation.md`: Apache connector evaluation.
 - `nginx-evaluation.md`: NGINX connector evaluation.
+- `apache-template-alignment.md`: Apache phase-by-phase alignment against the
+  current Template gates.
+- `nginx-template-alignment.md`: NGINX phase-by-phase alignment against the
+  current Template gates.
 - `verified-runtime-run.md`: current `/src` runtime evidence, including
   No-CRS and With-CRS sections.
 - `nginx-docroot-permission-analysis.md`: NGINX docroot blocker cause and fix.
@@ -60,8 +64,8 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 | Target | Rating |
 | --- | --- |
 | `connectors/_template` | suitable scaffold, not runtime-verified |
-| `connectors/apache` | partial |
-| `connectors/nginx` | partial |
+| `connectors/apache` | aligned with Template gates for executed scope; runtime status partial |
+| `connectors/nginx` | aligned with Template gates for executed scope; runtime status partial |
 
 For the Template, `suitable scaffold, not runtime-verified` means it is a
 usable scaffold for new connectors, not a productive connector implementation.

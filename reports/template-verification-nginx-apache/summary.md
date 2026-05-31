@@ -52,8 +52,8 @@ Detailed analysis:
 | Target | Decision | Reason |
 | --- | --- | --- |
 | `connectors/_template` | suitable scaffold, not runtime-verified | The template documents a repeatable connector flow, external tests, and promotion gates. It is intentionally not a productive implementation; origin, metadata, build, No-CRS, With-CRS, coverage matrix, and runtime evidence are required per connector. |
-| `connectors/nginx` | partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; RESPONSE_BODY blocking and full minimum matrix remain unverified. |
-| `connectors/apache` | partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; Apache-specific YAML cases are still not found; RESPONSE_BODY blocking and full minimum matrix remain unverified. |
+| `connectors/nginx` | aligned with current Template gates for executed scope; runtime status partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; RESPONSE_BODY blocking and full minimum matrix remain unverified. See `nginx-template-alignment.md`. |
+| `connectors/apache` | aligned with current Template gates for executed scope; runtime status partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; Apache-specific YAML cases are still not found; RESPONSE_BODY blocking and full minimum matrix remain unverified. See `apache-template-alignment.md`. |
 | RESPONSE_BODY | not verified | Current evidence includes pass-through/log-only response-body rows, not a blocking response-body HTTP result. |
 
 ## Current Runtime Evidence

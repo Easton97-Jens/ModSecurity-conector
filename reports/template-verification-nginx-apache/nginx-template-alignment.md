@@ -1,0 +1,83 @@
+# NGINX Template Alignment
+
+## Overall Decision
+
+- Template alignment: aligned.
+- Runtime status: partial.
+- Executed runtime gates: runtime-smoke-verified for the current `/src`
+  No-CRS/common scope, and crs-verified for the current `/src` With-CRS scope.
+- Reason: `connectors/nginx` matches the current Template scaffold,
+  origin/license, metadata, build, harness, external-test, No-CRS, and
+  With-CRS gates for the executed scope. It remains `partial` because
+  RESPONSE_BODY blocking and the full minimum matrix are not verified.
+
+## Gate Checklist
+
+- [x] Scaffold structure present.
+- [x] Origin/license evidence present.
+- [x] Metadata present.
+- [x] Build evidence present.
+- [x] Harness contract present.
+- [x] No local `connectors/nginx/tests` folder.
+- [x] External framework tests referenced.
+- [x] No-CRS runtime PASS documented.
+- [x] With-CRS runtime PASS documented.
+- [ ] RESPONSE_BODY blocking verified.
+- [ ] Full minimum matrix verified.
+- [ ] Connector can be promoted beyond `partial`.
+
+## Phase Matrix
+
+| Phase / Gate | Template requirement | NGINX evidence | No-CRS status | With-CRS status | Decision |
+| --- | --- | --- | --- | --- | --- |
+| Phase 0: Scaffold | README/TODO/docs/harness/src present | `connectors/nginx/README.md`, `TODO.md`, `docs/`, `harness/`, `src/` | n/a | n/a | OK |
+| Phase 1: Origin/Metadata | ORIGIN, SOURCE_MAP, metadata present | `connectors/nginx/ORIGIN.md`, `SOURCE_MAP.json`, `metadata.c`, `metadata.h` | n/a | n/a | OK |
+| Phase 2: Build | build command, include/lib paths, artifact evidence | `connectors/nginx/docs/build.md`, `connectors/nginx/config`, `/src/ModSecurity-conector-build/logs/nginx/`, `/src/ModSecurity-conector-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`; current build contract: `MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include` | n/a | n/a | OK for current `/src` evidence |
+| Phase 3: Harness | connector harness present and documented | `connectors/nginx/harness/README.md`, `run_nginx_smoke.sh`, `nginx_smoke.conf` | n/a | n/a | OK |
+| Phase 4: No-CRS Runtime | `make test-no-crs` PASS | `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.txt`: 60 PASS, 0 FAIL, 0 BLOCKED | PASS | n/a | OK; runtime-smoke-verified for executed scope |
+| Phase 5: With-CRS Runtime | `make test-with-crs` PASS and CRS evidence | `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.txt`: 61 PASS, 0 FAIL, 0 BLOCKED; `/src/coreruleset`; `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf` | n/a | PASS | OK; crs-verified for executed scope |
+| Phase 6: Coverage Matrix | Phase 1/2/3/4 documented separately | `connectors/nginx/docs/coverage-decision-matrix.md` | PASS for executed rows | PASS for executed rows | partial unless complete |
+| Phase 7: RESPONSE_BODY | blocking evidence required | `response_body_pass` is PASS/pass-through only; NGINX phase-4 connector-specific rows are pass-through/log-only evidence | not verified for blocking | not verified for blocking | not verified |
+| Phase 8: Negative/pass-through | pass-through evidence required | `v2_transformation_url_decode_pass_no_match` PASS in current result files | PASS for executed row | PASS for executed row | partial until full matrix documented |
+| Phase 9: Audit/log | audit/log evidence required | audit-log rows are present and PASS in current summaries; full audit/log evidence is not separately complete | PASS for executed rows | PASS for executed rows | partial |
+| Phase 10: Promotion | full matrix required | current evidence excludes RESPONSE_BODY blocking and full minimum matrix | partial | partial | partial |
+
+## Runtime Evidence
+
+- `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common`: 54 PASS / 0 FAIL / 0 BLOCKED.
+- `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs`: 60 PASS / 0 FAIL / 0 BLOCKED.
+- `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs`: 61 PASS / 0 FAIL / 0 BLOCKED.
+- No-CRS `action_status_401_phase1_block`: expected 401, actual 401, PASS.
+- With-CRS `action_status_401_phase1_block`: expected 403, actual 403, PASS.
+- With-CRS `crs_sqli_anomaly_block`: expected 403, actual 403, PASS.
+- `response_body_pass`: expected 200, actual 200, PASS; pass-through only, not RESPONSE_BODY blocking evidence.
+- `response_header_basic`: expected 403, actual 403, PASS.
+- `v2_transformation_url_decode_pass_no_match`: expected 200, actual 200, PASS.
+
+Evidence files:
+
+- `/src/ModSecurity-conector-build/results/nginx-summary.txt`
+- `/src/ModSecurity-conector-build/results/nginx-results.jsonl`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-summary.txt`
+- `/src/ModSecurity-conector-build/results/no-crs/nginx-results.jsonl`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-summary.txt`
+- `/src/ModSecurity-conector-build/results/with-crs/nginx-results.jsonl`
+
+## Open Gates
+
+- RESPONSE_BODY blocking.
+- Full minimum matrix.
+- Audit/log full evidence beyond executed rows.
+- Negative/pass-through full evidence beyond executed rows.
+- `nginx_phase4_strict_connection_abort` remains deferred in current reports
+  because a current summary/result entry was not found for that case.
+
+Apache-specific YAML cases are not an NGINX gate.
+
+## Decision
+
+NGINX is aligned with the current Template for scaffold, metadata, build,
+harness, No-CRS, and With-CRS executed runtime scope.
+
+NGINX remains `partial` because RESPONSE_BODY blocking and the full minimum
+matrix are not verified.

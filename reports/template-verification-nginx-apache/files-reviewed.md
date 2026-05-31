@@ -151,6 +151,8 @@
 - `reports/template-verification-nginx-apache/README.md`
 - `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
 - `reports/template-verification-nginx-apache/template-evaluation.md`
+- `reports/template-verification-nginx-apache/apache-template-alignment.md`
+- `reports/template-verification-nginx-apache/nginx-template-alignment.md`
 - `reports/template-verification-nginx-apache/nginx-evaluation.md`
 - `reports/template-verification-nginx-apache/apache-evaluation.md`
 - `reports/template-verification-nginx-apache/component-download-check.md`

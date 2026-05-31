@@ -5,6 +5,11 @@ Status: reviewed
 NGINX rating: partial with current `/src` No-CRS PASS and With-CRS PASS for
 executed scope.
 
+Template alignment: aligned for scaffold, origin/license, metadata, build,
+harness, external-test references, and executed No-CRS/With-CRS runtime scope.
+Detailed phase-by-phase alignment:
+`reports/template-verification-nginx-apache/nginx-template-alignment.md`.
+
 Reason: `connectors/nginx` contains an adapter-owned source tree, metadata,
 origin documentation, harness files, and connector docs. Current `/src`
 runtime targets pass for the executed scope, including the CRS-specific
@@ -29,6 +34,7 @@ matrix is not complete.
 | Historical 11 BLOCKED rows | Resolved | Documented as environment/docroot permission blocker in earlier reports. |
 | RESPONSE_BODY blocking | Not verified | Current response-body rows are pass-through or log-only evidence. |
 | More than `partial` | Not allowed | Full matrix and RESPONSE_BODY blocking evidence remain incomplete. |
+| Template phase alignment | Aligned | See `nginx-template-alignment.md`. |
 
 ## Current Runtime Counts
 

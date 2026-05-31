@@ -124,8 +124,14 @@ Detailed report:
 
 - `connectors/_template`: suitable scaffold, not runtime-verified; not a
   productive connector implementation.
-- `connectors/apache`: partial.
-- `connectors/nginx`: partial.
+- `connectors/apache`: aligned with current Template gates for scaffold,
+  origin/license, metadata, build, harness, external tests, and executed
+  No-CRS/With-CRS scope; runtime status remains partial. See
+  `apache-template-alignment.md`.
+- `connectors/nginx`: aligned with current Template gates for scaffold,
+  origin/license, metadata, build, harness, external tests, and executed
+  No-CRS/With-CRS scope; runtime status remains partial. See
+  `nginx-template-alignment.md`.
 - No-CRS runtime evidence: PASS for both connectors in current `/src` run.
 - With-CRS runtime evidence: PASS for both connectors in current `/src` run.
 - CRS SQLi anomaly case: PASS for both connectors.
