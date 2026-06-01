@@ -20,8 +20,9 @@ connector trees:
   `connectors/apache/src/`.
 - `connectors/nginx/` contains the NGINX connector adapter, module `config`,
   harness files, metadata, and productive source under `connectors/nginx/src/`.
-- `connectors/{envoy,haproxy,lighttpd,traefik}/` are scaffolded future
-  connector areas with documentation and TODOs.
+- `connectors/{envoy,haproxy,lighttpd}/` are scaffolded future
+  connector areas with documentation and TODOs; `connectors/traefik/` adds a
+  local decision-service starter without runtime verification.
 
 Connector source is repo-local. Apache and NGINX connector repositories are not
 fetched as runtime defaults.
@@ -35,7 +36,7 @@ fetched as runtime defaults.
 | Envoy | deferred placeholder scaffold | `connectors/envoy/` |
 | HAProxy | deferred placeholder scaffold | `connectors/haproxy/` |
 | Lighttpd | deferred placeholder scaffold | `connectors/lighttpd/` |
-| Traefik | deferred placeholder scaffold | `connectors/traefik/` |
+| Traefik | local decision-service starter; runtime not verified | `connectors/traefik/` |
 
 Apache and NGINX pass claims must be tied to a specific smoke result. The
 current local `$BUILD_ROOT/results/connector-summary.json` can record default

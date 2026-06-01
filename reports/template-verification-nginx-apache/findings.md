@@ -137,3 +137,15 @@ Detailed report:
 - CRS SQLi anomaly case: PASS for both connectors.
 - RESPONSE_BODY blocking: not verified.
 - Full runtime verification: no.
+
+## Traefik Decision-Service Starter Finding
+
+- `connectors/traefik` now has a repo-owned local decision-service starter.
+- The Traefik docs reference shared connector gates and coverage rules instead
+  of duplicating global rules locally.
+- Traefik has local self-test evidence only, no implemented runtime harness, no
+  production Traefik adapter build, and no local `connectors/traefik/tests`
+  folder.
+- Missing production dependencies include a selected Traefik API/source/SDK or
+  HTTP bridge runtime strategy, libmodsecurity runtime integration point, Traefik
+  configuration, and harness configuration/evidence paths.

@@ -409,3 +409,50 @@ Needed evidence:
 - negative/pass-through case
 - Apache and NGINX separately documented with commands and results when those
   connectors are part of the claim
+
+## Decision 10: Traefik Decision-Service Starter
+
+Question: How should `connectors/traefik` advance beyond compile-time metadata
+without inventing a Traefik API or claiming runtime verification?
+
+Decision: accepted as a local decision-service starter.
+
+Reason: `connectors/traefik` now contains repo-owned metadata, source-map,
+origin, compile-time starter source, and local decision-service starter source
+that builds against connector-neutral `common/` helpers. The repository does not
+contain a selected Traefik plugin API, middleware API, Go module, Traefik runtime
+source, HTTP bridge runtime, or Traefik harness. Therefore the implemented next
+step is a local in-memory request-to-decision model with self-test, not a
+Traefik runtime adapter or verified `forwardAuth` service.
+
+Evidence/paths:
+
+- `connectors/traefik/README.md`
+- `connectors/traefik/TODO.md`
+- `connectors/traefik/ORIGIN.md`
+- `connectors/traefik/SOURCE_MAP.json`
+- `connectors/traefik/metadata.c`
+- `connectors/traefik/metadata.h`
+- `connectors/traefik/Makefile`
+- `connectors/traefik/build/build-starter.sh`
+- `connectors/traefik/src/traefik_build_starter.c`
+- `connectors/traefik/src/traefik_decision_service.h`
+- `connectors/traefik/src/traefik_decision_service.c`
+- `connectors/traefik/src/traefik_decision_service_main.c`
+- `connectors/traefik/docs/coverage-decision-matrix.md`
+- `reports/template-verification-nginx-apache/traefik-template-alignment.md`
+- `connectors/_template/docs/coverage-decision-matrix.md`
+- `common/include/msconnector/`
+- `common/src/`
+- `modules/ModSecurity-test-Framework/tests/cases/`
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+
+Impact on new connectors: connector-specific starters may model local decision
+logic only when they avoid fake server APIs and make their non-runtime status
+explicit. Runtime claims require executed connector-specific runtime commands and
+evidence.
+
+Follow-up change or needed evidence: Traefik remains not runtime-verified until
+a production integration path, upstream/license evidence, runtime build, harness,
+No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, and audit/log evidence
+are produced and documented.

@@ -130,3 +130,16 @@ Executable connector tests are framework-owned and are not maintained in local
 - Exact CRS/default-action or ModSecurity action-merging mechanism that made
   With-CRS return 403 before the expectation model was updated.
 - Default `make smoke-common` without preparing the default build root.
+
+## Traefik Decision-Service Starter Summary
+
+- `connectors/traefik` exists as scaffold-aligned with a repo-owned local
+  decision-service starter.
+- Traefik uses global/shared scaffold gates instead of duplicating them in
+  connector-local documentation.
+- Traefik build status: decision-service-starter; metadata and local decision
+  service starters compile, and the local decision self-test passes.
+- Traefik runtime status: not-verified.
+- No local `connectors/traefik/tests` folder exists.
+- No No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, or audit/log
+  runtime result is claimed for Traefik.

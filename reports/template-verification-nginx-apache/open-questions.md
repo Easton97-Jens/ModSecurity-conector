@@ -102,3 +102,15 @@ still need evidence. Full decision details are in
   default `BUILD_ROOT`/`SOURCE_ROOT`, or provide a valid
   `MODSECURITY_SOURCE_DIR`/`MODSECURITY_V3_SOURCE_DIR`, then rerun
   `make smoke-common` and record the result.
+
+## Traefik Open Questions
+
+- Which production Traefik integration approach, if any, will be implemented
+  remains open.
+- Traefik upstream origin/license, production build, harness, No-CRS, With-CRS,
+  RESPONSE_BODY, negative/pass-through, and audit/log evidence remain open.
+- The current decision-service starter does not select a Traefik plugin,
+  middleware, sidecar/proxy, custom module, or Go-service path; `forwardAuth`
+  remains starter-only without HTTP/Traefik runtime evidence.
+- Traefik must not be promoted beyond decision-service-starter until connector-
+  specific runtime evidence is produced and documented.
