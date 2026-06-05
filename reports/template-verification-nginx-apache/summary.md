@@ -200,3 +200,15 @@ evidence.
 - RESPONSE_BODY blocking remains not verified.
 - HAProxy-specific alignment is documented in
   `reports/template-verification-nginx-apache/haproxy-template-alignment.md`.
+## Traefik Decision-Service Starter Summary
+
+- `connectors/traefik` exists as scaffold-aligned with a repo-owned local
+  decision-service starter.
+- Traefik uses global/shared scaffold gates instead of duplicating them in
+  connector-local documentation.
+- Traefik build status: decision-service-starter; metadata and local decision
+  service starters compile, and the local decision self-test passes.
+- Traefik runtime status: not-verified.
+- No local `connectors/traefik/tests` folder exists.
+- No No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, or audit/log
+  runtime result is claimed for Traefik.

@@ -250,3 +250,31 @@
 
 These files were reviewed/updated as bridge-starter documentation and repo-owned
 metadata/probe/bridge code only. No local `connectors/lighttpd/tests` folder exists.
+## Traefik Decision-Service Starter Files
+
+- `connectors/traefik/README.md`
+- `connectors/traefik/ORIGIN.md`
+- `connectors/traefik/SOURCE_MAP.json`
+- `connectors/traefik/metadata.c`
+- `connectors/traefik/metadata.h`
+- `connectors/traefik/build/build-starter.sh`
+- `connectors/traefik/Makefile`
+- `connectors/traefik/src/traefik_decision_service.h`
+- `connectors/traefik/src/traefik_decision_service.c`
+- `connectors/traefik/src/traefik_decision_service_main.c`
+- `connectors/traefik/TODO.md`
+- `connectors/traefik/docs/architecture.md`
+- `connectors/traefik/docs/build.md`
+- `connectors/traefik/docs/validation.md`
+- `connectors/traefik/docs/coverage-decision-matrix.md`
+- `connectors/traefik/docs/public-sources.md`
+- `connectors/traefik/harness/README.md`
+- `connectors/traefik/src/README.md`
+- `reports/template-verification-nginx-apache/traefik-template-alignment.md`
+
+Shared files used by the Traefik decision-service starter documentation:
+
+- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+- `connectors/_template/docs/coverage-decision-matrix.md`
+- `modules/ModSecurity-test-Framework/tests/cases/`
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`

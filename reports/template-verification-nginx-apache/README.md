@@ -161,3 +161,16 @@ provide runtime evidence. A real lighttpd adapter build remains blocked by
 missing selected production integration path, lighttpd headers/SDK/source or
 bridge dependencies, ModSecurity integration code, and a framework-owned runtime
 harness.
+## Traefik Decision-Service Starter
+
+- `connectors/traefik` was advanced from metadata build-starter to a
+  repo-owned local decision-service starter.
+- Traefik follows the shared connector gates in `connector-scaffold-decisions.md`
+  and `connectors/_template/docs/coverage-decision-matrix.md`.
+- Traefik has local decision-service self-test evidence, no runtime evidence, and
+  no local `connectors/traefik/tests` folder.
+- Build/self-test commands: `connectors/traefik/build/build-starter.sh` and
+  `make -C connectors/traefik self-test-decision-service`.
+- Runtime integration path remains deferred until Traefik API/source/SDK or HTTP
+  bridge runtime plus harness evidence are selected and documented.
+- Detailed alignment: `traefik-template-alignment.md`.

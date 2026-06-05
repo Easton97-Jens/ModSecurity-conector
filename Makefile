@@ -111,8 +111,8 @@ probe-response-body: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/probe-response-body-blocking.sh"
 
 lint: check-framework
-	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh
-	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh; else echo "bash unavailable"; fi
+	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh connectors/traefik/build/*.sh
+	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"

@@ -210,3 +210,14 @@ Detailed report:
 - No lighttpd API, FastCGI/SCGI protocol implementation, ModSecurity API,
   runtime harness, runtime evidence, adapter implementation, or runtime
   PASS/FAIL/BLOCKED count is claimed.
+## Traefik Decision-Service Starter Finding
+
+- `connectors/traefik` now has a repo-owned local decision-service starter.
+- The Traefik docs reference shared connector gates and coverage rules instead
+  of duplicating global rules locally.
+- Traefik has local self-test evidence only, no implemented runtime harness, no
+  production Traefik adapter build, and no local `connectors/traefik/tests`
+  folder.
+- Missing production dependencies include a selected Traefik API/source/SDK or
+  HTTP bridge runtime strategy, libmodsecurity runtime integration point, Traefik
+  configuration, and harness configuration/evidence paths.
