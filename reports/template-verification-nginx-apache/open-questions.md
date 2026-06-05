@@ -102,3 +102,38 @@ still need evidence. Full decision details are in
   default `BUILD_ROOT`/`SOURCE_ROOT`, or provide a valid
   `MODSECURITY_SOURCE_DIR`/`MODSECURITY_V3_SOURCE_DIR`, then rerun
   `make smoke-common` and record the result.
+
+## Envoy Open Gates
+
+Envoy bridge-starter work uses the existing global/shared connector gates rather
+than copying them into Envoy-specific files. The following Envoy gates remain
+open:
+
+- Production upstream origin/license selection beyond local bridge starter.
+- libmodsecurity headers/libs and Envoy bridge integration build/runtime logs.
+- Harness implementation and evidence paths.
+- Separate No-CRS and With-CRS runtime evidence.
+- RESPONSE_BODY blocking evidence.
+- Negative/pass-through and audit/log evidence.
+- Promotion beyond bridge-starter.
+
+## Envoy Build-Starter Open Dependencies
+
+The bridge starter is available, but productive Envoy integration is
+still blocked until one path supplies real dependencies:
+
+- native Envoy HTTP filter: Envoy C++ SDK/API headers and build integration;
+- external processing: ext_proc protobuf/gRPC generated code and service deps;
+- proxy-wasm: proxy-wasm SDK and WASM build toolchain;
+- sidecar/bridge: documented protocol, process contract, and runtime harness.
+
+## Envoy Bridge-Starter Open Gates
+
+- Define a real Envoy runtime integration point: sidecar HTTP route, ext_authz,
+  ext_proc, native filter, or proxy-wasm.
+- Add real libmodsecurity headers/libs and implement transaction lifecycle.
+- Produce framework-owned No-CRS and With-CRS result JSON with PASS/FAIL/BLOCKED
+  counts.
+- Prove CRS loaded/effective behavior for Envoy.
+- Keep RESPONSE_BODY as a separate unverified gate until a blocking runtime case
+  passes.

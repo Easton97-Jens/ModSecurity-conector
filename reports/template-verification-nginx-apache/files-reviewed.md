@@ -166,3 +166,31 @@
 - `reports/template-verification-nginx-apache/findings.md`
 - `reports/template-verification-nginx-apache/files-reviewed.md`
 - `reports/template-verification-nginx-apache/open-questions.md`
+
+## Envoy Scaffold Files
+
+- `connectors/envoy/README.md`
+- `connectors/envoy/TODO.md`
+- `connectors/envoy/docs/architecture.md`
+- `connectors/envoy/docs/build.md`
+- `connectors/envoy/docs/validation.md`
+- `connectors/envoy/docs/coverage-decision-matrix.md`
+- `connectors/envoy/docs/public-sources.md`
+- `connectors/envoy/harness/README.md`
+- `connectors/envoy/src/README.md`
+- `reports/template-verification-nginx-apache/envoy-template-alignment.md`
+
+## Envoy Build-Starter Files
+
+- `connectors/envoy/Makefile`
+- `connectors/envoy/ORIGIN.md`
+- `connectors/envoy/SOURCE_MAP.json`
+- `connectors/envoy/metadata.c`
+- `connectors/envoy/metadata.h`
+- `connectors/envoy/build/build_metadata.sh`
+
+## Envoy Bridge-Starter Files
+
+- `connectors/envoy/src/envoy_bridge.c`
+- `connectors/envoy/src/envoy_bridge.h`
+- `connectors/envoy/src/envoy_bridge_main.c`

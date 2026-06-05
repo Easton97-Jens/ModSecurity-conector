@@ -20,6 +20,8 @@ Updated: 2026-05-30 20:55:03 UTC
 - Current `/src` `make test-with-crs`: PASS; Apache 55 PASS, 0 FAIL,
   0 BLOCKED; NGINX 61 PASS, 0 FAIL, 0 BLOCKED.
 - RESPONSE_BODY blocking: not verified.
+- Envoy build readiness: sidecar/HTTP bridge-starter; runtime status
+  not-verified; no local `connectors/envoy/tests` folder.
 - Vollstaendige Runtime-Verifikation: nein.
 - Submodule changed: yes; `modules/ModSecurity-test-Framework` has a modified
   framework commit relative to the earlier baseline. Current parent HEAD points
@@ -55,6 +57,7 @@ Detailed analysis:
 | `connectors/nginx` | aligned with current Template gates for executed scope; runtime status partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; RESPONSE_BODY blocking and full minimum matrix remain unverified. See `nginx-template-alignment.md`. |
 | `connectors/apache` | aligned with current Template gates for executed scope; runtime status partial | Current No-CRS, With-CRS, and common smokes pass for executed scope; Apache-specific YAML cases are still not found; RESPONSE_BODY blocking and full minimum matrix remain unverified. See `apache-template-alignment.md`. |
 | RESPONSE_BODY | not verified | Current evidence includes pass-through/log-only response-body rows, not a blocking response-body HTTP result. |
+| `connectors/envoy` | bridge-starter; runtime status not-verified | Envoy has repository-local metadata and sidecar/HTTP bridge starter code, no local tests, no Envoy runtime harness evidence, and no runtime claims. See `envoy-template-alignment.md`. |
 
 ## Current Runtime Evidence
 
@@ -130,3 +133,33 @@ Executable connector tests are framework-owned and are not maintained in local
 - Exact CRS/default-action or ModSecurity action-merging mechanism that made
   With-CRS return 403 before the expectation model was updated.
 - Default `make smoke-common` without preparing the default build root.
+
+## Envoy Scaffold Summary
+
+`connectors/envoy` is documented as a sidecar/HTTP bridge starter. It uses the
+shared connector gates and coverage matrix rules instead of duplicating the
+global contract. ModSecurity bridge, Envoy harness implementation, No-CRS
+runtime, With-CRS runtime, RESPONSE_BODY blocking, negative/pass-through,
+audit/log, and promotion gates remain open or not verified for Envoy.
+
+## Envoy Build-Starter Summary
+
+Envoy build status is `bridge-starter`: `make -C connectors/envoy build-starter`
+compiles repository-local bridge code with connector-neutral `common/` code, and
+`make -C connectors/envoy self-test` runs a local allow/block decision self-test.
+Envoy runtime status remains `not-verified`. Missing production dependencies are
+libmodsecurity headers/libs, Envoy SDK/API headers, ext_proc protobuf/gRPC
+bindings, proxy-wasm SDK/toolchain, or a documented Envoy bridge config plus
+runtime harness.
+
+## Envoy Build-Starter Evidence
+
+`make -C connectors/envoy build-starter` passed for bridge-starter compilation,
+and `make -C connectors/envoy self-test` passed for local allow/block decision
+logic. This does not verify Envoy runtime compatibility.
+
+## Envoy Bridge-Starter Evidence
+
+`make -C connectors/envoy self-test` passed for the local bridge decision model.
+The result is not a No-CRS run, not a With-CRS run, and not RESPONSE_BODY
+evidence.

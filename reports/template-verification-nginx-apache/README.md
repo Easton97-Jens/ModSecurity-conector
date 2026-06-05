@@ -11,7 +11,7 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 - Documentation/decision commit readiness: yes.
 - Local connector test folders are absent:
   `connectors/_template/tests`, `connectors/apache/tests`, and
-  `connectors/nginx/tests`.
+  `connectors/nginx/tests`, and `connectors/envoy/tests`.
 - Executable connector tests are framework-owned, not connector-local.
 - Actual framework path: `modules/ModSecurity-test-Framework`.
 - Current framework commit referenced by the parent:
@@ -45,6 +45,8 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
   current Template gates.
 - `nginx-template-alignment.md`: NGINX phase-by-phase alignment against the
   current Template gates.
+- `envoy-template-alignment.md`: Envoy bridge-starter alignment against the
+  current Template gates.
 - `verified-runtime-run.md`: current `/src` runtime evidence, including
   No-CRS and With-CRS sections.
 - `nginx-docroot-permission-analysis.md`: NGINX docroot blocker cause and fix.
@@ -66,6 +68,7 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 | `connectors/_template` | suitable scaffold, not runtime-verified |
 | `connectors/apache` | aligned with Template gates for executed scope; runtime status partial |
 | `connectors/nginx` | aligned with Template gates for executed scope; runtime status partial |
+| `connectors/envoy` | bridge-starter; runtime status not-verified |
 
 For the Template, `suitable scaffold, not runtime-verified` means it is a
 usable scaffold for new connectors, not a productive connector implementation.
@@ -94,3 +97,34 @@ summaries are pass-through/log-only evidence. A blocking claim still requires a
 real response-body blocking testcase, expected blocking trigger, actual
 blocking result such as HTTP 403, logs/reports, command, and per-connector
 evidence.
+
+## Envoy Scaffold Addendum
+
+- `connectors/envoy` was advanced from metadata-only build starter to a local sidecar/HTTP bridge starter.
+- Envoy follows the shared connector gates in
+  `connector-scaffold-decisions.md` and the global matrix semantics in
+  `connectors/_template/docs/coverage-decision-matrix.md`.
+- Envoy has bridge-starter code and metadata, no runtime evidence yet, and no
+  local `connectors/envoy/tests` folder.
+- Envoy-specific files contain connector-specific bridge-starter status and
+  references to global/shared rules instead of duplicating those rules.
+
+## Envoy Build-Starter Addendum
+
+- Envoy build status: `bridge-starter` for local sidecar/HTTP bridge compilation.
+- Envoy runtime status: `not-verified`; no Envoy runtime harness has run.
+- Selected minimal path: repository-local bridge decision model compiled with
+  `common/` helper code.
+- Deferred production paths: native Envoy HTTP filter, ext_proc service,
+  proxy-wasm module, and sidecar/bridge integration until their real
+  dependencies and harness evidence exist.
+
+## Envoy Bridge-Starter Addendum
+
+- Envoy bridge status: local CLI self-test PASS for allow/block decision logic.
+- Envoy runtime status: `not-verified`; no Envoy runtime harness has run.
+- Selected integration path: sidecar/HTTP bridge starter because native Envoy,
+  ext_proc, and proxy-wasm dependencies are absent in this repository.
+- Missing runtime evidence: Envoy config, bridge integration point, framework
+  result JSON, No-CRS/With-CRS split, CRS effective evidence, and RESPONSE_BODY
+  evidence.

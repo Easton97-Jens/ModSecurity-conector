@@ -409,3 +409,106 @@ Needed evidence:
 - negative/pass-through case
 - Apache and NGINX separately documented with commands and results when those
   connectors are part of the claim
+
+## Envoy Scaffold Decision
+
+Question: How should the existing `connectors/envoy` directory be completed
+without duplicating shared connector rules or claiming unverified behavior?
+
+Decision: accepted as initial scaffold baseline; extended by the Envoy Build-Starter Decision below.
+
+Reason: Envoy initially had no repository-backed adapter-owned source, build
+evidence, harness implementation, or runtime evidence. Connector-specific Envoy
+files document only Envoy status and open gates, while referencing shared rules
+in this file and in `connectors/_template/docs/coverage-decision-matrix.md`.
+
+Evidence/paths:
+
+- `connectors/envoy/README.md`
+- `connectors/envoy/TODO.md`
+- `connectors/envoy/docs/architecture.md`
+- `connectors/envoy/docs/build.md`
+- `connectors/envoy/docs/validation.md`
+- `connectors/envoy/docs/coverage-decision-matrix.md`
+- `connectors/envoy/harness/README.md`
+- `connectors/envoy/src/README.md`
+- `reports/template-verification-nginx-apache/envoy-template-alignment.md`
+
+Impact on new connectors: shared scaffold rules, promotion gates, status
+vocabulary, No-CRS/With-CRS separation, coverage matrix semantics, and runtime
+evidence requirements stay global/shared. Envoy-specific files must not claim
+runtime behavior until an Envoy build/harness and executed Envoy-scoped targets
+produce evidence.
+
+Envoy status:
+
+- Scaffold: OK.
+- Origin/metadata: build-starter metadata present.
+- Build: build-starter only.
+- Harness: contract only.
+- No-CRS: not-run.
+- With-CRS: not-run.
+- RESPONSE_BODY: not-verified.
+- Local `connectors/envoy/tests`: absent.
+- Promotion: not allowed beyond build-starter/partial.
+
+## Envoy Build-Starter Decision
+
+Question: Can `connectors/envoy` move beyond documentation-only scaffold without
+inventing Envoy API, ModSecurity API, build logic, or runtime results?
+
+Decision: accepted as metadata-only build starter.
+
+Reason: The repository contains connector-neutral `common/` headers and helper
+source plus Apache/NGINX metadata patterns. It does not contain Envoy SDK/API
+headers, proxy-wasm SDK, ext_proc protobuf/gRPC bindings, or an Envoy runtime
+harness. Therefore the only repository-backed build path is compiling local
+Envoy metadata against connector-neutral common code.
+
+Evidence/paths:
+
+- `common/include/msconnector/origin.h`
+- `common/include/msconnector/capabilities.h`
+- `common/src/origin.c`
+- `common/src/capabilities.c`
+- `connectors/envoy/ORIGIN.md`
+- `connectors/envoy/SOURCE_MAP.json`
+- `connectors/envoy/metadata.c`
+- `connectors/envoy/metadata.h`
+- `connectors/envoy/Makefile`
+- `connectors/envoy/build/build_metadata.sh`
+
+Impact: Envoy build status may be reported as `build-starter` only after
+`make -C connectors/envoy build-starter` passes. Runtime status remains
+`not-verified`. RESPONSE_BODY blocking remains `not-verified`. Envoy is not
+`adapter-owned` until real Envoy integration source, dependencies, build logs,
+and harness/runtime evidence are added.
+
+## Envoy Bridge-Starter Decision
+
+Question: Can `connectors/envoy` move beyond metadata-only compilation toward a
+real connector path without faking Envoy or ModSecurity APIs?
+
+Decision: accepted as sidecar/HTTP bridge starter.
+
+Reason: Native Envoy filter, ext_proc, and proxy-wasm paths still lack required
+repository dependencies. A local sidecar/HTTP bridge starter can be built with
+repository-owned C code and connector-neutral `common/` request/intervention
+shapes. This gives Envoy a concrete request-to-decision integration seam without
+claiming Envoy runtime compatibility or ModSecurity rule execution.
+
+Evidence/paths:
+
+- `connectors/envoy/src/envoy_bridge.h`
+- `connectors/envoy/src/envoy_bridge.c`
+- `connectors/envoy/src/envoy_bridge_main.c`
+- `connectors/envoy/Makefile`
+- `connectors/envoy/build/build_metadata.sh`
+- `common/include/msconnector/request.h`
+- `common/include/msconnector/intervention.h`
+- `common/include/msconnector/status.h`
+
+Impact: Envoy may be rated `bridge-starter` after `make -C connectors/envoy
+build-starter` and `make -C connectors/envoy self-test` pass. It is not
+`modsecurity-bridge-starter`, `runtime-smoke-verified`, `crs-verified`, or
+`partial` until real libmodsecurity and Envoy runtime harness evidence exists.
