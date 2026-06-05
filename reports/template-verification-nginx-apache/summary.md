@@ -203,11 +203,14 @@ evidence.
   fresh run-specific NOTIFY, argument extraction, ModSecurity 403, set-var ACK,
   block-probe 403, and pass-probe 200 evidence.
 - Runtime status: `runtime-smoke-verified` for
-  `haproxy_phase1_header_block` only.
-- No complete SPOE/SPOA implementation, CRS loading, or RESPONSE_BODY runtime
-  evidence is present.
-- Current runtime blockers: broader Framework-case runtime, CRS,
-  RESPONSE_BODY, negative/pass-through, and audit/log evidence.
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
+- CRS status: verified only for the minimal
+  `haproxy_crs_sqli_anomaly_block` runtime smoke; broader CRS coverage remains
+  not verified.
+- No complete SPOE/SPOA implementation or RESPONSE_BODY runtime evidence is
+  present.
+- Current runtime blockers: broader Framework-case runtime, broader CRS,
+  RESPONSE_BODY, negative/pass-through, audit/log, and full-matrix evidence.
 - No local `connectors/haproxy/tests` folder is used.
 - RESPONSE_BODY blocking remains not verified.
 - HAProxy-specific alignment is documented in
@@ -244,8 +247,8 @@ Makefile and wrote framework-owned evidence under
 Framework runtime-smoke entrypoints exist for Envoy, HAProxy, lighttpd, and
 Traefik. Connector-side `run_<name>_smoke.sh` entrypoints now also exist for all
 four connectors. Current runtime-smoke status is PASS for HAProxy's
-`haproxy_phase1_header_block` case and BLOCKED for Envoy, lighttpd, and
-Traefik.
+`haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block` cases and
+BLOCKED for Envoy, lighttpd, and Traefik.
 
 - Runtime-smoke targets: `make smoke-envoy`, `make smoke-haproxy`,
   `make smoke-lighttpd`, `make smoke-traefik`.
@@ -257,8 +260,11 @@ Traefik.
   `connectors/traefik/harness/run_traefik_smoke.sh`.
 - Evidence path: `/src/ModSecurity-conector-build/results/<connector>-summary.json`
   and `/src/ModSecurity-conector-build/results/<connector>-results.jsonl`.
-- Runtime verification: true only for HAProxy `haproxy_phase1_header_block`;
-  false for Envoy, lighttpd, and Traefik.
+- Runtime verification: true only for HAProxy `haproxy_phase1_header_block`
+  and `haproxy_crs_sqli_anomaly_block`; false for Envoy, lighttpd, and
+  Traefik.
+- CRS verification: true only for HAProxy `haproxy_crs_sqli_anomaly_block`;
+  broader CRS and the other new connectors remain not verified.
 - RESPONSE_BODY: not verified for all four.
 - Starter evidence remains available through `make connector-starter-checks`,
   but starter PASS does not count as runtime smoke.

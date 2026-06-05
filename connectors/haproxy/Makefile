@@ -13,7 +13,7 @@ MODSECURITY_BINDING_BIN := $(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy-modsecurit
 MODSECURITY_INCLUDE_CANDIDATES ?= $(BUILD_ROOT)/nginx-build/output/modsecurity/include $(BUILD_ROOT)/apache-build/output/modsecurity/include /src/ModSecurity_V3/headers
 MODSECURITY_LIB_CANDIDATES ?= $(BUILD_ROOT)/nginx-build/output/modsecurity/lib $(BUILD_ROOT)/apache-build/output/modsecurity/lib $(BUILD_ROOT)/nginx-build/ModSecurity_V3/src/.libs $(BUILD_ROOT)/apache-build/ModSecurity_V3/src/.libs
 
-.PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding clean FORCE
+.PHONY: build-metadata build-starter build-spoa-starter build-spoa-runtime build-modsecurity-binding self-test self-test-spoa self-test-spoa-runtime self-test-modsecurity-binding self-test-modsecurity-binding-crs clean FORCE
 
 build-metadata: $(HAPROXY_BUILD_DIR)/metadata.o
 	@echo "HAProxy build-starter: metadata object built at $(HAPROXY_BUILD_DIR)/metadata.o"
@@ -43,7 +43,7 @@ self-test-spoa-runtime: $(SPOA_RUNTIME_BIN)
 
 build-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	@echo "HAProxy ModSecurity binding self-test built at $(MODSECURITY_BINDING_BIN)"
-	@echo "Scope: libmodsecurity phase-1 header self-test only; no HAProxy runtime enforcement, CRS, or RESPONSE_BODY verification is claimed."
+	@echo "Scope: libmodsecurity binding self-tests only; no HAProxy runtime enforcement or RESPONSE_BODY verification is claimed."
 
 self-test-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	@set -eu; \
@@ -52,6 +52,23 @@ self-test-modsecurity-binding: $(MODSECURITY_BINDING_BIN)
 	log="$(BUILD_ROOT)/logs/haproxy/modsecurity-binding-self-test.log"; \
 	set +e; \
 	LD_LIBRARY_PATH="$$MODSECURITY_LIB_DIR:$${LD_LIBRARY_PATH:-}" "$(MODSECURITY_BINDING_BIN)" --self-test >"$$log" 2>&1; \
+	rc=$$?; \
+	set -e; \
+	cat "$$log"; \
+	exit "$$rc"
+
+self-test-modsecurity-binding-crs: $(MODSECURITY_BINDING_BIN)
+	@set -eu; \
+	mkdir -p "$(BUILD_ROOT)/logs/haproxy"; \
+	. "$(HAPROXY_MODSECURITY_BINDING_DIR)/paths.env"; \
+	preamble="$${MODSECURITY_RULE_PREAMBLE_FILE:-$(BUILD_ROOT)/crs/modsecurity-crs-preamble.conf}"; \
+	log="$(BUILD_ROOT)/logs/haproxy/modsecurity-binding-crs-self-test.log"; \
+	if [ ! -f "$$preamble" ]; then \
+		echo "BLOCKED: CRS preamble missing: $$preamble" | tee "$$log"; \
+		exit 77; \
+	fi; \
+	set +e; \
+	LD_LIBRARY_PATH="$$MODSECURITY_LIB_DIR:$${LD_LIBRARY_PATH:-}" "$(MODSECURITY_BINDING_BIN)" --self-test-crs "$$preamble" >"$$log" 2>&1; \
 	rc=$$?; \
 	set -e; \
 	cat "$$log"; \
@@ -122,6 +139,7 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 		'    void (*fn_msc_set_connector_info)(ModSecurity *, const char *) = msc_set_connector_info;' \
 		'    RulesSet *(*fn_msc_create_rules_set)(void) = msc_create_rules_set;' \
 		'    int (*fn_msc_rules_add)(RulesSet *, const char *, const char **) = msc_rules_add;' \
+		'    int (*fn_msc_rules_add_file)(RulesSet *, const char *, const char **) = msc_rules_add_file;' \
 		'    void (*fn_msc_rules_error_cleanup)(const char *) = msc_rules_error_cleanup;' \
 		'    int (*fn_msc_rules_cleanup)(RulesSet *) = msc_rules_cleanup;' \
 		'    Transaction *(*fn_msc_new_transaction)(ModSecurity *, RulesSet *, void *) = msc_new_transaction;' \
@@ -129,11 +147,12 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 		'    int (*fn_msc_process_uri)(Transaction *, const char *, const char *, const char *) = msc_process_uri;' \
 		'    int (*fn_msc_add_request_header)(Transaction *, const unsigned char *, const unsigned char *) = msc_add_request_header;' \
 		'    int (*fn_msc_process_request_headers)(Transaction *) = msc_process_request_headers;' \
+		'    int (*fn_msc_process_request_body)(Transaction *) = msc_process_request_body;' \
 		'    int (*fn_msc_intervention)(Transaction *, ModSecurityIntervention *) = msc_intervention;' \
 		'    void (*fn_msc_intervention_cleanup)(ModSecurityIntervention *) = msc_intervention_cleanup;' \
 		'    int (*fn_msc_process_logging)(Transaction *) = msc_process_logging;' \
 		'    void (*fn_msc_transaction_cleanup)(Transaction *) = msc_transaction_cleanup;' \
-		'    return fn_msc_init == 0 || fn_msc_cleanup == 0 || fn_msc_set_connector_info == 0 || fn_msc_create_rules_set == 0 || fn_msc_rules_add == 0 || fn_msc_rules_error_cleanup == 0 || fn_msc_rules_cleanup == 0 || fn_msc_new_transaction == 0 || fn_msc_process_connection == 0 || fn_msc_process_uri == 0 || fn_msc_add_request_header == 0 || fn_msc_process_request_headers == 0 || fn_msc_intervention == 0 || fn_msc_intervention_cleanup == 0 || fn_msc_process_logging == 0 || fn_msc_transaction_cleanup == 0;' \
+		'    return fn_msc_init == 0 || fn_msc_cleanup == 0 || fn_msc_set_connector_info == 0 || fn_msc_create_rules_set == 0 || fn_msc_rules_add == 0 || fn_msc_rules_add_file == 0 || fn_msc_rules_error_cleanup == 0 || fn_msc_rules_cleanup == 0 || fn_msc_new_transaction == 0 || fn_msc_process_connection == 0 || fn_msc_process_uri == 0 || fn_msc_add_request_header == 0 || fn_msc_process_request_headers == 0 || fn_msc_process_request_body == 0 || fn_msc_intervention == 0 || fn_msc_intervention_cleanup == 0 || fn_msc_process_logging == 0 || fn_msc_transaction_cleanup == 0;' \
 		'}' > "$$probe"; \
 	$(CC) $(CPPFLAGS) -I"$$include_dir" -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -c "$$probe" -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_api.o" || { \
 		echo "BLOCKED: local libmodsecurity C API signatures do not match binding requirements" >&2; \

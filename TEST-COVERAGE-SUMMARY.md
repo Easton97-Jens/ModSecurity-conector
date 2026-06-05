@@ -289,6 +289,21 @@ Generated file — do not edit manually.
 - XFAIL/pending/future/connector-gap/runtime-difference cases require separate evidence before any status change.
 - RESPONSE_BODY remains experimental/non-verified.
 
+## New Connector Runtime-Smoke Evidence
+
+This generated section reads local connector smoke summaries from `$BUILD_ROOT/results`. It is reporting only and does not invent PASS values.
+
+| Connector | Status | Runtime status | Runtime verified | CRS verified | RESPONSE_BODY verified | Verified cases | With-CRS | Evidence |
+|---|---|---|---:|---:|---:|---|---|---|
+| envoy | BLOCKED | blocked | no | no | no | `-` | - | `/src/ModSecurity-conector-build/results/envoy-summary.json` |
+| haproxy | PASS | runtime-smoke-verified | yes | yes | no | `haproxy_phase1_header_block, haproxy_crs_sqli_anomaly_block` | PASS crs_loaded=true block=403 pass=200 | `/src/ModSecurity-conector-build/results/haproxy-summary.json` |
+| lighttpd | BLOCKED | blocked | no | no | no | `-` | - | `/src/ModSecurity-conector-build/results/lighttpd-summary.json` |
+| traefik | BLOCKED | blocked | no | no | no | `-` | - | `/src/ModSecurity-conector-build/results/traefik-summary.json` |
+
+- HAProxy CRS verification is scoped to `haproxy_crs_sqli_anomaly_block` only when the HAProxy summary reports `with_crs.status=PASS` and `crs_verified=true`.
+- Envoy, lighttpd, and Traefik remain not runtime-verified unless their own summary files report runtime PASS evidence.
+- RESPONSE_BODY remains not verified for these new connector smoke summaries.
+
 ## Open Areas / Gaps
 - Runtime verification pending: cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.
 - RESPONSE_BODY remains non-verified and non-promoted.

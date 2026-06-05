@@ -210,10 +210,16 @@
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/diagnostic-agent.log`
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/haproxy-runtime.stderr.log`
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/backend.stderr.log`
+- `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/with-crs/diagnostic-agent.log`
+- `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/with-crs/haproxy-runtime.stderr.log`
+- `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/with-crs/http-probe.log`
 - `/src/ModSecurity-conector-build/logs/haproxy-runtime-smoke/modsecurity-binding-build.log`
 - `/src/ModSecurity-conector-build/logs/haproxy-runtime-smoke/modsecurity-binding-self-test.log`
+- `/src/ModSecurity-conector-build/logs/haproxy-runtime-smoke/modsecurity-binding-crs-self-test.log`
 - `/src/ModSecurity-conector-build/haproxy-runtime/spoe/<run-id>/haproxy.cfg`
 - `/src/ModSecurity-conector-build/haproxy-runtime/spoe/<run-id>/spoe-agent.conf`
+- `/src/ModSecurity-conector-build/haproxy-runtime/spoe/<run-id>/with-crs/haproxy.cfg`
+- `/src/ModSecurity-conector-build/haproxy-runtime/spoe/<run-id>/with-crs/spoe-agent.conf`
 - `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/haproxy-modsecurity-binding-self-test`
 - `connectors/haproxy/src/README.md`
 - `reports/template-verification-nginx-apache/haproxy-template-alignment.md`

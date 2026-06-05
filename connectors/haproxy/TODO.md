@@ -1,7 +1,7 @@
 # HAProxy Connector TODO
 
 Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
 
 Global gate definitions:
 
@@ -52,6 +52,7 @@ Global gate definitions:
 - [x] SPOE/SPOA config documented and verified for the header-block smoke
 - [x] diagnostic agent endpoint documented
 - [x] ModSecurity integration point documented for the header-block smoke
+- [x] CRS integration point documented for the SQLi anomaly smoke
 - [ ] broader HAProxy runtime harness implemented
 
 ## Phase 4: No-CRS Runtime
@@ -63,9 +64,12 @@ Global gate definitions:
 
 ## Phase 5: With-CRS Runtime
 
+- [x] minimal CRS SQLi anomaly smoke executed for
+  `haproxy_crs_sqli_anomaly_block`
 - [ ] `make test-with-crs` executed for HAProxy scope
-- [ ] CRS loaded/effective evidence documented
-- [ ] PASS/FAIL/BLOCKED counts documented
+- [x] CRS loaded/effective evidence documented for the minimal smoke
+- [x] PASS/BLOCKED/FAIL counts documented for the minimal smoke
+- [ ] broader With-CRS matrix PASS/FAIL/BLOCKED counts documented
 
 ## Phase 6: Coverage Matrix
 
@@ -79,5 +83,5 @@ Global gate definitions:
 
 - [ ] eligible for `adapter-owned`
 - [x] eligible for `runtime-smoke-verified` for `haproxy_phase1_header_block`
-- [ ] eligible for `crs-verified`
+- [x] eligible for `crs-verified` for `haproxy_crs_sqli_anomaly_block`
 - [ ] eligible for more than `partial`

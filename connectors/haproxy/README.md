@@ -1,7 +1,7 @@
 # HAProxy Connector
 
 Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
 Template alignment: scaffold-aligned plus local SPOA agent starter
 
 This connector now contains repository-owned metadata, a local HAProxy SPOA
@@ -10,11 +10,12 @@ libmodsecurity binding. The starter compiles and self-tests local
 request-decision logic. The diagnostic runtime self-tests HELLO/AGENT-HELLO,
 NOTIFY, verified `set-var txn.blocked true` ACK encoding, and DISCONNECT
 handling, then `make smoke-haproxy` live-starts HAProxy and verifies the narrow
-`haproxy_phase1_header_block` runtime-smoke case.
+No-CRS `haproxy_phase1_header_block` and With-CRS
+`haproxy_crs_sqli_anomaly_block` runtime-smoke cases.
 
-No full SPOE/SPOA protocol implementation, CRS behavior, RESPONSE_BODY
-handling, negative/pass-through matrix beyond the clean probe, or productive
-adapter ownership is claimed by this connector.
+No full SPOE/SPOA protocol implementation, CRS behavior beyond the single SQLi
+anomaly smoke, RESPONSE_BODY handling, negative/pass-through matrix beyond the
+clean probes, or productive adapter ownership is claimed by this connector.
 
 ## Global Contract
 
@@ -45,10 +46,13 @@ Shared connector-neutral data shapes used by the starter:
   `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/`; verifies only
   local libmodsecurity phase-1 header blocking.
 - Harness: `make smoke-haproxy` verifies live HAProxy to diagnostic SPOA to
-  libmodsecurity enforcement for `haproxy_phase1_header_block` only.
+  libmodsecurity enforcement for `haproxy_phase1_header_block` and
+  `haproxy_crs_sqli_anomaly_block` only.
 - No-CRS minimal phase-1 runtime: PASS for `haproxy_phase1_header_block` only.
 - Broader No-CRS matrix: not run.
-- With-CRS runtime: not run.
+- With-CRS minimal SQLi runtime: PASS for `haproxy_crs_sqli_anomaly_block`
+  with CRS loaded from the prepared preamble.
+- Broader With-CRS matrix: not run.
 - RESPONSE_BODY blocking: not verified.
 
 ## Build Starter
@@ -65,6 +69,7 @@ make -C connectors/haproxy build-spoa-runtime
 make -C connectors/haproxy self-test-spoa-runtime
 make -C connectors/haproxy build-modsecurity-binding
 make -C connectors/haproxy self-test-modsecurity-binding
+make -C connectors/haproxy self-test-modsecurity-binding-crs
 ```
 
 `build-spoa-starter` compiles a local binary that can describe its limitations
@@ -81,7 +86,7 @@ signatures through a compiled probe, then builds a small self-test binary.
 `self-test-modsecurity-binding` proves only an in-process phase-1 header block
 decision with status 403. `make smoke-haproxy` is required to set
 `runtime_verified: true`, and only for the live
-`haproxy_phase1_header_block` case.
+`haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block` cases.
 
 ## Tests
 
@@ -96,6 +101,6 @@ Framework-owned paths and targets to use for future evidence:
 - `make test-with-crs`
 - `make smoke-common`
 
-No No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, or audit/log runtime
-result is claimed for HAProxy until those commands are executed for an explicit
-HAProxy scope and their evidence paths are recorded.
+No broader No-CRS, broader With-CRS, RESPONSE_BODY, negative/pass-through, or
+audit/log runtime result is claimed for HAProxy until those commands are
+executed for an explicit HAProxy scope and their evidence paths are recorded.

@@ -529,13 +529,14 @@ common request, intervention, status, and origin shapes, so a local starter can
 compile and self-test synthetic request-decision logic without inventing HAProxy
 API ownership or full SPOP frame handling. A separate local libmodsecurity
 binding verifies the local C API and can be exercised by the diagnostic SPOP
-runtime for the single `haproxy_phase1_header_block` smoke.
+runtime for the scoped `haproxy_phase1_header_block` and
+`haproxy_crs_sqli_anomaly_block` smokes.
 
 HAProxy-specific application:
 
 - `connectors/haproxy` is `spoa-agent-starter`.
 - Runtime status is `runtime-smoke-verified` for
-  `haproxy_phase1_header_block` only.
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
 - Template alignment is `scaffold-aligned plus local SPOA agent starter`.
 - No local `connectors/haproxy/tests` folder is used.
 - `connectors/haproxy/src/haproxy_spoa_agent_starter.*` and
@@ -550,15 +551,21 @@ HAProxy-specific application:
 - `make -C connectors/haproxy self-test-modsecurity-binding` may verify a
   local libmodsecurity phase-1 header block self-test only; it may not set
   `runtime_verified` to true by itself.
+- `make -C connectors/haproxy self-test-modsecurity-binding-crs` may verify a
+  local CRS SQLi binding self-test only; it may not set `runtime_verified` to
+  true by itself.
 - `make smoke-haproxy` may set `runtime_verified: true` only when live HAProxy
   sends NOTIFY to the diagnostic agent, the agent extracts request arguments,
   libmodsecurity produces a disruptive 403, the verified set-var ACK is sent,
-  the block probe returns 403, and the clean probe returns 200.
+  the block probe returns 403, and the clean probe returns 200. CRS may be
+  marked verified only for `haproxy_crs_sqli_anomaly_block` when the local CRS
+  preamble is loaded and the SQLi probe blocks while the pass probe returns
+  200.
 - Productive HAProxy adapter build remains BLOCKED until a full SPOP parser or
-  SPOE/SPOA protocol library, broader HAProxy runtime harness, CRS evidence,
-  RESPONSE_BODY evidence, negative/pass-through evidence, and audit/log
-  evidence are selected and recorded.
-- No CRS behavior or RESPONSE_BODY blocking result is claimed.
+  SPOE/SPOA protocol library, broader HAProxy runtime harness, broader CRS
+  evidence, RESPONSE_BODY evidence, negative/pass-through evidence, audit/log
+  evidence, and full-matrix evidence are selected and recorded.
+- No broader CRS behavior or RESPONSE_BODY blocking result is claimed.
 - Future executable tests remain framework-owned under
   `modules/ModSecurity-test-Framework/tests/cases/` and runner paths such as
   `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
@@ -568,9 +575,9 @@ HAProxy-specific application:
 
 Impact: HAProxy may be documented as a local SPOA agent starter without
 creating duplicated connector-local gates or YAML test cases. Promotion beyond
-partial single-case runtime smoke is not allowed until HAProxy-specific
-productive source origin, runtime build, broader harness, No-CRS, With-CRS,
-RESPONSE_BODY, negative/pass-through, and audit/log evidence is recorded.
+partial scoped runtime smoke is not allowed until HAProxy-specific productive
+source origin, runtime build, broader harness, No-CRS, With-CRS, RESPONSE_BODY,
+negative/pass-through, audit/log, and full-matrix evidence is recorded.
 ## lighttpd Bridge-Starter Decision
 
 Question: Can `connectors/lighttpd` move beyond metadata/probe build-starter

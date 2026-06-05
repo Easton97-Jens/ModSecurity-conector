@@ -1,7 +1,7 @@
 # HAProxy Architecture
 
 Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
 
 This document records HAProxy-specific integration evidence and blockers. Global
 status vocabulary, scaffold rules, promotion gates, and runtime-evidence rules
@@ -14,16 +14,17 @@ remain in:
 
 - `connectors/haproxy` contains SPOE/SPOA planning material and example files.
 - A minimal diagnostic SPOP handshake subset exists for local protocol
-  diagnostics and the single live `haproxy_phase1_header_block` enforcement
-  smoke. No full SPOE/SPOA protocol library exists in this repository.
+  diagnostics and the scoped live `haproxy_phase1_header_block` and
+  `haproxy_crs_sqli_anomaly_block` enforcement smokes. No full SPOE/SPOA
+  protocol library exists in this repository.
 - `common/include/msconnector/` contains connector-neutral data shapes for
   origin, status, request, intervention, and other connector concepts.
 - `connectors/apache` and `connectors/nginx` contain productive adapter source,
   origin/source maps, metadata, and harness files, but their server APIs and
   lifecycle code are server-specific and are not reused for HAProxy.
 - The parent `Makefile` dispatches HAProxy runtime smoke through the external
-  framework; the HAProxy target now verifies the single phase-1 header block
-  path.
+  framework; the HAProxy target now verifies the phase-1 header block path and
+  the minimal CRS SQLi anomaly path.
 
 ## Current HAProxy Integration Decision
 
@@ -38,9 +39,9 @@ uses shared request/intervention/status shapes and proves only local
 request-decision code through `--self-test`. The diagnostic subset proves local
 HELLO/AGENT-HELLO, NOTIFY argument parsing, verified set-var ACK encoding, and
 DISCONNECT handling. `make smoke-haproxy` then proves HAProxy can enforce the
-live phase-1 header block decision through SPOA. The ModSecurity binding
-self-test still proves only an in-process phase-1 header block decision by
-itself.
+live phase-1 header block decision and the CRS SQLi anomaly decision through
+SPOA. The ModSecurity binding self-tests still prove only in-process binding
+behavior by themselves.
 
 The starter is intentionally limited to:
 
@@ -49,14 +50,17 @@ The starter is intentionally limited to:
 - evaluating synthetic requests in process;
 - producing a local allow/block self-test result;
 - producing a local libmodsecurity phase-1 header block self-test result;
-- producing live HAProxy enforcement evidence for `haproxy_phase1_header_block`.
+- producing live HAProxy enforcement evidence for `haproxy_phase1_header_block`;
+- producing live HAProxy enforcement evidence for
+  `haproxy_crs_sqli_anomaly_block` with the prepared local CRS preamble.
 
-The starter does not parse SPOP frames, open a network socket, start HAProxy,
-load CRS, or enforce libmodsecurity decisions through HAProxy.
+The synthetic starter binary does not parse SPOP frames, open a network socket,
+start HAProxy, load CRS, or enforce libmodsecurity decisions through HAProxy.
 
 The diagnostic SPOP subset may open local loopback sockets during
-`self-test-spoa-runtime`, but it is not a full SPOA agent implementation and
-does not load CRS or verify RESPONSE_BODY behavior.
+`self-test-spoa-runtime` and `make smoke-haproxy`, but it is not a full SPOA
+agent implementation and does not verify RESPONSE_BODY behavior. CRS is
+verified only for the single `haproxy_crs_sqli_anomaly_block` smoke.
 
 The ModSecurity binding self-test runs a local transaction, but it is not a
 HAProxy runtime smoke by itself and may not set `runtime_verified` to true.
@@ -74,7 +78,8 @@ Possible approaches to evaluate later, without treating any as implemented:
 
 - full SPOA/SPOP implementation beyond the diagnostic handshake subset
 - full HAProxy SPOE/SPOA runtime integration beyond the diagnostic subset
-- Framework case runtime beyond `haproxy_phase1_header_block`
+- Framework case runtime beyond `haproxy_phase1_header_block` and
+  `haproxy_crs_sqli_anomaly_block`
 - runtime evidence for broader No-CRS and With-CRS scopes
 - RESPONSE_BODY, negative/pass-through, and audit/log evidence
 

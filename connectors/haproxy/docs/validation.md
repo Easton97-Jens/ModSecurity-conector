@@ -1,10 +1,12 @@
 # HAProxy Validation
 
 Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
 
 `make smoke-haproxy` now verifies the narrow live HAProxy to diagnostic SPOA to
-libmodsecurity case `haproxy_phase1_header_block`. CRS, RESPONSE_BODY,
+libmodsecurity cases `haproxy_phase1_header_block` and
+`haproxy_crs_sqli_anomaly_block`. CRS is verified only for the SQLi anomaly
+scope. RESPONSE_BODY, broader No-CRS/With-CRS matrix coverage,
 negative/pass-through matrix coverage, and audit/log behavior remain not
 verified.
 
@@ -18,7 +20,8 @@ Global runtime rules and promotion gates are defined in:
 - Metadata build-starter: buildable as a compile-time object target.
 - SPOA agent starter: buildable as a local binary with local self-test.
 - Productive adapter build: BLOCKED.
-- HAProxy runtime harness: verifies `haproxy_phase1_header_block` only.
+- HAProxy runtime harness: verifies `haproxy_phase1_header_block` and
+  `haproxy_crs_sqli_anomaly_block` only.
 - HAProxy binary: locally prepared under
   `/src/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy`.
 - HAProxy source/binary acquisition: defined only in framework `common.sh`;
@@ -34,15 +37,18 @@ Global runtime rules and promotion gates are defined in:
   the run marker sets `spoe_runtime_status` to
   `diagnostic-enforcement-verified`.
 - ModSecurity binding: live enforcement verified for the header-block smoke
-  case; the standalone self-test still verifies only an in-process phase-1
-  transaction.
+  case and the CRS SQLi anomaly smoke; standalone self-tests still verify only
+  in-process transactions.
 - HAProxy enforcement path for ModSecurity decisions: verified only for
-  `haproxy_phase1_header_block`.
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
 - Framework case runtime for broader HAProxy to SPOA to ModSecurity coverage:
   missing.
 - No-CRS minimal phase-1 runtime: PASS for `haproxy_phase1_header_block` only.
 - Broader No-CRS matrix: not run.
-- With-CRS: not run.
+- With-CRS minimal SQLi runtime: PASS for `haproxy_crs_sqli_anomaly_block`
+  with CRS loaded from `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`.
+- Broader With-CRS matrix: not run.
+- CRS verified: true only for `haproxy_crs_sqli_anomaly_block`.
 - RESPONSE_BODY: not verified.
 - Negative/pass-through: not verified.
 - Audit/log: not verified.
@@ -62,8 +68,8 @@ explicit HAProxy runtime scope exists and is executed:
 ## Harness Blocker
 
 `connectors/haproxy/harness/run_haproxy_smoke.sh` exists as a runtime-smoke
-entrypoint for the single `haproxy_phase1_header_block` case. The local starter
-self-test remains synthetic in-process request-decision logic only.
+entrypoint for the two minimal cases listed above. The local starter self-test
+remains synthetic in-process request-decision logic only.
 
 A future broader harness must add No-CRS, With-CRS, RESPONSE_BODY,
 negative/pass-through, and audit/log evidence before this connector can be
@@ -88,12 +94,14 @@ The HAProxy entries are connector-starter build/self-test evidence only:
 ## Runtime-Smoke Entry Point
 
 `make smoke-haproxy` invokes the framework-owned HAProxy runtime-smoke runner.
-The current result is PASS for `haproxy_phase1_header_block`. Evidence is
-written under `/src/ModSecurity-conector-build/results/`.
+The current result is PASS for `haproxy_phase1_header_block` and
+`haproxy_crs_sqli_anomaly_block`. Evidence is written under
+`/src/ModSecurity-conector-build/results/`.
 
 The entrypoint may prepare the local HAProxy binary first; that is preparation
 evidence only. It may also run the minimal diagnostic SPOP handshake subset
 self-test, generate SPOE config that is syntax-valid under `haproxy -c`, prove
 fresh HAProxy-to-diagnostic-agent NOTIFY/contact, run libmodsecurity live, send
-the verified set-var ACK, and verify 403/200 probes. RESPONSE_BODY remains not
-verified.
+the verified set-var ACK, and verify 403/200 probes. For With-CRS it loads the
+prepared CRS preamble, sends the SQLi URI, records CRS decision evidence, and
+verifies block 403 plus pass 200. RESPONSE_BODY remains not verified.

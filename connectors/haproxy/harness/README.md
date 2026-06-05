@@ -1,12 +1,13 @@
 # HAProxy Harness
 
 Status: contract plus single-case runtime-smoke entrypoint
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
 
 `run_haproxy_smoke.sh` exists as the connector-side entrypoint for the framework
 runtime-smoke runner. It live-starts local HAProxy, the diagnostic SPOP agent,
-and a local backend, then verifies the narrow
-`haproxy_phase1_header_block` case.
+and a local backend, then verifies the narrow No-CRS
+`haproxy_phase1_header_block` case and the minimal With-CRS
+`haproxy_crs_sqli_anomaly_block` case.
 
 The framework can prepare a local HAProxy binary without global installation
 through `modules/ModSecurity-test-Framework/ci/prepare-haproxy-runtime.sh`.
@@ -37,8 +38,9 @@ make -C connectors/haproxy self-test-spoa-runtime
 This binary is a minimal diagnostic SPOP handshake subset, not a full SPOA
 agent implementation. It verifies local HELLO/AGENT-HELLO, NOTIFY request
 argument parsing, verified `set-var txn.blocked true` ACK encoding, and
-DISCONNECT handling. It does not prove CRS behavior, RESPONSE_BODY handling, or
-complete SPOA semantics.
+DISCONNECT handling. CRS behavior is proven only by the separate
+`make smoke-haproxy` With-CRS SQLi smoke; RESPONSE_BODY handling and complete
+SPOA semantics are not proven.
 
 Framework runtime-smoke entrypoint:
 
@@ -48,10 +50,10 @@ make smoke-haproxy
 
 The current `run_haproxy_smoke.sh` entrypoint writes PASS evidence under
 `/src/ModSecurity-conector-build/results/` only when live HAProxy sends NOTIFY
-to the diagnostic agent, the agent extracts `method`, `path`, and
-`test_header`, libmodsecurity produces a disruptive 403 decision, the agent
-sends the locally verified set-var ACK, the block probe returns 403, and the
-clean probe returns 200.
+to the diagnostic agent, the agent extracts request arguments, libmodsecurity
+produces disruptive 403 decisions for the selected scopes, the agent sends the
+locally verified set-var ACK, block probes return 403, and clean probes return
+200.
 
 The entrypoint checks HAProxy runtime prerequisites before writing evidence. If
 the local HAProxy binary is missing, it attempts the framework prepare helper.
@@ -63,18 +65,22 @@ removed from `blocked_reasons`. When all live enforcement checks pass:
   after a per-run marker;
 - `spoe_runtime_status` is `diagnostic-enforcement-verified`;
 - `modsecurity_binding_status` is `live-enforcement-verified`;
-- `runtime_verified` is `true` for `haproxy_phase1_header_block` only.
+- `runtime_verified` is `true` for the recorded `verified_cases` only:
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
+- `crs_verified` is `true` only when `with_crs.status` is `PASS` with
+  `crs_loaded: true`.
 
 The ModSecurity binding self-test can be run directly:
 
 ```sh
 make -C connectors/haproxy build-modsecurity-binding
 make -C connectors/haproxy self-test-modsecurity-binding
+make -C connectors/haproxy self-test-modsecurity-binding-crs
 ```
 
 That self-test verifies only an in-process phase-1 header block decision with
-status 403. It may set `modsecurity_binding_status: self-test-verified`, but
-only `make smoke-haproxy` may promote the live enforcement status.
+status 403, or an in-process CRS SQLi decision when the CRS target is used.
+Only `make smoke-haproxy` may promote live enforcement status.
 
 Future HAProxy promotion beyond the current single-case runtime smoke still
 requires:
@@ -89,8 +95,8 @@ requires:
 - evidence paths
 - PASS/FAIL/BLOCKED counts for broader scopes
 - logs needed for HAProxy, connector, and audit evidence
-- No-CRS and With-CRS scope separation
-- CRS, RESPONSE_BODY, negative/pass-through, and audit/log evidence
+- broader No-CRS and With-CRS matrix evidence
+- RESPONSE_BODY, negative/pass-through, and audit/log evidence
 
 Executable cases and runners are framework-owned, for example:
 

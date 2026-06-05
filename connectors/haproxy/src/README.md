@@ -1,7 +1,7 @@
 # HAProxy Source
 
 Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
 
 This directory contains local HAProxy diagnostic sources, not a productive
 runtime adapter.
@@ -21,8 +21,10 @@ in-process requests with repository-owned request/intervention/status shapes.
 The diagnostic SPOP runtime handles only a minimal diagnostic SPOP handshake
 subset, but it now parses live NOTIFY arguments, calls the local ModSecurity
 binding, and sends the verified set-var ACK for the single
-`haproxy_phase1_header_block` smoke path. CRS loading, RESPONSE_BODY handling,
-and broader request/response inspection remain unimplemented.
+`haproxy_phase1_header_block` smoke path. It also supports the minimal
+CRS-backed `haproxy_crs_sqli_anomaly_block` smoke path. Broader CRS behavior,
+RESPONSE_BODY handling, and broader request/response inspection remain
+unimplemented.
 
 Productive source may only be added with ORIGIN/license/metadata evidence,
 including the future HAProxy source origin, license, imported files, local

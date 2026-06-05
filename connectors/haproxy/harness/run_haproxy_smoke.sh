@@ -58,6 +58,25 @@ DIAGNOSTIC_AGENT_STARTED=false
 HTTP_PROBE_STATUS=not-run
 HTTP_BLOCK_PROBE_STATUS=not-run
 HTTP_PASS_PROBE_STATUS=not-run
+WITH_CRS_STATUS=BLOCKED
+WITH_CRS_VERIFIED_CASE=haproxy_crs_sqli_anomaly_block
+WITH_CRS_BLOCK_PROBE_STATUS=not-run
+WITH_CRS_PASS_PROBE_STATUS=not-run
+WITH_CRS_CRS_LOADED=false
+WITH_CRS_CRS_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-${CRS_RUNTIME_DIR:-$BUILD_ROOT/crs}/modsecurity-crs-preamble.conf}"
+WITH_CRS_BLOCKED_REASON="with-crs not run"
+WITH_CRS_RUNTIME_LOG_DIR="$RUNTIME_LOG_DIR/with-crs"
+WITH_CRS_DIAGNOSTIC_AGENT_LOG="$WITH_CRS_RUNTIME_LOG_DIR/diagnostic-agent.log"
+WITH_CRS_HAPROXY_RUNTIME_LOG="$WITH_CRS_RUNTIME_LOG_DIR/haproxy-runtime.stderr.log"
+WITH_CRS_HTTP_PROBE_LOG="$WITH_CRS_RUNTIME_LOG_DIR/http-probe.log"
+WITH_CRS_MODSECURITY_EVIDENCE=
+WITH_CRS_AGENT_CONTACT_EVIDENCE=
+WITH_CRS_SET_VAR_ACK_EVIDENCE=
+WITH_CRS_BINDING_SELF_TEST_STATUS=NOT_RUN
+WITH_CRS_BINDING_SELF_TEST_LOG="$LOG_DIR/modsecurity-binding-crs-self-test.log"
+WITH_CRS_HAPROXY_PID=
+WITH_CRS_AGENT_PID=
+WITH_CRS_BACKEND_PID=
 HAPROXY_CONTACTED_DIAGNOSTIC_AGENT=false
 AGENT_CONTACT_EVIDENCE=
 AGENT_RECEIVED_NOTIFY=false
@@ -114,6 +133,21 @@ cleanup_runtime() {
         kill "$BACKEND_PID" 2>/dev/null || true
         wait "$BACKEND_PID" 2>/dev/null || true
         BACKEND_PID=
+    fi
+    if [ -n "${WITH_CRS_HAPROXY_PID:-}" ]; then
+        kill "$WITH_CRS_HAPROXY_PID" 2>/dev/null || true
+        wait "$WITH_CRS_HAPROXY_PID" 2>/dev/null || true
+        WITH_CRS_HAPROXY_PID=
+    fi
+    if [ -n "${WITH_CRS_AGENT_PID:-}" ]; then
+        kill "$WITH_CRS_AGENT_PID" 2>/dev/null || true
+        wait "$WITH_CRS_AGENT_PID" 2>/dev/null || true
+        WITH_CRS_AGENT_PID=
+    fi
+    if [ -n "${WITH_CRS_BACKEND_PID:-}" ]; then
+        kill "$WITH_CRS_BACKEND_PID" 2>/dev/null || true
+        wait "$WITH_CRS_BACKEND_PID" 2>/dev/null || true
+        WITH_CRS_BACKEND_PID=
     fi
 }
 
@@ -175,6 +209,7 @@ validate_roots() {
     require_log_path "$LOG_ROOT" LOG_ROOT
     require_log_path "$LOG_DIR" LOG_DIR
     require_log_path "$RUNTIME_LOG_DIR" RUNTIME_LOG_DIR
+    require_log_path "$WITH_CRS_RUNTIME_LOG_DIR" WITH_CRS_RUNTIME_LOG_DIR
     require_build_path "$HAPROXY_BIN" HAPROXY_BIN
     require_build_path "$SPOA_RUNTIME_BIN" SPOA_RUNTIME_BIN
     require_build_path "$MODSECURITY_BINDING_BIN" MODSECURITY_BINDING_BIN
@@ -184,6 +219,7 @@ validate_roots() {
     require_build_path "$GENERATED_SPOE_CFG" GENERATED_SPOE_CFG
     require_build_path "$RUN_TMP_DIR" RUN_TMP_DIR
     require_build_path "$BACKEND_DOCROOT" BACKEND_DOCROOT
+    require_not_connector_artifact "$WITH_CRS_RUNTIME_LOG_DIR" WITH_CRS_RUNTIME_LOG_DIR
     require_not_connector_artifact "$RESULTS_DIR" RESULTS_DIR
     require_not_connector_artifact "$TMP_ROOT" TMP_ROOT
     require_not_connector_artifact "$LOG_ROOT" LOG_ROOT
@@ -195,7 +231,7 @@ validate_roots() {
     require_not_connector_artifact "$RUN_TMP_DIR" RUN_TMP_DIR
     require_not_connector_artifact "$RUNTIME_LOG_DIR" RUNTIME_LOG_DIR
     require_not_connector_artifact "$BACKEND_DOCROOT" BACKEND_DOCROOT
-    mkdir -p "$RESULTS_DIR" "$TMP_ROOT" "$LOG_DIR" "$RUN_TMP_DIR" "$RUNTIME_LOG_DIR"
+    mkdir -p "$RESULTS_DIR" "$TMP_ROOT" "$LOG_DIR" "$RUN_TMP_DIR" "$RUNTIME_LOG_DIR" "$WITH_CRS_RUNTIME_LOG_DIR"
 }
 
 starter_available() {
@@ -412,7 +448,8 @@ run_http_probe() {
     response_file=$3
     header_value=${4:-}
     expected_status=${5:-200}
-    "$PYTHON_BIN" - "$port" "$status_file" "$response_file" "$header_value" "$expected_status" <<'PY'
+    request_uri=${6:-/diagnostic.txt}
+    "$PYTHON_BIN" - "$port" "$status_file" "$response_file" "$header_value" "$expected_status" "$request_uri" <<'PY'
 import socket
 import sys
 
@@ -421,12 +458,13 @@ status_file = sys.argv[2]
 response_file = sys.argv[3]
 header_value = sys.argv[4]
 expected_status = sys.argv[5]
+request_uri = sys.argv[6]
 status = "probe-error"
 data = b""
 try:
     with socket.create_connection(("127.0.0.1", port), timeout=3) as sock:
         request = (
-            "GET /diagnostic.txt HTTP/1.1\r\n"
+            "GET " + request_uri + " HTTP/1.1\r\n"
             "Host: 127.0.0.1\r\n"
         )
         if header_value:
@@ -535,7 +573,7 @@ write_generated_spoe_config() {
         echo "    messages check-request"
         echo
         echo "spoe-message check-request"
-        echo "    args method=method path=path test_header=req.hdr(X-Haproxy-ModSecurity-Test)"
+        echo "    args method=method path=path uri=url host=req.hdr(Host) test_header=req.hdr(X-Haproxy-ModSecurity-Test)"
     } >"$GENERATED_SPOE_CFG"
     set +e
     "$HAPROXY_BIN" -c -f "$GENERATED_HAPROXY_CFG" >"$syntax_log" 2>&1
@@ -659,7 +697,7 @@ run_live_spoe_diagnostic() {
         HAPROXY_CONTACTED_DIAGNOSTIC_AGENT=true
         AGENT_CONTACT_EVIDENCE=$(read_evidence_line "$RUNTIME_LOG_DIR/agent-notify-evidence.txt")
     fi
-    if agent_evidence_after_marker "$marker" "$DIAGNOSTIC_AGENT_LOG" "NOTIFY request args extracted method_present=1 path_present=1 test_header_present=1" "$RUNTIME_LOG_DIR/agent-args-evidence.txt"; then
+    if agent_evidence_after_marker "$marker" "$DIAGNOSTIC_AGENT_LOG" "NOTIFY request args extracted method_present=1 path_present=1 uri_present=1 host_present=1 test_header_present=1" "$RUNTIME_LOG_DIR/agent-args-evidence.txt"; then
         AGENT_EXTRACTED_REQUEST_ARGS=true
         AGENT_ARGS_EVIDENCE=$(read_evidence_line "$RUNTIME_LOG_DIR/agent-args-evidence.txt")
     fi
@@ -709,6 +747,292 @@ run_live_spoe_diagnostic() {
     RUNTIME_VERIFIED=true
     RUNTIME_STATUS=runtime-smoke-verified
     RUNTIME_REASON="haproxy_phase1_header_block runtime smoke verified"
+}
+
+prepare_crs_for_haproxy() {
+    prepare_log="$WITH_CRS_RUNTIME_LOG_DIR/prepare-crs.log"
+    if [ -f "$WITH_CRS_CRS_PREAMBLE_FILE" ]; then
+        return 0
+    fi
+    if [ ! -d "${CRS_SOURCE_DIR:-$SOURCE_ROOT/coreruleset}" ]; then
+        WITH_CRS_BLOCKED_REASON="CRS source missing: ${CRS_SOURCE_DIR:-$SOURCE_ROOT/coreruleset}"
+        return 77
+    fi
+    if [ ! -f "$FRAMEWORK_ROOT/ci/prepare-crs.sh" ]; then
+        WITH_CRS_BLOCKED_REASON="CRS prepare helper missing"
+        return 77
+    fi
+    set +e
+    SOURCE_ROOT="$SOURCE_ROOT" \
+        BUILD_ROOT="$BUILD_ROOT" \
+        TMP_ROOT="$TMP_ROOT" \
+        LOG_ROOT="$LOG_ROOT" \
+        CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh" >"$prepare_log" 2>&1
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then
+        WITH_CRS_BLOCKED_REASON="CRS prepare blocked with exit code $rc"
+        return 77
+    fi
+    if [ ! -f "$WITH_CRS_CRS_PREAMBLE_FILE" ]; then
+        WITH_CRS_BLOCKED_REASON="CRS preamble missing after prepare: $WITH_CRS_CRS_PREAMBLE_FILE"
+        return 77
+    fi
+    return 0
+}
+
+run_modsecurity_binding_crs_self_test() {
+    if ! prepare_crs_for_haproxy; then
+        WITH_CRS_BINDING_SELF_TEST_STATUS=BLOCKED
+        return 77
+    fi
+    set +e
+    BUILD_ROOT="$BUILD_ROOT" \
+        REPO_ROOT="$CONNECTOR_ROOT" \
+        MODSECURITY_RULE_PREAMBLE_FILE="$WITH_CRS_CRS_PREAMBLE_FILE" \
+        make -C "$CONNECTOR_DIR" self-test-modsecurity-binding-crs >"$WITH_CRS_BINDING_SELF_TEST_LOG" 2>&1
+    rc=$?
+    set -e
+    if [ "$rc" -eq 0 ]; then
+        WITH_CRS_BINDING_SELF_TEST_STATUS=PASS
+        return 0
+    fi
+    if [ "$rc" -eq 77 ]; then
+        WITH_CRS_BINDING_SELF_TEST_STATUS=BLOCKED
+        WITH_CRS_BLOCKED_REASON="crs binding/load path missing"
+        return 77
+    fi
+    WITH_CRS_BINDING_SELF_TEST_STATUS=FAIL
+    WITH_CRS_BLOCKED_REASON="CRS binding self-test failed with exit code $rc"
+    return 1
+}
+
+run_live_with_crs_diagnostic() {
+    with_crs_tmp_dir="$RUN_TMP_DIR/with-crs"
+    with_crs_spoe_dir="$RUN_SPOE_RUNTIME_DIR/with-crs"
+    with_crs_haproxy_cfg="$with_crs_spoe_dir/haproxy.cfg"
+    with_crs_spoe_cfg="$with_crs_spoe_dir/spoe-agent.conf"
+    with_crs_syntax_log="$WITH_CRS_RUNTIME_LOG_DIR/spoe-config-syntax.log"
+    with_crs_docroot="$with_crs_tmp_dir/backend-docroot"
+    with_crs_backend_log="$WITH_CRS_RUNTIME_LOG_DIR/backend.stderr.log"
+    with_crs_backend_stdout_log="$WITH_CRS_RUNTIME_LOG_DIR/backend.stdout.log"
+    with_crs_haproxy_stdout_log="$WITH_CRS_RUNTIME_LOG_DIR/haproxy-runtime.stdout.log"
+    with_crs_agent_stdout_log="$WITH_CRS_RUNTIME_LOG_DIR/diagnostic-agent.stdout.log"
+    with_crs_agent_stderr_log="$WITH_CRS_RUNTIME_LOG_DIR/diagnostic-agent.stderr.log"
+    with_crs_agent_ready="$with_crs_tmp_dir/diagnostic-agent.ready"
+    with_crs_agent_pid_file="$with_crs_tmp_dir/diagnostic-agent.pid"
+    with_crs_agent_port_file="$with_crs_tmp_dir/diagnostic-agent.port"
+    with_crs_block_status_file="$WITH_CRS_RUNTIME_LOG_DIR/http-block-probe.status"
+    with_crs_block_response_file="$WITH_CRS_RUNTIME_LOG_DIR/http-block-probe.response"
+    with_crs_pass_status_file="$WITH_CRS_RUNTIME_LOG_DIR/http-pass-probe.status"
+    with_crs_pass_response_file="$WITH_CRS_RUNTIME_LOG_DIR/http-pass-probe.response"
+    with_crs_marker="run_id=$RUN_ID scope=with-crs haproxy_start_marker"
+    with_crs_haproxy_port=
+    with_crs_spoa_port=
+    with_crs_backend_port=
+
+    mkdir -p "$WITH_CRS_RUNTIME_LOG_DIR" "$with_crs_tmp_dir" "$with_crs_spoe_dir" "$with_crs_docroot"
+    : >"$WITH_CRS_DIAGNOSTIC_AGENT_LOG"
+    : >"$WITH_CRS_HAPROXY_RUNTIME_LOG"
+    : >"$WITH_CRS_HTTP_PROBE_LOG"
+
+    if [ "$SPOE_ACTION_ENCODING_VERIFIED" != "true" ]; then
+        WITH_CRS_BLOCKED_REASON="spoe action encoding not verified"
+        return
+    fi
+    if [ "$SPOA_RUNTIME_STATUS" != "diagnostic-spop-handshake-subset" ] || [ ! -x "$SPOA_RUNTIME_BIN" ]; then
+        WITH_CRS_BLOCKED_REASON="diagnostic spoa agent runtime missing"
+        return
+    fi
+    if ! run_modsecurity_binding_crs_self_test; then
+        return
+    fi
+
+    with_crs_haproxy_port=$(pick_tcp_port)
+    with_crs_spoa_port=$(pick_tcp_port)
+    with_crs_backend_port=$(pick_tcp_port)
+    {
+        echo "global"
+        echo "    log stdout format raw local0"
+        echo "    pidfile $with_crs_tmp_dir/haproxy.pid"
+        echo
+        echo "defaults"
+        echo "    mode http"
+        echo "    timeout connect 1s"
+        echo "    timeout client 5s"
+        echo "    timeout server 5s"
+        echo
+        echo "frontend fe_haproxy_spoe_diagnostic"
+        echo "    bind 127.0.0.1:$with_crs_haproxy_port"
+        echo "    filter spoe engine modsecurity-diagnostic config $with_crs_spoe_cfg"
+        echo "    http-request send-spoe-group modsecurity-diagnostic diagnostic-request"
+        echo "    http-request deny status 403 if { var(txn.modsecdiag.blocked) -m bool }"
+        echo "    default_backend be_haproxy_diagnostic_app"
+        echo
+        echo "backend be_haproxy_diagnostic_app"
+        echo "    mode http"
+        echo "    server app1 127.0.0.1:$with_crs_backend_port"
+        echo
+        echo "backend be_spoa_diagnostic"
+        echo "    mode spop"
+        echo "    balance roundrobin"
+        echo "    timeout connect 1s"
+        echo "    timeout server 3s"
+        echo "    server spoa1 127.0.0.1:$with_crs_spoa_port"
+    } >"$with_crs_haproxy_cfg"
+    {
+        echo "[modsecurity-diagnostic]"
+        echo
+        echo "spoe-agent modsecurity-diagnostic-agent"
+        echo "    groups diagnostic-request"
+        echo "    option var-prefix modsecdiag"
+        echo "    register-var-names blocked"
+        echo "    option continue-on-error"
+        echo "    timeout hello 1s"
+        echo "    timeout idle 3s"
+        echo "    timeout processing 1s"
+        echo "    use-backend be_spoa_diagnostic"
+        echo
+        echo "spoe-group diagnostic-request"
+        echo "    messages check-request"
+        echo
+        echo "spoe-message check-request"
+        echo "    args method=method path=path uri=url host=req.hdr(Host) test_header=req.hdr(X-Haproxy-ModSecurity-Test)"
+    } >"$with_crs_spoe_cfg"
+    set +e
+    "$HAPROXY_BIN" -c -f "$with_crs_haproxy_cfg" >"$with_crs_syntax_log" 2>&1
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then
+        WITH_CRS_BLOCKED_REASON="with-crs haproxy runtime config failed"
+        return
+    fi
+
+    printf 'haproxy with-crs diagnostic backend for %s\n' "$RUN_ID" >"$with_crs_docroot/diagnostic.txt"
+    "$PYTHON_BIN" -m http.server "$with_crs_backend_port" \
+        --bind 127.0.0.1 \
+        --directory "$with_crs_docroot" \
+        >"$with_crs_backend_stdout_log" \
+        2>"$with_crs_backend_log" &
+    WITH_CRS_BACKEND_PID=$!
+    if ! wait_tcp_port "$with_crs_backend_port"; then
+        WITH_CRS_BLOCKED_REASON="with-crs diagnostic backend failed to start"
+        return
+    fi
+    "$SPOA_RUNTIME_BIN" --serve \
+        --host 127.0.0.1 \
+        --port "$with_crs_spoa_port" \
+        --ready-file "$with_crs_agent_ready" \
+        --pid-file "$with_crs_agent_pid_file" \
+        --port-file "$with_crs_agent_port_file" \
+        --log-file "$WITH_CRS_DIAGNOSTIC_AGENT_LOG" \
+        --crs-preamble-file "$WITH_CRS_CRS_PREAMBLE_FILE" \
+        >"$with_crs_agent_stdout_log" \
+        2>"$with_crs_agent_stderr_log" &
+    WITH_CRS_AGENT_PID=$!
+    i=0
+    while [ "$i" -lt 50 ]; do
+        if [ -f "$with_crs_agent_ready" ] && kill -0 "$WITH_CRS_AGENT_PID" 2>/dev/null; then
+            break
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    if ! kill -0 "$WITH_CRS_AGENT_PID" 2>/dev/null; then
+        WITH_CRS_BLOCKED_REASON="with-crs diagnostic spoa agent failed to start"
+        return
+    fi
+    printf '%s epoch=%s\n' "$with_crs_marker" "$(date -u +%s)" >>"$WITH_CRS_DIAGNOSTIC_AGENT_LOG"
+    "$HAPROXY_BIN" -db -f "$with_crs_haproxy_cfg" \
+        >"$with_crs_haproxy_stdout_log" \
+        2>"$WITH_CRS_HAPROXY_RUNTIME_LOG" &
+    WITH_CRS_HAPROXY_PID=$!
+    sleep 0.2
+    if ! kill -0 "$WITH_CRS_HAPROXY_PID" 2>/dev/null; then
+        WITH_CRS_BLOCKED_REASON="with-crs haproxy runtime failed to start"
+        return
+    fi
+
+    set +e
+    block_probe_rc=1
+    i=0
+    while [ "$i" -lt 30 ]; do
+        run_http_probe "$with_crs_haproxy_port" "$with_crs_block_status_file" "$with_crs_block_response_file" "" 403 "/?id=1%20UNION%20SELECT%20password%20FROM%20users" >>"$WITH_CRS_HTTP_PROBE_LOG" 2>&1
+        block_probe_rc=$?
+        if [ "$block_probe_rc" -eq 0 ]; then
+            break
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    pass_probe_rc=1
+    i=0
+    while [ "$i" -lt 30 ]; do
+        run_http_probe "$with_crs_haproxy_port" "$with_crs_pass_status_file" "$with_crs_pass_response_file" "" 200 "/diagnostic.txt" >>"$WITH_CRS_HTTP_PROBE_LOG" 2>&1
+        pass_probe_rc=$?
+        if [ "$pass_probe_rc" -eq 0 ]; then
+            break
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    set -e
+    if [ -f "$with_crs_block_status_file" ]; then
+        WITH_CRS_BLOCK_PROBE_STATUS=$(sed -n '1p' "$with_crs_block_status_file")
+    else
+        WITH_CRS_BLOCK_PROBE_STATUS=probe-error
+    fi
+    if [ -f "$with_crs_pass_status_file" ]; then
+        WITH_CRS_PASS_PROBE_STATUS=$(sed -n '1p' "$with_crs_pass_status_file")
+    else
+        WITH_CRS_PASS_PROBE_STATUS=probe-error
+    fi
+    if agent_evidence_after_marker "$with_crs_marker" "$WITH_CRS_DIAGNOSTIC_AGENT_LOG" "NOTIFY received" "$WITH_CRS_RUNTIME_LOG_DIR/agent-notify-evidence.txt"; then
+        WITH_CRS_AGENT_CONTACT_EVIDENCE=$(read_evidence_line "$WITH_CRS_RUNTIME_LOG_DIR/agent-notify-evidence.txt")
+    fi
+    if agent_evidence_after_marker "$with_crs_marker" "$WITH_CRS_DIAGNOSTIC_AGENT_LOG" "CRS loaded preamble=$WITH_CRS_CRS_PREAMBLE_FILE" "$WITH_CRS_RUNTIME_LOG_DIR/crs-loaded-evidence.txt"; then
+        WITH_CRS_CRS_LOADED=true
+    fi
+    if agent_evidence_after_marker "$with_crs_marker" "$WITH_CRS_DIAGNOSTIC_AGENT_LOG" "CRS live decision disruptive=1 status=403" "$WITH_CRS_RUNTIME_LOG_DIR/crs-live-evidence.txt"; then
+        WITH_CRS_MODSECURITY_EVIDENCE=$(read_evidence_line "$WITH_CRS_RUNTIME_LOG_DIR/crs-live-evidence.txt")
+    fi
+    if agent_evidence_after_marker "$with_crs_marker" "$WITH_CRS_DIAGNOSTIC_AGENT_LOG" "ACK set-var txn.blocked true sent" "$WITH_CRS_RUNTIME_LOG_DIR/spoe-set-var-ack-evidence.txt"; then
+        WITH_CRS_SET_VAR_ACK_EVIDENCE=$(read_evidence_line "$WITH_CRS_RUNTIME_LOG_DIR/spoe-set-var-ack-evidence.txt")
+    fi
+    if [ -z "$WITH_CRS_AGENT_CONTACT_EVIDENCE" ]; then
+        WITH_CRS_STATUS=FAIL
+        WITH_CRS_BLOCKED_REASON="with-crs agent did not receive notify"
+        return
+    fi
+    if [ "$WITH_CRS_CRS_LOADED" != "true" ]; then
+        WITH_CRS_STATUS=FAIL
+        WITH_CRS_BLOCKED_REASON="with-crs CRS loaded evidence missing"
+        return
+    fi
+    if [ -z "$WITH_CRS_MODSECURITY_EVIDENCE" ]; then
+        WITH_CRS_STATUS=FAIL
+        WITH_CRS_BLOCKED_REASON="with-crs modsecurity CRS decision missing"
+        return
+    fi
+    if [ -z "$WITH_CRS_SET_VAR_ACK_EVIDENCE" ]; then
+        WITH_CRS_STATUS=FAIL
+        WITH_CRS_BLOCKED_REASON="with-crs set-var ACK missing"
+        return
+    fi
+    if [ "$WITH_CRS_BLOCK_PROBE_STATUS" != "403" ] || [ "$block_probe_rc" -ne 0 ]; then
+        WITH_CRS_STATUS=FAIL
+        WITH_CRS_BLOCKED_REASON="with-crs block probe did not return 403"
+        return
+    fi
+    if [ "$WITH_CRS_PASS_PROBE_STATUS" != "200" ] || [ "$pass_probe_rc" -ne 0 ]; then
+        WITH_CRS_STATUS=FAIL
+        WITH_CRS_BLOCKED_REASON="with-crs pass probe did not return 200"
+        return
+    fi
+    WITH_CRS_STATUS=PASS
+    WITH_CRS_BLOCKED_REASON=
 }
 
 detect_example_spoe_config() {
@@ -871,6 +1195,15 @@ write_blocked_evidence() {
     run_spoa_runtime_self_test
     write_generated_spoe_config
     run_live_spoe_diagnostic
+    run_live_with_crs_diagnostic
+    if [ "$WITH_CRS_STATUS" = "PASS" ]; then
+        RUNTIME_REASON="haproxy_phase1_header_block and haproxy_crs_sqli_anomaly_block runtime smoke verified"
+    elif [ "$WITH_CRS_STATUS" = "FAIL" ]; then
+        RUNTIME_RESULT_STATUS=FAIL
+        RUNTIME_EXIT_CODE=1
+        RUNTIME_STATUS=runtime-smoke-failed
+        RUNTIME_REASON="$WITH_CRS_BLOCKED_REASON"
+    fi
     example_spoe_config_status=$(detect_example_spoe_config)
     {
         echo "$RUNTIME_RESULT_STATUS $RUNTIME_REASON"
@@ -919,6 +1252,13 @@ write_blocked_evidence() {
         echo "runtime_verified=$RUNTIME_VERIFIED"
         echo "runtime_status=$RUNTIME_STATUS"
         echo "verified_case=$VERIFIED_CASE"
+        echo "with_crs_status=$WITH_CRS_STATUS"
+        echo "with_crs_verified_case=$WITH_CRS_VERIFIED_CASE"
+        echo "with_crs_block_probe_status=$WITH_CRS_BLOCK_PROBE_STATUS"
+        echo "with_crs_pass_probe_status=$WITH_CRS_PASS_PROBE_STATUS"
+        echo "with_crs_crs_loaded=$WITH_CRS_CRS_LOADED"
+        echo "with_crs_crs_preamble_file=$WITH_CRS_CRS_PREAMBLE_FILE"
+        echo "with_crs_reason=${WITH_CRS_BLOCKED_REASON:-none}"
     } > "$status_log"
     "$PYTHON_BIN" - "$results_jsonl" "$summary_json" "$summary_text" \
         "$CONNECTOR_NAME" "$HARNESS_PATH" "$CONNECTOR_ROOT" "$SOURCE_ROOT" \
@@ -945,7 +1285,13 @@ write_blocked_evidence() {
         "$AGENT_ARGS_EVIDENCE" "$MODSECURITY_LIVE_BINDING_VERIFIED" "$MODSECURITY_LIVE_EVIDENCE" \
         "$SPOE_SET_VAR_ACK_SENT" "$SPOE_SET_VAR_ACK_EVIDENCE" "$HAPROXY_ENFORCED_BLOCK" \
         "$RUNTIME_RESULT_STATUS" "$RUNTIME_EXIT_CODE" "$RUNTIME_VERIFIED" "$RUNTIME_STATUS" \
-        "$RUNTIME_REASON" "$VERIFIED_CASE" <<'PY'
+        "$RUNTIME_REASON" "$VERIFIED_CASE" "$WITH_CRS_STATUS" "$WITH_CRS_VERIFIED_CASE" \
+        "$WITH_CRS_BLOCK_PROBE_STATUS" "$WITH_CRS_PASS_PROBE_STATUS" "$WITH_CRS_CRS_LOADED" \
+        "$WITH_CRS_CRS_PREAMBLE_FILE" "$WITH_CRS_BLOCKED_REASON" "$WITH_CRS_RUNTIME_LOG_DIR" \
+        "$WITH_CRS_DIAGNOSTIC_AGENT_LOG" "$WITH_CRS_HAPROXY_RUNTIME_LOG" "$WITH_CRS_HTTP_PROBE_LOG" \
+        "$WITH_CRS_MODSECURITY_EVIDENCE" "$WITH_CRS_AGENT_CONTACT_EVIDENCE" \
+        "$WITH_CRS_SET_VAR_ACK_EVIDENCE" "$WITH_CRS_BINDING_SELF_TEST_STATUS" \
+        "$WITH_CRS_BINDING_SELF_TEST_LOG" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -1034,6 +1380,22 @@ from datetime import datetime, timezone
     runtime_status,
     runtime_reason,
     verified_case,
+    with_crs_status,
+    with_crs_verified_case,
+    with_crs_block_probe_status,
+    with_crs_pass_probe_status,
+    with_crs_crs_loaded_text,
+    with_crs_crs_preamble_file,
+    with_crs_blocked_reason,
+    with_crs_runtime_log_dir,
+    with_crs_diagnostic_agent_log,
+    with_crs_haproxy_runtime_log,
+    with_crs_http_probe_log,
+    with_crs_modsecurity_evidence,
+    with_crs_agent_contact_evidence,
+    with_crs_set_var_ack_evidence,
+    with_crs_binding_self_test_status,
+    with_crs_binding_self_test_log,
 ) = sys.argv[1:]
 
 now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -1055,6 +1417,35 @@ modsecurity_library_present = modsecurity_library_present_text == "true"
 runtime_exit_code = int(runtime_exit_code_text)
 runtime_verified = runtime_verified_text == "true"
 runtime_passed = runtime_result_status == "PASS" and runtime_exit_code == 0 and runtime_verified
+with_crs_crs_loaded = with_crs_crs_loaded_text == "true"
+crs_verified = with_crs_status == "PASS" and with_crs_crs_loaded
+verified_cases = [verified_case] if verified_case else []
+if crs_verified and with_crs_verified_case not in verified_cases:
+    verified_cases.append(with_crs_verified_case)
+no_crs = {
+    "status": "PASS" if runtime_verified and verified_case == "haproxy_phase1_header_block" else runtime_result_status,
+    "verified_case": "haproxy_phase1_header_block",
+    "block_probe_status": int(http_block_probe_status) if http_block_probe_status.isdigit() else http_block_probe_status,
+    "pass_probe_status": int(http_pass_probe_status) if http_pass_probe_status.isdigit() else http_pass_probe_status,
+}
+with_crs = {
+    "status": with_crs_status,
+    "verified_case": with_crs_verified_case,
+    "block_probe_status": int(with_crs_block_probe_status) if with_crs_block_probe_status.isdigit() else with_crs_block_probe_status,
+    "pass_probe_status": int(with_crs_pass_probe_status) if with_crs_pass_probe_status.isdigit() else with_crs_pass_probe_status,
+    "crs_loaded": with_crs_crs_loaded,
+    "crs_preamble_file": with_crs_crs_preamble_file or None,
+    "blocked_reason": with_crs_blocked_reason or None,
+    "runtime_log_dir": with_crs_runtime_log_dir,
+    "diagnostic_agent_log": with_crs_diagnostic_agent_log,
+    "haproxy_runtime_log": with_crs_haproxy_runtime_log,
+    "http_probe_log": with_crs_http_probe_log,
+    "modsecurity_evidence": with_crs_modsecurity_evidence or None,
+    "agent_contact_evidence": with_crs_agent_contact_evidence or None,
+    "spoe_set_var_ack_evidence": with_crs_set_var_ack_evidence or None,
+    "binding_self_test_status": with_crs_binding_self_test_status,
+    "binding_self_test_log": with_crs_binding_self_test_log,
+}
 blocked_reasons = []
 if runtime_passed:
     blocked_reasons = []
@@ -1148,6 +1539,10 @@ diagnostics = {
     "haproxy_enforcement_status": haproxy_enforcement_status,
     "haproxy_enforced_block": haproxy_enforced_block,
     "verified_case": verified_case or None,
+    "verified_cases": verified_cases,
+    "no_crs": no_crs,
+    "with_crs": with_crs,
+    "crs_verified": crs_verified,
 }
 record = {
     "connector": connector,
@@ -1159,11 +1554,14 @@ record = {
     "runtime_verified": runtime_verified,
     "runtime_status": runtime_status,
     "response_body_verified": False,
-    "crs_verified": False,
+    "crs_verified": crs_verified,
     "reason": runtime_reason,
     "blocked_reasons": blocked_reasons,
     "diagnostics": diagnostics,
     "verified_case": verified_case or None,
+    "verified_cases": verified_cases,
+    "no_crs": no_crs,
+    "with_crs": with_crs,
     "run_id": run_id,
     "haproxy_runtime_started": haproxy_runtime_started,
     "diagnostic_agent_started": diagnostic_agent_started,
@@ -1218,19 +1616,22 @@ summary = {
     "run_tmp_dir": run_tmp_dir,
     "status": runtime_result_status,
     "counts": {
-        "PASS": 1 if runtime_passed else 0,
-        "FAIL": 0,
-        "BLOCKED": 0 if runtime_passed else 1,
+        "PASS": 1 if runtime_result_status == "PASS" else 0,
+        "FAIL": 1 if runtime_result_status == "FAIL" else 0,
+        "BLOCKED": 1 if runtime_result_status == "BLOCKED" else 0,
         "NOT_RUN": 0,
     },
     "runtime_verified": runtime_verified,
     "runtime_status": runtime_status,
     "response_body_verified": False,
-    "crs_verified": False,
+    "crs_verified": crs_verified,
     "reason": runtime_reason,
     "blocked_reasons": blocked_reasons,
     "diagnostics": diagnostics,
     "verified_case": verified_case or None,
+    "verified_cases": verified_cases,
+    "no_crs": no_crs,
+    "with_crs": with_crs,
     "haproxy_runtime_started": haproxy_runtime_started,
     "diagnostic_agent_started": diagnostic_agent_started,
     "diagnostic_backend_started": diagnostic_backend_started,
@@ -1315,6 +1716,24 @@ with open(summary_text, "w", encoding="utf-8") as handle:
     handle.write("runtime_status: " + runtime_status + "\n")
     if verified_case:
         handle.write("verified_case: " + verified_case + "\n")
+    if verified_cases:
+        handle.write("verified_cases: " + ", ".join(verified_cases) + "\n")
+    handle.write("no_crs.status: " + no_crs["status"] + "\n")
+    handle.write("no_crs.verified_case: " + no_crs["verified_case"] + "\n")
+    handle.write("no_crs.block_probe_status: " + str(no_crs["block_probe_status"]) + "\n")
+    handle.write("no_crs.pass_probe_status: " + str(no_crs["pass_probe_status"]) + "\n")
+    handle.write("with_crs.status: " + with_crs["status"] + "\n")
+    handle.write("with_crs.verified_case: " + with_crs["verified_case"] + "\n")
+    handle.write("with_crs.block_probe_status: " + str(with_crs["block_probe_status"]) + "\n")
+    handle.write("with_crs.pass_probe_status: " + str(with_crs["pass_probe_status"]) + "\n")
+    handle.write("with_crs.crs_loaded: " + str(with_crs["crs_loaded"]).lower() + "\n")
+    handle.write("with_crs.crs_preamble_file: " + str(with_crs["crs_preamble_file"]) + "\n")
+    if with_crs["blocked_reason"]:
+        handle.write("with_crs.blocked_reason: " + with_crs["blocked_reason"] + "\n")
+    if with_crs["modsecurity_evidence"]:
+        handle.write("with_crs.modsecurity_evidence: " + with_crs["modsecurity_evidence"] + "\n")
+    handle.write("crs_verified: " + str(crs_verified).lower() + "\n")
+    handle.write("response_body_verified: false\n")
     for item in blocked_reasons:
         handle.write(f"- {item}\n")
     if not runtime_verified:

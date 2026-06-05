@@ -64,10 +64,14 @@ typedef struct hello_info {
 typedef struct notify_request {
     char method[32];
     char path[1024];
+    char uri[1024];
+    char host[256];
     char test_header[1024];
     int has_notify;
     int has_method;
     int has_path;
+    int has_uri;
+    int has_host;
     int has_test_header;
 } notify_request;
 
@@ -537,6 +541,20 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
                 }
                 continue;
             }
+            if (key_equals(arg_name, arg_name_len, "uri")) {
+                if (read_typed_string_to_buffer(data, len, &pos, request->uri,
+                        sizeof(request->uri), &request->has_uri) != 0) {
+                    return -1;
+                }
+                continue;
+            }
+            if (key_equals(arg_name, arg_name_len, "host")) {
+                if (read_typed_string_to_buffer(data, len, &pos, request->host,
+                        sizeof(request->host), &request->has_host) != 0) {
+                    return -1;
+                }
+                continue;
+            }
             if (key_equals(arg_name, arg_name_len, "test_header")) {
                 if (read_typed_string_to_buffer(data, len, &pos, request->test_header,
                         sizeof(request->test_header), &request->has_test_header) != 0) {
@@ -556,14 +574,20 @@ static int build_notify_request_payload(
         spop_buffer *payload,
         const char *method,
         const char *path,
+        const char *uri,
+        const char *host,
         const char *test_header) {
     payload->len = 0;
     if (append_string(payload, "check-request") != 0 ||
-            append_byte(payload, 3U) != 0 ||
+            append_byte(payload, 5U) != 0 ||
             append_string(payload, "method") != 0 ||
             append_typed_string(payload, method) != 0 ||
             append_string(payload, "path") != 0 ||
             append_typed_string(payload, path) != 0 ||
+            append_string(payload, "uri") != 0 ||
+            append_typed_string(payload, uri) != 0 ||
+            append_string(payload, "host") != 0 ||
+            append_typed_string(payload, host) != 0 ||
             append_string(payload, "test_header") != 0 ||
             append_typed_string(payload, test_header) != 0) {
         return -1;
@@ -746,7 +770,7 @@ static int send_haproxy_hello(int fd, int healthcheck) {
     return send_frame(fd, SPOP_FRM_HAPROXY_HELLO, 0, 0, &payload);
 }
 
-static int handle_connection(int fd, FILE *log) {
+static int handle_connection(int fd, FILE *log, const char *crs_preamble_file) {
     spop_frame frame;
     hello_info hello;
 
@@ -785,16 +809,37 @@ static int handle_connection(int fd, FILE *log) {
                 continue;
             }
             log_line(log,
-                "NOTIFY request args extracted method_present=%d path_present=%d test_header_present=%d method=%s path=%s test_header=%s",
-                request.has_method, request.has_path, request.has_test_header,
+                "NOTIFY request args extracted method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d method=%s path=%s uri=%s host=%s test_header=%s",
+                request.has_method, request.has_path, request.has_uri,
+                request.has_host, request.has_test_header,
                 request.has_method ? request.method : "",
                 request.has_path ? request.path : "",
+                request.has_uri ? request.uri : "",
+                request.has_host ? request.host : "",
                 request.has_test_header ? request.test_header : "");
-            modsec_rc = haproxy_modsecurity_phase1_header_eval(
-                request.has_method ? request.method : "GET",
-                request.has_path ? request.path : "/",
-                request.has_test_header ? request.test_header : "",
-                &decision);
+            if ((!request.has_test_header || request.test_header[0] == '\0') &&
+                    crs_preamble_file != 0 && crs_preamble_file[0] != '\0') {
+                log_line(log, "CRS loaded preamble=%s", crs_preamble_file);
+                modsec_rc = haproxy_modsecurity_crs_sqli_eval(
+                    request.has_method ? request.method : "GET",
+                    request.has_uri ? request.uri :
+                        (request.has_path ? request.path : "/"),
+                    request.has_host ? request.host : "localhost",
+                    crs_preamble_file,
+                    &decision);
+                if (modsec_rc == 0) {
+                    log_line(log, "CRS live decision disruptive=%d status=%d uri=%s",
+                        decision.disruptive, decision.status,
+                        request.has_uri ? request.uri :
+                            (request.has_path ? request.path : "/"));
+                }
+            } else {
+                modsec_rc = haproxy_modsecurity_phase1_header_eval(
+                    request.has_method ? request.method : "GET",
+                    request.has_path ? request.path : "/",
+                    request.has_test_header ? request.test_header : "",
+                    &decision);
+            }
             if (modsec_rc != 0) {
                 log_line(log, "MODSECURITY live binding failed reason=%s",
                     decision.log_message[0] != '\0' ? decision.log_message : "unknown");
@@ -888,7 +933,7 @@ static int connect_localhost(unsigned int port) {
     return fd;
 }
 
-static int accept_loop(int listen_fd, FILE *log, int max_connections) {
+static int accept_loop(int listen_fd, FILE *log, int max_connections, const char *crs_preamble_file) {
     int handled = 0;
 
     signal(SIGTERM, on_signal);
@@ -902,7 +947,7 @@ static int accept_loop(int listen_fd, FILE *log, int max_connections) {
             log_line(log, "accept failed errno=%d", errno);
             return 1;
         }
-        handle_connection(fd, log);
+        handle_connection(fd, log, crs_preamble_file);
         close(fd);
         handled++;
     }
@@ -955,7 +1000,8 @@ static int run_client_self_test(unsigned int port, FILE *log) {
     }
     empty.len = 0;
     if (build_notify_request_payload(&notify_payload, "GET",
-            "/haproxy-binding-self-test", "block") != 0) {
+            "/haproxy-binding-self-test", "/haproxy-binding-self-test",
+            "localhost", "block") != 0) {
         close(fd);
         return -1;
     }
@@ -1013,7 +1059,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     if (child == 0) {
         write_text_file(pid_path, "%ld\n", (long)getpid());
         write_text_file(ready_path, "ready\n");
-        exit(accept_loop(listen_fd, log, 2));
+        exit(accept_loop(listen_fd, log, 2, 0));
     }
     close(listen_fd);
     if (run_client_self_test(port, log) != 0) {
@@ -1036,7 +1082,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     return 0;
 }
 
-static int run_server(const char *host, unsigned int port, const char *ready_file, const char *pid_file, const char *port_file, const char *log_file) {
+static int run_server(const char *host, unsigned int port, const char *ready_file, const char *pid_file, const char *port_file, const char *log_file, const char *crs_preamble_file) {
     int listen_fd;
     unsigned int bound_port;
     FILE *log;
@@ -1060,14 +1106,14 @@ static int run_server(const char *host, unsigned int port, const char *ready_fil
         return 77;
     }
     log_line(log, "minimal diagnostic SPOP handshake subset with set-var enforcement diagnostic listening on %s:%u", host, bound_port);
-    accept_loop(listen_fd, log, 0);
+    accept_loop(listen_fd, log, 0, crs_preamble_file);
     close(listen_fd);
     fclose(log);
     return 0;
 }
 
 static void print_usage(const char *program) {
-    fprintf(stderr, "usage: %s --describe|--runtime-self-test --tmp-root PATH --log-root PATH|--serve --host 127.0.0.1 --port PORT --ready-file PATH --pid-file PATH --port-file PATH --log-file PATH\n", program);
+    fprintf(stderr, "usage: %s --describe|--runtime-self-test --tmp-root PATH --log-root PATH|--serve --host 127.0.0.1 --port PORT --ready-file PATH --pid-file PATH --port-file PATH --log-file PATH [--crs-preamble-file PATH]\n", program);
 }
 
 int main(int argc, char **argv) {
@@ -1104,6 +1150,7 @@ int main(int argc, char **argv) {
         const char *pid_file = 0;
         const char *port_file = 0;
         const char *log_file = 0;
+        const char *crs_preamble_file = 0;
         unsigned int port = 0;
         int i;
         for (i = 2; i < argc; ++i) {
@@ -1119,6 +1166,8 @@ int main(int argc, char **argv) {
                 port_file = argv[++i];
             } else if (strcmp(argv[i], "--log-file") == 0 && i + 1 < argc) {
                 log_file = argv[++i];
+            } else if (strcmp(argv[i], "--crs-preamble-file") == 0 && i + 1 < argc) {
+                crs_preamble_file = argv[++i];
             } else {
                 print_usage(argv[0]);
                 return 2;
@@ -1128,7 +1177,7 @@ int main(int argc, char **argv) {
             print_usage(argv[0]);
             return 2;
         }
-        return run_server(host, port, ready_file, pid_file, port_file, log_file);
+        return run_server(host, port, ready_file, pid_file, port_file, log_file, crs_preamble_file);
     }
 
     print_usage(argv[0]);

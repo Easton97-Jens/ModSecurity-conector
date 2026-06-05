@@ -143,15 +143,17 @@ evidence.
   ModSecurity binding self-test PASS; productive adapter build BLOCKED.
 - Self-test status: local synthetic request-decision self-test PASS.
 - Runtime status: `runtime-smoke-verified` for
-  `haproxy_phase1_header_block` only.
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
 - The starter uses shared request/intervention/status/origin shapes. The
   diagnostic path now also has live HAProxy to diagnostic SPOA to libmodsecurity
-  enforcement evidence for the header-block case, but it does not implement
-  full SPOE/SPOA compatibility, load CRS, or verify RESPONSE_BODY.
+  enforcement evidence for the header-block case and the CRS SQLi anomaly case,
+  but it does not implement full SPOE/SPOA compatibility or verify
+  RESPONSE_BODY.
+- CRS status: verified only for `haproxy_crs_sqli_anomaly_block`.
 - No local `connectors/haproxy/tests` folder is used.
 - Missing broader runtime evidence: full SPOA implementation, broader Framework
-  case runtime, CRS runtime evidence, RESPONSE_BODY evidence, negative/pass-
-  through evidence, and audit/log evidence.
+  case runtime, broader CRS runtime evidence, RESPONSE_BODY evidence,
+  negative/pass-through evidence, audit/log evidence, and full-matrix evidence.
 - Alignment report: `reports/template-verification-nginx-apache/haproxy-template-alignment.md`.
 ## lighttpd Bridge-Starter
 
@@ -197,8 +199,9 @@ lighttpd, and Traefik through `make smoke-envoy`, `make smoke-haproxy`,
 `make smoke-lighttpd`, and `make smoke-traefik`. These targets write runtime
 evidence files under `/src/ModSecurity-conector-build/results/`.
 
-Current status is PASS for HAProxy's single `haproxy_phase1_header_block`
-runtime smoke and BLOCKED for Envoy, lighttpd, and Traefik. The aggregate
+Current status is PASS for HAProxy's scoped `haproxy_phase1_header_block` and
+`haproxy_crs_sqli_anomaly_block` runtime smokes and BLOCKED for Envoy,
+lighttpd, and Traefik. The aggregate
 `make smoke-new-connectors` remains diagnostic and exits BLOCKED while any new
 connector runtime remains unverified instead of summarizing blocked states as
 PASS.
