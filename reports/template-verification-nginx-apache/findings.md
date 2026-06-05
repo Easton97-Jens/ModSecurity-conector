@@ -187,6 +187,11 @@ Detailed report:
   request-decision logic using shared request/intervention/status data shapes.
 - The starter does not include HAProxy headers, SPOP frame parsing,
   libmodsecurity headers, CRS loading, network handling, or a runtime harness.
+- `make smoke-haproxy` is still BLOCKED, but now records granular prerequisite
+  diagnostics in `/src/ModSecurity-conector-build/results/haproxy-summary.json`.
+- Current HAProxy runtime blockers are: missing HAProxy binary, missing
+  framework-owned HAProxy source/binary acquisition, self-test-only SPOA
+  starter, example-only SPOE/HAProxy config, and missing ModSecurity binding.
 - Productive adapter build remains BLOCKED because the repository still lacks a
   selected SPOP parser/library, verified HAProxy SPOE/SPOA config, HAProxy
   runtime harness, and libmodsecurity binding strategy.

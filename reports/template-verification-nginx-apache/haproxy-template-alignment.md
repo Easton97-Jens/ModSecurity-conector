@@ -44,6 +44,7 @@ adapter and is not runtime verified.
 | SPOA starter build | PASS | `make -C connectors/haproxy build-spoa-starter` |
 | Local self-test | PASS | `make -C connectors/haproxy self-test-spoa` |
 | Productive adapter build | BLOCKED | SPOP parser/library, HAProxy runtime harness, verified HAProxy config, libmodsecurity binding strategy, and runtime evidence not selected |
+| Runtime prerequisite diagnostics | BLOCKED | `make smoke-haproxy` writes granular blocked reasons |
 
 ## Phase Matrix
 
@@ -76,4 +77,7 @@ Those records are connector-starter evidence only and keep
 runner, which dispatches to `connectors/haproxy/harness/run_haproxy_smoke.sh`.
 Current status is BLOCKED because that connector-side entrypoint only writes
 diagnostic evidence and no real HAProxy server/config/SPOE runtime harness
-exists. Runtime remains not verified and RESPONSE_BODY remains not verified.
+exists. The recorded blockers are: missing HAProxy binary, no HAProxy
+source/binary acquisition in framework `common.sh`, self-test-only SPOA starter,
+example-only SPOE/HAProxy config, and missing ModSecurity binding. Runtime
+remains not verified and RESPONSE_BODY remains not verified.

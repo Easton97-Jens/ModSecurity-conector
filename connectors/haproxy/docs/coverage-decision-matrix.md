@@ -19,7 +19,7 @@ matrix structure and promotion rules are defined in:
 | SPOA starter build | PASS | `make -C connectors/haproxy build-spoa-starter` |
 | Local self-test | PASS | `make -C connectors/haproxy self-test-spoa` |
 | Productive adapter build | BLOCKED | SPOP parser/library, HAProxy runtime harness, and libmodsecurity binding strategy not selected |
-| Harness | contract only | `connectors/haproxy/harness/README.md` |
+| Harness | blocked prerequisite diagnostics | `connectors/haproxy/harness/run_haproxy_smoke.sh` writes BLOCKED evidence |
 | No-CRS | not-run | no HAProxy-scoped runtime evidence recorded |
 | With-CRS | not-run | no HAProxy-scoped CRS runtime evidence recorded |
 | RESPONSE_BODY | not-verified | no blocking response-body runtime evidence recorded |
@@ -33,7 +33,9 @@ matrix structure and promotion rules are defined in:
 - [x] metadata build recorded
 - [x] local SPOA agent starter build recorded
 - [x] local SPOA agent starter self-test recorded
+- [x] blocked runtime-smoke prerequisite diagnostics recorded
 - [ ] SPOP frame parser or SPOE/SPOA protocol library selected
+- [ ] HAProxy binary or framework-owned source acquisition defined
 - [ ] productive origin/license evidence recorded
 - [ ] productive runtime build evidence recorded
 - [ ] harness implemented and evidenced
@@ -50,7 +52,7 @@ matrix structure and promotion rules are defined in:
 | Phase 0 | Scaffold | OK |
 | Phase 1 | Origin/Metadata | spoa-agent-starter |
 | Phase 2 | Build | spoa-agent-starter; productive build BLOCKED |
-| Phase 3 | Harness | contract only |
+| Phase 3 | Harness | blocked prerequisite diagnostics only |
 | Phase 4 | No-CRS runtime | not-run |
 | Phase 5 | With-CRS runtime | not-run |
 | Phase 6 | Coverage matrix | spoa-agent-starter documented |

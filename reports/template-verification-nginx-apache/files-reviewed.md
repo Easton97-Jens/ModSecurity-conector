@@ -205,6 +205,8 @@
 - `connectors/haproxy/docs/coverage-decision-matrix.md`
 - `connectors/haproxy/harness/README.md`
 - `connectors/haproxy/harness/run_haproxy_smoke.sh`
+- `/src/ModSecurity-conector-build/results/haproxy-summary.json`
+- `/src/ModSecurity-conector-build/results/haproxy-results.jsonl`
 - `connectors/haproxy/src/README.md`
 - `reports/template-verification-nginx-apache/haproxy-template-alignment.md`
 

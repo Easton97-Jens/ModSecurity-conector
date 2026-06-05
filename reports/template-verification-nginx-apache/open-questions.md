@@ -141,8 +141,13 @@ still blocked until one path supplies real dependencies:
 
 - Select and document an SPOP parser or SPOE/SPOA protocol library before the
   starter can become a compatible SPOA service.
+- Define a framework-owned HAProxy source/binary acquisition path in `common.sh`
+  or provide a local HAProxy binary under the `/src` build contract.
 - Replace the blocked HAProxy entrypoint with a real runtime harness that starts
   HAProxy with verified SPOE/SPOA configuration and the starter/agent endpoint.
+- Replace the self-test-only SPOA starter with a runnable SPOA runtime service
+  or bridge that HAProxy can call.
+- Replace example-only SPOE/HAProxy config with verified runtime config.
 - Select and implement the HAProxy-specific libmodsecurity binding strategy.
 - Add runtime evidence for No-CRS, With-CRS, RESPONSE_BODY blocking,
   negative/pass-through behavior, and audit/log artifacts.

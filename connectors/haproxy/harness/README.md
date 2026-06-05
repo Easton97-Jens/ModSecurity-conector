@@ -26,6 +26,15 @@ The current `run_haproxy_smoke.sh` entrypoint writes BLOCKED evidence under
 `/src/ModSecurity-conector-build/results/` and reports runtime not verified. It
 does not run the SPOA starter self-test as runtime evidence.
 
+The entrypoint checks HAProxy runtime prerequisites before writing evidence. In
+the current repository/environment it remains BLOCKED because:
+
+- no `haproxy` binary is available to the harness;
+- HAProxy source/binary acquisition is not defined in the framework `common.sh`;
+- the SPOA starter binary is self-test-only and is not a runnable SPOA server;
+- the HAProxy/SPOE config files are example-only, not runtime-verified config;
+- no HAProxy/libmodsecurity transaction binding exists.
+
 A future HAProxy harness must not claim runtime verification until it records:
 
 - HAProxy binary, container, or source-build evidence
