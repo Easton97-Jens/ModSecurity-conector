@@ -46,7 +46,7 @@ proxy-wasm SDK/toolchain, or an Envoy runtime harness.
 | Phase 2 Build | bridge-starter PASS |
 | Phase 3 Bridge Self-Test | PASS |
 | Phase 4 ModSecurity Bridge | blocked; libmodsecurity headers/libs not found |
-| Phase 5 Envoy Harness | missing |
+| Phase 5 Envoy Harness | blocked entrypoint only |
 | Phase 6 No-CRS | not-run |
 | Phase 7 With-CRS | not-run |
 | Phase 8 CRS Evidence | not-verified |
@@ -75,7 +75,8 @@ Those records are connector-starter evidence only and keep
 
 ## Runtime-Smoke Entry Point
 
-`make smoke-envoy` now invokes the framework-owned Envoy runtime-smoke runner.
-Current status is BLOCKED because no executable Envoy runtime harness exists
-under `connectors/envoy/harness/`. Runtime remains not verified and
-RESPONSE_BODY remains not verified.
+`make smoke-envoy` now invokes the framework-owned Envoy runtime-smoke runner,
+which dispatches to `connectors/envoy/harness/run_envoy_smoke.sh`. Current
+status is BLOCKED because that connector-side entrypoint only writes diagnostic
+evidence and no real Envoy server/config/runtime harness exists. Runtime remains
+not verified and RESPONSE_BODY remains not verified.

@@ -1,9 +1,11 @@
 # Envoy Harness
 
-Status: bridge-starter CLI only
-Runtime status: not-verified
+Status: bridge-starter CLI plus blocked runtime-smoke entrypoint
+Runtime status: blocked / not-verified
 
-No Envoy runtime harness is implemented.
+`run_envoy_smoke.sh` exists as the connector-side entrypoint for the framework
+runtime-smoke runner. It currently writes BLOCKED evidence and exits 77 because
+no real Envoy server/config/runtime harness is implemented.
 
 The current local CLI self-test is:
 
@@ -21,9 +23,9 @@ Framework runtime-smoke entrypoint:
 make smoke-envoy
 ```
 
-Until an executable `run_envoy_smoke.sh` runtime harness exists here, that target
-writes BLOCKED evidence under `/src/ModSecurity-conector-build/results/` and
-reports runtime not verified.
+The current `run_envoy_smoke.sh` entrypoint writes BLOCKED evidence under
+`/src/ModSecurity-conector-build/results/` and reports runtime not verified. It
+does not run the bridge starter self-test as runtime evidence.
 
 A future Envoy harness must document:
 

@@ -55,9 +55,10 @@ The Envoy entries are connector-starter build/self-test evidence only:
 ## Runtime-Smoke Entry Point
 
 `make smoke-envoy` invokes the framework-owned Envoy runtime-smoke runner. The
-current result is BLOCKED because `connectors/envoy/harness/` does not contain
-an executable Envoy runtime harness. Evidence is written under
-`/src/ModSecurity-conector-build/results/`.
+current result is BLOCKED. `connectors/envoy/harness/run_envoy_smoke.sh` exists
+as a connector-side runtime-smoke entrypoint, but it only writes blocked
+diagnostic evidence because no real Envoy server/config/runtime harness exists.
+Evidence is written under `/src/ModSecurity-conector-build/results/`.
 
 This entrypoint does not run the bridge starter self-test as runtime evidence.
 Runtime remains not verified and RESPONSE_BODY remains not verified.

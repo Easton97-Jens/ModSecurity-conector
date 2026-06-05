@@ -15,7 +15,7 @@ Global runtime rules and promotion gates are defined in:
 - Metadata build-starter: buildable as a compile-time object target.
 - SPOA agent starter: buildable as a local binary with local self-test.
 - Productive adapter build: BLOCKED.
-- HAProxy runtime harness: not implemented.
+- HAProxy runtime harness: blocked entrypoint only.
 - No-CRS: not run.
 - With-CRS: not run.
 - RESPONSE_BODY: not verified.
@@ -36,8 +36,9 @@ explicit HAProxy runtime scope exists and is executed:
 
 ## Harness Blocker
 
-No HAProxy runtime harness is implemented in this connector. The local self-test
-runs only synthetic in-process request-decision logic.
+`connectors/haproxy/harness/run_haproxy_smoke.sh` exists as a blocked
+runtime-smoke entrypoint only. The local self-test runs only synthetic
+in-process request-decision logic.
 
 A future harness must provide HAProxy binary/container/source-build evidence,
 HAProxy config, SPOE/SPOA config, agent endpoint, ModSecurity integration point
@@ -62,9 +63,9 @@ The HAProxy entries are connector-starter build/self-test evidence only:
 ## Runtime-Smoke Entry Point
 
 `make smoke-haproxy` invokes the framework-owned HAProxy runtime-smoke runner.
-The current result is BLOCKED because `connectors/haproxy/harness/` does not
-contain an executable HAProxy runtime harness. Evidence is written under
-`/src/ModSecurity-conector-build/results/`.
+The current result is BLOCKED because the connector-side entrypoint writes
+diagnostic evidence and no real HAProxy server/config/SPOE runtime harness
+exists. Evidence is written under `/src/ModSecurity-conector-build/results/`.
 
 This entrypoint does not run the SPOA starter self-test as runtime evidence.
 Runtime remains not verified and RESPONSE_BODY remains not verified.

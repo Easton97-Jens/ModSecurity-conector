@@ -52,7 +52,7 @@ adapter and is not runtime verified.
 | Phase 0 | Scaffold | OK |
 | Phase 1 | Origin/Metadata | spoa-agent-starter |
 | Phase 2 | Build | spoa-agent-starter; productive build BLOCKED |
-| Phase 3 | Harness | contract only |
+| Phase 3 | Harness | blocked entrypoint only |
 | Phase 4 | No-CRS | not-run |
 | Phase 5 | With-CRS | not-run |
 | Phase 6 | Coverage Matrix | spoa-agent-starter documented |
@@ -73,6 +73,7 @@ Those records are connector-starter evidence only and keep
 ## Runtime-Smoke Entry Point
 
 `make smoke-haproxy` now invokes the framework-owned HAProxy runtime-smoke
-runner. Current status is BLOCKED because no executable HAProxy runtime harness
-exists under `connectors/haproxy/harness/`. Runtime remains not verified and
-RESPONSE_BODY remains not verified.
+runner, which dispatches to `connectors/haproxy/harness/run_haproxy_smoke.sh`.
+Current status is BLOCKED because that connector-side entrypoint only writes
+diagnostic evidence and no real HAProxy server/config/SPOE runtime harness
+exists. Runtime remains not verified and RESPONSE_BODY remains not verified.

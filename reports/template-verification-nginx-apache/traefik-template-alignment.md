@@ -13,7 +13,7 @@ rules locally.
 - Runtime status: not-verified.
 - No local `connectors/traefik/tests` folder is used.
 - No Traefik runtime claim is made.
-- No Traefik API, plugin SDK, middleware SDK, Go module, HTTP service, or
+- No Traefik API, plugin SDK, middleware SDK, Go module, HTTP service, or real
   runtime harness is implemented.
 - Starter source compiles metadata, local decision logic, and shared `common/`
   helpers only.
@@ -58,7 +58,7 @@ rules locally.
 | Phase 0 Scaffold | OK | Scaffold files are present |
 | Phase 1 Origin/Metadata | starter-present | Repo-owned starter origin, source map, and metadata are present; upstream Traefik origin remains open |
 | Phase 2 Build | decision-service-starter | Metadata and decision-service starters passed local compile/self-test |
-| Phase 3 Harness | contract only | Harness contract is documented only |
+| Phase 3 Harness | blocked entrypoint only | Connector-side runtime-smoke script writes BLOCKED evidence only |
 | Phase 4 No-CRS | not-run | No Traefik runtime command was run |
 | Phase 5 With-CRS | not-run | No Traefik runtime command was run |
 | Phase 6 Coverage Matrix | starter-documented | Connector-specific matrix records open runtime gates |
@@ -79,6 +79,8 @@ Those records are connector-starter evidence only and keep
 ## Runtime-Smoke Entry Point
 
 `make smoke-traefik` now invokes the framework-owned Traefik runtime-smoke
-runner. Current status is BLOCKED because no executable Traefik runtime harness
-exists under `connectors/traefik/harness/`. Runtime remains not verified and
-RESPONSE_BODY remains not verified.
+runner, which dispatches to
+`connectors/traefik/harness/run_traefik_smoke.sh`. Current status is BLOCKED
+because that connector-side entrypoint only writes diagnostic evidence and no
+real Traefik server/config/runtime harness exists. Runtime remains not verified
+and RESPONSE_BODY remains not verified.

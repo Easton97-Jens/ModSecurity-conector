@@ -1,11 +1,13 @@
 # Traefik Harness
 
-Status: contract only
-Runtime status: not-verified
+Status: contract plus blocked runtime-smoke entrypoint
+Runtime status: blocked / not-verified
 
-A Traefik runtime harness is not implemented. The metadata build starter and
-local decision-service starter do not start Traefik and do not execute framework
-YAML cases.
+`run_traefik_smoke.sh` exists as the connector-side entrypoint for the framework
+runtime-smoke runner. It currently writes BLOCKED evidence and exits 77 because
+no real Traefik server/config/runtime harness is implemented. The metadata build
+starter and local decision-service starter do not start Traefik and do not
+execute framework YAML cases.
 
 Current local self-test:
 
@@ -21,9 +23,9 @@ Framework runtime-smoke entrypoint:
 make smoke-traefik
 ```
 
-Until an executable `run_traefik_smoke.sh` runtime harness exists here, that
-target writes BLOCKED evidence under
-`/src/ModSecurity-conector-build/results/` and reports runtime not verified.
+The current `run_traefik_smoke.sh` entrypoint writes BLOCKED evidence under
+`/src/ModSecurity-conector-build/results/` and reports runtime not verified. It
+does not run decision-service starter self-tests as runtime evidence.
 
 Future harness work must document:
 

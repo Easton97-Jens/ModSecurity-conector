@@ -240,9 +240,10 @@ Detailed report:
 
 - The framework now has runtime-smoke entrypoints for Envoy, HAProxy, lighttpd,
   and Traefik.
-- The current Envoy/HAProxy/lighttpd/Traefik harness folders are contract-only,
-  so each runtime-smoke runner writes BLOCKED evidence with
-  `runtime_verified: false`.
+- The Envoy/HAProxy/lighttpd/Traefik harness folders now contain executable
+  `run_<name>_smoke.sh` entrypoints. They write BLOCKED diagnostic evidence
+  with `runtime_verified: false` because real server/proxy harnesses are not
+  implemented.
 - `smoke-new-connectors` is not allowed to turn blocked diagnostics into PASS;
   with all four runtime harnesses missing, the aggregate status remains
   BLOCKED and `Runtime not verified`.

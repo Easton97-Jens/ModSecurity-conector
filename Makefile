@@ -163,8 +163,8 @@ connector-starter-checks: check-framework
 	SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
 lint: check-framework
-	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh connectors/traefik/build/*.sh
-	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
+	sh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh
+	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"

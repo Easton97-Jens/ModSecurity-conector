@@ -20,8 +20,8 @@ Updated: 2026-05-31 00:00:00 UTC
 - Current `/src` `make test-with-crs`: PASS; Apache 55 PASS, 0 FAIL,
   0 BLOCKED; NGINX 61 PASS, 0 FAIL, 0 BLOCKED.
 - RESPONSE_BODY blocking: not verified.
-- Envoy build readiness: sidecar/HTTP bridge-starter; runtime status
-  not-verified; no local `connectors/envoy/tests` folder.
+- Envoy build readiness: sidecar/HTTP bridge-starter; runtime-smoke entrypoint
+  exists and reports BLOCKED; no local `connectors/envoy/tests` folder.
 - Vollstaendige Runtime-Verifikation: nein.
 - lighttpd bridge-starter checked/updated: yes; it follows global connector gates,
   uses shared rules instead of duplicating them, has no runtime evidence, and
@@ -230,12 +230,19 @@ Makefile and wrote framework-owned evidence under
 ## New Connector Runtime-Smoke Summary
 
 Framework runtime-smoke entrypoints exist for Envoy, HAProxy, lighttpd, and
-Traefik. Current runtime-smoke status is `BLOCKED` for each connector because no
-executable runtime harness exists under `connectors/<name>/harness/`.
+Traefik. Connector-side `run_<name>_smoke.sh` entrypoints now also exist for all
+four connectors. Current runtime-smoke status is `BLOCKED` for each connector
+because those scripts only write diagnostic evidence and no real server/proxy
+runtime harness exists.
 
 - Runtime-smoke targets: `make smoke-envoy`, `make smoke-haproxy`,
   `make smoke-lighttpd`, `make smoke-traefik`.
 - Aggregate target: `make smoke-new-connectors`.
+- Connector-side entrypoints:
+  `connectors/envoy/harness/run_envoy_smoke.sh`,
+  `connectors/haproxy/harness/run_haproxy_smoke.sh`,
+  `connectors/lighttpd/harness/run_lighttpd_smoke.sh`,
+  `connectors/traefik/harness/run_traefik_smoke.sh`.
 - Evidence path: `/src/ModSecurity-conector-build/results/<connector>-summary.json`
   and `/src/ModSecurity-conector-build/results/<connector>-results.jsonl`.
 - Runtime verification: false for all four.

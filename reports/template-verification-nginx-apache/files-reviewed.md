@@ -177,6 +177,7 @@
 - `connectors/envoy/docs/coverage-decision-matrix.md`
 - `connectors/envoy/docs/public-sources.md`
 - `connectors/envoy/harness/README.md`
+- `connectors/envoy/harness/run_envoy_smoke.sh`
 - `connectors/envoy/src/README.md`
 - `reports/template-verification-nginx-apache/envoy-template-alignment.md`
 
@@ -203,6 +204,7 @@
 - `connectors/haproxy/docs/validation.md`
 - `connectors/haproxy/docs/coverage-decision-matrix.md`
 - `connectors/haproxy/harness/README.md`
+- `connectors/haproxy/harness/run_haproxy_smoke.sh`
 - `connectors/haproxy/src/README.md`
 - `reports/template-verification-nginx-apache/haproxy-template-alignment.md`
 
@@ -245,6 +247,7 @@
 - `connectors/lighttpd/docs/coverage-decision-matrix.md`
 - `connectors/lighttpd/docs/public-sources.md`
 - `connectors/lighttpd/harness/README.md`
+- `connectors/lighttpd/harness/run_lighttpd_smoke.sh`
 - `connectors/lighttpd/src/README.md`
 - `reports/template-verification-nginx-apache/lighttpd-template-alignment.md`
 
@@ -269,6 +272,7 @@ metadata/probe/bridge code only. No local `connectors/lighttpd/tests` folder exi
 - `connectors/traefik/docs/coverage-decision-matrix.md`
 - `connectors/traefik/docs/public-sources.md`
 - `connectors/traefik/harness/README.md`
+- `connectors/traefik/harness/run_traefik_smoke.sh`
 - `connectors/traefik/src/README.md`
 - `reports/template-verification-nginx-apache/traefik-template-alignment.md`
 
@@ -295,6 +299,10 @@ The result files are local evidence artifacts and are not committed.
 ## New Connector Runtime-Smoke Files
 
 - `Makefile`
+- `connectors/envoy/harness/run_envoy_smoke.sh`
+- `connectors/haproxy/harness/run_haproxy_smoke.sh`
+- `connectors/lighttpd/harness/run_lighttpd_smoke.sh`
+- `connectors/traefik/harness/run_traefik_smoke.sh`
 - `modules/ModSecurity-test-Framework/ci/common.sh`
 - `modules/ModSecurity-test-Framework/ci/connector-smoke-common.sh`
 - `modules/ModSecurity-test-Framework/ci/run-envoy-smoke.sh`

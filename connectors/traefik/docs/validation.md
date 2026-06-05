@@ -48,8 +48,9 @@ The Traefik entries are connector-starter build/self-test evidence only:
 ## Runtime-Smoke Entry Point
 
 `make smoke-traefik` invokes the framework-owned Traefik runtime-smoke runner.
-The current result is BLOCKED because `connectors/traefik/harness/` does not
-contain an executable Traefik runtime harness. Evidence is written under
+The current result is BLOCKED because
+`connectors/traefik/harness/run_traefik_smoke.sh` writes diagnostic evidence and
+no real Traefik server/config/runtime harness exists. Evidence is written under
 `/src/ModSecurity-conector-build/results/`.
 
 This entrypoint does not run decision-service starter self-tests as runtime

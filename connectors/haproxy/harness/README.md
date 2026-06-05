@@ -1,9 +1,11 @@
 # HAProxy Harness
 
-Status: contract only
-Runtime status: not-verified
+Status: contract plus blocked runtime-smoke entrypoint
+Runtime status: blocked / not-verified
 
-Harness not implemented. This directory documents the contract only.
+`run_haproxy_smoke.sh` exists as the connector-side entrypoint for the framework
+runtime-smoke runner. It currently writes BLOCKED evidence and exits 77 because
+no real HAProxy server/config/SPOE runtime harness is implemented.
 
 A local SPOA agent starter exists and can run a local self-test through:
 
@@ -20,9 +22,9 @@ Framework runtime-smoke entrypoint:
 make smoke-haproxy
 ```
 
-Until an executable `run_haproxy_smoke.sh` runtime harness exists here, that
-target writes BLOCKED evidence under
-`/src/ModSecurity-conector-build/results/` and reports runtime not verified.
+The current `run_haproxy_smoke.sh` entrypoint writes BLOCKED evidence under
+`/src/ModSecurity-conector-build/results/` and reports runtime not verified. It
+does not run the SPOA starter self-test as runtime evidence.
 
 A future HAProxy harness must not claim runtime verification until it records:
 

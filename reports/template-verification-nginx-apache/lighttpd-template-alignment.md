@@ -29,7 +29,7 @@ lighttpd build and harness exist.
 | lighttpd API usage | none |
 | FastCGI/SCGI protocol implementation | none |
 | ModSecurity API usage | none |
-| runtime harness | not implemented |
+| runtime harness | blocked entrypoint only |
 
 ## Phase Matrix
 
@@ -38,7 +38,7 @@ lighttpd build and harness exist.
 | Phase 0 Scaffold | OK | Scaffold files are present. |
 | Phase 1 Origin/Metadata | bridge-starter documented | No upstream lighttpd source imported; metadata records bridge-starter status. |
 | Phase 2 Build | bridge-starter | Compile/self-test checks exist for local starter source only. |
-| Phase 3 Harness | contract only | Harness contract is documented only. |
+| Phase 3 Harness | blocked entrypoint only | Connector-side runtime-smoke script writes BLOCKED evidence only. |
 | Phase 4 No-CRS | not-run | No lighttpd No-CRS runtime evidence. |
 | Phase 5 With-CRS | not-run | No lighttpd With-CRS runtime evidence. |
 | Phase 6 Coverage Matrix | bridge-starter documented | lighttpd matrix references the global matrix. |
@@ -82,6 +82,8 @@ Those records are connector-starter evidence only and keep
 ## Runtime-Smoke Entry Point
 
 `make smoke-lighttpd` now invokes the framework-owned lighttpd runtime-smoke
-runner. Current status is BLOCKED because no executable lighttpd runtime harness
-exists under `connectors/lighttpd/harness/`. Runtime remains not verified and
-RESPONSE_BODY remains not verified.
+runner, which dispatches to
+`connectors/lighttpd/harness/run_lighttpd_smoke.sh`. Current status is BLOCKED
+because that connector-side entrypoint only writes diagnostic evidence and no
+real lighttpd server/config/runtime harness exists. Runtime remains not verified
+and RESPONSE_BODY remains not verified.

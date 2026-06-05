@@ -1,10 +1,11 @@
 # lighttpd Harness
 
-Status: contract only
-Runtime status: not-verified
+Status: contract plus blocked runtime-smoke entrypoint
+Runtime status: blocked / not-verified
 
-No lighttpd runtime harness is implemented. This directory documents the
-contract only.
+`run_lighttpd_smoke.sh` exists as the connector-side entrypoint for the
+framework runtime-smoke runner. It currently writes BLOCKED evidence and exits
+77 because no real lighttpd server/config/runtime harness is implemented.
 
 The local starters are not a runtime harness:
 
@@ -22,9 +23,9 @@ Framework runtime-smoke entrypoint:
 make smoke-lighttpd
 ```
 
-Until an executable `run_lighttpd_smoke.sh` runtime harness exists here, that
-target writes BLOCKED evidence under
-`/src/ModSecurity-conector-build/results/` and reports runtime not verified.
+The current `run_lighttpd_smoke.sh` entrypoint writes BLOCKED evidence under
+`/src/ModSecurity-conector-build/results/` and reports runtime not verified. It
+does not run bridge-starter scripts as runtime evidence.
 
 A future harness must provide and document:
 

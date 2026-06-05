@@ -141,8 +141,8 @@ still blocked until one path supplies real dependencies:
 
 - Select and document an SPOP parser or SPOE/SPOA protocol library before the
   starter can become a compatible SPOA service.
-- Add a HAProxy runtime harness that starts HAProxy with verified SPOE/SPOA
-  configuration and the starter/agent endpoint.
+- Replace the blocked HAProxy entrypoint with a real runtime harness that starts
+  HAProxy with verified SPOE/SPOA configuration and the starter/agent endpoint.
 - Select and implement the HAProxy-specific libmodsecurity binding strategy.
 - Add runtime evidence for No-CRS, With-CRS, RESPONSE_BODY blocking,
   negative/pass-through behavior, and audit/log artifacts.
@@ -159,7 +159,7 @@ remain open or not verified:
 - Real FastCGI/SCGI bridge is blocked by missing protocol adapter and lighttpd
   runtime configuration.
 - ModSecurity integration code for lighttpd is not implemented.
-- Harness is contract only.
+- Harness currently has a blocked runtime-smoke entrypoint only.
 - No-CRS and With-CRS runtime have not been run for lighttpd.
 - RESPONSE_BODY blocking, negative/pass-through, and audit/log evidence are not
   verified for lighttpd.
@@ -196,7 +196,7 @@ The new runtime-smoke entrypoints are present, but these gates remain open for
 Envoy, HAProxy, lighttpd, and Traefik:
 
 - Implement a real executable server/proxy harness under the connector harness
-  contract.
+  contract, replacing the current blocked `run_<name>_smoke.sh` entrypoints.
 - Run framework-owned YAML cases through that harness.
 - Produce No-CRS and With-CRS runtime results.
 - Prove CRS effective blocking where claimed.

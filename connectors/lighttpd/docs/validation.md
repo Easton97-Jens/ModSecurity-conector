@@ -14,7 +14,7 @@ self-tested locally, but lighttpd runtime validation has not been run.
 | Native lighttpd module build | blocked |
 | FastCGI implementation | blocked |
 | SCGI implementation | blocked |
-| Runtime harness | not implemented |
+| Runtime harness | blocked entrypoint only |
 | No-CRS | not run |
 | With-CRS | not run |
 | RESPONSE_BODY | not verified |
@@ -51,9 +51,10 @@ The lighttpd entries are connector-starter build/self-test evidence only:
 ## Runtime-Smoke Entry Point
 
 `make smoke-lighttpd` invokes the framework-owned lighttpd runtime-smoke runner.
-The current result is BLOCKED because `connectors/lighttpd/harness/` does not
-contain an executable lighttpd runtime harness. Evidence is written under
-`/src/ModSecurity-conector-build/results/`.
+The current result is BLOCKED because
+`connectors/lighttpd/harness/run_lighttpd_smoke.sh` writes diagnostic evidence
+and no real lighttpd server/config/runtime harness exists. Evidence is written
+under `/src/ModSecurity-conector-build/results/`.
 
 This entrypoint does not run bridge-starter scripts as runtime evidence.
 Runtime remains not verified and RESPONSE_BODY remains not verified.
