@@ -15,7 +15,7 @@
     },
     {
       "path": "connectors/haproxy/Makefile",
-      "purpose": "compile the metadata object and local SPOA agent starter"
+      "purpose": "compile the metadata object, local SPOA agent starter, and diagnostic SPOP subset"
     },
     {
       "path": "connectors/haproxy/src/haproxy_spoa_agent_starter.c",
@@ -28,6 +28,10 @@
     {
       "path": "connectors/haproxy/src/haproxy_spoa_main.c",
       "purpose": "CLI entry point for --describe and --self-test only"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "purpose": "minimal diagnostic SPOP handshake subset; not a full SPOA agent implementation"
     }
   ],
   "shared_inputs": [
@@ -55,13 +59,13 @@
   "starter_capabilities": [
     "compile local SPOA agent starter binary",
     "run local self-test for synthetic request allow/block decisions",
-    "print explicit limitations via --describe"
+    "print explicit limitations via --describe",
+    "compile and self-test minimal diagnostic SPOP HELLO/ACK/DISCONNECT handling"
   ],
   "blocked_dependencies": [
-    "SPOP frame parser or selected SPOE/SPOA protocol library",
+    "full SPOA/SPOP implementation beyond the diagnostic handshake subset",
     "HAProxy runtime harness support",
-    "HAProxy binary/container/source-build evidence",
-    "HAProxy SPOE/SPOA configuration verified against a running HAProxy",
+    "HAProxy to SPOA runtime integration verified against a running HAProxy",
     "selected libmodsecurity binding strategy for HAProxy",
     "CRS loading path for HAProxy runtime"
   ],

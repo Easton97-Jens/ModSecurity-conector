@@ -23,11 +23,20 @@ PYTHON_BIN="${PYTHON:-$(ci_python 2>/dev/null || printf python3)}"
 PREPARE_HAPROXY_RUNTIME="$FRAMEWORK_ROOT/ci/prepare-haproxy-runtime.sh"
 HAPROXY_BIN="${HAPROXY_BIN:-$BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy}"
 SPOA_STARTER_BIN="$BUILD_ROOT/haproxy-build-starter/haproxy-spoa-agent-starter"
+SPOA_RUNTIME_BIN="$BUILD_ROOT/haproxy-spoa-runtime/haproxy-spoa-diagnostic-runtime"
+SPOE_RUNTIME_DIR="$BUILD_ROOT/haproxy-runtime/spoe"
+GENERATED_HAPROXY_CFG="$SPOE_RUNTIME_DIR/haproxy.cfg"
+GENERATED_SPOE_CFG="$SPOE_RUNTIME_DIR/spoe-agent.conf"
 HAPROXY_CFG_EXAMPLE="$CONNECTOR_DIR/poc/spoe/haproxy.cfg.example"
 SPOE_AGENT_CFG_EXAMPLE="$CONNECTOR_DIR/poc/spoe/spoe-agent.conf.example"
 NOTE="Build/self-test starter evidence is available via make connector-starter-checks but is not runtime smoke evidence."
 PREPARE_STATUS=not-run
 PREPARE_REASON=
+SPOA_RUNTIME_STATUS=not-run
+SPOA_PROTOCOL_RUNTIME_VERIFIED=false
+SPOA_RUNTIME_REASON=
+SPOE_CONFIG_STATUS=not-run
+SPOE_RUNTIME_STATUS=not-verified
 
 blocked_root() {
     echo "$CONNECTOR_NAME runtime smoke: BLOCKED - $*" >&2
@@ -90,10 +99,16 @@ validate_roots() {
     require_log_path "$LOG_ROOT" LOG_ROOT
     require_log_path "$LOG_DIR" LOG_DIR
     require_build_path "$HAPROXY_BIN" HAPROXY_BIN
+    require_build_path "$SPOA_RUNTIME_BIN" SPOA_RUNTIME_BIN
+    require_build_path "$SPOE_RUNTIME_DIR" SPOE_RUNTIME_DIR
+    require_build_path "$GENERATED_HAPROXY_CFG" GENERATED_HAPROXY_CFG
+    require_build_path "$GENERATED_SPOE_CFG" GENERATED_SPOE_CFG
     require_not_connector_artifact "$RESULTS_DIR" RESULTS_DIR
     require_not_connector_artifact "$TMP_ROOT" TMP_ROOT
     require_not_connector_artifact "$LOG_ROOT" LOG_ROOT
     require_not_connector_artifact "$HAPROXY_BIN" HAPROXY_BIN
+    require_not_connector_artifact "$SPOA_RUNTIME_BIN" SPOA_RUNTIME_BIN
+    require_not_connector_artifact "$SPOE_RUNTIME_DIR" SPOE_RUNTIME_DIR
     mkdir -p "$RESULTS_DIR" "$TMP_ROOT" "$LOG_DIR"
 }
 
@@ -176,7 +191,96 @@ detect_spoa_starter() {
     fi
 }
 
-detect_spoe_config() {
+run_spoa_runtime_self_test() {
+    stdout_log="$LOG_DIR/spoa-runtime-self-test.stdout.log"
+    stderr_log="$LOG_DIR/spoa-runtime-self-test.stderr.log"
+    if [ ! -f "$CONNECTOR_DIR/Makefile" ]; then
+        SPOA_RUNTIME_STATUS=missing
+        SPOA_RUNTIME_REASON="connector Makefile missing"
+        return
+    fi
+    set +e
+    BUILD_ROOT="$BUILD_ROOT" \
+        TMP_ROOT="$TMP_ROOT" \
+        LOG_ROOT="$LOG_ROOT" \
+        REPO_ROOT="$CONNECTOR_ROOT" \
+        make -C "$CONNECTOR_DIR" self-test-spoa-runtime >"$stdout_log" 2>"$stderr_log"
+    rc=$?
+    set -e
+    if [ "$rc" -eq 0 ] && [ -x "$SPOA_RUNTIME_BIN" ]; then
+        SPOA_RUNTIME_STATUS=diagnostic-spop-handshake-subset
+        SPOA_PROTOCOL_RUNTIME_VERIFIED=true
+        SPOA_RUNTIME_REASON="minimal diagnostic SPOP handshake subset self-test passed"
+        return
+    fi
+    if [ "$rc" -eq 77 ]; then
+        SPOA_RUNTIME_STATUS=blocked
+        SPOA_RUNTIME_REASON="minimal diagnostic SPOP handshake subset self-test blocked"
+        return
+    fi
+    SPOA_RUNTIME_STATUS=failed
+    SPOA_RUNTIME_REASON="minimal diagnostic SPOP handshake subset self-test failed with exit code $rc"
+}
+
+write_generated_spoe_config() {
+    syntax_log="$LOG_DIR/spoe-config-syntax.log"
+    if [ ! -x "$HAPROXY_BIN" ]; then
+        SPOE_CONFIG_STATUS=missing
+        return
+    fi
+    mkdir -p "$SPOE_RUNTIME_DIR"
+    {
+        echo "global"
+        echo "    log stdout format raw local0"
+        echo
+        echo "defaults"
+        echo "    mode http"
+        echo "    timeout connect 5s"
+        echo "    timeout client 5s"
+        echo "    timeout server 5s"
+        echo
+        echo "frontend fe_haproxy_spoe_diagnostic"
+        echo "    bind 127.0.0.1:18080"
+        echo "    filter spoe engine modsecurity-diagnostic config $GENERATED_SPOE_CFG"
+        echo "    default_backend be_haproxy_diagnostic_app"
+        echo
+        echo "backend be_haproxy_diagnostic_app"
+        echo "    mode http"
+        echo "    server app1 127.0.0.1:18081 disabled"
+        echo
+        echo "backend be_spoa_diagnostic"
+        echo "    mode spop"
+        echo "    balance roundrobin"
+        echo "    timeout connect 1s"
+        echo "    timeout server 3s"
+        echo "    server spoa1 127.0.0.1:19090 disabled"
+    } >"$GENERATED_HAPROXY_CFG"
+    {
+        echo "[modsecurity-diagnostic]"
+        echo
+        echo "spoe-agent modsecurity-diagnostic-agent"
+        echo "    messages check-client"
+        echo "    option var-prefix modsecdiag"
+        echo "    option continue-on-error"
+        echo "    timeout processing 10ms"
+        echo "    use-backend be_spoa_diagnostic"
+        echo
+        echo "spoe-message check-client"
+        echo "    args ip=src"
+        echo "    event on-client-session"
+    } >"$GENERATED_SPOE_CFG"
+    set +e
+    "$HAPROXY_BIN" -c -f "$GENERATED_HAPROXY_CFG" >"$syntax_log" 2>&1
+    rc=$?
+    set -e
+    if [ "$rc" -eq 0 ]; then
+        SPOE_CONFIG_STATUS=syntax-valid
+    else
+        SPOE_CONFIG_STATUS=syntax-blocked
+    fi
+}
+
+detect_example_spoe_config() {
     if [ ! -f "$HAPROXY_CFG_EXAMPLE" ] || [ ! -f "$SPOE_AGENT_CFG_EXAMPLE" ]; then
         printf missing
         return
@@ -209,17 +313,23 @@ write_blocked_evidence() {
     system_haproxy_bin=$(command -v haproxy 2>/dev/null || true)
     common_acquisition_status=$(detect_common_acquisition)
     spoa_starter_status=$(detect_spoa_starter)
-    spoe_config_status=$(detect_spoe_config)
+    run_spoa_runtime_self_test
+    write_generated_spoe_config
+    example_spoe_config_status=$(detect_example_spoe_config)
     modsecurity_binding_status=$(detect_modsecurity_binding)
     {
-        echo "BLOCKED haproxy runtime prerequisites missing"
+        echo "BLOCKED haproxy runtime integration not verified"
         echo "local_haproxy_bin=${local_haproxy_bin:-missing}"
         echo "system_haproxy_bin=${system_haproxy_bin:-missing}"
         echo "prepare_status=$PREPARE_STATUS"
         echo "prepare_reason=$PREPARE_REASON"
         echo "common_acquisition_status=$common_acquisition_status"
         echo "spoa_starter_status=$spoa_starter_status"
-        echo "spoe_config_status=$spoe_config_status"
+        echo "spoa_agent_runtime_status=$SPOA_RUNTIME_STATUS"
+        echo "spoa_protocol_runtime_verified=$SPOA_PROTOCOL_RUNTIME_VERIFIED"
+        echo "spoe_config_status=$SPOE_CONFIG_STATUS"
+        echo "spoe_runtime_status=$SPOE_RUNTIME_STATUS"
+        echo "example_spoe_config_status=$example_spoe_config_status"
         echo "modsecurity_binding_status=$modsecurity_binding_status"
     } > "$status_log"
     "$PYTHON_BIN" - "$results_jsonl" "$summary_json" "$summary_text" \
@@ -227,8 +337,11 @@ write_blocked_evidence() {
         "$BUILD_ROOT" "$RESULTS_DIR" "$TMP_ROOT" "$LOG_ROOT" "$LOG_DIR" \
         "$starter_checks_available" "$NOTE" "$local_haproxy_bin" "$system_haproxy_bin" \
         "$PREPARE_STATUS" "$PREPARE_REASON" "$PREPARE_HAPROXY_RUNTIME" \
-        "$common_acquisition_status" "$spoa_starter_status" \
-        "$spoe_config_status" "$modsecurity_binding_status" "$SPOA_STARTER_BIN" \
+        "$common_acquisition_status" "$spoa_starter_status" "$SPOA_RUNTIME_STATUS" \
+        "$SPOA_PROTOCOL_RUNTIME_VERIFIED" "$SPOA_RUNTIME_REASON" "$SPOA_RUNTIME_BIN" \
+        "$SPOE_CONFIG_STATUS" "$SPOE_RUNTIME_STATUS" "$GENERATED_HAPROXY_CFG" \
+        "$GENERATED_SPOE_CFG" "$LOG_DIR/spoe-config-syntax.log" \
+        "$example_spoe_config_status" "$modsecurity_binding_status" "$SPOA_STARTER_BIN" \
         "$HAPROXY_CFG_EXAMPLE" "$SPOE_AGENT_CFG_EXAMPLE" <<'PY'
 import json
 import sys
@@ -256,7 +369,16 @@ from datetime import datetime, timezone
     prepare_helper,
     common_acquisition_status,
     spoa_starter_status,
+    spoa_agent_runtime_status,
+    spoa_protocol_runtime_verified_text,
+    spoa_runtime_reason,
+    spoa_agent_runtime_binary,
     spoe_config_status,
+    spoe_runtime_status,
+    generated_haproxy_config,
+    generated_spoe_config,
+    spoe_config_syntax_log,
+    example_spoe_config_status,
     modsecurity_binding_status,
     spoa_starter_bin,
     haproxy_cfg_example,
@@ -265,6 +387,7 @@ from datetime import datetime, timezone
 
 now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 starter_checks_available = starter_checks_available_text == "true"
+spoa_protocol_runtime_verified = spoa_protocol_runtime_verified_text == "true"
 blocked_reasons = []
 if not local_haproxy_bin:
     blocked_reasons.append("haproxy binary missing")
@@ -272,12 +395,15 @@ if not local_haproxy_bin:
         blocked_reasons.append(f"haproxy local build blocked: {prepare_reason}")
 if common_acquisition_status != "defined":
     blocked_reasons.append("haproxy source/binary acquisition is not defined in common.sh")
-if spoa_starter_status != "runnable":
+if spoa_agent_runtime_status != "diagnostic-spop-handshake-subset":
     blocked_reasons.append("spoa agent runtime missing")
-if spoe_config_status != "runnable":
+if spoe_config_status == "syntax-valid":
+    blocked_reasons.append("spoe runtime integration not verified")
+else:
     blocked_reasons.append("spoe config missing")
 if modsecurity_binding_status != "present":
     blocked_reasons.append("modsecurity binding missing")
+
 diagnostics = {
     "haproxy_binary": "present" if local_haproxy_bin else "missing",
     "haproxy_binary_path": local_haproxy_bin or None,
@@ -288,7 +414,18 @@ diagnostics = {
     "common_acquisition_status": common_acquisition_status,
     "spoa_starter_binary": spoa_starter_bin,
     "spoa_starter_status": spoa_starter_status,
+    "spoa_agent_runtime_binary": spoa_agent_runtime_binary,
+    "spoa_agent_runtime_status": spoa_agent_runtime_status,
+    "spoa_protocol_runtime_verified": spoa_protocol_runtime_verified,
+    "spoa_runtime_reason": spoa_runtime_reason,
+    "spoa_runtime_self_test_stdout": f"{log_dir}/spoa-runtime-self-test.stdout.log",
+    "spoa_runtime_self_test_stderr": f"{log_dir}/spoa-runtime-self-test.stderr.log",
     "spoe_config_status": spoe_config_status,
+    "spoe_runtime_status": spoe_runtime_status,
+    "generated_haproxy_config": generated_haproxy_config,
+    "generated_spoe_config": generated_spoe_config,
+    "spoe_config_syntax_log": spoe_config_syntax_log,
+    "example_spoe_config_status": example_spoe_config_status,
     "haproxy_config_example": haproxy_cfg_example,
     "spoe_agent_config_example": spoe_agent_cfg_example,
     "modsecurity_binding_status": modsecurity_binding_status,
@@ -303,9 +440,15 @@ record = {
     "runtime_verified": False,
     "runtime_status": "blocked",
     "response_body_verified": False,
-    "reason": "haproxy runtime prerequisites missing",
+    "reason": "haproxy runtime integration not verified",
     "blocked_reasons": blocked_reasons,
     "diagnostics": diagnostics,
+    "haproxy_binary": "present" if local_haproxy_bin else "missing",
+    "spoa_agent_runtime_status": spoa_agent_runtime_status,
+    "spoa_protocol_runtime_verified": spoa_protocol_runtime_verified,
+    "spoe_config_status": spoe_config_status,
+    "spoe_runtime_status": spoe_runtime_status,
+    "modsecurity_binding_status": modsecurity_binding_status,
     "starter_checks_available": starter_checks_available,
     "installs_global_artifacts": False,
     "harness_path": harness_path,
@@ -327,9 +470,15 @@ summary = {
     "runtime_verified": False,
     "runtime_status": "blocked",
     "response_body_verified": False,
-    "reason": "haproxy runtime prerequisites missing",
+    "reason": "haproxy runtime integration not verified",
     "blocked_reasons": blocked_reasons,
     "diagnostics": diagnostics,
+    "haproxy_binary": "present" if local_haproxy_bin else "missing",
+    "spoa_agent_runtime_status": spoa_agent_runtime_status,
+    "spoa_protocol_runtime_verified": spoa_protocol_runtime_verified,
+    "spoe_config_status": spoe_config_status,
+    "spoe_runtime_status": spoe_runtime_status,
+    "modsecurity_binding_status": modsecurity_binding_status,
     "starter_checks_available": starter_checks_available,
     "installs_global_artifacts": False,
     "harness_path": harness_path,
@@ -343,10 +492,15 @@ with open(summary_json, "w", encoding="utf-8") as handle:
     json.dump(summary, handle, indent=2, sort_keys=True)
     handle.write("\n")
 with open(summary_text, "w", encoding="utf-8") as handle:
-    handle.write("BLOCKED runtime-smoke-entrypoint haproxy runtime prerequisites missing\n")
+    handle.write("BLOCKED runtime-smoke-entrypoint haproxy runtime integration not verified\n")
+    handle.write("spoa_agent_runtime_status: " + spoa_agent_runtime_status + "\n")
+    handle.write("spoa_protocol_runtime_verified: " + str(spoa_protocol_runtime_verified).lower() + "\n")
+    handle.write("spoe_config_status: " + spoe_config_status + "\n")
+    handle.write("spoe_runtime_status: " + spoe_runtime_status + "\n")
     for item in blocked_reasons:
         handle.write(f"- {item}\n")
     handle.write("Runtime not verified\n")
+    handle.write("The SPOA diagnostic runtime is a minimal diagnostic SPOP handshake subset, not a full SPOA agent implementation.\n")
     handle.write(f"{note}\n")
 PY
 }
@@ -354,6 +508,6 @@ PY
 validate_roots
 ensure_local_haproxy
 write_blocked_evidence
-echo "$CONNECTOR_NAME runtime smoke: BLOCKED - haproxy runtime prerequisites missing"
+echo "$CONNECTOR_NAME runtime smoke: BLOCKED - haproxy runtime integration not verified"
 echo "Runtime not verified"
 exit 77

@@ -19,6 +19,8 @@ matrix structure and promotion rules are defined in:
 | SPOA starter build | PASS | `make -C connectors/haproxy build-spoa-starter` |
 | Local self-test | PASS | `make -C connectors/haproxy self-test-spoa` |
 | Local HAProxy binary prepare | PASS | framework `ci/prepare-haproxy-runtime.sh` builds HAProxy under `/src/ModSecurity-conector-build` |
+| Diagnostic SPOP subset | PASS for diagnostic scope only | `make -C connectors/haproxy self-test-spoa-runtime`; minimal diagnostic SPOP handshake subset, not a full SPOA agent implementation |
+| SPOE config syntax | syntax-valid only | Generated under `/src/ModSecurity-conector-build/haproxy-runtime/spoe/`; `spoe_runtime_status` remains `not-verified` |
 | Productive adapter build | BLOCKED | SPOP parser/library, HAProxy runtime harness, and libmodsecurity binding strategy not selected |
 | Harness | blocked prerequisite diagnostics | `connectors/haproxy/harness/run_haproxy_smoke.sh` writes BLOCKED evidence |
 | No-CRS | not-run | no HAProxy-scoped runtime evidence recorded |
@@ -36,11 +38,13 @@ matrix structure and promotion rules are defined in:
 - [x] local SPOA agent starter self-test recorded
 - [x] framework-owned HAProxy source acquisition defined and checksum-verified
 - [x] local HAProxy binary prepared under `/src/ModSecurity-conector-build`
+- [x] minimal diagnostic SPOP handshake subset self-test recorded
+- [x] generated SPOE config is syntax-valid by `haproxy -c`
 - [x] blocked runtime-smoke prerequisite diagnostics recorded
-- [ ] SPOP frame parser or SPOE/SPOA protocol library selected
+- [ ] full SPOA agent implementation selected or completed
 - [ ] productive origin/license evidence recorded
 - [ ] productive runtime build evidence recorded
-- [ ] harness implemented and evidenced
+- [ ] real HAProxy to SPOA to ModSecurity runtime harness implemented and evidenced
 - [ ] No-CRS runtime evidence recorded
 - [ ] With-CRS runtime evidence recorded
 - [ ] RESPONSE_BODY blocking evidence recorded
@@ -54,7 +58,7 @@ matrix structure and promotion rules are defined in:
 | Phase 0 | Scaffold | OK |
 | Phase 1 | Origin/Metadata | spoa-agent-starter |
 | Phase 2 | Build | spoa-agent-starter; productive build BLOCKED |
-| Phase 3 | Harness | blocked prerequisite diagnostics only |
+| Phase 3 | Harness | blocked; diagnostic SPOP subset and SPOE syntax only |
 | Phase 4 | No-CRS runtime | not-run |
 | Phase 5 | With-CRS runtime | not-run |
 | Phase 6 | Coverage matrix | spoa-agent-starter documented |

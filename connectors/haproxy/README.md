@@ -4,13 +4,16 @@ Status: spoa-agent-starter
 Runtime status: not-verified
 Template alignment: scaffold-aligned plus local SPOA agent starter
 
-This connector now contains repository-owned metadata and a local HAProxy SPOA
-agent starter. The starter compiles and self-tests local request-decision logic,
-but it is not a runtime-verified HAProxy adapter implementation.
+This connector now contains repository-owned metadata, a local HAProxy SPOA
+agent starter, and a separate minimal diagnostic SPOP handshake subset. The
+starter compiles and self-tests local request-decision logic, while the
+diagnostic subset self-tests local HELLO/AGENT-HELLO, NOTIFY-to-empty-ACK, and
+DISCONNECT handling. Neither path is a runtime-verified HAProxy adapter
+implementation.
 
-No productive HAProxy API integration, SPOP frame parser, full SPOE/SPOA protocol
-implementation, libmodsecurity transaction binding, runtime harness, or runtime
-compatibility is claimed by this connector.
+No productive HAProxy API integration, full SPOE/SPOA protocol implementation,
+libmodsecurity transaction binding, runtime harness, or runtime compatibility is
+claimed by this connector.
 
 ## Global Contract
 
@@ -34,7 +37,10 @@ Shared connector-neutral data shapes used by the starter:
 - Metadata: `metadata.c` and `metadata.h` present.
 - Build: metadata object and local SPOA agent starter build are present.
 - Self-test: local starter self-test exists; it does not start HAProxy.
-- Harness: contract only.
+- Diagnostic SPOP subset: buildable and self-testable under
+  `/src/ModSecurity-conector-build/haproxy-spoa-runtime/`; not a full SPOA
+  agent implementation.
+- Harness: blocked runtime-smoke entrypoint only.
 - No-CRS runtime: not run.
 - With-CRS runtime: not run.
 - RESPONSE_BODY blocking: not verified.
@@ -49,12 +55,18 @@ make -C connectors/haproxy build-spoa-starter
 make -C connectors/haproxy build-starter
 make -C connectors/haproxy self-test-spoa
 make -C connectors/haproxy self-test
+make -C connectors/haproxy build-spoa-runtime
+make -C connectors/haproxy self-test-spoa-runtime
 ```
 
 `build-spoa-starter` compiles a local binary that can describe its limitations
 and run a synthetic allow/block decision self-test. It does not compile HAProxy,
 does not compile a HAProxy module, does not parse SPOP frames, does not run as a
 verified SPOA server, and does not link libmodsecurity.
+
+`build-spoa-runtime` compiles a minimal diagnostic SPOP handshake subset. Its
+self-test is protocol diagnostic evidence only; it does not start HAProxy
+against ModSecurity, load CRS, or verify RESPONSE_BODY behavior.
 
 ## Tests
 

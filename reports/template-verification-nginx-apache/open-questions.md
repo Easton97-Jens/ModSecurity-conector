@@ -139,15 +139,13 @@ still blocked until one path supplies real dependencies:
   passes.
 ## HAProxy Open Items
 
-- Select and document an SPOP parser or SPOE/SPOA protocol library before the
-  starter can become a compatible SPOA service.
-- Define a framework-owned HAProxy source/binary acquisition path in `common.sh`
-  or provide a local HAProxy binary under the `/src` build contract.
+- Expand or replace the minimal diagnostic SPOP handshake subset with a full
+  SPOA agent implementation before claiming HAProxy runtime compatibility.
 - Replace the blocked HAProxy entrypoint with a real runtime harness that starts
-  HAProxy with verified SPOE/SPOA configuration and the starter/agent endpoint.
-- Replace the self-test-only SPOA starter with a runnable SPOA runtime service
-  or bridge that HAProxy can call.
-- Replace example-only SPOE/HAProxy config with verified runtime config.
+  HAProxy, observes communication with the agent, and executes a Framework case.
+- Promote the generated syntax-valid SPOE config only after live HAProxy to SPOA
+  runtime integration is verified; current `spoe_runtime_status` is
+  `not-verified`.
 - Select and implement the HAProxy-specific libmodsecurity binding strategy.
 - Add runtime evidence for No-CRS, With-CRS, RESPONSE_BODY blocking,
   negative/pass-through behavior, and audit/log artifacts.
@@ -211,5 +209,5 @@ Envoy, HAProxy, lighttpd, and Traefik:
 
 For HAProxy specifically, framework-owned local HAProxy source acquisition and
 binary preparation are no longer open gates. The remaining open HAProxy runtime
-gates are runnable SPOE/SPOA protocol handling, verified HAProxy/SPOE config,
-and a ModSecurity transaction binding.
+gates are verified HAProxy to SPOA runtime integration, full ModSecurity
+transaction binding, and Framework-case runtime evidence.

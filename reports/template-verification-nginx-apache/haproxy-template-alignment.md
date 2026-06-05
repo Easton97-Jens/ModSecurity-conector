@@ -13,7 +13,7 @@ adapter and is not runtime verified.
 
 - No local `connectors/haproxy/tests` folder is used.
 - No HAProxy API is used by the starter.
-- No SPOP frame parser is present.
+- Only a minimal diagnostic SPOP handshake subset is present.
 - No complete SPOE/SPOA protocol implementation is present.
 - No libmodsecurity transaction binding is present.
 - No HAProxy runtime PASS is claimed.
@@ -44,6 +44,8 @@ adapter and is not runtime verified.
 | SPOA starter build | PASS | `make -C connectors/haproxy build-spoa-starter` |
 | Local self-test | PASS | `make -C connectors/haproxy self-test-spoa` |
 | Local HAProxy binary prepare | PASS | framework `ci/prepare-haproxy-runtime.sh` prepares HAProxy under `/src/ModSecurity-conector-build` |
+| Diagnostic SPOP subset | PASS for diagnostic scope only | `make -C connectors/haproxy self-test-spoa-runtime` verifies a minimal diagnostic SPOP handshake subset |
+| SPOE config syntax | syntax-valid only | `make smoke-haproxy` generates config under `/src/ModSecurity-conector-build/haproxy-runtime/spoe/`; `spoe_runtime_status` remains `not-verified` |
 | Productive adapter build | BLOCKED | SPOP parser/library, HAProxy runtime harness, verified HAProxy config, libmodsecurity binding strategy, and runtime evidence not selected |
 | Runtime prerequisite diagnostics | BLOCKED | `make smoke-haproxy` writes granular blocked reasons |
 
@@ -77,12 +79,15 @@ Those records are connector-starter evidence only and keep
 `make smoke-haproxy` now invokes the framework-owned HAProxy runtime-smoke
 runner, which dispatches to `connectors/haproxy/harness/run_haproxy_smoke.sh`.
 Current status is BLOCKED because that connector-side entrypoint only writes
-diagnostic evidence and no real HAProxy server/config/SPOE runtime harness
-exists. HAProxy `3.2.19` source acquisition is now pinned only in framework
+diagnostic evidence and no real HAProxy to SPOA to ModSecurity Framework-case
+runtime exists. HAProxy `3.2.19` source acquisition is pinned only in framework
 `common.sh`; the official checksum file and source Makefile support for
 `TARGET=linux-glibc` were verified before the pin was added. The local HAProxy
 binary can be prepared under
-`/src/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy`, but the
-remaining runtime blockers are self-test-only SPOA starter, example-only
-SPOE/HAProxy config, and missing ModSecurity binding. Runtime remains not
-verified and RESPONSE_BODY remains not verified.
+`/src/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy`.
+`make smoke-haproxy` also verifies a minimal diagnostic SPOP handshake subset
+and validates generated SPOE config syntax with `haproxy -c`; it records
+`spoe_config_status: syntax-valid` and `spoe_runtime_status: not-verified`.
+The remaining runtime blockers are SPOE runtime integration not verified and
+missing ModSecurity binding. Runtime remains not verified and RESPONSE_BODY
+remains not verified.

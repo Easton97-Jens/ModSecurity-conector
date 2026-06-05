@@ -13,8 +13,9 @@ remain in:
 ## Repository Evidence Reviewed
 
 - `connectors/haproxy` contains SPOE/SPOA planning material and example files.
-- No SPOP frame parser, SPOE/SPOA protocol library, or verified HAProxy runtime
-  harness exists in this repository.
+- A minimal diagnostic SPOP handshake subset exists for local protocol
+  diagnostics only. No full SPOE/SPOA protocol library or verified HAProxy
+  runtime harness exists in this repository.
 - `common/include/msconnector/` contains connector-neutral data shapes for
   origin, status, request, intervention, and other connector concepts.
 - `connectors/apache` and `connectors/nginx` contain productive adapter source,
@@ -26,14 +27,16 @@ remain in:
 
 ## Current HAProxy Integration Decision
 
-Selected minimal path: local SPOA agent starter.
+Selected minimal path: local SPOA agent starter plus a minimal diagnostic SPOP
+handshake subset.
 
 Reason: SPOE/SPOA is the most concrete HAProxy-specific path already referenced
 by this connector's planning docs and example snippets, but the repository does
 not include enough protocol or harness evidence to claim a compatible SPOA
 implementation. The next honest step is therefore a local starter binary that
 uses shared request/intervention/status shapes and proves only local
-request-decision code through `--self-test`.
+request-decision code through `--self-test`. The diagnostic subset proves only
+local HELLO/AGENT-HELLO, NOTIFY-to-empty-ACK, and DISCONNECT handling.
 
 The starter is intentionally limited to:
 
@@ -44,6 +47,11 @@ The starter is intentionally limited to:
 
 The starter does not parse SPOP frames, open a network socket, start HAProxy,
 load CRS, or call libmodsecurity.
+
+The diagnostic SPOP subset may open local loopback sockets during
+`self-test-spoa-runtime`, but it is not a full SPOA agent implementation and
+does not run HAProxy, load CRS, process ModSecurity transactions, or verify
+RESPONSE_BODY behavior.
 
 ## Deferred Integration Options
 
@@ -56,8 +64,8 @@ Possible approaches to evaluate later, without treating any as implemented:
 
 ## Blockers Before Adapter Ownership
 
-- selected SPOP frame parser or SPOE/SPOA protocol library
-- verified HAProxy SPOE/SPOA configuration against a running HAProxy
+- full SPOA/SPOP implementation beyond the diagnostic handshake subset
+- verified HAProxy SPOE/SPOA runtime integration against a running HAProxy
 - selected libmodsecurity binding strategy for HAProxy
 - HAProxy harness capable of starting HAProxy and the starter/agent component
 - runtime evidence for No-CRS and With-CRS scopes
