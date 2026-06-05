@@ -37,5 +37,17 @@ Framework-owned test references:
 - Result: PASS for local bridge-starter compilation
 - Command: `make -C connectors/envoy self-test`
 - Result: PASS for local bridge decision self-test
-- Output path: `/root/.local/state/ModSecurity-conector-build/envoy-bridge-starter`
+- Output path: `/src/ModSecurity-conector-build/envoy-bridge-starter`
 - Runtime impact: none; Envoy runtime remains `not-verified`
+
+## Framework-Owned Starter Evidence
+
+`make connector-starter-checks` runs Envoy starter checks from
+`modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`.
+Results are written to
+`/src/ModSecurity-conector-build/results/connector-starters/summary.json` and
+`/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`.
+
+The Envoy entries are connector-starter build/self-test evidence only:
+`runtime_verified` is `false`, `runtime_status` is `not-verified`, and
+`response_body_verified` is `false`.

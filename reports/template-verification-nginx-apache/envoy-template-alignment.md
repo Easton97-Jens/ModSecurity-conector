@@ -61,5 +61,14 @@ proxy-wasm SDK/toolchain, or an Envoy runtime harness.
 - Result: PASS for local bridge-starter compilation
 - Command: `make -C connectors/envoy self-test`
 - Result: PASS for local bridge decision self-test
-- Output path: `/root/.local/state/ModSecurity-conector-build/envoy-bridge-starter`
+- Output path: `/src/ModSecurity-conector-build/envoy-bridge-starter`
 - Runtime status remains `not-verified`
+
+## Framework Starter Evidence
+
+`make connector-starter-checks` also records Envoy starter results in
+`/src/ModSecurity-conector-build/results/connector-starters/results.jsonl` and
+`/src/ModSecurity-conector-build/results/connector-starters/summary.json`.
+Those records are connector-starter evidence only and keep
+`runtime_verified: false`, `runtime_status: not-verified`, and
+`response_body_verified: false`.

@@ -176,3 +176,16 @@ remain open or not verified:
   remains starter-only without HTTP/Traefik runtime evidence.
 - Traefik must not be promoted beyond decision-service-starter until connector-
   specific runtime evidence is produced and documented.
+
+## Connector-Starter Open Gates
+
+The framework connector-starter runner closes only local build/self-test
+starter evidence for Envoy, HAProxy, lighttpd, and Traefik. These runtime gates
+remain open for each connector:
+
+- A real server/proxy harness.
+- No-CRS and With-CRS runtime execution.
+- CRS effective blocking evidence.
+- RESPONSE_BODY blocking evidence.
+- Negative/pass-through and audit/log evidence.
+- Promotion beyond starter status.

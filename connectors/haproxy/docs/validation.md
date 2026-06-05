@@ -45,3 +45,16 @@ evidence, result JSON, and PASS/FAIL/BLOCKED counts.
 
 HAProxy cannot be promoted beyond spoa-agent-starter or partial status without
 recorded runtime evidence.
+
+## Framework-Owned Starter Evidence
+
+`make connector-starter-checks` runs HAProxy metadata, SPOA starter build, and
+SPOA self-test checks from
+`modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`.
+Results are written to
+`/src/ModSecurity-conector-build/results/connector-starters/summary.json` and
+`/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`.
+
+The HAProxy entries are connector-starter build/self-test evidence only:
+`runtime_verified` is `false`, `runtime_status` is `not-verified`, and
+`response_body_verified` is `false`.

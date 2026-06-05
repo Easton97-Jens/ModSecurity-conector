@@ -221,3 +221,17 @@ Detailed report:
 - Missing production dependencies include a selected Traefik API/source/SDK or
   HTTP bridge runtime strategy, libmodsecurity runtime integration point, Traefik
   configuration, and harness configuration/evidence paths.
+
+## Connector-Starter Framework Finding
+
+- `modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`
+  provides a framework-owned local runner for Envoy, HAProxy, lighttpd, and
+  Traefik starter build/self-test checks.
+- `make connector-starter-checks` writes `summary.json`, `results.jsonl`, and
+  per-check stdout/stderr logs under
+  `/src/ModSecurity-conector-build/results/connector-starters/`.
+- Each `results.jsonl` entry records `test_type: connector-starter`,
+  `runtime_verified: false`, `runtime_status: not-verified`,
+  `response_body_verified: false`, and `installs_global_artifacts: false`.
+- The framework runner is not a server/proxy harness and does not prove No-CRS,
+  With-CRS, CRS, RESPONSE_BODY, audit/log, or runtime-smoke behavior.

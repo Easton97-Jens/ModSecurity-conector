@@ -212,3 +212,17 @@ evidence.
 - No local `connectors/traefik/tests` folder exists.
 - No No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, or audit/log
   runtime result is claimed for Traefik.
+
+## Connector-Starter Framework Summary
+
+`make connector-starter-checks` executed successfully through the parent
+Makefile and wrote framework-owned evidence under
+`/src/ModSecurity-conector-build/results/connector-starters/`.
+
+- Overall starter-check status: PASS.
+- Results file: `/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`.
+- Summary file: `/src/ModSecurity-conector-build/results/connector-starters/summary.json`.
+- Runtime status for Envoy, HAProxy, lighttpd, and Traefik: `not-verified`.
+- RESPONSE_BODY status: not verified.
+- Scope: connector starter build/self-test evidence only; no runtime smoke
+  validation is claimed.

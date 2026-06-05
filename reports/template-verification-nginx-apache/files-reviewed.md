@@ -278,3 +278,16 @@ Shared files used by the Traefik decision-service starter documentation:
 - `connectors/_template/docs/coverage-decision-matrix.md`
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+
+## Connector-Starter Framework Files
+
+- `Makefile`
+- `modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`
+- `connectors/envoy/docs/validation.md`
+- `connectors/haproxy/docs/validation.md`
+- `connectors/lighttpd/docs/validation.md`
+- `connectors/traefik/docs/validation.md`
+- `/src/ModSecurity-conector-build/results/connector-starters/summary.json`
+- `/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`
+
+The result files are local evidence artifacts and are not committed.

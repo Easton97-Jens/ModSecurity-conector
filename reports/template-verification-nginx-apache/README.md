@@ -174,3 +174,16 @@ harness.
 - Runtime integration path remains deferred until Traefik API/source/SDK or HTTP
   bridge runtime plus harness evidence are selected and documented.
 - Detailed alignment: `traefik-template-alignment.md`.
+
+## Framework Connector-Starter Checks
+
+`make connector-starter-checks` runs the framework-owned starter check runner at
+`modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`.
+The command writes local evidence to
+`/src/ModSecurity-conector-build/results/connector-starters/summary.json` and
+`/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`.
+
+These results are build/self-test evidence only. They are not Apache/NGINX-style
+runtime smoke validation, do not install global artifacts, do not create local
+`connectors/<name>/tests` directories, and leave Envoy, HAProxy, lighttpd, and
+Traefik runtime status as `not-verified`. RESPONSE_BODY remains not verified.

@@ -4,6 +4,7 @@ BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
 FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
 CONNECTOR_ROOT := $(CURDIR)
 NGINX_HARNESS_PARENT ?= $(BUILD_ROOT)
+CONNECTOR_STARTER_BUILD_ROOT ?= /src/ModSecurity-conector-build
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
@@ -72,7 +73,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs runtime-matrix runtime-matrix-all probe-response-body lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
+.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs runtime-matrix runtime-matrix-all probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 check-framework:
 	@test -d "$(FRAMEWORK_ROOT)" || { \
@@ -109,6 +110,9 @@ runtime-matrix-all: check-framework
 
 probe-response-body: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/probe-response-body-blocking.sh"
+
+connector-starter-checks: check-framework
+	BUILD_ROOT="$(CONNECTOR_STARTER_BUILD_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
 lint: check-framework
 	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh connectors/traefik/build/*.sh

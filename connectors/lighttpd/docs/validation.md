@@ -34,3 +34,16 @@ lighttpd build and harness exist:
 Starter PASS does not count as runtime evidence. lighttpd cannot be promoted
 beyond bridge-starter/partial without repository-backed runtime evidence and
 PASS/FAIL/BLOCKED counts for its own real-world connector path.
+
+## Framework-Owned Starter Evidence
+
+`make connector-starter-checks` runs lighttpd build-starter, bridge-starter, and
+bridge self-test checks from
+`modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`.
+Results are written to
+`/src/ModSecurity-conector-build/results/connector-starters/summary.json` and
+`/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`.
+
+The lighttpd entries are connector-starter build/self-test evidence only:
+`runtime_verified` is `false`, `runtime_status` is `not-verified`, and
+`response_body_verified` is `false`.

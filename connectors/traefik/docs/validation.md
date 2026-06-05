@@ -31,3 +31,16 @@ The local decision-service self-test is not a framework runtime result and is
 not evidence of Traefik `forwardAuth`, CRS, or libmodsecurity behavior. Traefik
 cannot be promoted beyond decision-service-starter without connector-specific
 runtime evidence.
+
+## Framework-Owned Starter Evidence
+
+`make connector-starter-checks` runs Traefik metadata and decision-service
+starter checks from
+`modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`.
+Results are written to
+`/src/ModSecurity-conector-build/results/connector-starters/summary.json` and
+`/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`.
+
+The Traefik entries are connector-starter build/self-test evidence only:
+`runtime_verified` is `false`, `runtime_status` is `not-verified`, and
+`response_body_verified` is `false`.

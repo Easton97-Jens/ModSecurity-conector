@@ -66,3 +66,12 @@ rules locally.
 | Phase 8 Negative/pass-through | not-verified | No runtime evidence exists |
 | Phase 9 Audit/log | not-verified | No runtime evidence exists |
 | Phase 10 Promotion | not allowed | Required production origin, build, harness, and runtime gates are open |
+
+## Framework Starter Evidence
+
+`make connector-starter-checks` records Traefik starter results in
+`/src/ModSecurity-conector-build/results/connector-starters/results.jsonl` and
+`/src/ModSecurity-conector-build/results/connector-starters/summary.json`.
+Those records are connector-starter evidence only and keep
+`runtime_verified: false`, `runtime_status: not-verified`, and
+`response_body_verified: false`.

@@ -69,3 +69,12 @@ lighttpd is bridge-starter only. It must not be rated as adapter-owned,
 runtime-smoke-verified, crs-verified, or more than partial until per-connector
 origin/metadata, real adapter build, harness, No-CRS, With-CRS, coverage,
 RESPONSE_BODY, negative/pass-through, and audit/log evidence is documented.
+
+## Framework Starter Evidence
+
+`make connector-starter-checks` records lighttpd starter results in
+`/src/ModSecurity-conector-build/results/connector-starters/results.jsonl` and
+`/src/ModSecurity-conector-build/results/connector-starters/summary.json`.
+Those records are connector-starter evidence only and keep
+`runtime_verified: false`, `runtime_status: not-verified`, and
+`response_body_verified: false`.
