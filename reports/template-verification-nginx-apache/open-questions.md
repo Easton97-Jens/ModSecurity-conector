@@ -137,3 +137,14 @@ still blocked until one path supplies real dependencies:
 - Prove CRS loaded/effective behavior for Envoy.
 - Keep RESPONSE_BODY as a separate unverified gate until a blocking runtime case
   passes.
+## HAProxy Open Items
+
+- Select and document an SPOP parser or SPOE/SPOA protocol library before the
+  starter can become a compatible SPOA service.
+- Add a HAProxy runtime harness that starts HAProxy with verified SPOE/SPOA
+  configuration and the starter/agent endpoint.
+- Select and implement the HAProxy-specific libmodsecurity binding strategy.
+- Add runtime evidence for No-CRS, With-CRS, RESPONSE_BODY blocking,
+  negative/pass-through behavior, and audit/log artifacts.
+- Promote beyond `spoa-agent-starter` only after productive adapter build and
+  runtime evidence are recorded.

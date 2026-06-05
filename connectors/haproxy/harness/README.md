@@ -1,18 +1,34 @@
-# HAProxy Harness Scaffold
+# HAProxy Harness
 
-Dieses Verzeichnis beschreibt erwartete Harness-Aufgaben für einen zukünftigen
-HAProxy-Connector. Es enthält keine Implementierung.
+Status: contract only
+Runtime status: not-verified
 
-## Erwartete Aufgaben (noch zu prüfen)
+Harness not implemented. This directory documents the contract only.
 
-- `prepare`: Voraussetzungen prüfen, Arbeitsverzeichnisse unter `BUILD_ROOT` vorbereiten
-- `start`: HAProxy und ggf. Connector-Komponente starten
-- `stop`: Prozesse sauber stoppen
-- `send_request`: Reale Test-Requests ausführen
-- `collect_logs`: Relevante Log-Artefakte sammeln
-- `cleanup`: Laufzeitartefakte isolieren/entfernen
+A local SPOA agent starter exists and can run a local self-test through:
 
-## Hinweis
+```sh
+make -C connectors/haproxy self-test-spoa
+```
 
-Die konkrete Ausgestaltung ist server- und integrationsmodellabhängig und noch
-zu prüfen.
+That self-test does not start HAProxy, does not parse SPOP frames, does not load
+libmodsecurity, and must not be reported as a HAProxy runtime smoke.
+
+A future HAProxy harness must not claim runtime verification until it records:
+
+- HAProxy binary, container, or source-build evidence
+- HAProxy config file
+- SPOE/SPOA config file
+- starter/agent endpoint
+- ModSecurity integration point
+- the harness command
+- result JSON path
+- evidence paths
+- PASS/FAIL/BLOCKED counts
+- logs needed for HAProxy, connector, and audit evidence
+- No-CRS and With-CRS scope separation
+
+Executable cases and runners are framework-owned, for example:
+
+- `modules/ModSecurity-test-Framework/tests/cases/`
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`

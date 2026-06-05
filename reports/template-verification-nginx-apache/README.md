@@ -128,3 +128,20 @@ evidence.
 - Missing runtime evidence: Envoy config, bridge integration point, framework
   result JSON, No-CRS/With-CRS split, CRS effective evidence, and RESPONSE_BODY
   evidence.
+## HAProxy Current Status
+
+- `connectors/haproxy` now includes repo-authored metadata and a local SPOA
+  agent starter under `connectors/haproxy/src/`.
+- HAProxy current status: `spoa-agent-starter`.
+- Build status: metadata build PASS; local SPOA starter build PASS; productive
+  adapter build BLOCKED.
+- Self-test status: local synthetic request-decision self-test PASS.
+- Runtime status remains `not-verified`.
+- The starter uses shared request/intervention/status/origin shapes; it does not
+  use HAProxy APIs, parse SPOP frames, implement full SPOE/SPOA compatibility,
+  load CRS, or call libmodsecurity.
+- No local `connectors/haproxy/tests` folder is used.
+- Missing runtime dependencies/evidence: SPOP parser or SPOE/SPOA protocol
+  library, HAProxy runtime harness, verified HAProxy config, agent endpoint,
+  libmodsecurity binding strategy, result JSON, and PASS/FAIL/BLOCKED counts.
+- Alignment report: `reports/template-verification-nginx-apache/haproxy-template-alignment.md`.

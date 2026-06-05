@@ -1,30 +1,68 @@
-# HAProxy Scaffold Build Plan
+# HAProxy Build
 
-## Hinweis
+Status: spoa-agent-starter
+Runtime status: not-verified
 
-Dieses Dokument beschreibt offene Build-Fragen. Es behauptet keine
-funktionierende Build-Pipeline.
+The repository contains HAProxy metadata and a local SPOA agent starter build.
+It does not contain a productive HAProxy adapter build.
 
-## Offene Build-Fragen (noch zu prüfen)
+## Build Targets
 
-- [ ] Wird ein kompilierter Connector-Bestandteil benötigt?
-- [ ] Wird ein separater SPOA-Agent gebaut?
-- [ ] Welche Abhängigkeiten/Versionen sind erforderlich?
-- [ ] Gibt es HAProxy-Testcontainer für reproduzierbare Läufe?
-- [ ] Welche Artefakte entstehen und wo werden sie abgelegt?
+Metadata command:
 
-## Build-Isolation (noch zu prüfen)
+```sh
+make -C connectors/haproxy build-metadata
+```
 
-- [ ] Alle generierten Artefakte unter `BUILD_ROOT` halten.
-- [ ] Keine Seiteneffekte außerhalb der vorgesehenen Build-Verzeichnisse.
+SPOA starter command:
 
-## Makefile-Integration (später, noch zu prüfen)
+```sh
+make -C connectors/haproxy build-spoa-starter
+```
 
-- [ ] `smoke-haproxy` Target definieren.
-- [ ] Optional `build-haproxy`/`check-haproxy` Targets definieren.
-- [ ] Erforderliche Umgebungsvariablen dokumentieren.
+Combined local starter command:
 
-## Nicht enthalten
+```sh
+make -C connectors/haproxy build-starter
+```
 
-- Keine finalen Build-Kommandos.
-- Keine Aussage, dass ein HAProxy-Build aktuell möglich ist.
+Local self-test command:
+
+```sh
+make -C connectors/haproxy self-test-spoa
+```
+
+What these targets build:
+
+- `connectors/haproxy/metadata.c`
+- `connectors/haproxy/src/haproxy_spoa_agent_starter.c`
+- `connectors/haproxy/src/haproxy_spoa_main.c`
+- shared `common/src/intervention.c`
+- outputs under `$(BUILD_ROOT)/haproxy-build-starter/`
+
+What they do not build:
+
+- HAProxy itself
+- a HAProxy native module/filter
+- a complete SPOA service
+- a SPOP frame parser
+- libmodsecurity integration
+- a runnable HAProxy runtime adapter
+
+## Productive Adapter Build Status
+
+Productive HAProxy adapter build: BLOCKED.
+
+Missing dependencies/evidence:
+
+- selected SPOP frame parser or SPOE/SPOA protocol library
+- HAProxy runtime harness support
+- HAProxy binary/container/source-build evidence
+- verified HAProxy SPOE/SPOA config
+- selected libmodsecurity binding strategy for HAProxy
+- productive adapter build command and logs
+- productive runtime artifact path
+
+Until those items are recorded from an executed HAProxy runtime build/harness,
+HAProxy productive build status remains blocked and runtime status remains
+`not-verified`.

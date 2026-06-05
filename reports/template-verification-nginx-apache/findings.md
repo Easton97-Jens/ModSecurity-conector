@@ -178,3 +178,17 @@ Detailed report:
   return a 403 `msconnector_intervention`.
 - The self-test does not use Envoy API, libmodsecurity API, CRS, or framework
   YAML cases.
+## HAProxy
+
+- HAProxy implementation remains a starter, not a productive adapter.
+- Current status is `spoa-agent-starter`; runtime status remains
+  `not-verified`.
+- The local SPOA agent starter compiles and self-tests synthetic
+  request-decision logic using shared request/intervention/status data shapes.
+- The starter does not include HAProxy headers, SPOP frame parsing,
+  libmodsecurity headers, CRS loading, network handling, or a runtime harness.
+- Productive adapter build remains BLOCKED because the repository still lacks a
+  selected SPOP parser/library, verified HAProxy SPOE/SPOA config, HAProxy
+  runtime harness, and libmodsecurity binding strategy.
+- No local `connectors/haproxy/tests` folder is used.
+- RESPONSE_BODY blocking remains not verified.

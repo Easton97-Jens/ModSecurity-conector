@@ -194,3 +194,33 @@
 - `connectors/envoy/src/envoy_bridge.c`
 - `connectors/envoy/src/envoy_bridge.h`
 - `connectors/envoy/src/envoy_bridge_main.c`
+## HAProxy Scaffold
+
+- `connectors/haproxy/README.md`
+- `connectors/haproxy/TODO.md`
+- `connectors/haproxy/docs/architecture.md`
+- `connectors/haproxy/docs/build.md`
+- `connectors/haproxy/docs/validation.md`
+- `connectors/haproxy/docs/coverage-decision-matrix.md`
+- `connectors/haproxy/harness/README.md`
+- `connectors/haproxy/src/README.md`
+- `reports/template-verification-nginx-apache/haproxy-template-alignment.md`
+
+## HAProxy Build-Starter Files
+
+- `connectors/haproxy/Makefile`
+- `connectors/haproxy/ORIGIN.md`
+- `connectors/haproxy/SOURCE_MAP.json`
+- `connectors/haproxy/metadata.c`
+- `connectors/haproxy/metadata.h`
+- `common/include/msconnector/origin.h`
+
+## HAProxy SPOA Agent Starter Files
+
+- `connectors/haproxy/src/haproxy_spoa_agent_starter.c`
+- `connectors/haproxy/src/haproxy_spoa_agent_starter.h`
+- `connectors/haproxy/src/haproxy_spoa_main.c`
+- `common/include/msconnector/request.h`
+- `common/include/msconnector/intervention.h`
+- `common/include/msconnector/status.h`
+- `common/src/intervention.c`
