@@ -18,8 +18,11 @@ Global runtime rules and promotion gates are defined in:
 - SPOA agent starter: buildable as a local binary with local self-test.
 - Productive adapter build: BLOCKED.
 - HAProxy runtime harness: blocked prerequisite-diagnostic entrypoint only.
-- HAProxy binary: missing from the local runtime environment.
-- HAProxy source/binary acquisition: not defined in framework `common.sh`.
+- HAProxy binary: locally prepared under
+  `/src/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy`.
+- HAProxy source/binary acquisition: defined only in framework `common.sh`;
+  HAProxy `3.2.19` official checksum and `TARGET=linux-glibc` support were
+  verified before pinning.
 - SPOA runtime agent: missing; starter binary is self-test-only.
 - SPOE/HAProxy config: example-only and not runtime-verified.
 - ModSecurity binding: missing.
@@ -75,5 +78,6 @@ diagnostic evidence and no real HAProxy server/config/SPOE runtime harness
 exists. Evidence is written under `/src/ModSecurity-conector-build/results/`
 with `blocked_reasons` for the missing runtime prerequisites.
 
-This entrypoint does not run the SPOA starter self-test as runtime evidence.
+The entrypoint may prepare the local HAProxy binary first; that is preparation
+evidence only. It does not run the SPOA starter self-test as runtime evidence.
 Runtime remains not verified and RESPONSE_BODY remains not verified.

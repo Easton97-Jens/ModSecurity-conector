@@ -307,6 +307,7 @@ The result files are local evidence artifacts and are not committed.
 - `connectors/traefik/harness/run_traefik_smoke.sh`
 - `modules/ModSecurity-test-Framework/ci/common.sh`
 - `modules/ModSecurity-test-Framework/ci/connector-smoke-common.sh`
+- `modules/ModSecurity-test-Framework/ci/prepare-haproxy-runtime.sh`
 - `modules/ModSecurity-test-Framework/ci/run-envoy-smoke.sh`
 - `modules/ModSecurity-test-Framework/ci/run-haproxy-smoke.sh`
 - `modules/ModSecurity-test-Framework/ci/run-lighttpd-smoke.sh`

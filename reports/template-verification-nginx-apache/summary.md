@@ -193,14 +193,16 @@ evidence.
   `make -C connectors/haproxy build-spoa-starter`; productive HAProxy adapter
   build remains BLOCKED.
 - Self-test status: PASS for `make -C connectors/haproxy self-test-spoa`.
+- Local HAProxy binary prepare: PASS for the framework helper; HAProxy `3.2.19`
+  source URL/checksum are pinned only in `common.sh`, verified against the
+  official checksum file, and built with verified `TARGET=linux-glibc` support.
 - Runtime status: `blocked` / `not-verified`.
 - `make smoke-haproxy` now records granular prerequisite diagnostics, not a
   runtime PASS.
 - No HAProxy API, SPOP frame parser, complete SPOE/SPOA implementation,
   libmodsecurity binding, CRS loading, or runtime harness is present.
-- Current blockers: HAProxy binary missing, HAProxy source/binary acquisition
-  not defined in framework `common.sh`, SPOA runtime agent missing,
-  SPOE/HAProxy config example-only, and ModSecurity binding missing.
+- Current runtime blockers: SPOA runtime agent missing, SPOE/HAProxy config
+  example-only, and ModSecurity binding missing.
 - No local `connectors/haproxy/tests` folder is used.
 - RESPONSE_BODY blocking remains not verified.
 - HAProxy-specific alignment is documented in

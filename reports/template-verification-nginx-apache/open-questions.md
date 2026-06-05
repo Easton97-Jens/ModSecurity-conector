@@ -208,3 +208,8 @@ Envoy, HAProxy, lighttpd, and Traefik:
 - Prove RESPONSE_BODY blocking with a real runtime test before changing
   RESPONSE_BODY status.
 - Keep build/self-test starter evidence separate from runtime-smoke evidence.
+
+For HAProxy specifically, framework-owned local HAProxy source acquisition and
+binary preparation are no longer open gates. The remaining open HAProxy runtime
+gates are runnable SPOE/SPOA protocol handling, verified HAProxy/SPOE config,
+and a ModSecurity transaction binding.

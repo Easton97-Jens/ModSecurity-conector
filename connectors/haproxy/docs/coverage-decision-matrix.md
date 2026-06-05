@@ -18,6 +18,7 @@ matrix structure and promotion rules are defined in:
 | Metadata build | PASS | `make -C connectors/haproxy build-metadata` |
 | SPOA starter build | PASS | `make -C connectors/haproxy build-spoa-starter` |
 | Local self-test | PASS | `make -C connectors/haproxy self-test-spoa` |
+| Local HAProxy binary prepare | PASS | framework `ci/prepare-haproxy-runtime.sh` builds HAProxy under `/src/ModSecurity-conector-build` |
 | Productive adapter build | BLOCKED | SPOP parser/library, HAProxy runtime harness, and libmodsecurity binding strategy not selected |
 | Harness | blocked prerequisite diagnostics | `connectors/haproxy/harness/run_haproxy_smoke.sh` writes BLOCKED evidence |
 | No-CRS | not-run | no HAProxy-scoped runtime evidence recorded |
@@ -33,9 +34,10 @@ matrix structure and promotion rules are defined in:
 - [x] metadata build recorded
 - [x] local SPOA agent starter build recorded
 - [x] local SPOA agent starter self-test recorded
+- [x] framework-owned HAProxy source acquisition defined and checksum-verified
+- [x] local HAProxy binary prepared under `/src/ModSecurity-conector-build`
 - [x] blocked runtime-smoke prerequisite diagnostics recorded
 - [ ] SPOP frame parser or SPOE/SPOA protocol library selected
-- [ ] HAProxy binary or framework-owned source acquisition defined
 - [ ] productive origin/license evidence recorded
 - [ ] productive runtime build evidence recorded
 - [ ] harness implemented and evidenced

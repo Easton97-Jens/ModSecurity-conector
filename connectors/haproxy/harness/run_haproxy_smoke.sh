@@ -14,12 +14,20 @@ CONNECTOR_ROOT="${CONNECTOR_ROOT:-$DEFAULT_CONNECTOR_ROOT}"
 CONNECTOR_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd)
 CONNECTOR_DIR="$CONNECTOR_ROOT/connectors/$CONNECTOR_NAME"
 LOG_DIR="$LOG_ROOT/$CONNECTOR_NAME-runtime-smoke"
-PYTHON_BIN="${PYTHON:-python3}"
 COMMON_SH="$CONNECTOR_ROOT/modules/ModSecurity-test-Framework/ci/common.sh"
+FRAMEWORK_ROOT="$CONNECTOR_ROOT/modules/ModSecurity-test-Framework"
+if [ -f "$COMMON_SH" ]; then
+    . "$COMMON_SH"
+fi
+PYTHON_BIN="${PYTHON:-$(ci_python 2>/dev/null || printf python3)}"
+PREPARE_HAPROXY_RUNTIME="$FRAMEWORK_ROOT/ci/prepare-haproxy-runtime.sh"
+HAPROXY_BIN="${HAPROXY_BIN:-$BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy}"
 SPOA_STARTER_BIN="$BUILD_ROOT/haproxy-build-starter/haproxy-spoa-agent-starter"
 HAPROXY_CFG_EXAMPLE="$CONNECTOR_DIR/poc/spoe/haproxy.cfg.example"
 SPOE_AGENT_CFG_EXAMPLE="$CONNECTOR_DIR/poc/spoe/spoe-agent.conf.example"
 NOTE="Build/self-test starter evidence is available via make connector-starter-checks but is not runtime smoke evidence."
+PREPARE_STATUS=not-run
+PREPARE_REASON=
 
 blocked_root() {
     echo "$CONNECTOR_NAME runtime smoke: BLOCKED - $*" >&2
@@ -81,9 +89,11 @@ validate_roots() {
     require_build_path "$TMP_ROOT" TMP_ROOT
     require_log_path "$LOG_ROOT" LOG_ROOT
     require_log_path "$LOG_DIR" LOG_DIR
+    require_build_path "$HAPROXY_BIN" HAPROXY_BIN
     require_not_connector_artifact "$RESULTS_DIR" RESULTS_DIR
     require_not_connector_artifact "$TMP_ROOT" TMP_ROOT
     require_not_connector_artifact "$LOG_ROOT" LOG_ROOT
+    require_not_connector_artifact "$HAPROXY_BIN" HAPROXY_BIN
     mkdir -p "$RESULTS_DIR" "$TMP_ROOT" "$LOG_DIR"
 }
 
@@ -105,6 +115,53 @@ detect_common_acquisition() {
     else
         printf not-defined
     fi
+}
+
+read_prepare_reason() {
+    status_file="$LOG_ROOT/haproxy-prepare/status.txt"
+    if [ -f "$status_file" ]; then
+        reason=$(grep '^blocked: ' "$status_file" | tail -n 1 | sed 's/^blocked: //')
+        if [ -n "$reason" ]; then
+            printf '%s' "$reason"
+            return
+        fi
+    fi
+    printf 'local HAProxy prepare did not produce a runtime binary'
+}
+
+ensure_local_haproxy() {
+    if [ -x "$HAPROXY_BIN" ]; then
+        PREPARE_STATUS=not-needed
+        PREPARE_REASON="local HAProxy binary already exists"
+        return
+    fi
+    if [ ! -x "$PREPARE_HAPROXY_RUNTIME" ]; then
+        PREPARE_STATUS=missing-helper
+        PREPARE_REASON="prepare-haproxy-runtime helper missing"
+        return
+    fi
+    set +e
+    SOURCE_ROOT="$SOURCE_ROOT" \
+        BUILD_ROOT="$BUILD_ROOT" \
+        TMP_ROOT="$TMP_ROOT" \
+        LOG_ROOT="$LOG_ROOT" \
+        CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        sh "$PREPARE_HAPROXY_RUNTIME" >"$LOG_DIR/prepare-haproxy-runtime.log" 2>&1
+    rc=$?
+    set -e
+    if [ "$rc" -eq 0 ] && [ -x "$HAPROXY_BIN" ]; then
+        PREPARE_STATUS=ready
+        PREPARE_REASON="local HAProxy binary prepared"
+        return
+    fi
+    if [ "$rc" -eq 77 ]; then
+        PREPARE_STATUS=blocked
+        PREPARE_REASON=$(read_prepare_reason)
+        return
+    fi
+    PREPARE_STATUS=failed
+    PREPARE_REASON="prepare-haproxy-runtime failed with exit code $rc"
 }
 
 detect_spoa_starter() {
@@ -145,14 +202,21 @@ write_blocked_evidence() {
     summary_text="$RESULTS_DIR/$CONNECTOR_NAME-summary.txt"
     status_log="$LOG_DIR/status.log"
     starter_checks_available=$(starter_available)
-    haproxy_bin=$(command -v haproxy 2>/dev/null || true)
+    local_haproxy_bin=
+    if [ -x "$HAPROXY_BIN" ]; then
+        local_haproxy_bin="$HAPROXY_BIN"
+    fi
+    system_haproxy_bin=$(command -v haproxy 2>/dev/null || true)
     common_acquisition_status=$(detect_common_acquisition)
     spoa_starter_status=$(detect_spoa_starter)
     spoe_config_status=$(detect_spoe_config)
     modsecurity_binding_status=$(detect_modsecurity_binding)
     {
         echo "BLOCKED haproxy runtime prerequisites missing"
-        echo "haproxy_bin=${haproxy_bin:-missing}"
+        echo "local_haproxy_bin=${local_haproxy_bin:-missing}"
+        echo "system_haproxy_bin=${system_haproxy_bin:-missing}"
+        echo "prepare_status=$PREPARE_STATUS"
+        echo "prepare_reason=$PREPARE_REASON"
         echo "common_acquisition_status=$common_acquisition_status"
         echo "spoa_starter_status=$spoa_starter_status"
         echo "spoe_config_status=$spoe_config_status"
@@ -161,7 +225,8 @@ write_blocked_evidence() {
     "$PYTHON_BIN" - "$results_jsonl" "$summary_json" "$summary_text" \
         "$CONNECTOR_NAME" "$HARNESS_PATH" "$CONNECTOR_ROOT" "$SOURCE_ROOT" \
         "$BUILD_ROOT" "$RESULTS_DIR" "$TMP_ROOT" "$LOG_ROOT" "$LOG_DIR" \
-        "$starter_checks_available" "$NOTE" "$haproxy_bin" \
+        "$starter_checks_available" "$NOTE" "$local_haproxy_bin" "$system_haproxy_bin" \
+        "$PREPARE_STATUS" "$PREPARE_REASON" "$PREPARE_HAPROXY_RUNTIME" \
         "$common_acquisition_status" "$spoa_starter_status" \
         "$spoe_config_status" "$modsecurity_binding_status" "$SPOA_STARTER_BIN" \
         "$HAPROXY_CFG_EXAMPLE" "$SPOE_AGENT_CFG_EXAMPLE" <<'PY'
@@ -184,7 +249,11 @@ from datetime import datetime, timezone
     log_dir,
     starter_checks_available_text,
     note,
-    haproxy_bin,
+    local_haproxy_bin,
+    system_haproxy_bin,
+    prepare_status,
+    prepare_reason,
+    prepare_helper,
     common_acquisition_status,
     spoa_starter_status,
     spoe_config_status,
@@ -197,8 +266,10 @@ from datetime import datetime, timezone
 now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 starter_checks_available = starter_checks_available_text == "true"
 blocked_reasons = []
-if not haproxy_bin:
+if not local_haproxy_bin:
     blocked_reasons.append("haproxy binary missing")
+    if prepare_status in {"blocked", "failed", "missing-helper"}:
+        blocked_reasons.append(f"haproxy local build blocked: {prepare_reason}")
 if common_acquisition_status != "defined":
     blocked_reasons.append("haproxy source/binary acquisition is not defined in common.sh")
 if spoa_starter_status != "runnable":
@@ -208,7 +279,12 @@ if spoe_config_status != "runnable":
 if modsecurity_binding_status != "present":
     blocked_reasons.append("modsecurity binding missing")
 diagnostics = {
-    "haproxy_binary": haproxy_bin or None,
+    "haproxy_binary": "present" if local_haproxy_bin else "missing",
+    "haproxy_binary_path": local_haproxy_bin or None,
+    "system_haproxy_binary": system_haproxy_bin or None,
+    "prepare_status": prepare_status,
+    "prepare_reason": prepare_reason,
+    "prepare_helper": prepare_helper,
     "common_acquisition_status": common_acquisition_status,
     "spoa_starter_binary": spoa_starter_bin,
     "spoa_starter_status": spoa_starter_status,
@@ -276,6 +352,7 @@ PY
 }
 
 validate_roots
+ensure_local_haproxy
 write_blocked_evidence
 echo "$CONNECTOR_NAME runtime smoke: BLOCKED - haproxy runtime prerequisites missing"
 echo "Runtime not verified"
