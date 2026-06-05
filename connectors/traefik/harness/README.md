@@ -15,6 +15,16 @@ The self-test covers only in-memory allow/block decision logic. It does not
 prove a Traefik `forwardAuth` deployment, HTTP service behavior, CRS execution,
 libmodsecurity integration, or Traefik traffic handling.
 
+Framework runtime-smoke entrypoint:
+
+```sh
+make smoke-traefik
+```
+
+Until an executable `run_traefik_smoke.sh` runtime harness exists here, that
+target writes BLOCKED evidence under
+`/src/ModSecurity-conector-build/results/` and reports runtime not verified.
+
 Future harness work must document:
 
 - Traefik binary, container, or source-build used by the harness

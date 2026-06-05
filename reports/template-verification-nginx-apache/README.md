@@ -187,3 +187,16 @@ These results are build/self-test evidence only. They are not Apache/NGINX-style
 runtime smoke validation, do not install global artifacts, do not create local
 `connectors/<name>/tests` directories, and leave Envoy, HAProxy, lighttpd, and
 Traefik runtime status as `not-verified`. RESPONSE_BODY remains not verified.
+
+## New Connector Runtime-Smoke Entry Points
+
+The framework now exposes runtime-smoke entrypoints for Envoy, HAProxy,
+lighttpd, and Traefik through `make smoke-envoy`, `make smoke-haproxy`,
+`make smoke-lighttpd`, and `make smoke-traefik`. These targets write runtime
+evidence files under `/src/ModSecurity-conector-build/results/`.
+
+Current status is `BLOCKED` for all four because their connector harness
+directories contain contract documentation only and no executable server/proxy
+runtime harness. The aggregate `make smoke-new-connectors` is diagnostic:
+when all four are blocked, it exits blocked and reports `Runtime not verified`
+instead of summarizing the blocked state as PASS.

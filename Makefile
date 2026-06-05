@@ -1,17 +1,21 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
-BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
+SOURCE_ROOT ?= /src
+BUILD_ROOT ?= /src/ModSecurity-conector-build
+TMP_ROOT ?= $(BUILD_ROOT)/tmp
+LOG_ROOT ?= $(BUILD_ROOT)/logs
 FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
 CONNECTOR_ROOT := $(CURDIR)
 NGINX_HARNESS_PARENT ?= $(BUILD_ROOT)
-CONNECTOR_STARTER_BUILD_ROOT ?= /src/ModSecurity-conector-build
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
+export SOURCE_ROOT
+export TMP_ROOT
+export LOG_ROOT
 export FRAMEWORK_ROOT
 export CONNECTOR_ROOT
 export NGINX_HARNESS_PARENT
-export SOURCE_ROOT
 export PYTHON
 export PYTHONDONTWRITEBYTECODE
 export DEFAULT_BRANCH
@@ -73,7 +77,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs runtime-matrix runtime-matrix-all probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
+.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs runtime-matrix runtime-matrix-all probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 check-framework:
 	@test -d "$(FRAMEWORK_ROOT)" || { \
@@ -90,6 +94,50 @@ smoke-apache: check-framework
 
 smoke-nginx: check-framework
 	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-nginx-smoke.sh"
+
+smoke-envoy: check-framework
+	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-envoy-smoke.sh"
+
+smoke-haproxy: check-framework
+	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-smoke.sh"
+
+smoke-lighttpd: check-framework
+	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-lighttpd-smoke.sh"
+
+smoke-traefik: check-framework
+	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-traefik-smoke.sh"
+
+smoke-new-connectors: check-framework
+	@set +e; \
+	passed=0; blocked=0; failed=0; \
+	for connector in envoy haproxy lighttpd traefik; do \
+		echo "smoke-new-connectors: running $$connector"; \
+		CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-$$connector-smoke.sh"; \
+		rc=$$?; \
+		echo "smoke-new-connectors: $$connector rc=$$rc"; \
+		if [ "$$rc" -eq 0 ]; then \
+			passed=$$((passed + 1)); \
+		elif [ "$$rc" -eq 77 ]; then \
+			blocked=$$((blocked + 1)); \
+		else \
+			failed=$$((failed + 1)); \
+		fi; \
+	done; \
+	echo "smoke-new-connectors: PASS=$$passed BLOCKED=$$blocked FAIL=$$failed"; \
+	if [ "$$failed" -ne 0 ]; then \
+		echo "smoke-new-connectors: FAIL"; \
+		exit 1; \
+	fi; \
+	if [ "$$passed" -eq 0 ]; then \
+		echo "smoke-new-connectors: BLOCKED - Runtime not verified"; \
+		exit 77; \
+	fi; \
+	if [ "$$blocked" -ne 0 ]; then \
+		echo "smoke-new-connectors: BLOCKED - Runtime not verified for all new connectors"; \
+		exit 77; \
+	fi; \
+	echo "smoke-new-connectors: PASS - runtime smoke verified"; \
+	exit 0
 
 smoke-all: check-framework
 	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
@@ -112,7 +160,7 @@ probe-response-body: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/probe-response-body-blocking.sh"
 
 connector-starter-checks: check-framework
-	BUILD_ROOT="$(CONNECTOR_STARTER_BUILD_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
+	SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
 lint: check-framework
 	sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh connectors/traefik/build/*.sh

@@ -51,3 +51,13 @@ Results are written to
 The Envoy entries are connector-starter build/self-test evidence only:
 `runtime_verified` is `false`, `runtime_status` is `not-verified`, and
 `response_body_verified` is `false`.
+
+## Runtime-Smoke Entry Point
+
+`make smoke-envoy` invokes the framework-owned Envoy runtime-smoke runner. The
+current result is BLOCKED because `connectors/envoy/harness/` does not contain
+an executable Envoy runtime harness. Evidence is written under
+`/src/ModSecurity-conector-build/results/`.
+
+This entrypoint does not run the bridge starter self-test as runtime evidence.
+Runtime remains not verified and RESPONSE_BODY remains not verified.

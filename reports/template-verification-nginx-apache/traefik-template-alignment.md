@@ -75,3 +75,10 @@ rules locally.
 Those records are connector-starter evidence only and keep
 `runtime_verified: false`, `runtime_status: not-verified`, and
 `response_body_verified: false`.
+
+## Runtime-Smoke Entry Point
+
+`make smoke-traefik` now invokes the framework-owned Traefik runtime-smoke
+runner. Current status is BLOCKED because no executable Traefik runtime harness
+exists under `connectors/traefik/harness/`. Runtime remains not verified and
+RESPONSE_BODY remains not verified.

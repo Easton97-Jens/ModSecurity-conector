@@ -189,3 +189,17 @@ remain open for each connector:
 - RESPONSE_BODY blocking evidence.
 - Negative/pass-through and audit/log evidence.
 - Promotion beyond starter status.
+
+## Runtime-Smoke Open Gates
+
+The new runtime-smoke entrypoints are present, but these gates remain open for
+Envoy, HAProxy, lighttpd, and Traefik:
+
+- Implement a real executable server/proxy harness under the connector harness
+  contract.
+- Run framework-owned YAML cases through that harness.
+- Produce No-CRS and With-CRS runtime results.
+- Prove CRS effective blocking where claimed.
+- Prove RESPONSE_BODY blocking with a real runtime test before changing
+  RESPONSE_BODY status.
+- Keep build/self-test starter evidence separate from runtime-smoke evidence.

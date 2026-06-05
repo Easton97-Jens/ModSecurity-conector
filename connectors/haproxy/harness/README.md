@@ -14,6 +14,16 @@ make -C connectors/haproxy self-test-spoa
 That self-test does not start HAProxy, does not parse SPOP frames, does not load
 libmodsecurity, and must not be reported as a HAProxy runtime smoke.
 
+Framework runtime-smoke entrypoint:
+
+```sh
+make smoke-haproxy
+```
+
+Until an executable `run_haproxy_smoke.sh` runtime harness exists here, that
+target writes BLOCKED evidence under
+`/src/ModSecurity-conector-build/results/` and reports runtime not verified.
+
 A future HAProxy harness must not claim runtime verification until it records:
 
 - HAProxy binary, container, or source-build evidence

@@ -291,3 +291,19 @@ Shared files used by the Traefik decision-service starter documentation:
 - `/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`
 
 The result files are local evidence artifacts and are not committed.
+
+## New Connector Runtime-Smoke Files
+
+- `Makefile`
+- `modules/ModSecurity-test-Framework/ci/common.sh`
+- `modules/ModSecurity-test-Framework/ci/connector-smoke-common.sh`
+- `modules/ModSecurity-test-Framework/ci/run-envoy-smoke.sh`
+- `modules/ModSecurity-test-Framework/ci/run-haproxy-smoke.sh`
+- `modules/ModSecurity-test-Framework/ci/run-lighttpd-smoke.sh`
+- `modules/ModSecurity-test-Framework/ci/run-traefik-smoke.sh`
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+- `modules/ModSecurity-test-Framework/tests/runners/runner_core.py`
+- `/src/ModSecurity-conector-build/results/envoy-summary.json`
+- `/src/ModSecurity-conector-build/results/haproxy-summary.json`
+- `/src/ModSecurity-conector-build/results/lighttpd-summary.json`
+- `/src/ModSecurity-conector-build/results/traefik-summary.json`

@@ -235,3 +235,15 @@ Detailed report:
   `response_body_verified: false`, and `installs_global_artifacts: false`.
 - The framework runner is not a server/proxy harness and does not prove No-CRS,
   With-CRS, CRS, RESPONSE_BODY, audit/log, or runtime-smoke behavior.
+
+## New Connector Runtime-Smoke Finding
+
+- The framework now has runtime-smoke entrypoints for Envoy, HAProxy, lighttpd,
+  and Traefik.
+- The current Envoy/HAProxy/lighttpd/Traefik harness folders are contract-only,
+  so each runtime-smoke runner writes BLOCKED evidence with
+  `runtime_verified: false`.
+- `smoke-new-connectors` is not allowed to turn blocked diagnostics into PASS;
+  with all four runtime harnesses missing, the aggregate status remains
+  BLOCKED and `Runtime not verified`.
+- All runtime-smoke evidence paths are under `/src/ModSecurity-conector-build`.

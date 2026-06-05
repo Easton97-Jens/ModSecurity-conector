@@ -69,3 +69,10 @@ adapter and is not runtime verified.
 Those records are connector-starter evidence only and keep
 `runtime_verified: false`, `runtime_status: not-verified`, and
 `response_body_verified: false`.
+
+## Runtime-Smoke Entry Point
+
+`make smoke-haproxy` now invokes the framework-owned HAProxy runtime-smoke
+runner. Current status is BLOCKED because no executable HAProxy runtime harness
+exists under `connectors/haproxy/harness/`. Runtime remains not verified and
+RESPONSE_BODY remains not verified.

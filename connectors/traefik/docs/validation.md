@@ -44,3 +44,13 @@ Results are written to
 The Traefik entries are connector-starter build/self-test evidence only:
 `runtime_verified` is `false`, `runtime_status` is `not-verified`, and
 `response_body_verified` is `false`.
+
+## Runtime-Smoke Entry Point
+
+`make smoke-traefik` invokes the framework-owned Traefik runtime-smoke runner.
+The current result is BLOCKED because `connectors/traefik/harness/` does not
+contain an executable Traefik runtime harness. Evidence is written under
+`/src/ModSecurity-conector-build/results/`.
+
+This entrypoint does not run decision-service starter self-tests as runtime
+evidence. Runtime remains not verified and RESPONSE_BODY remains not verified.

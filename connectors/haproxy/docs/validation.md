@@ -58,3 +58,13 @@ Results are written to
 The HAProxy entries are connector-starter build/self-test evidence only:
 `runtime_verified` is `false`, `runtime_status` is `not-verified`, and
 `response_body_verified` is `false`.
+
+## Runtime-Smoke Entry Point
+
+`make smoke-haproxy` invokes the framework-owned HAProxy runtime-smoke runner.
+The current result is BLOCKED because `connectors/haproxy/harness/` does not
+contain an executable HAProxy runtime harness. Evidence is written under
+`/src/ModSecurity-conector-build/results/`.
+
+This entrypoint does not run the SPOA starter self-test as runtime evidence.
+Runtime remains not verified and RESPONSE_BODY remains not verified.

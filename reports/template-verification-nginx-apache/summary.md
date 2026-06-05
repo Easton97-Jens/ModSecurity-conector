@@ -226,3 +226,19 @@ Makefile and wrote framework-owned evidence under
 - RESPONSE_BODY status: not verified.
 - Scope: connector starter build/self-test evidence only; no runtime smoke
   validation is claimed.
+
+## New Connector Runtime-Smoke Summary
+
+Framework runtime-smoke entrypoints exist for Envoy, HAProxy, lighttpd, and
+Traefik. Current runtime-smoke status is `BLOCKED` for each connector because no
+executable runtime harness exists under `connectors/<name>/harness/`.
+
+- Runtime-smoke targets: `make smoke-envoy`, `make smoke-haproxy`,
+  `make smoke-lighttpd`, `make smoke-traefik`.
+- Aggregate target: `make smoke-new-connectors`.
+- Evidence path: `/src/ModSecurity-conector-build/results/<connector>-summary.json`
+  and `/src/ModSecurity-conector-build/results/<connector>-results.jsonl`.
+- Runtime verification: false for all four.
+- RESPONSE_BODY: not verified for all four.
+- Starter evidence remains available through `make connector-starter-checks`,
+  but starter PASS does not count as runtime smoke.

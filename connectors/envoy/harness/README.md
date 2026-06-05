@@ -15,6 +15,16 @@ That command builds and runs the local sidecar/HTTP bridge decision model. It
 is not an Envoy runtime harness and does not execute framework YAML cases,
 No-CRS, With-CRS, CRS, or RESPONSE_BODY checks.
 
+Framework runtime-smoke entrypoint:
+
+```sh
+make smoke-envoy
+```
+
+Until an executable `run_envoy_smoke.sh` runtime harness exists here, that target
+writes BLOCKED evidence under `/src/ModSecurity-conector-build/results/` and
+reports runtime not verified.
+
 A future Envoy harness must document:
 
 - Envoy binary, container, or source-build input;

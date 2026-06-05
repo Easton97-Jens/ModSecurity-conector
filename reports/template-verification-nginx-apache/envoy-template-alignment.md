@@ -72,3 +72,10 @@ proxy-wasm SDK/toolchain, or an Envoy runtime harness.
 Those records are connector-starter evidence only and keep
 `runtime_verified: false`, `runtime_status: not-verified`, and
 `response_body_verified: false`.
+
+## Runtime-Smoke Entry Point
+
+`make smoke-envoy` now invokes the framework-owned Envoy runtime-smoke runner.
+Current status is BLOCKED because no executable Envoy runtime harness exists
+under `connectors/envoy/harness/`. Runtime remains not verified and
+RESPONSE_BODY remains not verified.

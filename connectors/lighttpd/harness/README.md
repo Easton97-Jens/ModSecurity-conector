@@ -16,6 +16,16 @@ The bridge starter does not start lighttpd, load a module, implement
 FastCGI/SCGI, send real HTTP traffic through lighttpd, collect logs, or write
 framework summary JSON.
 
+Framework runtime-smoke entrypoint:
+
+```sh
+make smoke-lighttpd
+```
+
+Until an executable `run_lighttpd_smoke.sh` runtime harness exists here, that
+target writes BLOCKED evidence under
+`/src/ModSecurity-conector-build/results/` and reports runtime not verified.
+
 A future harness must provide and document:
 
 - lighttpd binary, container, or source-build path;
