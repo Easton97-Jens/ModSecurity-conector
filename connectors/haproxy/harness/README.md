@@ -46,8 +46,9 @@ make smoke-haproxy
 
 The current `run_haproxy_smoke.sh` entrypoint writes BLOCKED evidence under
 `/src/ModSecurity-conector-build/results/` and reports runtime not verified. It
-runs the diagnostic SPOP subset self-test only as protocol diagnostic evidence,
-not as full runtime-smoke evidence.
+runs the diagnostic SPOP subset self-test and a live HAProxy to diagnostic
+SPOP-agent handshake only as diagnostic evidence, not as full runtime-smoke
+evidence.
 
 The entrypoint checks HAProxy runtime prerequisites before writing evidence. If
 the local HAProxy binary is missing, it attempts the framework prepare helper.
@@ -56,10 +57,11 @@ removed from `blocked_reasons`. When the diagnostic SPOP subset self-test
 passes, the SPOA runtime-missing blocker is removed, but runtime still remains
 BLOCKED because:
 
-- the generated SPOE/HAProxy config is syntax-valid only; `spoe_runtime_status`
-  remains `not-verified`;
-- HAProxy has not been live-started and observed communicating with the
-  diagnostic SPOP subset;
+- `make smoke-haproxy` live-starts HAProxy and the diagnostic SPOP agent, sends
+  a local HTTP request through HAProxy, and records fresh agent-log evidence
+  after a per-run marker;
+- `spoe_runtime_status` is `diagnostic-handshake-verified` only when that fresh
+  HAProxy-to-agent contact is observed;
 - no HAProxy/libmodsecurity transaction binding exists.
 
 A future HAProxy harness must not claim runtime verification until it records:

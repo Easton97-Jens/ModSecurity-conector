@@ -142,10 +142,11 @@ still blocked until one path supplies real dependencies:
 - Expand or replace the minimal diagnostic SPOP handshake subset with a full
   SPOA agent implementation before claiming HAProxy runtime compatibility.
 - Replace the blocked HAProxy entrypoint with a real runtime harness that starts
-  HAProxy, observes communication with the agent, and executes a Framework case.
-- Promote the generated syntax-valid SPOE config only after live HAProxy to SPOA
-  runtime integration is verified; current `spoe_runtime_status` is
-  `not-verified`.
+  HAProxy, observes ModSecurity transaction evaluation, and executes a
+  Framework case.
+- Keep the diagnostic HAProxy-to-agent handshake separate from runtime-smoke
+  promotion; current `spoe_runtime_status` is
+  `diagnostic-handshake-verified`, but `runtime_verified` remains false.
 - Select and implement the HAProxy-specific libmodsecurity binding strategy.
 - Add runtime evidence for No-CRS, With-CRS, RESPONSE_BODY blocking,
   negative/pass-through behavior, and audit/log artifacts.
@@ -209,5 +210,5 @@ Envoy, HAProxy, lighttpd, and Traefik:
 
 For HAProxy specifically, framework-owned local HAProxy source acquisition and
 binary preparation are no longer open gates. The remaining open HAProxy runtime
-gates are verified HAProxy to SPOA runtime integration, full ModSecurity
-transaction binding, and Framework-case runtime evidence.
+gates are full ModSecurity transaction binding and Framework-case runtime
+evidence.

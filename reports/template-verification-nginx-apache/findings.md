@@ -196,12 +196,12 @@ Detailed report:
 - `make smoke-haproxy` is still BLOCKED, but now records granular prerequisite
   diagnostics in `/src/ModSecurity-conector-build/results/haproxy-summary.json`.
 - Generated SPOE config is syntax-valid by `haproxy -c`, with
-  `spoe_runtime_status: not-verified`.
-- Current HAProxy runtime blockers are: SPOE runtime integration not verified
-  and missing ModSecurity binding.
+  `spoe_runtime_status: diagnostic-handshake-verified` when fresh agent-log
+  evidence appears after the run marker.
+- Current HAProxy runtime blocker is missing ModSecurity binding.
 - Productive adapter build remains BLOCKED because the repository still lacks a
-  full SPOA implementation, verified HAProxy to SPOA runtime integration,
-  HAProxy runtime harness, and libmodsecurity binding strategy.
+  full ModSecurity transaction binding, Framework-case runtime evidence, and
+  libmodsecurity binding strategy.
 - No local `connectors/haproxy/tests` folder is used.
 - RESPONSE_BODY blocking remains not verified.
 ## lighttpd Bridge-Starter Finding

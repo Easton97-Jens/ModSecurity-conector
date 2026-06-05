@@ -20,9 +20,10 @@ matrix structure and promotion rules are defined in:
 | Local self-test | PASS | `make -C connectors/haproxy self-test-spoa` |
 | Local HAProxy binary prepare | PASS | framework `ci/prepare-haproxy-runtime.sh` builds HAProxy under `/src/ModSecurity-conector-build` |
 | Diagnostic SPOP subset | PASS for diagnostic scope only | `make -C connectors/haproxy self-test-spoa-runtime`; minimal diagnostic SPOP handshake subset, not a full SPOA agent implementation |
-| SPOE config syntax | syntax-valid only | Generated under `/src/ModSecurity-conector-build/haproxy-runtime/spoe/`; `spoe_runtime_status` remains `not-verified` |
-| Productive adapter build | BLOCKED | SPOP parser/library, HAProxy runtime harness, and libmodsecurity binding strategy not selected |
-| Harness | blocked prerequisite diagnostics | `connectors/haproxy/harness/run_haproxy_smoke.sh` writes BLOCKED evidence |
+| SPOE config syntax | syntax-valid | Generated under `/src/ModSecurity-conector-build/haproxy-runtime/spoe/` and checked by `haproxy -c` |
+| Diagnostic HAProxy-to-agent runtime | diagnostic-handshake-verified | `make smoke-haproxy` live-starts HAProxy and the diagnostic agent, then verifies fresh agent contact after the run marker |
+| Productive adapter build | BLOCKED | full ModSecurity transaction binding and runtime Framework-case evidence missing |
+| Harness | BLOCKED, diagnostic only | `connectors/haproxy/harness/run_haproxy_smoke.sh` exits 77 with `runtime_verified: false` |
 | No-CRS | not-run | no HAProxy-scoped runtime evidence recorded |
 | With-CRS | not-run | no HAProxy-scoped CRS runtime evidence recorded |
 | RESPONSE_BODY | not-verified | no blocking response-body runtime evidence recorded |
@@ -40,6 +41,7 @@ matrix structure and promotion rules are defined in:
 - [x] local HAProxy binary prepared under `/src/ModSecurity-conector-build`
 - [x] minimal diagnostic SPOP handshake subset self-test recorded
 - [x] generated SPOE config is syntax-valid by `haproxy -c`
+- [x] live HAProxy-to-diagnostic-agent contact recorded with fresh run evidence
 - [x] blocked runtime-smoke prerequisite diagnostics recorded
 - [ ] full SPOA agent implementation selected or completed
 - [ ] productive origin/license evidence recorded
@@ -58,7 +60,7 @@ matrix structure and promotion rules are defined in:
 | Phase 0 | Scaffold | OK |
 | Phase 1 | Origin/Metadata | spoa-agent-starter |
 | Phase 2 | Build | spoa-agent-starter; productive build BLOCKED |
-| Phase 3 | Harness | blocked; diagnostic SPOP subset and SPOE syntax only |
+| Phase 3 | Harness | blocked; diagnostic HAProxy-to-agent handshake only |
 | Phase 4 | No-CRS runtime | not-run |
 | Phase 5 | With-CRS runtime | not-run |
 | Phase 6 | Coverage matrix | spoa-agent-starter documented |

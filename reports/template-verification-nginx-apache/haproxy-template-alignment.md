@@ -45,8 +45,9 @@ adapter and is not runtime verified.
 | Local self-test | PASS | `make -C connectors/haproxy self-test-spoa` |
 | Local HAProxy binary prepare | PASS | framework `ci/prepare-haproxy-runtime.sh` prepares HAProxy under `/src/ModSecurity-conector-build` |
 | Diagnostic SPOP subset | PASS for diagnostic scope only | `make -C connectors/haproxy self-test-spoa-runtime` verifies a minimal diagnostic SPOP handshake subset |
-| SPOE config syntax | syntax-valid only | `make smoke-haproxy` generates config under `/src/ModSecurity-conector-build/haproxy-runtime/spoe/`; `spoe_runtime_status` remains `not-verified` |
-| Productive adapter build | BLOCKED | SPOP parser/library, HAProxy runtime harness, verified HAProxy config, libmodsecurity binding strategy, and runtime evidence not selected |
+| SPOE config syntax | syntax-valid | `make smoke-haproxy` generates config under `/src/ModSecurity-conector-build/haproxy-runtime/spoe/` |
+| Diagnostic HAProxy-to-agent runtime | diagnostic-handshake-verified | fresh run-specific agent log evidence after the HAProxy start marker |
+| Productive adapter build | BLOCKED | ModSecurity transaction binding and Framework-case runtime evidence missing |
 | Runtime prerequisite diagnostics | BLOCKED | `make smoke-haproxy` writes granular blocked reasons |
 
 ## Phase Matrix
@@ -86,8 +87,10 @@ runtime exists. HAProxy `3.2.19` source acquisition is pinned only in framework
 binary can be prepared under
 `/src/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy`.
 `make smoke-haproxy` also verifies a minimal diagnostic SPOP handshake subset
-and validates generated SPOE config syntax with `haproxy -c`; it records
-`spoe_config_status: syntax-valid` and `spoe_runtime_status: not-verified`.
-The remaining runtime blockers are SPOE runtime integration not verified and
-missing ModSecurity binding. Runtime remains not verified and RESPONSE_BODY
-remains not verified.
+and validates generated SPOE config syntax with `haproxy -c`. It live-starts
+HAProxy, the diagnostic SPOP agent, and a local backend, then records
+`spoe_config_status: syntax-valid`,
+`spoe_runtime_status: diagnostic-handshake-verified`, and
+`spoe_runtime_verified: true` only from fresh agent-log evidence after the run
+marker. The remaining runtime blocker is missing ModSecurity binding. Runtime
+remains not verified and RESPONSE_BODY remains not verified.

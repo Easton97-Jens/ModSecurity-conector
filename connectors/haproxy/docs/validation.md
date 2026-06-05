@@ -27,7 +27,11 @@ Global runtime rules and promotion gates are defined in:
   passes; this is not a full SPOA agent implementation.
 - SPOE/HAProxy config: generated under
   `/src/ModSecurity-conector-build/haproxy-runtime/spoe/` and syntax-valid by
-  `haproxy -c`; `spoe_runtime_status` remains `not-verified`.
+  `haproxy -c`.
+- SPOE diagnostic runtime: `make smoke-haproxy` live-starts HAProxy, the
+  diagnostic SPOP agent, and a local backend; fresh agent-log evidence after
+  the run marker sets `spoe_runtime_status` to
+  `diagnostic-handshake-verified`.
 - ModSecurity binding: missing.
 - No-CRS: not run.
 - With-CRS: not run.
@@ -83,6 +87,7 @@ with `blocked_reasons` for the remaining runtime prerequisites.
 
 The entrypoint may prepare the local HAProxy binary first; that is preparation
 evidence only. It may also run the minimal diagnostic SPOP handshake subset
-self-test and generate SPOE config that is syntax-valid under `haproxy -c`.
-Those are diagnostic signals only. Runtime remains not verified and
-RESPONSE_BODY remains not verified.
+self-test, generate SPOE config that is syntax-valid under `haproxy -c`, and
+prove fresh HAProxy-to-diagnostic-agent contact. Those are diagnostic signals
+only. Runtime remains blocked because no ModSecurity transaction is executed,
+and RESPONSE_BODY remains not verified.

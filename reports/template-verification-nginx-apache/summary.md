@@ -198,15 +198,15 @@ evidence.
   official checksum file, and built with verified `TARGET=linux-glibc` support.
 - Diagnostic SPOP subset: PASS for diagnostic scope only; this is a minimal
   diagnostic SPOP handshake subset, not a full SPOA agent implementation.
-- SPOE config syntax: `syntax-valid` by `haproxy -c`; SPOE runtime integration
-  remains `not-verified`.
+- SPOE config syntax: `syntax-valid` by `haproxy -c`.
+- Diagnostic HAProxy-to-agent runtime: `diagnostic-handshake-verified` from
+  fresh run-specific agent-log evidence after HAProxy starts.
 - Runtime status: `blocked` / `not-verified`.
 - `make smoke-haproxy` now records granular prerequisite diagnostics, not a
   runtime PASS.
 - No HAProxy API, complete SPOE/SPOA implementation, libmodsecurity binding,
   CRS loading, or real runtime harness is present.
-- Current runtime blockers: SPOE runtime integration not verified and
-  ModSecurity binding missing.
+- Current runtime blocker: ModSecurity binding missing.
 - No local `connectors/haproxy/tests` folder is used.
 - RESPONSE_BODY blocking remains not verified.
 - HAProxy-specific alignment is documented in

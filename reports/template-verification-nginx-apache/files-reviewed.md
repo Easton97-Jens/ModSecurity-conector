@@ -207,6 +207,11 @@
 - `connectors/haproxy/harness/run_haproxy_smoke.sh`
 - `/src/ModSecurity-conector-build/results/haproxy-summary.json`
 - `/src/ModSecurity-conector-build/results/haproxy-results.jsonl`
+- `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/diagnostic-agent.log`
+- `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/haproxy-runtime.stderr.log`
+- `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/backend.stderr.log`
+- `/src/ModSecurity-conector-build/haproxy-runtime/spoe/<run-id>/haproxy.cfg`
+- `/src/ModSecurity-conector-build/haproxy-runtime/spoe/<run-id>/spoe-agent.conf`
 - `connectors/haproxy/src/README.md`
 - `reports/template-verification-nginx-apache/haproxy-template-alignment.md`
 
