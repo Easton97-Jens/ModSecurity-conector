@@ -2,10 +2,10 @@
 
 ## Status
 
-evidence_status: initial
-decision_status: undecided
-implementation_status: not_started
-runtime_verified: false
+evidence_status: runtime-smoke-verified-single-case
+decision_status: partial-diagnostic-spoe-path
+implementation_status: diagnostic_runtime_single_case
+runtime_verified: true_for_haproxy_phase1_header_block
 
 ## Quellen
 
@@ -19,10 +19,12 @@ runtime_verified: false
 
 ## Kurzfazit
 
-SPOE/SPOA und Lua sind in HAProxy dokumentiert (Extern belegt), aber die
-ModSecurity-relevanten Detailfragen bleiben offen (Noch zu prüfen). Native
-Filter und Sidecar bleiben ebenfalls Prüfspuren (Noch zu prüfen). Keine Option
-ist entschieden (Belegt durch Repository).
+SPOE/SPOA und Lua sind in HAProxy dokumentiert (Extern belegt). Im Repository
+existieren inzwischen ein minimaler diagnostic SPOP handshake subset und ein
+lokaler libmodsecurity phase-1 Header-Block-Self-Test. Diese Evidenz ist
+diagnostisch und self-test-only; HAProxy erzwingt noch keine
+ModSecurity-Entscheidung live über SPOA. Native Filter und Sidecar bleiben
+Prüfspuren (Noch zu prüfen).
 
 ## Findings by Option
 
@@ -86,12 +88,18 @@ ist entschieden (Belegt durch Repository).
 - Response-Header-Inspection (Noch zu prüfen)
 - Response-Body-Inspection (Noch zu prüfen)
 - Intervention-Mapping (Noch zu prüfen)
-- Build-Artefakte (Noch zu prüfen)
-- Runtime-Harness (Noch zu prüfen)
+- Build-Artefakte fuer Starter, diagnostic SPOP subset und Binding-Self-Test
+  liegen unter `/src/ModSecurity-conector-build`; produktive Build-Artefakte
+  bleiben offen.
+- Runtime-Harness: `make smoke-haproxy` verifiziert
+  `haproxy_phase1_header_block` mit live HAProxy, diagnostic SPOP agent,
+  libmodsecurity Entscheidung, set-var ACK, Block-Probe 403 und Pass-Probe
+  200.
 - Performance/Latenz (Noch zu prüfen)
 - Fehlerverhalten (Noch zu prüfen)
 
 ## Nächster Schritt
 
-Für SPOE/SPOA einen minimalen Proof-of-Concept-Plan als Dokument erstellen,
-ohne Code zu schreiben.
+CRS-, RESPONSE_BODY-, negative/pass-through- und Audit/Log-Evidence fuer
+HAProxy ergaenzen, bevor ueber den einzelnen Header-Block-Smoke hinaus
+promotet wird.

@@ -199,14 +199,15 @@ evidence.
 - Diagnostic SPOP subset: PASS for diagnostic scope only; this is a minimal
   diagnostic SPOP handshake subset, not a full SPOA agent implementation.
 - SPOE config syntax: `syntax-valid` by `haproxy -c`.
-- Diagnostic HAProxy-to-agent runtime: `diagnostic-handshake-verified` from
-  fresh run-specific agent-log evidence after HAProxy starts.
-- Runtime status: `blocked` / `not-verified`.
-- `make smoke-haproxy` now records granular prerequisite diagnostics, not a
-  runtime PASS.
-- No HAProxy API, complete SPOE/SPOA implementation, libmodsecurity binding,
-  CRS loading, or real runtime harness is present.
-- Current runtime blocker: ModSecurity binding missing.
+- Diagnostic HAProxy-to-agent runtime: `diagnostic-enforcement-verified` from
+  fresh run-specific NOTIFY, argument extraction, ModSecurity 403, set-var ACK,
+  block-probe 403, and pass-probe 200 evidence.
+- Runtime status: `runtime-smoke-verified` for
+  `haproxy_phase1_header_block` only.
+- No complete SPOE/SPOA implementation, CRS loading, or RESPONSE_BODY runtime
+  evidence is present.
+- Current runtime blockers: broader Framework-case runtime, CRS,
+  RESPONSE_BODY, negative/pass-through, and audit/log evidence.
 - No local `connectors/haproxy/tests` folder is used.
 - RESPONSE_BODY blocking remains not verified.
 - HAProxy-specific alignment is documented in
@@ -233,7 +234,7 @@ Makefile and wrote framework-owned evidence under
 - Overall starter-check status: PASS.
 - Results file: `/src/ModSecurity-conector-build/results/connector-starters/results.jsonl`.
 - Summary file: `/src/ModSecurity-conector-build/results/connector-starters/summary.json`.
-- Runtime status for Envoy, HAProxy, lighttpd, and Traefik: `not-verified`.
+- Runtime status for connector-starter evidence: `not-verified`.
 - RESPONSE_BODY status: not verified.
 - Scope: connector starter build/self-test evidence only; no runtime smoke
   validation is claimed.
@@ -242,9 +243,9 @@ Makefile and wrote framework-owned evidence under
 
 Framework runtime-smoke entrypoints exist for Envoy, HAProxy, lighttpd, and
 Traefik. Connector-side `run_<name>_smoke.sh` entrypoints now also exist for all
-four connectors. Current runtime-smoke status is `BLOCKED` for each connector
-because those scripts only write diagnostic evidence and no real server/proxy
-runtime harness exists.
+four connectors. Current runtime-smoke status is PASS for HAProxy's
+`haproxy_phase1_header_block` case and BLOCKED for Envoy, lighttpd, and
+Traefik.
 
 - Runtime-smoke targets: `make smoke-envoy`, `make smoke-haproxy`,
   `make smoke-lighttpd`, `make smoke-traefik`.
@@ -256,7 +257,8 @@ runtime harness exists.
   `connectors/traefik/harness/run_traefik_smoke.sh`.
 - Evidence path: `/src/ModSecurity-conector-build/results/<connector>-summary.json`
   and `/src/ModSecurity-conector-build/results/<connector>-results.jsonl`.
-- Runtime verification: false for all four.
+- Runtime verification: true only for HAProxy `haproxy_phase1_header_block`;
+  false for Envoy, lighttpd, and Traefik.
 - RESPONSE_BODY: not verified for all four.
 - Starter evidence remains available through `make connector-starter-checks`,
   but starter PASS does not count as runtime smoke.

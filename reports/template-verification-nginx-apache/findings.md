@@ -181,27 +181,30 @@ Detailed report:
 ## HAProxy
 
 - HAProxy implementation remains a starter, not a productive adapter.
-- Current status is `spoa-agent-starter`; runtime status remains
-  `not-verified`.
+- Current status is `spoa-agent-starter`; runtime status is
+  `runtime-smoke-verified` for `haproxy_phase1_header_block` only.
 - The local SPOA agent starter compiles and self-tests synthetic
   request-decision logic using shared request/intervention/status data shapes.
-- The starter does not include HAProxy headers, libmodsecurity headers, CRS
-  loading, network handling, or a runtime harness.
+- The starter does not include HAProxy headers or CRS loading. Live
+  HAProxy-enforced ModSecurity decision evidence exists only through the
+  separate runtime harness for `haproxy_phase1_header_block`.
 - A separate minimal diagnostic SPOP handshake subset now self-tests local
-  HELLO/AGENT-HELLO, NOTIFY-to-empty-ACK, and DISCONNECT handling. It is not a
-  full SPOA agent implementation.
+  HELLO/AGENT-HELLO, NOTIFY argument parsing, verified set-var ACK encoding,
+  and DISCONNECT handling. It is not a full SPOA agent implementation.
 - Framework `ci/prepare-haproxy-runtime.sh` can now prepare HAProxy `3.2.19`
   locally under `/src/ModSecurity-conector-build` after verifying the official
   checksum and `TARGET=linux-glibc` support from the downloaded source Makefile.
-- `make smoke-haproxy` is still BLOCKED, but now records granular prerequisite
-  diagnostics in `/src/ModSecurity-conector-build/results/haproxy-summary.json`.
-- Generated SPOE config is syntax-valid by `haproxy -c`, with
-  `spoe_runtime_status: diagnostic-handshake-verified` when fresh agent-log
-  evidence appears after the run marker.
-- Current HAProxy runtime blocker is missing ModSecurity binding.
+- `make smoke-haproxy` now PASSes the single `haproxy_phase1_header_block`
+  runtime smoke and records evidence in
+  `/src/ModSecurity-conector-build/results/haproxy-summary.json`.
+- Generated SPOE config is syntax-valid by `haproxy -c`; local HAProxy
+  SPOE/SPOP docs/source verify set-var action type 1, arg count 3, transaction
+  scope 2, and bool true `0x11`.
+- The live runtime evidence records fresh NOTIFY, request argument extraction,
+  libmodsecurity disruptive status 403, set-var ACK, block-probe 403, and
+  pass-probe 200.
 - Productive adapter build remains BLOCKED because the repository still lacks a
-  full ModSecurity transaction binding, Framework-case runtime evidence, and
-  libmodsecurity binding strategy.
+  full SPOA implementation and broader Framework-case runtime evidence.
 - No local `connectors/haproxy/tests` folder is used.
 - RESPONSE_BODY blocking remains not verified.
 ## lighttpd Bridge-Starter Finding
@@ -253,10 +256,12 @@ Detailed report:
 - The framework now has runtime-smoke entrypoints for Envoy, HAProxy, lighttpd,
   and Traefik.
 - The Envoy/HAProxy/lighttpd/Traefik harness folders now contain executable
-  `run_<name>_smoke.sh` entrypoints. They write BLOCKED diagnostic evidence
-  with `runtime_verified: false` because real server/proxy harnesses are not
-  implemented.
+  `run_<name>_smoke.sh` entrypoints. HAProxy now writes PASS evidence only for
+  `haproxy_phase1_header_block`; Envoy, lighttpd, and Traefik still write
+  BLOCKED diagnostic evidence with `runtime_verified: false`.
 - `smoke-new-connectors` is not allowed to turn blocked diagnostics into PASS;
-  with all four runtime harnesses missing, the aggregate status remains
-  BLOCKED and `Runtime not verified`.
+  with Envoy, lighttpd, and Traefik still blocked, the aggregate status remains
+  BLOCKED. HAProxy is runtime-smoke-verified only for
+  `haproxy_phase1_header_block`; the new connector set is not fully runtime
+  verified.
 - All runtime-smoke evidence paths are under `/src/ModSecurity-conector-build`.

@@ -141,13 +141,11 @@ still blocked until one path supplies real dependencies:
 
 - Expand or replace the minimal diagnostic SPOP handshake subset with a full
   SPOA agent implementation before claiming HAProxy runtime compatibility.
-- Replace the blocked HAProxy entrypoint with a real runtime harness that starts
-  HAProxy, observes ModSecurity transaction evaluation, and executes a
-  Framework case.
-- Keep the diagnostic HAProxy-to-agent handshake separate from runtime-smoke
+- Extend the single-case HAProxy entrypoint into broader Framework cases beyond
+  `haproxy_phase1_header_block`.
+- Keep the diagnostic HAProxy-to-agent subset separate from full adapter
   promotion; current `spoe_runtime_status` is
-  `diagnostic-handshake-verified`, but `runtime_verified` remains false.
-- Select and implement the HAProxy-specific libmodsecurity binding strategy.
+  `diagnostic-enforcement-verified` only for the header-block smoke.
 - Add runtime evidence for No-CRS, With-CRS, RESPONSE_BODY blocking,
   negative/pass-through behavior, and audit/log artifacts.
 - Promote beyond `spoa-agent-starter` only after productive adapter build and
@@ -185,7 +183,8 @@ remain open or not verified:
 
 The framework connector-starter runner closes only local build/self-test
 starter evidence for Envoy, HAProxy, lighttpd, and Traefik. These runtime gates
-remain open for each connector:
+remain open for Envoy, lighttpd, and Traefik, and remain open for HAProxy beyond
+`haproxy_phase1_header_block`:
 
 - A real server/proxy harness.
 - No-CRS and With-CRS runtime execution.
@@ -197,7 +196,8 @@ remain open for each connector:
 ## Runtime-Smoke Open Gates
 
 The new runtime-smoke entrypoints are present, but these gates remain open for
-Envoy, HAProxy, lighttpd, and Traefik:
+Envoy, lighttpd, and Traefik, and for HAProxy beyond the single header-block
+smoke:
 
 - Implement a real executable server/proxy harness under the connector harness
   contract, replacing the current blocked `run_<name>_smoke.sh` entrypoints.
@@ -208,7 +208,8 @@ Envoy, HAProxy, lighttpd, and Traefik:
   RESPONSE_BODY status.
 - Keep build/self-test starter evidence separate from runtime-smoke evidence.
 
-For HAProxy specifically, framework-owned local HAProxy source acquisition and
-binary preparation are no longer open gates. The remaining open HAProxy runtime
-gates are full ModSecurity transaction binding and Framework-case runtime
-evidence.
+For HAProxy specifically, framework-owned local HAProxy source acquisition,
+binary preparation, diagnostic SPOP contact, verified set-var ACK encoding, and
+one live ModSecurity enforcement path are no longer open gates. The remaining
+open HAProxy runtime gates are broader Framework-case runtime evidence, CRS,
+RESPONSE_BODY, negative/pass-through behavior, and audit/log evidence.

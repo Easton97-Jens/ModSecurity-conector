@@ -1,7 +1,7 @@
 # HAProxy Connector TODO
 
 Status: spoa-agent-starter
-Runtime status: not-verified
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
 
 Global gate definitions:
 
@@ -44,17 +44,20 @@ Global gate definitions:
 
 ## Phase 3: Harness
 
-- [ ] HAProxy runtime harness implemented
-- [ ] harness command documented
-- [ ] harness evidence path documented
-- [ ] HAProxy binary/container/source-build documented
-- [ ] HAProxy config documented
-- [ ] SPOE/SPOA config documented and verified
-- [ ] starter/agent endpoint documented
-- [ ] ModSecurity integration point documented
+- [x] HAProxy runtime harness implemented for `haproxy_phase1_header_block`
+- [x] harness command documented
+- [x] harness evidence path documented
+- [x] HAProxy binary/source-build documented
+- [x] HAProxy config documented
+- [x] SPOE/SPOA config documented and verified for the header-block smoke
+- [x] diagnostic agent endpoint documented
+- [x] ModSecurity integration point documented for the header-block smoke
+- [ ] broader HAProxy runtime harness implemented
 
 ## Phase 4: No-CRS Runtime
 
+- [x] minimal phase-1 header-block smoke executed for
+  `haproxy_phase1_header_block`
 - [ ] `make test-no-crs` executed for HAProxy scope
 - [ ] PASS/FAIL/BLOCKED counts documented
 
@@ -75,6 +78,6 @@ Global gate definitions:
 ## Phase 7: Promotion
 
 - [ ] eligible for `adapter-owned`
-- [ ] eligible for `runtime-smoke-verified`
+- [x] eligible for `runtime-smoke-verified` for `haproxy_phase1_header_block`
 - [ ] eligible for `crs-verified`
 - [ ] eligible for more than `partial`

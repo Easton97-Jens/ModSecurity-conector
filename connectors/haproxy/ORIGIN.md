@@ -1,11 +1,14 @@
 # HAProxy Connector Origin
 
 Status: spoa-agent-starter
-Runtime status: not-verified
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
 
 No upstream HAProxy connector source has been imported into this repository.
-No HAProxy source tree, HAProxy headers, SPOE/SPOA protocol library, or
-libmodsecurity adapter implementation is vendored under `connectors/haproxy`.
+No HAProxy source tree, HAProxy headers, or SPOE/SPOA protocol library is
+vendored under `connectors/haproxy`. The repo-authored libmodsecurity binding
+source is used by the local diagnostic SPOP runtime for the single
+`haproxy_phase1_header_block` smoke; it is not a productive HAProxy runtime
+adapter.
 
 ## Current Source Provenance
 
@@ -17,6 +20,10 @@ libmodsecurity adapter implementation is vendored under `connectors/haproxy`.
 | `connectors/haproxy/src/haproxy_spoa_agent_starter.c` | repo-authored SPOA agent starter | not selected | Local synthetic request-decision logic only; no SPOP parser or HAProxy runtime. |
 | `connectors/haproxy/src/haproxy_spoa_agent_starter.h` | repo-authored SPOA agent starter | not selected | Local starter declarations only. |
 | `connectors/haproxy/src/haproxy_spoa_main.c` | repo-authored SPOA agent starter CLI | not selected | Supports `--describe` and `--self-test` only. |
+| `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` | repo-authored diagnostic SPOP runtime | not selected | Minimal diagnostic SPOP handshake subset with live set-var ACK enforcement for `haproxy_phase1_header_block`; not a full SPOA agent implementation. |
+| `connectors/haproxy/src/haproxy_modsecurity_binding.c` | repo-authored ModSecurity binding | not selected | Uses locally verified libmodsecurity C API signatures for phase-1 header block decisions. |
+| `connectors/haproxy/src/haproxy_modsecurity_binding.h` | repo-authored ModSecurity binding | not selected | Declares the decision shape used by the binding self-test and diagnostic runtime. |
+| `connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c` | repo-authored ModSecurity binding self-test CLI | not selected | Supports `--describe` and `--self-test`; no HAProxy runtime enforcement. |
 | `connectors/haproxy/docs/` | repo-authored documentation | not selected | Documents open HAProxy integration options and blockers. |
 | `connectors/haproxy/harness/README.md` | repo-authored documentation | not selected | Harness contract only. |
 
@@ -25,15 +32,16 @@ libmodsecurity adapter implementation is vendored under `connectors/haproxy`.
 - HAProxy upstream source: not selected.
 - HAProxy integration API/header set: not selected.
 - SPOE/SPOA protocol dependency: not selected.
-- SPOP frame implementation: not implemented.
-- ModSecurity/libmodsecurity binding for HAProxy: not implemented.
+- SPOP frame implementation: minimal diagnostic handshake subset only.
+- ModSecurity/libmodsecurity binding for HAProxy: live enforcement verified
+  only for `haproxy_phase1_header_block`.
 - Imported productive source files: none.
 
 ## Evidence Boundary
 
-The current starter proves only that metadata and a local SPOA agent starter can
-be compiled, and that the starter can run a local synthetic request-decision
-self-test. It does not prove a HAProxy adapter build, SPOE/SPOA protocol
-compatibility, runtime integration, request inspection through HAProxy, response
-inspection, intervention mapping in HAProxy, logging, CRS behavior, or
-RESPONSE_BODY blocking.
+The current starter proves only that metadata and local diagnostic binaries can
+be compiled, that the SPOA starter can run a local synthetic request-decision
+self-test, and that `make smoke-haproxy` can enforce
+`haproxy_phase1_header_block` through live HAProxy, the diagnostic SPOP agent,
+and libmodsecurity. It does not prove a productive HAProxy adapter build,
+SPOE/SPOA protocol completeness, CRS behavior, or RESPONSE_BODY blocking.

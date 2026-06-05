@@ -1,11 +1,12 @@
 # HAProxy Harness
 
-Status: contract plus blocked runtime-smoke entrypoint
-Runtime status: blocked / not-verified
+Status: contract plus single-case runtime-smoke entrypoint
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
 
 `run_haproxy_smoke.sh` exists as the connector-side entrypoint for the framework
-runtime-smoke runner. It writes BLOCKED evidence and exits 77 because no real
-HAProxy to SPOA to ModSecurity Framework-case runtime is implemented.
+runtime-smoke runner. It live-starts local HAProxy, the diagnostic SPOP agent,
+and a local backend, then verifies the narrow
+`haproxy_phase1_header_block` case.
 
 The framework can prepare a local HAProxy binary without global installation
 through `modules/ModSecurity-test-Framework/ci/prepare-haproxy-runtime.sh`.
@@ -34,9 +35,10 @@ make -C connectors/haproxy self-test-spoa-runtime
 ```
 
 This binary is a minimal diagnostic SPOP handshake subset, not a full SPOA
-agent implementation. It verifies only local HELLO/AGENT-HELLO,
-NOTIFY-to-empty-ACK, and DISCONNECT handling. It does not prove ModSecurity
-processing, CRS behavior, RESPONSE_BODY handling, or complete SPOA semantics.
+agent implementation. It verifies local HELLO/AGENT-HELLO, NOTIFY request
+argument parsing, verified `set-var txn.blocked true` ACK encoding, and
+DISCONNECT handling. It does not prove CRS behavior, RESPONSE_BODY handling, or
+complete SPOA semantics.
 
 Framework runtime-smoke entrypoint:
 
@@ -44,27 +46,38 @@ Framework runtime-smoke entrypoint:
 make smoke-haproxy
 ```
 
-The current `run_haproxy_smoke.sh` entrypoint writes BLOCKED evidence under
-`/src/ModSecurity-conector-build/results/` and reports runtime not verified. It
-runs the diagnostic SPOP subset self-test and a live HAProxy to diagnostic
-SPOP-agent handshake only as diagnostic evidence, not as full runtime-smoke
-evidence.
+The current `run_haproxy_smoke.sh` entrypoint writes PASS evidence under
+`/src/ModSecurity-conector-build/results/` only when live HAProxy sends NOTIFY
+to the diagnostic agent, the agent extracts `method`, `path`, and
+`test_header`, libmodsecurity produces a disruptive 403 decision, the agent
+sends the locally verified set-var ACK, the block probe returns 403, and the
+clean probe returns 200.
 
 The entrypoint checks HAProxy runtime prerequisites before writing evidence. If
 the local HAProxy binary is missing, it attempts the framework prepare helper.
 When that helper succeeds, the HAProxy binary/source-acquisition blockers are
-removed from `blocked_reasons`. When the diagnostic SPOP subset self-test
-passes, the SPOA runtime-missing blocker is removed, but runtime still remains
-BLOCKED because:
+removed from `blocked_reasons`. When all live enforcement checks pass:
 
 - `make smoke-haproxy` live-starts HAProxy and the diagnostic SPOP agent, sends
-  a local HTTP request through HAProxy, and records fresh agent-log evidence
+  local HTTP requests through HAProxy, and records fresh agent-log evidence
   after a per-run marker;
-- `spoe_runtime_status` is `diagnostic-handshake-verified` only when that fresh
-  HAProxy-to-agent contact is observed;
-- no HAProxy/libmodsecurity transaction binding exists.
+- `spoe_runtime_status` is `diagnostic-enforcement-verified`;
+- `modsecurity_binding_status` is `live-enforcement-verified`;
+- `runtime_verified` is `true` for `haproxy_phase1_header_block` only.
 
-A future HAProxy harness must not claim runtime verification until it records:
+The ModSecurity binding self-test can be run directly:
+
+```sh
+make -C connectors/haproxy build-modsecurity-binding
+make -C connectors/haproxy self-test-modsecurity-binding
+```
+
+That self-test verifies only an in-process phase-1 header block decision with
+status 403. It may set `modsecurity_binding_status: self-test-verified`, but
+only `make smoke-haproxy` may promote the live enforcement status.
+
+Future HAProxy promotion beyond the current single-case runtime smoke still
+requires:
 
 - HAProxy binary, container, or source-build evidence
 - HAProxy config file
@@ -74,9 +87,10 @@ A future HAProxy harness must not claim runtime verification until it records:
 - the harness command
 - result JSON path
 - evidence paths
-- PASS/FAIL/BLOCKED counts
+- PASS/FAIL/BLOCKED counts for broader scopes
 - logs needed for HAProxy, connector, and audit evidence
 - No-CRS and With-CRS scope separation
+- CRS, RESPONSE_BODY, negative/pass-through, and audit/log evidence
 
 Executable cases and runners are framework-owned, for example:
 

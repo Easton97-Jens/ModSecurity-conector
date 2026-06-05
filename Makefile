@@ -144,7 +144,7 @@ smoke-new-connectors: check-framework
 		exit 77; \
 	fi; \
 	if [ "$$blocked" -ne 0 ]; then \
-		echo "smoke-new-connectors: BLOCKED - Runtime not verified for all new connectors"; \
+		echo "smoke-new-connectors: BLOCKED - some new connectors remain runtime not verified"; \
 		exit 77; \
 	fi; \
 	echo "smoke-new-connectors: PASS - runtime smoke verified"; \

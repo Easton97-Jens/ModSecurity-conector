@@ -139,17 +139,19 @@ evidence.
 - `connectors/haproxy` now includes repo-authored metadata and a local SPOA
   agent starter under `connectors/haproxy/src/`.
 - HAProxy current status: `spoa-agent-starter`.
-- Build status: metadata build PASS; local SPOA starter build PASS; productive
-  adapter build BLOCKED.
+- Build status: metadata build PASS; local SPOA starter build PASS; local
+  ModSecurity binding self-test PASS; productive adapter build BLOCKED.
 - Self-test status: local synthetic request-decision self-test PASS.
-- Runtime status remains `not-verified`.
-- The starter uses shared request/intervention/status/origin shapes; it does not
-  use HAProxy APIs, parse SPOP frames, implement full SPOE/SPOA compatibility,
-  load CRS, or call libmodsecurity.
+- Runtime status: `runtime-smoke-verified` for
+  `haproxy_phase1_header_block` only.
+- The starter uses shared request/intervention/status/origin shapes. The
+  diagnostic path now also has live HAProxy to diagnostic SPOA to libmodsecurity
+  enforcement evidence for the header-block case, but it does not implement
+  full SPOE/SPOA compatibility, load CRS, or verify RESPONSE_BODY.
 - No local `connectors/haproxy/tests` folder is used.
-- Missing runtime dependencies/evidence: SPOP parser or SPOE/SPOA protocol
-  library, HAProxy runtime harness, verified HAProxy config, agent endpoint,
-  libmodsecurity binding strategy, result JSON, and PASS/FAIL/BLOCKED counts.
+- Missing broader runtime evidence: full SPOA implementation, broader Framework
+  case runtime, CRS runtime evidence, RESPONSE_BODY evidence, negative/pass-
+  through evidence, and audit/log evidence.
 - Alignment report: `reports/template-verification-nginx-apache/haproxy-template-alignment.md`.
 ## lighttpd Bridge-Starter
 
@@ -185,8 +187,8 @@ The command writes local evidence to
 
 These results are build/self-test evidence only. They are not Apache/NGINX-style
 runtime smoke validation, do not install global artifacts, do not create local
-`connectors/<name>/tests` directories, and leave Envoy, HAProxy, lighttpd, and
-Traefik runtime status as `not-verified`. RESPONSE_BODY remains not verified.
+`connectors/<name>/tests` directories, and leave runtime status
+`not-verified` for starter evidence. RESPONSE_BODY remains not verified.
 
 ## New Connector Runtime-Smoke Entry Points
 
@@ -195,8 +197,8 @@ lighttpd, and Traefik through `make smoke-envoy`, `make smoke-haproxy`,
 `make smoke-lighttpd`, and `make smoke-traefik`. These targets write runtime
 evidence files under `/src/ModSecurity-conector-build/results/`.
 
-Current status is `BLOCKED` for all four because their connector harness
-directories contain contract documentation only and no executable server/proxy
-runtime harness. The aggregate `make smoke-new-connectors` is diagnostic:
-when all four are blocked, it exits blocked and reports `Runtime not verified`
-instead of summarizing the blocked state as PASS.
+Current status is PASS for HAProxy's single `haproxy_phase1_header_block`
+runtime smoke and BLOCKED for Envoy, lighttpd, and Traefik. The aggregate
+`make smoke-new-connectors` remains diagnostic and exits BLOCKED while any new
+connector runtime remains unverified instead of summarizing blocked states as
+PASS.

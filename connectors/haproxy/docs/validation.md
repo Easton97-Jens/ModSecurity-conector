@@ -1,11 +1,12 @@
 # HAProxy Validation
 
 Status: spoa-agent-starter
-Runtime status: not-verified
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
 
-HAProxy runtime validation is not run. No runtime result is claimed.
-`make smoke-haproxy` performs prerequisite diagnostics and currently remains
-BLOCKED.
+`make smoke-haproxy` now verifies the narrow live HAProxy to diagnostic SPOA to
+libmodsecurity case `haproxy_phase1_header_block`. CRS, RESPONSE_BODY,
+negative/pass-through matrix coverage, and audit/log behavior remain not
+verified.
 
 Global runtime rules and promotion gates are defined in:
 
@@ -17,7 +18,7 @@ Global runtime rules and promotion gates are defined in:
 - Metadata build-starter: buildable as a compile-time object target.
 - SPOA agent starter: buildable as a local binary with local self-test.
 - Productive adapter build: BLOCKED.
-- HAProxy runtime harness: blocked prerequisite-diagnostic entrypoint only.
+- HAProxy runtime harness: verifies `haproxy_phase1_header_block` only.
 - HAProxy binary: locally prepared under
   `/src/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy`.
 - HAProxy source/binary acquisition: defined only in framework `common.sh`;
@@ -31,9 +32,16 @@ Global runtime rules and promotion gates are defined in:
 - SPOE diagnostic runtime: `make smoke-haproxy` live-starts HAProxy, the
   diagnostic SPOP agent, and a local backend; fresh agent-log evidence after
   the run marker sets `spoe_runtime_status` to
-  `diagnostic-handshake-verified`.
-- ModSecurity binding: missing.
-- No-CRS: not run.
+  `diagnostic-enforcement-verified`.
+- ModSecurity binding: live enforcement verified for the header-block smoke
+  case; the standalone self-test still verifies only an in-process phase-1
+  transaction.
+- HAProxy enforcement path for ModSecurity decisions: verified only for
+  `haproxy_phase1_header_block`.
+- Framework case runtime for broader HAProxy to SPOA to ModSecurity coverage:
+  missing.
+- No-CRS minimal phase-1 runtime: PASS for `haproxy_phase1_header_block` only.
+- Broader No-CRS matrix: not run.
 - With-CRS: not run.
 - RESPONSE_BODY: not verified.
 - Negative/pass-through: not verified.
@@ -53,16 +61,16 @@ explicit HAProxy runtime scope exists and is executed:
 
 ## Harness Blocker
 
-`connectors/haproxy/harness/run_haproxy_smoke.sh` exists as a blocked
-runtime-smoke entrypoint with prerequisite diagnostics. The local self-test runs
-only synthetic in-process request-decision logic.
+`connectors/haproxy/harness/run_haproxy_smoke.sh` exists as a runtime-smoke
+entrypoint for the single `haproxy_phase1_header_block` case. The local starter
+self-test remains synthetic in-process request-decision logic only.
 
-A future harness must provide HAProxy binary/container/source-build evidence,
-HAProxy config, SPOE/SPOA config, agent endpoint, ModSecurity integration point
-evidence, result JSON, and PASS/FAIL/BLOCKED counts.
+A future broader harness must add No-CRS, With-CRS, RESPONSE_BODY,
+negative/pass-through, and audit/log evidence before this connector can be
+promoted beyond the current narrow runtime-smoke case.
 
-HAProxy cannot be promoted beyond spoa-agent-starter or partial status without
-recorded runtime evidence.
+HAProxy cannot be promoted beyond partial status without those broader recorded
+runtime scopes.
 
 ## Framework-Owned Starter Evidence
 
@@ -80,14 +88,12 @@ The HAProxy entries are connector-starter build/self-test evidence only:
 ## Runtime-Smoke Entry Point
 
 `make smoke-haproxy` invokes the framework-owned HAProxy runtime-smoke runner.
-The current result is BLOCKED because the connector-side entrypoint writes
-diagnostic evidence and no real HAProxy to SPOA to ModSecurity Framework-case
-runtime exists. Evidence is written under `/src/ModSecurity-conector-build/results/`
-with `blocked_reasons` for the remaining runtime prerequisites.
+The current result is PASS for `haproxy_phase1_header_block`. Evidence is
+written under `/src/ModSecurity-conector-build/results/`.
 
 The entrypoint may prepare the local HAProxy binary first; that is preparation
 evidence only. It may also run the minimal diagnostic SPOP handshake subset
-self-test, generate SPOE config that is syntax-valid under `haproxy -c`, and
-prove fresh HAProxy-to-diagnostic-agent contact. Those are diagnostic signals
-only. Runtime remains blocked because no ModSecurity transaction is executed,
-and RESPONSE_BODY remains not verified.
+self-test, generate SPOE config that is syntax-valid under `haproxy -c`, prove
+fresh HAProxy-to-diagnostic-agent NOTIFY/contact, run libmodsecurity live, send
+the verified set-var ACK, and verify 403/200 probes. RESPONSE_BODY remains not
+verified.

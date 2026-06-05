@@ -1,7 +1,7 @@
 {
   "connector": "haproxy",
   "status": "spoa-agent-starter",
-  "runtime_status": "not-verified",
+  "runtime_status": "runtime-smoke-verified:haproxy_phase1_header_block",
   "upstream_source": "not selected",
   "imported_productive_source_files": [],
   "repo_authored_files": [
@@ -31,7 +31,19 @@
     },
     {
       "path": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
-      "purpose": "minimal diagnostic SPOP handshake subset; not a full SPOA agent implementation"
+      "purpose": "minimal diagnostic SPOP handshake subset with live set-var ACK enforcement for haproxy_phase1_header_block; not a full SPOA agent implementation"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+      "purpose": "local libmodsecurity phase-1 header binding used by the self-test and diagnostic HAProxy runtime smoke"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_modsecurity_binding.h",
+      "purpose": "declarations for the local ModSecurity binding self-test"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c",
+      "purpose": "CLI entry point for the local ModSecurity binding self-test"
     }
   ],
   "shared_inputs": [
@@ -60,21 +72,21 @@
     "compile local SPOA agent starter binary",
     "run local self-test for synthetic request allow/block decisions",
     "print explicit limitations via --describe",
-    "compile and self-test minimal diagnostic SPOP HELLO/ACK/DISCONNECT handling"
+    "compile and self-test minimal diagnostic SPOP HELLO/ACK/DISCONNECT handling",
+    "compile and self-test a local libmodsecurity phase-1 header block transaction",
+    "verify live HAProxy enforcement for haproxy_phase1_header_block"
   ],
   "blocked_dependencies": [
     "full SPOA/SPOP implementation beyond the diagnostic handshake subset",
-    "HAProxy runtime harness support",
-    "HAProxy to SPOA runtime integration verified against a running HAProxy",
-    "selected libmodsecurity binding strategy for HAProxy",
-    "CRS loading path for HAProxy runtime"
+    "broader Framework case runtime that exercises HAProxy to SPOA to ModSecurity",
+    "CRS loading path for HAProxy runtime",
+    "RESPONSE_BODY runtime evidence",
+    "negative/pass-through and audit/log runtime evidence"
   ],
   "claims_not_made": [
     "full HAProxy adapter implementation",
-    "HAProxy runtime compatibility",
-    "SPOE/SPOA protocol compatibility",
-    "libmodsecurity transaction integration",
-    "No-CRS runtime PASS",
+    "SPOE/SPOA protocol compatibility beyond the diagnostic subset",
+    "No-CRS runtime PASS beyond haproxy_phase1_header_block",
     "With-CRS runtime PASS",
     "RESPONSE_BODY blocking"
   ]

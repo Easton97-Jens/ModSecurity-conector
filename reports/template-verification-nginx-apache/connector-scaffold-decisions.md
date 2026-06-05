@@ -275,8 +275,9 @@ Status vocabulary:
   implementation is proven.
 - `adapter-owned`: productive connector code lives in the connector tree with
   provenance and metadata.
-- `runtime-smoke-verified`: only specific smoke cases with recorded command and
-  result are verified.
+- `runtime-smoke-verified`: only specific smoke cases with recorded command,
+  result, and explicit `verified_case` scope are verified; this does not imply
+  CRS, RESPONSE_BODY, or full-matrix verification.
 - `crs-verified`: With-CRS target or case claim has recorded command, CRS
   evidence, and result.
 - `partial`: structure or partial runtime evidence exists, but full validation
@@ -526,12 +527,15 @@ runtime-evidence expectations. HAProxy-specific files should reference those
 rules and record only HAProxy-specific status. The repository has reusable
 common request, intervention, status, and origin shapes, so a local starter can
 compile and self-test synthetic request-decision logic without inventing HAProxy
-API, SPOP frame handling, or libmodsecurity runtime logic.
+API ownership or full SPOP frame handling. A separate local libmodsecurity
+binding verifies the local C API and can be exercised by the diagnostic SPOP
+runtime for the single `haproxy_phase1_header_block` smoke.
 
 HAProxy-specific application:
 
 - `connectors/haproxy` is `spoa-agent-starter`.
-- Runtime status is `not-verified`.
+- Runtime status is `runtime-smoke-verified` for
+  `haproxy_phase1_header_block` only.
 - Template alignment is `scaffold-aligned plus local SPOA agent starter`.
 - No local `connectors/haproxy/tests` folder is used.
 - `connectors/haproxy/src/haproxy_spoa_agent_starter.*` and
@@ -539,27 +543,34 @@ HAProxy-specific application:
   files, not productive adapter code.
 - `make -C connectors/haproxy build-spoa-starter` may compile the local starter
   binary only; it does not build HAProxy, a HAProxy module, a complete SPOA
-  service, libmodsecurity integration, or runtime adapter logic.
+  service, HAProxy-enforced libmodsecurity integration, or runtime adapter
+  logic.
 - `make -C connectors/haproxy self-test-spoa` may verify local synthetic
   request allow/block decisions only; it is not a HAProxy runtime smoke.
-- Productive HAProxy adapter build is BLOCKED until an SPOP parser or
-  SPOE/SPOA protocol library, HAProxy runtime harness, HAProxy configuration,
-  libmodsecurity binding strategy, and runtime evidence are selected and
-  recorded.
-- No HAProxy runtime result, adapter behavior, CRS behavior, or RESPONSE_BODY
-  blocking result is claimed.
+- `make -C connectors/haproxy self-test-modsecurity-binding` may verify a
+  local libmodsecurity phase-1 header block self-test only; it may not set
+  `runtime_verified` to true by itself.
+- `make smoke-haproxy` may set `runtime_verified: true` only when live HAProxy
+  sends NOTIFY to the diagnostic agent, the agent extracts request arguments,
+  libmodsecurity produces a disruptive 403, the verified set-var ACK is sent,
+  the block probe returns 403, and the clean probe returns 200.
+- Productive HAProxy adapter build remains BLOCKED until a full SPOP parser or
+  SPOE/SPOA protocol library, broader HAProxy runtime harness, CRS evidence,
+  RESPONSE_BODY evidence, negative/pass-through evidence, and audit/log
+  evidence are selected and recorded.
+- No CRS behavior or RESPONSE_BODY blocking result is claimed.
 - Future executable tests remain framework-owned under
   `modules/ModSecurity-test-Framework/tests/cases/` and runner paths such as
   `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
-- Future evidence may reference parent targets `make test-no-crs`,
+- Broader evidence may reference parent targets `make test-no-crs`,
   `make test-with-crs`, and `make smoke-common` only after an explicit
   HAProxy runtime scope exists and is executed.
 
 Impact: HAProxy may be documented as a local SPOA agent starter without
 creating duplicated connector-local gates or YAML test cases. Promotion beyond
-spoa-agent-starter/partial is not allowed until HAProxy-specific productive
-source origin, runtime build, harness, No-CRS, With-CRS, RESPONSE_BODY,
-negative/pass-through, and audit/log evidence is recorded.
+partial single-case runtime smoke is not allowed until HAProxy-specific
+productive source origin, runtime build, broader harness, No-CRS, With-CRS,
+RESPONSE_BODY, negative/pass-through, and audit/log evidence is recorded.
 ## lighttpd Bridge-Starter Decision
 
 Question: Can `connectors/lighttpd` move beyond metadata/probe build-starter

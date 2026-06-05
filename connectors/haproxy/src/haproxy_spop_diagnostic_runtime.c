@@ -17,6 +17,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "haproxy_modsecurity_binding.h"
+
 #define SPOP_FRAME_MAX 16384U
 #define SPOP_MIN_FRAME_SIZE 256U
 #define SPOP_FIN_FLAG 0x00000001U
@@ -32,6 +34,10 @@
 #define SPOP_DATA_UINT32 3U
 #define SPOP_DATA_STR 8U
 #define SPOP_BOOL_TRUE 0x10U
+#define SPOP_DATA_TYPE_MASK 0x0fU
+
+#define SPOP_ACT_SET_VAR 1U
+#define SPOP_SCOPE_TXN 2U
 
 typedef struct spop_buffer {
     unsigned char data[SPOP_FRAME_MAX];
@@ -54,6 +60,16 @@ typedef struct hello_info {
     int has_capabilities;
     int healthcheck;
 } hello_info;
+
+typedef struct notify_request {
+    char method[32];
+    char path[1024];
+    char test_header[1024];
+    int has_notify;
+    int has_method;
+    int has_path;
+    int has_test_header;
+} notify_request;
 
 static volatile sig_atomic_t stop_requested = 0;
 
@@ -365,6 +381,222 @@ static int skip_typed_data(const unsigned char *data, size_t len, size_t *pos) {
     }
 }
 
+static void copy_spop_string(char *out, size_t out_len, const unsigned char *value, size_t value_len) {
+    size_t copy_len;
+
+    if (out == 0 || out_len == 0) {
+        return;
+    }
+    copy_len = value_len;
+    if (copy_len >= out_len) {
+        copy_len = out_len - 1U;
+    }
+    if (copy_len > 0) {
+        memcpy(out, value, copy_len);
+    }
+    out[copy_len] = '\0';
+}
+
+static int read_typed_string_to_buffer(
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        char *out,
+        size_t out_len,
+        int *present) {
+    size_t value_pos = *pos;
+    unsigned int type;
+    const unsigned char *value;
+    size_t value_len;
+
+    if (*pos >= len) {
+        return -1;
+    }
+    type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
+    if (type == 0U) {
+        copy_spop_string(out, out_len, (const unsigned char *)"", 0);
+        *present = 1;
+        return 0;
+    }
+    if (type != SPOP_DATA_STR) {
+        *pos = value_pos;
+        return skip_typed_data(data, len, pos);
+    }
+    if (read_string_ref(data, len, pos, &value, &value_len) != 0) {
+        return -1;
+    }
+    copy_spop_string(out, out_len, value, value_len);
+    *present = 1;
+    return 0;
+}
+
+static int read_typed_uint32_value(
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        unsigned int *out,
+        int *present) {
+    unsigned int type;
+    uint64_t value;
+
+    if (*pos >= len) {
+        return -1;
+    }
+    type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
+    if (type != SPOP_DATA_UINT32) {
+        return -1;
+    }
+    if (read_varint(data, len, pos, &value) != 0) {
+        return -1;
+    }
+    *out = (unsigned int)value;
+    *present = 1;
+    return 0;
+}
+
+static void parse_disconnect_payload(
+        const unsigned char *data,
+        size_t len,
+        unsigned int *status_code,
+        char *message,
+        size_t message_len) {
+    size_t pos = 0;
+    int status_present = 0;
+    int message_present = 0;
+
+    if (status_code != 0) {
+        *status_code = 0;
+    }
+    if (message != 0 && message_len > 0) {
+        message[0] = '\0';
+    }
+    while (pos < len) {
+        const unsigned char *key;
+        size_t key_len;
+
+        if (read_string_ref(data, len, &pos, &key, &key_len) != 0) {
+            return;
+        }
+        if (key_equals(key, key_len, "status-code") && status_code != 0) {
+            if (read_typed_uint32_value(data, len, &pos, status_code, &status_present) != 0) {
+                return;
+            }
+            continue;
+        }
+        if (key_equals(key, key_len, "message") && message != 0) {
+            if (read_typed_string_to_buffer(data, len, &pos, message,
+                    message_len, &message_present) != 0) {
+                return;
+            }
+            continue;
+        }
+        if (skip_typed_data(data, len, &pos) != 0) {
+            return;
+        }
+    }
+    (void)status_present;
+    (void)message_present;
+}
+
+static int parse_notify_payload(const unsigned char *data, size_t len, notify_request *request) {
+    size_t pos = 0;
+
+    memset(request, 0, sizeof(*request));
+    while (pos < len) {
+        const unsigned char *message_name;
+        size_t message_name_len;
+        unsigned int nb_args;
+        unsigned int i;
+
+        if (read_string_ref(data, len, &pos, &message_name, &message_name_len) != 0 ||
+                pos >= len) {
+            return -1;
+        }
+        (void)message_name;
+        (void)message_name_len;
+        nb_args = data[pos++];
+        request->has_notify = 1;
+        for (i = 0; i < nb_args; ++i) {
+            const unsigned char *arg_name;
+            size_t arg_name_len;
+
+            if (read_string_ref(data, len, &pos, &arg_name, &arg_name_len) != 0) {
+                return -1;
+            }
+            if (key_equals(arg_name, arg_name_len, "method")) {
+                if (read_typed_string_to_buffer(data, len, &pos, request->method,
+                        sizeof(request->method), &request->has_method) != 0) {
+                    return -1;
+                }
+                continue;
+            }
+            if (key_equals(arg_name, arg_name_len, "path")) {
+                if (read_typed_string_to_buffer(data, len, &pos, request->path,
+                        sizeof(request->path), &request->has_path) != 0) {
+                    return -1;
+                }
+                continue;
+            }
+            if (key_equals(arg_name, arg_name_len, "test_header")) {
+                if (read_typed_string_to_buffer(data, len, &pos, request->test_header,
+                        sizeof(request->test_header), &request->has_test_header) != 0) {
+                    return -1;
+                }
+                continue;
+            }
+            if (skip_typed_data(data, len, &pos) != 0) {
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int build_notify_request_payload(
+        spop_buffer *payload,
+        const char *method,
+        const char *path,
+        const char *test_header) {
+    payload->len = 0;
+    if (append_string(payload, "check-request") != 0 ||
+            append_byte(payload, 3U) != 0 ||
+            append_string(payload, "method") != 0 ||
+            append_typed_string(payload, method) != 0 ||
+            append_string(payload, "path") != 0 ||
+            append_typed_string(payload, path) != 0 ||
+            append_string(payload, "test_header") != 0 ||
+            append_typed_string(payload, test_header) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int build_set_var_blocked_payload(spop_buffer *payload) {
+    payload->len = 0;
+    if (append_byte(payload, SPOP_ACT_SET_VAR) != 0 ||
+            append_byte(payload, 3U) != 0 ||
+            append_byte(payload, SPOP_SCOPE_TXN) != 0 ||
+            append_string(payload, "blocked") != 0 ||
+            append_typed_bool(payload, 1) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int payload_has_set_var_blocked_true(const spop_buffer *payload) {
+    size_t pos = 0;
+    const unsigned char *name;
+    size_t name_len;
+
+    if (payload->len < 4U || payload->data[pos++] != SPOP_ACT_SET_VAR ||
+            payload->data[pos++] != 3U || payload->data[pos++] != SPOP_SCOPE_TXN ||
+            read_string_ref(payload->data, payload->len, &pos, &name, &name_len) != 0 ||
+            !key_equals(name, name_len, "blocked") || pos >= payload->len) {
+        return 0;
+    }
+    return payload->data[pos] == (SPOP_DATA_BOOL | SPOP_BOOL_TRUE);
+}
+
 static int parse_hello_payload(const unsigned char *data, size_t len, hello_info *hello) {
     size_t pos = 0;
 
@@ -482,7 +714,7 @@ static int send_agent_hello(int fd, unsigned int max_frame_size) {
     spop_buffer payload;
 
     payload.len = 0;
-    if (append_kv_string(&payload, "version", "1.2") != 0 ||
+    if (append_kv_string(&payload, "version", "2.0") != 0 ||
         append_kv_uint32(&payload, "max-frame-size", max_frame_size) != 0 ||
         append_kv_string(&payload, "capabilities", "") != 0) {
         return -1;
@@ -505,7 +737,7 @@ static int send_haproxy_hello(int fd, int healthcheck) {
     spop_buffer payload;
 
     payload.len = 0;
-    if (append_kv_string(&payload, "supported-versions", "1.2") != 0 ||
+    if (append_kv_string(&payload, "supported-versions", "2.0,1.2") != 0 ||
         append_kv_uint32(&payload, "max-frame-size", SPOP_FRAME_MAX) != 0 ||
         append_kv_string(&payload, "capabilities", "") != 0 ||
         append_kv_bool(&payload, "healthcheck", healthcheck) != 0) {
@@ -538,16 +770,62 @@ static int handle_connection(int fd, FILE *log) {
             return 0;
         }
         if (frame.type == SPOP_FRM_NOTIFY) {
-            spop_buffer empty;
-            empty.len = 0;
+            notify_request request;
+            haproxy_modsecurity_decision decision;
+            spop_buffer ack_payload;
+            int modsec_rc;
+
+            ack_payload.len = 0;
             log_line(log, "NOTIFY received stream=%llu frame=%llu", (unsigned long long)frame.stream_id, (unsigned long long)frame.frame_id);
-            if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &empty) != 0) {
+            if (parse_notify_payload(frame.payload, frame.payload_len, &request) != 0) {
+                log_line(log, "NOTIFY request argument extraction failed");
+                if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &ack_payload) != 0) {
+                    return -1;
+                }
+                continue;
+            }
+            log_line(log,
+                "NOTIFY request args extracted method_present=%d path_present=%d test_header_present=%d method=%s path=%s test_header=%s",
+                request.has_method, request.has_path, request.has_test_header,
+                request.has_method ? request.method : "",
+                request.has_path ? request.path : "",
+                request.has_test_header ? request.test_header : "");
+            modsec_rc = haproxy_modsecurity_phase1_header_eval(
+                request.has_method ? request.method : "GET",
+                request.has_path ? request.path : "/",
+                request.has_test_header ? request.test_header : "",
+                &decision);
+            if (modsec_rc != 0) {
+                log_line(log, "MODSECURITY live binding failed reason=%s",
+                    decision.log_message[0] != '\0' ? decision.log_message : "unknown");
+                if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &ack_payload) != 0) {
+                    return -1;
+                }
+                continue;
+            }
+            log_line(log, "MODSECURITY live decision disruptive=%d status=%d",
+                decision.disruptive, decision.status);
+            if (decision.disruptive != 0 && decision.status == 403) {
+                if (build_set_var_blocked_payload(&ack_payload) != 0) {
+                    log_line(log, "ACK set-var txn.blocked true encoding failed");
+                    return -1;
+                }
+                log_line(log, "ACK set-var txn.blocked true sent");
+            } else {
+                log_line(log, "ACK empty sent");
+            }
+            if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &ack_payload) != 0) {
                 return -1;
             }
             continue;
         }
         if (frame.type == SPOP_FRM_HAPROXY_DISCONNECT) {
-            log_line(log, "DISCONNECT received");
+            unsigned int status_code = 0;
+            char message[256];
+            parse_disconnect_payload(frame.payload, frame.payload_len,
+                &status_code, message, sizeof(message));
+            log_line(log, "DISCONNECT received status=%u message=%s",
+                status_code, message);
             send_agent_disconnect(fd, 0, "normal");
             return 0;
         }
@@ -640,9 +918,24 @@ static int client_expect_frame(int fd, unsigned int type, uint64_t stream_id, ui
     return 0;
 }
 
+static int client_expect_ack_set_var(int fd, uint64_t stream_id, uint64_t frame_id) {
+    spop_frame frame;
+    spop_buffer payload;
+
+    if (recv_frame(fd, &frame) != 0 || frame.type != SPOP_FRM_ACK ||
+            frame.stream_id != stream_id || frame.frame_id != frame_id ||
+            frame.payload_len > sizeof(payload.data)) {
+        return -1;
+    }
+    payload.len = frame.payload_len;
+    memcpy(payload.data, frame.payload, payload.len);
+    return payload_has_set_var_blocked_true(&payload) ? 0 : -1;
+}
+
 static int run_client_self_test(unsigned int port, FILE *log) {
     int fd;
     spop_buffer empty;
+    spop_buffer notify_payload;
 
     fd = connect_localhost(port);
     if (fd < 0) {
@@ -661,16 +954,21 @@ static int run_client_self_test(unsigned int port, FILE *log) {
         return -1;
     }
     empty.len = 0;
+    if (build_notify_request_payload(&notify_payload, "GET",
+            "/haproxy-binding-self-test", "block") != 0) {
+        close(fd);
+        return -1;
+    }
     if (send_haproxy_hello(fd, 0) != 0 ||
         client_expect_frame(fd, SPOP_FRM_AGENT_HELLO, 0, 0) != 0 ||
-        send_frame(fd, SPOP_FRM_NOTIFY, 1, 1, &empty) != 0 ||
-        client_expect_frame(fd, SPOP_FRM_ACK, 1, 1) != 0 ||
+        send_frame(fd, SPOP_FRM_NOTIFY, 1, 1, &notify_payload) != 0 ||
+        client_expect_ack_set_var(fd, 1, 1) != 0 ||
         send_frame(fd, SPOP_FRM_HAPROXY_DISCONNECT, 0, 0, &empty) != 0 ||
         client_expect_frame(fd, SPOP_FRM_AGENT_DISCONNECT, 0, 0) != 0) {
         close(fd);
         return -1;
     }
-    log_line(log, "client notify ack disconnect PASS");
+    log_line(log, "client notify set-var ack disconnect PASS");
     close(fd);
     return 0;
 }
@@ -732,7 +1030,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
         return 1;
     }
     printf("haproxy_spop_diagnostic_runtime_self_test: PASS\n");
-    printf("scope: minimal diagnostic SPOP handshake subset; no ModSecurity binding, no CRS, no RESPONSE_BODY\n");
+    printf("scope: minimal diagnostic SPOP handshake subset with set-var enforcement diagnostic; no full SPOA semantics, no CRS, no RESPONSE_BODY\n");
     printf("log: %s\n", log_path);
     printf("port_file: %s\n", port_path);
     return 0;
@@ -761,7 +1059,7 @@ static int run_server(const char *host, unsigned int port, const char *ready_fil
         fclose(log);
         return 77;
     }
-    log_line(log, "minimal diagnostic SPOP handshake subset listening on %s:%u", host, bound_port);
+    log_line(log, "minimal diagnostic SPOP handshake subset with set-var enforcement diagnostic listening on %s:%u", host, bound_port);
     accept_loop(listen_fd, log, 0);
     close(listen_fd);
     fclose(log);
@@ -774,8 +1072,8 @@ static void print_usage(const char *program) {
 
 int main(int argc, char **argv) {
     if (argc == 2 && strcmp(argv[1], "--describe") == 0) {
-        printf("HAProxy minimal diagnostic SPOP handshake subset\n");
-        printf("limitations: no full SPOA agent implementation, no ModSecurity binding, no CRS loading, no RESPONSE_BODY verification\n");
+        printf("HAProxy minimal diagnostic SPOP handshake subset with set-var enforcement diagnostic\n");
+        printf("limitations: no full SPOA agent implementation, no CRS loading, no RESPONSE_BODY verification\n");
         return 0;
     }
 

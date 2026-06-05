@@ -1,19 +1,20 @@
 # HAProxy Connector
 
 Status: spoa-agent-starter
-Runtime status: not-verified
+Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block`
 Template alignment: scaffold-aligned plus local SPOA agent starter
 
 This connector now contains repository-owned metadata, a local HAProxy SPOA
-agent starter, and a separate minimal diagnostic SPOP handshake subset. The
-starter compiles and self-tests local request-decision logic, while the
-diagnostic subset self-tests local HELLO/AGENT-HELLO, NOTIFY-to-empty-ACK, and
-DISCONNECT handling. Neither path is a runtime-verified HAProxy adapter
-implementation.
+agent starter, a separate minimal diagnostic SPOP handshake subset, and a local
+libmodsecurity binding. The starter compiles and self-tests local
+request-decision logic. The diagnostic runtime self-tests HELLO/AGENT-HELLO,
+NOTIFY, verified `set-var txn.blocked true` ACK encoding, and DISCONNECT
+handling, then `make smoke-haproxy` live-starts HAProxy and verifies the narrow
+`haproxy_phase1_header_block` runtime-smoke case.
 
-No productive HAProxy API integration, full SPOE/SPOA protocol implementation,
-libmodsecurity transaction binding, runtime harness, or runtime compatibility is
-claimed by this connector.
+No full SPOE/SPOA protocol implementation, CRS behavior, RESPONSE_BODY
+handling, negative/pass-through matrix beyond the clean probe, or productive
+adapter ownership is claimed by this connector.
 
 ## Global Contract
 
@@ -40,8 +41,13 @@ Shared connector-neutral data shapes used by the starter:
 - Diagnostic SPOP subset: buildable and self-testable under
   `/src/ModSecurity-conector-build/haproxy-spoa-runtime/`; not a full SPOA
   agent implementation.
-- Harness: blocked runtime-smoke entrypoint only.
-- No-CRS runtime: not run.
+- ModSecurity binding self-test: buildable and self-testable under
+  `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/`; verifies only
+  local libmodsecurity phase-1 header blocking.
+- Harness: `make smoke-haproxy` verifies live HAProxy to diagnostic SPOA to
+  libmodsecurity enforcement for `haproxy_phase1_header_block` only.
+- No-CRS minimal phase-1 runtime: PASS for `haproxy_phase1_header_block` only.
+- Broader No-CRS matrix: not run.
 - With-CRS runtime: not run.
 - RESPONSE_BODY blocking: not verified.
 
@@ -57,6 +63,8 @@ make -C connectors/haproxy self-test-spoa
 make -C connectors/haproxy self-test
 make -C connectors/haproxy build-spoa-runtime
 make -C connectors/haproxy self-test-spoa-runtime
+make -C connectors/haproxy build-modsecurity-binding
+make -C connectors/haproxy self-test-modsecurity-binding
 ```
 
 `build-spoa-starter` compiles a local binary that can describe its limitations
@@ -65,8 +73,15 @@ does not compile a HAProxy module, does not parse SPOP frames, does not run as a
 verified SPOA server, and does not link libmodsecurity.
 
 `build-spoa-runtime` compiles a minimal diagnostic SPOP handshake subset. Its
-self-test is protocol diagnostic evidence only; it does not start HAProxy
-against ModSecurity, load CRS, or verify RESPONSE_BODY behavior.
+self-test is protocol diagnostic evidence only; `make smoke-haproxy` is the
+runtime gate that starts HAProxy against this diagnostic agent.
+
+`build-modsecurity-binding` first verifies the local libmodsecurity C API
+signatures through a compiled probe, then builds a small self-test binary.
+`self-test-modsecurity-binding` proves only an in-process phase-1 header block
+decision with status 403. `make smoke-haproxy` is required to set
+`runtime_verified: true`, and only for the live
+`haproxy_phase1_header_block` case.
 
 ## Tests
 

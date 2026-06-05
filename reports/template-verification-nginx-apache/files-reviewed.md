@@ -210,8 +210,11 @@
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/diagnostic-agent.log`
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/haproxy-runtime.stderr.log`
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/backend.stderr.log`
+- `/src/ModSecurity-conector-build/logs/haproxy-runtime-smoke/modsecurity-binding-build.log`
+- `/src/ModSecurity-conector-build/logs/haproxy-runtime-smoke/modsecurity-binding-self-test.log`
 - `/src/ModSecurity-conector-build/haproxy-runtime/spoe/<run-id>/haproxy.cfg`
 - `/src/ModSecurity-conector-build/haproxy-runtime/spoe/<run-id>/spoe-agent.conf`
+- `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/haproxy-modsecurity-binding-self-test`
 - `connectors/haproxy/src/README.md`
 - `reports/template-verification-nginx-apache/haproxy-template-alignment.md`
 
@@ -229,6 +232,10 @@
 - `connectors/haproxy/src/haproxy_spoa_agent_starter.c`
 - `connectors/haproxy/src/haproxy_spoa_agent_starter.h`
 - `connectors/haproxy/src/haproxy_spoa_main.c`
+- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
+- `connectors/haproxy/src/haproxy_modsecurity_binding.c`
+- `connectors/haproxy/src/haproxy_modsecurity_binding.h`
+- `connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c`
 - `common/include/msconnector/request.h`
 - `common/include/msconnector/intervention.h`
 - `common/include/msconnector/status.h`
