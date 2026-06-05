@@ -2,7 +2,7 @@
 
 Status: reviewed
 
-Updated: 2026-05-30 20:55:03 UTC
+Updated: 2026-05-31 00:00:00 UTC
 
 ## Readiness
 
@@ -23,6 +23,9 @@ Updated: 2026-05-30 20:55:03 UTC
 - Envoy build readiness: sidecar/HTTP bridge-starter; runtime status
   not-verified; no local `connectors/envoy/tests` folder.
 - Vollstaendige Runtime-Verifikation: nein.
+- lighttpd bridge-starter checked/updated: yes; it follows global connector gates,
+  uses shared rules instead of duplicating them, has no runtime evidence, and
+  has no local `connectors/lighttpd/tests` folder.
 - Submodule changed: yes; `modules/ModSecurity-test-Framework` has a modified
   framework commit relative to the earlier baseline. Current parent HEAD points
   at framework commit `4bec4d960fea89525db9e439ea567df15943a2e7`.
@@ -79,6 +82,25 @@ Evidence files:
 - `/src/ModSecurity-conector-build/results/no-crs/nginx.rc`
 - `/src/ModSecurity-conector-build/results/with-crs/apache.rc`
 - `/src/ModSecurity-conector-build/results/with-crs/nginx.rc`
+
+## lighttpd Bridge-Starter Alignment
+
+- `connectors/lighttpd` is bridge-starter only.
+- Build status: bridge-starter.
+- Runtime status: not-verified.
+- No local `connectors/lighttpd/tests` folder is used.
+- No lighttpd runtime, adapter, RESPONSE_BODY, audit/log, or No-CRS/With-CRS
+  PASS claim is made.
+- Bridge-starter code uses shared `common/` origin/status/intervention/capability helpers only.
+- `connectors/lighttpd/build/build_starter.sh` and bridge-starter Make targets
+  passed for local compile/self-test only; the bridge probe reports its local
+  decision as blocked/not-verified.
+- Missing dependencies: selected production integration path, lighttpd
+  headers/SDK/source or FastCGI/SCGI/bridge dependencies, ModSecurity
+  integration code, and a framework-owned lighttpd runtime harness.
+- Shared gates are referenced from
+  `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+  and `connectors/_template/docs/coverage-decision-matrix.md`.
 
 ## Template Improvements
 

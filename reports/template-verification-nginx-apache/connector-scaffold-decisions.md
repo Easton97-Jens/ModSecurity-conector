@@ -560,3 +560,57 @@ creating duplicated connector-local gates or YAML test cases. Promotion beyond
 spoa-agent-starter/partial is not allowed until HAProxy-specific productive
 source origin, runtime build, harness, No-CRS, With-CRS, RESPONSE_BODY,
 negative/pass-through, and audit/log evidence is recorded.
+## lighttpd Bridge-Starter Decision
+
+Question: Can `connectors/lighttpd` move beyond metadata/probe build-starter
+without inventing a lighttpd API, FastCGI/SCGI protocol compatibility,
+ModSecurity API integration, or runtime claim?
+
+Decision: accepted as decision-service bridge-starter only.
+
+Reason: The repository has connector-neutral `common/` origin, status,
+intervention, request, and capability helpers and existing Apache/NGINX metadata
+patterns. It does not have selected lighttpd headers/SDK/source, a lighttpd
+module build configuration, FastCGI/SCGI protocol adapter,
+ModSecurity-to-lighttpd integration code, or a lighttpd runtime harness.
+Therefore the only safe concrete next step is a repo-owned local decision
+service bridge starter that proves local compile/self-test behavior, not adapter
+ownership or runtime compatibility.
+
+Evidence/paths:
+
+- `connectors/lighttpd/ORIGIN.md`
+- `connectors/lighttpd/SOURCE_MAP.json`
+- `connectors/lighttpd/metadata.c`
+- `connectors/lighttpd/metadata.h`
+- `connectors/lighttpd/Makefile`
+- `connectors/lighttpd/build/build_starter.sh`
+- `connectors/lighttpd/build/bridge_starter.sh`
+- `connectors/lighttpd/src/lighttpd_build_starter.c`
+- `connectors/lighttpd/src/lighttpd_bridge.h`
+- `connectors/lighttpd/src/lighttpd_bridge.c`
+- `connectors/lighttpd/src/lighttpd_bridge_main.c`
+- `connectors/lighttpd/README.md`
+- `connectors/lighttpd/TODO.md`
+- `connectors/lighttpd/docs/architecture.md`
+- `connectors/lighttpd/docs/build.md`
+- `connectors/lighttpd/docs/validation.md`
+- `connectors/lighttpd/docs/coverage-decision-matrix.md`
+- `connectors/lighttpd/harness/README.md`
+- `connectors/lighttpd/src/README.md`
+- `reports/template-verification-nginx-apache/lighttpd-template-alignment.md`
+- Global matrix: `connectors/_template/docs/coverage-decision-matrix.md`
+- Framework tests: `modules/ModSecurity-test-Framework/tests/cases/`
+- Framework runner: `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+- Public lighttpd references: `modules/ModSecurity-test-Framework/docs/imports/sources.md`
+- Future connector contract: `modules/ModSecurity-test-Framework/docs/future-connectors.md`
+
+Impact on lighttpd: Phase 0 scaffold is OK. Origin/metadata for the bridge
+starter is present. The metadata/probe and bridge-starter compile/self-test
+checks are available. Native lighttpd, FastCGI, and SCGI production integration
+remain blocked until a concrete runtime path and its dependencies are selected.
+Harness, No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, audit/log, and
+promotion gates remain open/not verified until per-connector runtime evidence
+exists. No local `connectors/lighttpd/tests` folder may be used.
+
+Runtime claim: none.

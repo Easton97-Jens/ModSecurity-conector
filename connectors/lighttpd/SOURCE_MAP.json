@@ -1,0 +1,70 @@
+{
+  "connector": "lighttpd",
+  "status": "bridge-starter",
+  "runtime_status": "not-verified",
+  "upstream": {
+    "selected": false,
+    "repository": "not selected",
+    "version": "not selected",
+    "commit": "not selected",
+    "imported_source_files": []
+  },
+  "repo_owned_files": [
+    {
+      "path": "connectors/lighttpd/metadata.c",
+      "role": "connector metadata bridge-starter"
+    },
+    {
+      "path": "connectors/lighttpd/metadata.h",
+      "role": "connector metadata declarations"
+    },
+    {
+      "path": "connectors/lighttpd/src/lighttpd_build_starter.c",
+      "role": "compile-time metadata probe; no lighttpd or ModSecurity runtime API calls"
+    },
+    {
+      "path": "connectors/lighttpd/src/lighttpd_bridge.h",
+      "role": "decision-service bridge-starter declarations"
+    },
+    {
+      "path": "connectors/lighttpd/src/lighttpd_bridge.c",
+      "role": "local bridge-starter probe flow; no FastCGI/SCGI/lighttpd/libmodsecurity runtime implementation"
+    },
+    {
+      "path": "connectors/lighttpd/src/lighttpd_bridge_main.c",
+      "role": "CLI status and self-test entrypoint for the bridge starter"
+    },
+    {
+      "path": "connectors/lighttpd/build/build_starter.sh",
+      "role": "standalone compile check for metadata/probe source"
+    },
+    {
+      "path": "connectors/lighttpd/build/bridge_starter.sh",
+      "role": "standalone compile and self-test check for bridge-starter source"
+    },
+    {
+      "path": "connectors/lighttpd/Makefile",
+      "role": "local starter build/self-test targets"
+    }
+  ],
+  "shared_dependencies": [
+    "common/include/msconnector/capabilities.h",
+    "common/include/msconnector/intervention.h",
+    "common/include/msconnector/origin.h",
+    "common/include/msconnector/request.h",
+    "common/include/msconnector/status.h",
+    "common/src/capabilities.c",
+    "common/src/intervention.c",
+    "common/src/origin.c",
+    "common/src/status.c"
+  ],
+  "blocked_runtime_dependencies": [
+    "selected production lighttpd integration path",
+    "lighttpd headers or SDK/source tree for a native module path",
+    "FastCGI or SCGI protocol adapter if a bridge path is selected",
+    "lighttpd binary/container/runtime configuration",
+    "ModSecurity-to-lighttpd hook or bridge mapping",
+    "real libmodsecurity API integration and rule loading",
+    "framework-owned lighttpd runtime harness"
+  ]
+}

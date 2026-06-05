@@ -224,3 +224,29 @@
 - `common/include/msconnector/intervention.h`
 - `common/include/msconnector/status.h`
 - `common/src/intervention.c`
+## lighttpd Bridge-Starter Files
+
+- `connectors/lighttpd/ORIGIN.md`
+- `connectors/lighttpd/SOURCE_MAP.json`
+- `connectors/lighttpd/metadata.c`
+- `connectors/lighttpd/metadata.h`
+- `connectors/lighttpd/build/build_starter.sh`
+- `connectors/lighttpd/src/lighttpd_bridge_main.c`
+- `connectors/lighttpd/src/lighttpd_bridge.c`
+- `connectors/lighttpd/src/lighttpd_bridge.h`
+- `connectors/lighttpd/build/bridge_starter.sh`
+- `connectors/lighttpd/Makefile`
+- `connectors/lighttpd/src/lighttpd_build_starter.c`
+- `connectors/lighttpd/README.md`
+- `connectors/lighttpd/TODO.md`
+- `connectors/lighttpd/docs/architecture.md`
+- `connectors/lighttpd/docs/build.md`
+- `connectors/lighttpd/docs/validation.md`
+- `connectors/lighttpd/docs/coverage-decision-matrix.md`
+- `connectors/lighttpd/docs/public-sources.md`
+- `connectors/lighttpd/harness/README.md`
+- `connectors/lighttpd/src/README.md`
+- `reports/template-verification-nginx-apache/lighttpd-template-alignment.md`
+
+These files were reviewed/updated as bridge-starter documentation and repo-owned
+metadata/probe/bridge code only. No local `connectors/lighttpd/tests` folder exists.
