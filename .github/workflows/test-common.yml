@@ -10,6 +10,11 @@ permissions:
 jobs:
   common-structure:
     runs-on: ubuntu-latest
+    env:
+      SOURCE_ROOT: ${{ runner.temp }}/sources
+      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
+      TMP_ROOT: ${{ runner.temp }}/ModSecurity-conector-build/tmp
+      LOG_ROOT: ${{ runner.temp }}/ModSecurity-conector-build/logs
     steps:
       - uses: actions/checkout@v6
         with:

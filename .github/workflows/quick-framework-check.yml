@@ -12,6 +12,11 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      SOURCE_ROOT: ${{ runner.temp }}/sources
+      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
+      TMP_ROOT: ${{ runner.temp }}/ModSecurity-conector-build/tmp
+      LOG_ROOT: ${{ runner.temp }}/ModSecurity-conector-build/logs
     steps:
       - uses: actions/checkout@v6
         with:
