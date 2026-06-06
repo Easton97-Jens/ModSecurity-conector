@@ -1,7 +1,10 @@
 # HAProxy Connector TODO
 
-Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
+Status: live-yaml-spoa-runtime (partial)
+Runtime status: live request-side YAML execution through HAProxy, SPOA/SPOP,
+and libmodsecurity. Current evidence:
+No-CRS `46 PASS / 0 FAIL / 8 BLOCKED`; With-CRS
+`48 PASS / 0 FAIL / 7 BLOCKED`.
 
 Global gate definitions:
 
@@ -45,48 +48,46 @@ Global gate definitions:
 
 ## Phase 3: Harness
 
-- [x] HAProxy runtime harness implemented for `haproxy_phase1_header_block`
+- [x] HAProxy runtime harness implemented for live framework YAML request-side cases
 - [x] harness command documented
 - [x] harness evidence path documented
 - [x] HAProxy binary/source-build documented
 - [x] HAProxy config documented
-- [x] SPOE/SPOA config documented and verified for the header-block smoke
+- [x] SPOE/SPOA config documented and verified for live request-side YAML runs
 - [x] diagnostic agent endpoint documented
-- [x] ModSecurity integration point documented for the header-block smoke
-- [x] CRS integration point documented for the SQLi anomaly smoke
-- [ ] broader HAProxy runtime harness implemented
+- [x] ModSecurity integration point documented for materialized YAML rules
+- [x] CRS integration point documented for the SQLi anomaly case
+- [x] broader HAProxy runtime harness implemented for shared executable request-side YAML cases
 
 ## Phase 4: No-CRS Runtime
 
-- [x] minimal phase-1 header-block smoke executed for
-  `haproxy_phase1_header_block`
+- [x] phase-1 header-block YAML smoke executed live through HAProxy
 - [x] `make test-haproxy-no-crs` executed for HAProxy scope
 - [x] PASS/FAIL/BLOCKED/NOT_EXECUTABLE counts documented for the No-CRS matrix
-- [ ] broader No-CRS live YAML PASS/FAIL execution beyond the diagnostic alias
+- [x] broader No-CRS live YAML PASS/FAIL execution across shared request-side cases
 
 ## Phase 5: With-CRS Runtime
 
-- [x] minimal CRS SQLi anomaly smoke executed for
-  `haproxy_crs_sqli_anomaly_block`
+- [x] CRS SQLi anomaly YAML smoke executed live through HAProxy
 - [x] `make test-haproxy-with-crs` executed for HAProxy scope
-- [x] CRS loaded/effective evidence documented for the minimal smoke
-- [x] PASS/BLOCKED/FAIL counts documented for the minimal smoke
+- [x] CRS loaded/effective evidence documented for the live With-CRS run
+- [x] PASS/BLOCKED/FAIL counts documented for the live With-CRS run
 - [x] With-CRS matrix PASS/FAIL/BLOCKED/NOT_EXECUTABLE counts documented
-- [ ] broader With-CRS live YAML PASS/FAIL execution beyond `crs_sqli_anomaly_block`
+- [x] broader With-CRS live YAML PASS/FAIL execution across shared request-side cases
 
 ## Phase 6: Coverage Matrix
 
 - [x] Phase 0/1/2 starter status documented
 - [x] HAProxy matrix target documented with per-case BLOCKED/NOT_EXECUTABLE rows
 - [x] split No-CRS and With-CRS result artifacts documented
-- [ ] productive Phase 2/3/4 live status documented
-- [ ] negative/pass-through live evidence documented
+- [x] productive Phase 2/3/4 live status documented as partial request-side runtime
+- [x] negative/pass-through live evidence documented
 - [ ] audit/log live evidence documented
 - [ ] RESPONSE_BODY blocking evaluated
 
 ## Phase 7: Promotion
 
 - [ ] eligible for `adapter-owned`
-- [x] eligible for `runtime-smoke-verified` for `haproxy_phase1_header_block`
-- [x] eligible for `crs-verified` for `haproxy_crs_sqli_anomaly_block`
+- [x] eligible for live request-side runtime evidence on shared YAML cases
+- [x] eligible for `crs-verified` for `crs_sqli_anomaly_block`
 - [ ] eligible for more than `partial`

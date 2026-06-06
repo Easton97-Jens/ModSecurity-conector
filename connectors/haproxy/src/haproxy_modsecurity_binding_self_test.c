@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
 
     if (argc == 2 && strcmp(argv[1], "--describe") == 0) {
         printf("%s\n", haproxy_modsecurity_binding_scope());
-        printf("limitations: no HAProxy runtime enforcement and no RESPONSE_BODY verification\n");
+        printf("limitations: self-test only; live enforcement requires make smoke-haproxy; no RESPONSE_BODY verification\n");
         return 0;
     }
     if (argc == 3 && strcmp(argv[1], "--self-test-crs") == 0) {
@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
             printf("runtime_status: blocked\n");
             printf("response_body_verified: false\n");
             printf("crs_verified: self-test-only\n");
-            printf("verified_case: haproxy_crs_sqli_anomaly_block\n");
+            printf("verified_case: crs_sqli_anomaly_block\n");
             printf("crs_preamble_file: %s\n", argv[2]);
             printf("decision_status: %d\n", decision.status);
             printf("decision_disruptive: %d\n", decision.disruptive);
@@ -51,12 +51,16 @@ int main(int argc, char **argv) {
 
     rc = haproxy_modsecurity_phase1_header_self_test(&decision);
     if (rc == 0) {
+        rc = haproxy_modsecurity_request_body_self_test(&decision);
+    }
+    if (rc == 0) {
         printf("haproxy_modsecurity_binding_self_test: PASS\n");
         printf("modsecurity_binding_status: self-test-verified\n");
         printf("runtime_verified: false\n");
         printf("runtime_status: blocked\n");
         printf("response_body_verified: false\n");
         printf("crs_verified: false\n");
+        printf("request_body_verified: self-test-only\n");
         printf("decision_status: %d\n", decision.status);
         printf("decision_disruptive: %d\n", decision.disruptive);
         return 0;

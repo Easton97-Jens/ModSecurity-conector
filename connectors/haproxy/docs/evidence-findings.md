@@ -2,10 +2,10 @@
 
 ## Status
 
-evidence_status: runtime-smoke-verified-single-case
-decision_status: partial-diagnostic-spoe-path
-implementation_status: diagnostic_runtime_single_case
-runtime_verified: true_for_haproxy_phase1_header_block
+evidence_status: live-request-side-yaml-verified
+decision_status: partial-live-spoe-path
+implementation_status: request_side_runtime_partial
+runtime_verified: true_for_live_request_side_yaml_rows
 
 ## Quellen
 
@@ -20,11 +20,11 @@ runtime_verified: true_for_haproxy_phase1_header_block
 ## Kurzfazit
 
 SPOE/SPOA und Lua sind in HAProxy dokumentiert (Extern belegt). Im Repository
-existieren inzwischen ein minimaler diagnostic SPOP handshake subset und ein
-lokaler libmodsecurity phase-1 Header-Block-Self-Test. Diese Evidenz ist
-diagnostisch und self-test-only; HAProxy erzwingt noch keine
-ModSecurity-Entscheidung live über SPOA. Native Filter und Sidecar bleiben
-Prüfspuren (Noch zu prüfen).
+existieren inzwischen ein request-side SPOP runtime subset und ein lokaler
+libmodsecurity Binding-Self-Test fuer Header- und Request-Body-Verarbeitung.
+HAProxy erzwingt request-side ModSecurity-Entscheidungen live ueber SPOA/SPOP
+fuer gemeinsame YAML-Faelle. Native Filter und Sidecar bleiben Pruefspuren
+(Noch zu pruefen).
 
 ## Findings by Option
 
@@ -35,7 +35,7 @@ Prüfspuren (Noch zu prüfen).
 | Ist SPOE als Integrationsmechanismus in HAProxy dokumentiert? | Extern belegt | HAProxy dokumentiert `filter spoe [engine <name>] config <file>`. | Keine im Repository aufgelöste Implementierungsableitung; Extern zu verifizieren. |
 | Kommuniziert SPOE mit externen Komponenten? | Extern belegt | SPOE wird als Filter mit externer Kommunikation beschrieben. | Konkrete Connector-Architektur für dieses Projekt: Noch zu prüfen. |
 | Nutzt SPOE das SPOP-Protokoll? | Extern belegt | SPOE-Doku beschreibt Stream Processing Offload Protocol (SPOP). | Für ModSecurity-Fall benötigte Felder/Vollständigkeit: Noch zu prüfen. |
-| Sind alle für ModSecurity nötigen Request-Daten verfügbar? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
+| Sind alle für ModSecurity nötigen Request-Daten verfügbar? | Teilweise belegt | Live belegt fuer `method`, `uri`, `req.hdrs_bin`/`req.hdrs` und `req.body`; verifizierte Variablen: `REQUEST_URI`, `REQUEST_HEADERS`, `REQUEST_HEADERS_NAMES`, `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`, `REQUEST_COOKIES_NAMES`, `REQUEST_BODY`, `FILES`, `XML`. | Groessere/mehrteilige Bodies und Produktionssemantik bleiben offen. |
 | Ist Response Header Inspection vollständig möglich? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
 | Ist Response Body Inspection möglich/sinnvoll? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
 | Ist vollständiges Intervention-Mapping (deny/block/redirect) möglich? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
@@ -84,22 +84,26 @@ Prüfspuren (Noch zu prüfen).
 
 ## Nicht belegbar / Noch zu prüfen
 
-- vollständige Request-Body-Verfügbarkeit (Noch zu prüfen)
+- vollstaendige Request-Body-Verfuegbarkeit ueber aktuelle SPOE-Frame-Grenzen
+  hinaus (Noch zu pruefen)
 - Response-Header-Inspection (Noch zu prüfen)
 - Response-Body-Inspection (Noch zu prüfen)
 - Intervention-Mapping (Noch zu prüfen)
 - Build-Artefakte fuer Starter, diagnostic SPOP subset und Binding-Self-Test
   liegen unter `/src/ModSecurity-conector-build`; produktive Build-Artefakte
   bleiben offen.
-- Runtime-Harness: `make smoke-haproxy` verifiziert
-  `haproxy_phase1_header_block` mit live HAProxy, diagnostic SPOP agent,
-  libmodsecurity Entscheidung, set-var ACK, Block-Probe 403 und Pass-Probe
-  200.
+- Runtime-Harness: `make smoke-haproxy` verifiziert gemeinsame request-side
+  YAML-Faelle mit live HAProxy, SPOP runtime, libmodsecurity Entscheidung,
+  set-var ACK und YAML-Status-Assertion. Aktuelle Evidence: No-CRS
+  46 PASS / 0 FAIL / 8 BLOCKED; With-CRS 48 PASS / 0 FAIL / 7 BLOCKED.
+- Body-Limit: aktuell HAProxy request buffering, `tune.bufsize 65536`, SPOE
+  `max-frame-size 65532` und ein `req.body` Argument; groessere oder
+  multi-frame Bodies sind nicht belegt.
 - Performance/Latenz (Noch zu prüfen)
 - Fehlerverhalten (Noch zu prüfen)
 
 ## Nächster Schritt
 
-CRS-, RESPONSE_BODY-, negative/pass-through- und Audit/Log-Evidence fuer
-HAProxy ergaenzen, bevor ueber den einzelnen Header-Block-Smoke hinaus
-promotet wird.
+Response-Phase-, RESPONSE_BODY-, Redirect-/non-403-Intervention- und
+Audit/Log-Evidence fuer HAProxy ergaenzen, bevor ueber partial request-side
+runtime hinaus promotet wird.

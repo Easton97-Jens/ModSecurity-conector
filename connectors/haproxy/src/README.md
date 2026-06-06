@@ -1,10 +1,13 @@
 # HAProxy Source
 
-Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
+Status: live-yaml-spoa-runtime (partial)
+Runtime status: live request-side YAML execution through HAProxy, SPOA/SPOP,
+and libmodsecurity.
 
-This directory contains local HAProxy diagnostic sources, not a productive
-runtime adapter.
+This directory contains local HAProxy starter/runtime sources. The SPOP
+runtime and libmodsecurity binding now execute shared framework YAML
+request-side cases live through HAProxy, but this is still not a complete
+production HAProxy adapter.
 
 Current starter files:
 
@@ -18,13 +21,21 @@ Current starter files:
 
 The starter can be compiled and self-tested locally. It evaluates synthetic
 in-process requests with repository-owned request/intervention/status shapes.
-The diagnostic SPOP runtime handles only a minimal diagnostic SPOP handshake
-subset, but it now parses live NOTIFY arguments, calls the local ModSecurity
-binding, and sends the verified set-var ACK for the single
-`haproxy_phase1_header_block` smoke path. It also supports the minimal
-CRS-backed `haproxy_crs_sqli_anomaly_block` smoke path. Broader CRS behavior,
-RESPONSE_BODY handling, and broader request/response inspection remain
-unimplemented.
+The SPOP runtime parses live NOTIFY arguments from HAProxy, including `method`,
+`uri`, `req.hdrs_bin` with a safe `req.hdrs` fallback, and `req.body`. The
+binding loads the materialized rules file, processes URI, headers, optional
+request body bytes, and libmodsecurity interventions, then the runtime sends
+the verified set-var ACK for 403 disruptive decisions.
+
+Live evidence currently covers request-side variables `REQUEST_URI`,
+`REQUEST_HEADERS`, `REQUEST_HEADERS_NAMES`, `ARGS`, `ARGS_NAMES`,
+`REQUEST_COOKIES`, `REQUEST_COOKIES_NAMES`, `REQUEST_BODY`, `FILES`, and `XML`,
+plus CRS SQLi anomaly blocking in the With-CRS variant. Request-body support is
+bounded by the current HAProxy request-buffered, single-frame SPOE path
+(`tune.bufsize 65536`, `max-frame-size 65532`, one `req.body` argument).
+
+Response phases, audit-log assertions, redirects, non-403 disruptive statuses,
+and `RESPONSE_BODY` remain unimplemented for HAProxy runtime promotion.
 
 Productive source may only be added with ORIGIN/license/metadata evidence,
 including the future HAProxy source origin, license, imported files, local

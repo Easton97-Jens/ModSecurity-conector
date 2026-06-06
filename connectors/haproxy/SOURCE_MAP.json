@@ -1,7 +1,7 @@
 {
   "connector": "haproxy",
-  "status": "spoa-agent-starter",
-  "runtime_status": "runtime-smoke-verified:haproxy_phase1_header_block,haproxy_crs_sqli_anomaly_block",
+  "status": "live-yaml-spoa-runtime-partial",
+  "runtime_status": "live-request-side-yaml:no-crs=46-pass-0-fail-8-blocked,with-crs=48-pass-0-fail-7-blocked",
   "upstream_source": "not selected",
   "imported_productive_source_files": [],
   "repo_authored_files": [
@@ -31,15 +31,15 @@
     },
     {
       "path": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
-      "purpose": "minimal diagnostic SPOP handshake subset with live set-var ACK enforcement for haproxy_phase1_header_block and haproxy_crs_sqli_anomaly_block; not a full SPOA agent implementation"
+      "purpose": "request-side SPOP runtime that parses live HAProxy method, uri, req.hdrs_bin/req.hdrs, and req.body SPOE arguments, then returns set-var ACK enforcement for 403 disruptive decisions; not a full SPOA agent implementation"
     },
     {
       "path": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
-      "purpose": "local libmodsecurity phase-1 header and CRS SQLi binding used by the self-tests and diagnostic HAProxy runtime smoke"
+      "purpose": "local libmodsecurity binding used by self-tests and live HAProxy YAML request-side runtime; loads materialized rules and processes URI, headers, request body bytes, and CRS SQLi cases"
     },
     {
       "path": "connectors/haproxy/src/haproxy_modsecurity_binding.h",
-      "purpose": "declarations for the local ModSecurity binding self-tests"
+      "purpose": "request/evaluation declarations for the local ModSecurity binding self-tests and SPOP runtime"
     },
     {
       "path": "connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c",
@@ -72,23 +72,25 @@
     "compile local SPOA agent starter binary",
     "run local self-test for synthetic request allow/block decisions",
     "print explicit limitations via --describe",
-    "compile and self-test minimal diagnostic SPOP HELLO/ACK/DISCONNECT handling",
-    "compile and self-test a local libmodsecurity phase-1 header block transaction",
-    "verify live HAProxy enforcement for haproxy_phase1_header_block",
-    "verify live HAProxy enforcement for haproxy_crs_sqli_anomaly_block"
+    "compile and self-test SPOP HELLO/ACK/DISCONNECT handling",
+    "compile and self-test local libmodsecurity phase-1 header and request-body transactions",
+    "verify live HAProxy enforcement for shared request-side YAML cases",
+    "verify live HAProxy With-CRS enforcement for crs_sqli_anomaly_block",
+    "verify REQUEST_URI, REQUEST_HEADERS, REQUEST_HEADERS_NAMES, ARGS, ARGS_NAMES, REQUEST_COOKIES, REQUEST_COOKIES_NAMES, REQUEST_BODY, FILES, and XML request-side variables"
   ],
   "blocked_dependencies": [
-    "full SPOA/SPOP implementation beyond the diagnostic handshake subset",
-    "broader Framework case runtime that exercises HAProxy to SPOA to ModSecurity",
-    "broader CRS runtime evidence beyond haproxy_crs_sqli_anomaly_block",
-    "RESPONSE_BODY runtime evidence",
-    "negative/pass-through and audit/log runtime evidence"
+    "full production SPOA/SPOP implementation beyond the request-side runtime subset",
+    "response header/body phase runtime evidence",
+    "audit/log assertion runtime evidence",
+    "non-403 disruptive status and redirect mapping evidence",
+    "RESPONSE_BODY runtime evidence"
   ],
   "claims_not_made": [
     "full HAProxy adapter implementation",
-    "SPOE/SPOA protocol compatibility beyond the diagnostic subset",
-    "No-CRS runtime PASS beyond haproxy_phase1_header_block",
-    "With-CRS runtime PASS beyond haproxy_crs_sqli_anomaly_block",
+    "SPOE/SPOA protocol compatibility beyond the request-side runtime subset",
+    "response phase support",
+    "audit/log assertion support",
+    "non-403 disruptive status support",
     "RESPONSE_BODY blocking"
   ]
 }

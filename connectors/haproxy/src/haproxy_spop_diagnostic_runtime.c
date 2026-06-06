@@ -19,7 +19,7 @@
 
 #include "haproxy_modsecurity_binding.h"
 
-#define SPOP_FRAME_MAX 16384U
+#define SPOP_FRAME_MAX 65536U
 #define SPOP_MIN_FRAME_SIZE 256U
 #define SPOP_FIN_FLAG 0x00000001U
 
@@ -33,6 +33,7 @@
 #define SPOP_DATA_BOOL 1U
 #define SPOP_DATA_UINT32 3U
 #define SPOP_DATA_STR 8U
+#define SPOP_DATA_BIN 9U
 #define SPOP_BOOL_TRUE 0x10U
 #define SPOP_DATA_TYPE_MASK 0x0fU
 
@@ -61,18 +62,30 @@ typedef struct hello_info {
     int healthcheck;
 } hello_info;
 
+typedef struct runtime_header {
+    char *name;
+    char *value;
+} runtime_header;
+
 typedef struct notify_request {
     char method[32];
     char path[1024];
     char uri[1024];
     char host[256];
     char test_header[1024];
+    runtime_header *headers;
+    unsigned int header_count;
+    unsigned char *body;
+    size_t body_len;
     int has_notify;
     int has_method;
     int has_path;
     int has_uri;
     int has_host;
     int has_test_header;
+    int has_headers_bin;
+    int has_headers_text;
+    int has_body;
 } notify_request;
 
 static volatile sig_atomic_t stop_requested = 0;
@@ -401,6 +414,222 @@ static void copy_spop_string(char *out, size_t out_len, const unsigned char *val
     out[copy_len] = '\0';
 }
 
+static char *dup_bytes_as_cstring(const unsigned char *value, size_t value_len) {
+    char *out = (char *)calloc(value_len + 1U, 1U);
+    if (out == 0) {
+        return 0;
+    }
+    if (value_len > 0) {
+        memcpy(out, value, value_len);
+    }
+    out[value_len] = '\0';
+    return out;
+}
+
+static char *dup_header_name(const unsigned char *value, size_t value_len) {
+    char *out = dup_bytes_as_cstring(value, value_len);
+    size_t i;
+    int word_start = 1;
+
+    if (out == 0) {
+        return 0;
+    }
+    for (i = 0; i < value_len; ++i) {
+        unsigned char ch = (unsigned char)out[i];
+        if (ch == '-') {
+            word_start = 1;
+            continue;
+        }
+        if (ch >= 'a' && ch <= 'z' && word_start) {
+            out[i] = (char)(ch - ('a' - 'A'));
+        } else if (ch >= 'A' && ch <= 'Z' && !word_start) {
+            out[i] = (char)(ch + ('a' - 'A'));
+        }
+        word_start = 0;
+    }
+    return out;
+}
+
+static int copy_bytes(unsigned char **out, size_t *out_len, const unsigned char *value, size_t value_len) {
+    unsigned char *copy;
+
+    if (out == 0 || out_len == 0) {
+        return -1;
+    }
+    copy = 0;
+    if (value_len > 0) {
+        copy = (unsigned char *)malloc(value_len);
+        if (copy == 0) {
+            return -1;
+        }
+        memcpy(copy, value, value_len);
+    }
+    free(*out);
+    *out = copy;
+    *out_len = value_len;
+    return 0;
+}
+
+static void free_notify_request(notify_request *request) {
+    unsigned int i;
+
+    if (request == 0) {
+        return;
+    }
+    for (i = 0; i < request->header_count; ++i) {
+        free(request->headers[i].name);
+        free(request->headers[i].value);
+    }
+    free(request->headers);
+    request->headers = 0;
+    request->header_count = 0;
+    free(request->body);
+    request->body = 0;
+    request->body_len = 0;
+}
+
+static void clear_request_headers(notify_request *request) {
+    unsigned int i;
+
+    if (request == 0) {
+        return;
+    }
+    for (i = 0; i < request->header_count; ++i) {
+        free(request->headers[i].name);
+        free(request->headers[i].value);
+    }
+    free(request->headers);
+    request->headers = 0;
+    request->header_count = 0;
+}
+
+static int add_request_header(
+        notify_request *request,
+        const unsigned char *name,
+        size_t name_len,
+        const unsigned char *value,
+        size_t value_len) {
+    runtime_header *headers;
+
+    if (name_len == 0) {
+        return 0;
+    }
+    headers = (runtime_header *)realloc(request->headers,
+        sizeof(*request->headers) * (request->header_count + 1U));
+    if (headers == 0) {
+        return -1;
+    }
+    request->headers = headers;
+    request->headers[request->header_count].name = dup_header_name(name, name_len);
+    request->headers[request->header_count].value = dup_bytes_as_cstring(value, value_len);
+    if (request->headers[request->header_count].name == 0 ||
+            request->headers[request->header_count].value == 0) {
+        return -1;
+    }
+    request->header_count++;
+    return 0;
+}
+
+static int parse_headers_bin(notify_request *request, const unsigned char *value, size_t value_len) {
+    size_t pos = 0;
+
+    while (pos < value_len) {
+        const unsigned char *name;
+        const unsigned char *header_value;
+        size_t name_len;
+        size_t header_value_len;
+
+        if (read_string_ref(value, value_len, &pos, &name, &name_len) != 0 ||
+                read_string_ref(value, value_len, &pos, &header_value, &header_value_len) != 0) {
+            return -1;
+        }
+        if (name_len == 0 && header_value_len == 0) {
+            request->has_headers_bin = 1;
+            return 0;
+        }
+        if (add_request_header(request, name, name_len, header_value, header_value_len) != 0) {
+            return -1;
+        }
+    }
+    request->has_headers_bin = 1;
+    return 0;
+}
+
+static int parse_headers_text(notify_request *request, const unsigned char *value, size_t value_len) {
+    size_t start = 0;
+
+    while (start < value_len) {
+        size_t end = start;
+        size_t colon;
+        size_t name_len;
+        size_t header_value_start;
+
+        while (end < value_len && value[end] != '\n') {
+            end++;
+        }
+        if (end > start && value[end - 1U] == '\r') {
+            end--;
+        }
+        if (end == start) {
+            break;
+        }
+        colon = start;
+        while (colon < end && value[colon] != ':') {
+            colon++;
+        }
+        if (colon < end) {
+            name_len = colon - start;
+            header_value_start = colon + 1U;
+            while (header_value_start < end &&
+                    (value[header_value_start] == ' ' || value[header_value_start] == '\t')) {
+                header_value_start++;
+            }
+            if (add_request_header(request, value + start, name_len,
+                    value + header_value_start, end - header_value_start) != 0) {
+                return -1;
+            }
+        }
+        start = end + 1U;
+    }
+    request->has_headers_text = 1;
+    return 0;
+}
+
+static int read_typed_bytes_ref(
+        const unsigned char *data,
+        size_t len,
+        size_t *pos,
+        const unsigned char **value,
+        size_t *value_len,
+        unsigned int *typed_type) {
+    size_t value_pos = *pos;
+    unsigned int type;
+
+    if (*pos >= len) {
+        return -1;
+    }
+    type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
+    if (type == 0U) {
+        *value = (const unsigned char *)"";
+        *value_len = 0;
+        if (typed_type != 0) {
+            *typed_type = type;
+        }
+        return 0;
+    }
+    if (type != SPOP_DATA_STR && type != SPOP_DATA_BIN) {
+        *pos = value_pos;
+        return skip_typed_data(data, len, pos);
+    }
+    if (read_string_ref(data, len, pos, value, value_len) != 0) {
+        return -1;
+    }
+    if (typed_type != 0) {
+        *typed_type = type;
+    }
+    return 0;
+}
+
 static int read_typed_string_to_buffer(
         const unsigned char *data,
         size_t len,
@@ -559,6 +788,61 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
                 if (read_typed_string_to_buffer(data, len, &pos, request->test_header,
                         sizeof(request->test_header), &request->has_test_header) != 0) {
                     return -1;
+                }
+                continue;
+            }
+            if (key_equals(arg_name, arg_name_len, "headers_bin")) {
+                const unsigned char *value = 0;
+                size_t value_len = 0;
+                unsigned int typed_type = 0;
+                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
+                    return -1;
+                }
+                if ((typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) &&
+                        parse_headers_bin(request, value, value_len) != 0) {
+                    return -1;
+                }
+                continue;
+            }
+            if (key_equals(arg_name, arg_name_len, "headers")) {
+                const unsigned char *value = 0;
+                size_t value_len = 0;
+                unsigned int typed_type = 0;
+                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
+                    return -1;
+                }
+                if (typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) {
+                    notify_request text_request;
+                    memset(&text_request, 0, sizeof(text_request));
+                    if (parse_headers_text(&text_request, value, value_len) != 0) {
+                        free_notify_request(&text_request);
+                        return -1;
+                    }
+                    if (text_request.header_count >= request->header_count && text_request.header_count > 0) {
+                        clear_request_headers(request);
+                        request->headers = text_request.headers;
+                        request->header_count = text_request.header_count;
+                        request->has_headers_text = 1;
+                        text_request.headers = 0;
+                        text_request.header_count = 0;
+                    }
+                    free_notify_request(&text_request);
+                }
+                continue;
+            }
+            if (key_equals(arg_name, arg_name_len, "body")) {
+                const unsigned char *value = 0;
+                size_t value_len = 0;
+                unsigned int typed_type = 0;
+                if (read_typed_bytes_ref(data, len, &pos, &value, &value_len, &typed_type) != 0) {
+                    return -1;
+                }
+                if ((typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) &&
+                        copy_bytes(&request->body, &request->body_len, value, value_len) != 0) {
+                    return -1;
+                }
+                if (typed_type == SPOP_DATA_STR || typed_type == SPOP_DATA_BIN) {
+                    request->has_body = 1;
                 }
                 continue;
             }
@@ -770,7 +1054,7 @@ static int send_haproxy_hello(int fd, int healthcheck) {
     return send_frame(fd, SPOP_FRM_HAPROXY_HELLO, 0, 0, &payload);
 }
 
-static int handle_connection(int fd, FILE *log, const char *crs_preamble_file) {
+static int handle_connection(int fd, FILE *log, const char *rules_file, const char *crs_preamble_file) {
     spop_frame frame;
     hello_info hello;
 
@@ -804,20 +1088,46 @@ static int handle_connection(int fd, FILE *log, const char *crs_preamble_file) {
             if (parse_notify_payload(frame.payload, frame.payload_len, &request) != 0) {
                 log_line(log, "NOTIFY request argument extraction failed");
                 if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &ack_payload) != 0) {
+                    free_notify_request(&request);
                     return -1;
                 }
+                free_notify_request(&request);
                 continue;
             }
             log_line(log,
-                "NOTIFY request args extracted method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d method=%s path=%s uri=%s host=%s test_header=%s",
+                "NOTIFY request args extracted method_present=%d path_present=%d uri_present=%d host_present=%d test_header_present=%d headers=%u body_len=%lu method=%s path=%s uri=%s host=%s test_header=%s",
                 request.has_method, request.has_path, request.has_uri,
                 request.has_host, request.has_test_header,
+                request.header_count, (unsigned long)request.body_len,
                 request.has_method ? request.method : "",
                 request.has_path ? request.path : "",
                 request.has_uri ? request.uri : "",
                 request.has_host ? request.host : "",
                 request.has_test_header ? request.test_header : "");
-            if ((!request.has_test_header || request.test_header[0] == '\0') &&
+            {
+                unsigned int header_index;
+                for (header_index = 0; header_index < request.header_count; ++header_index) {
+                    log_line(log, "NOTIFY header[%u] name=%s value=%s",
+                        header_index,
+                        request.headers[header_index].name != 0 ? request.headers[header_index].name : "",
+                        request.headers[header_index].value != 0 ? request.headers[header_index].value : "");
+                }
+            }
+            if (rules_file != 0 && rules_file[0] != '\0') {
+                haproxy_modsecurity_request modsec_request;
+                memset(&modsec_request, 0, sizeof(modsec_request));
+                modsec_request.method = request.has_method ? request.method : "GET";
+                modsec_request.uri = request.has_uri ? request.uri :
+                    (request.has_path ? request.path : "/");
+                modsec_request.headers = (const haproxy_modsecurity_header *)request.headers;
+                modsec_request.header_count = request.header_count;
+                modsec_request.body = request.body;
+                modsec_request.body_len = request.body_len <= 0xffffffffUL ?
+                    (unsigned int)request.body_len : 0U;
+                modsec_request.rules_file = rules_file;
+                log_line(log, "rules file loaded path=%s", rules_file);
+                modsec_rc = haproxy_modsecurity_eval_request(&modsec_request, &decision);
+            } else if ((!request.has_test_header || request.test_header[0] == '\0') &&
                     crs_preamble_file != 0 && crs_preamble_file[0] != '\0') {
                 log_line(log, "CRS loaded preamble=%s", crs_preamble_file);
                 modsec_rc = haproxy_modsecurity_crs_sqli_eval(
@@ -844,8 +1154,10 @@ static int handle_connection(int fd, FILE *log, const char *crs_preamble_file) {
                 log_line(log, "MODSECURITY live binding failed reason=%s",
                     decision.log_message[0] != '\0' ? decision.log_message : "unknown");
                 if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &ack_payload) != 0) {
+                    free_notify_request(&request);
                     return -1;
                 }
+                free_notify_request(&request);
                 continue;
             }
             log_line(log, "MODSECURITY live decision disruptive=%d status=%d",
@@ -853,6 +1165,7 @@ static int handle_connection(int fd, FILE *log, const char *crs_preamble_file) {
             if (decision.disruptive != 0 && decision.status == 403) {
                 if (build_set_var_blocked_payload(&ack_payload) != 0) {
                     log_line(log, "ACK set-var txn.blocked true encoding failed");
+                    free_notify_request(&request);
                     return -1;
                 }
                 log_line(log, "ACK set-var txn.blocked true sent");
@@ -860,8 +1173,10 @@ static int handle_connection(int fd, FILE *log, const char *crs_preamble_file) {
                 log_line(log, "ACK empty sent");
             }
             if (send_frame(fd, SPOP_FRM_ACK, frame.stream_id, frame.frame_id, &ack_payload) != 0) {
+                free_notify_request(&request);
                 return -1;
             }
+            free_notify_request(&request);
             continue;
         }
         if (frame.type == SPOP_FRM_HAPROXY_DISCONNECT) {
@@ -933,7 +1248,7 @@ static int connect_localhost(unsigned int port) {
     return fd;
 }
 
-static int accept_loop(int listen_fd, FILE *log, int max_connections, const char *crs_preamble_file) {
+static int accept_loop(int listen_fd, FILE *log, int max_connections, const char *rules_file, const char *crs_preamble_file) {
     int handled = 0;
 
     signal(SIGTERM, on_signal);
@@ -947,7 +1262,7 @@ static int accept_loop(int listen_fd, FILE *log, int max_connections, const char
             log_line(log, "accept failed errno=%d", errno);
             return 1;
         }
-        handle_connection(fd, log, crs_preamble_file);
+        handle_connection(fd, log, rules_file, crs_preamble_file);
         close(fd);
         handled++;
     }
@@ -1059,7 +1374,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     if (child == 0) {
         write_text_file(pid_path, "%ld\n", (long)getpid());
         write_text_file(ready_path, "ready\n");
-        exit(accept_loop(listen_fd, log, 2, 0));
+        exit(accept_loop(listen_fd, log, 2, 0, 0));
     }
     close(listen_fd);
     if (run_client_self_test(port, log) != 0) {
@@ -1082,7 +1397,15 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     return 0;
 }
 
-static int run_server(const char *host, unsigned int port, const char *ready_file, const char *pid_file, const char *port_file, const char *log_file, const char *crs_preamble_file) {
+static int run_server(
+        const char *host,
+        unsigned int port,
+        const char *ready_file,
+        const char *pid_file,
+        const char *port_file,
+        const char *log_file,
+        const char *rules_file,
+        const char *crs_preamble_file) {
     int listen_fd;
     unsigned int bound_port;
     FILE *log;
@@ -1105,15 +1428,15 @@ static int run_server(const char *host, unsigned int port, const char *ready_fil
         fclose(log);
         return 77;
     }
-    log_line(log, "minimal diagnostic SPOP handshake subset with set-var enforcement diagnostic listening on %s:%u", host, bound_port);
-    accept_loop(listen_fd, log, 0, crs_preamble_file);
+    log_line(log, "minimal diagnostic SPOP handshake subset with set-var enforcement diagnostic listening on %s:%u rules_file=%s", host, bound_port, rules_file != 0 ? rules_file : "");
+    accept_loop(listen_fd, log, 0, rules_file, crs_preamble_file);
     close(listen_fd);
     fclose(log);
     return 0;
 }
 
 static void print_usage(const char *program) {
-    fprintf(stderr, "usage: %s --describe|--runtime-self-test --tmp-root PATH --log-root PATH|--serve --host 127.0.0.1 --port PORT --ready-file PATH --pid-file PATH --port-file PATH --log-file PATH [--crs-preamble-file PATH]\n", program);
+    fprintf(stderr, "usage: %s --describe|--runtime-self-test --tmp-root PATH --log-root PATH|--serve --host 127.0.0.1 --port PORT --ready-file PATH --pid-file PATH --port-file PATH --log-file PATH [--rules-file PATH] [--crs-preamble-file PATH]\n", program);
 }
 
 int main(int argc, char **argv) {
@@ -1150,6 +1473,7 @@ int main(int argc, char **argv) {
         const char *pid_file = 0;
         const char *port_file = 0;
         const char *log_file = 0;
+        const char *rules_file = 0;
         const char *crs_preamble_file = 0;
         unsigned int port = 0;
         int i;
@@ -1166,6 +1490,8 @@ int main(int argc, char **argv) {
                 port_file = argv[++i];
             } else if (strcmp(argv[i], "--log-file") == 0 && i + 1 < argc) {
                 log_file = argv[++i];
+            } else if (strcmp(argv[i], "--rules-file") == 0 && i + 1 < argc) {
+                rules_file = argv[++i];
             } else if (strcmp(argv[i], "--crs-preamble-file") == 0 && i + 1 < argc) {
                 crs_preamble_file = argv[++i];
             } else {
@@ -1177,7 +1503,7 @@ int main(int argc, char **argv) {
             print_usage(argv[0]);
             return 2;
         }
-        return run_server(host, port, ready_file, pid_file, port_file, log_file, crs_preamble_file);
+        return run_server(host, port, ready_file, pid_file, port_file, log_file, rules_file, crs_preamble_file);
     }
 
     print_usage(argv[0]);

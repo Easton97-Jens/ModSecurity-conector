@@ -1,28 +1,37 @@
 # HAProxy Connector
 
-Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
-Template alignment: scaffold-aligned plus local SPOA agent starter
+Status: live-yaml-spoa-runtime (partial)
+Runtime status: live request-side YAML execution through HAProxy, SPOA/SPOP,
+and libmodsecurity. Current evidence:
+No-CRS `46 PASS / 0 FAIL / 8 BLOCKED`; With-CRS
+`48 PASS / 0 FAIL / 7 BLOCKED`.
+Template alignment: scaffold-aligned plus local SPOA agent starter/runtime
 
-This connector now contains repository-owned metadata, a local HAProxy SPOA
-agent starter, a separate minimal diagnostic SPOP handshake subset, and a local
-libmodsecurity binding. The starter compiles and self-tests local
-request-decision logic. The diagnostic runtime self-tests HELLO/AGENT-HELLO,
-NOTIFY, verified `set-var txn.blocked true` ACK encoding, and DISCONNECT
-handling, then `make smoke-haproxy` live-starts HAProxy and verifies the narrow
-No-CRS `haproxy_phase1_header_block` and With-CRS
-`haproxy_crs_sqli_anomaly_block` runtime-smoke cases.
+This connector contains repository-owned metadata, a local HAProxy SPOA agent
+starter, a request-side SPOP runtime, and a local libmodsecurity binding. The
+runtime self-tests HELLO/AGENT-HELLO, NOTIFY parsing, verified
+`set-var txn.modsecdiag.blocked true` ACK encoding, and DISCONNECT handling.
+`make smoke-haproxy` now lists shared framework YAML cases with `case_cli.py`,
+materializes each case, starts HAProxy plus the SPOP runtime plus a backend,
+sends the case request with curl, asserts the observed status, and writes the
+standard HAProxy summary artifacts.
 
-`make runtime-matrix-haproxy` now writes a HAProxy-specific framework matrix
-without changing Apache or NGINX runtime semantics. The latest combined matrix
-attempted 141 existing framework YAML cases and recorded 1 PASS, 0 FAIL, 59
-BLOCKED, 81 NOT_EXECUTABLE, and 10 mapped-only import inventory entries. Split
-artifacts are written under `/src/ModSecurity-conector-build/results/no-crs/`
-and `/src/ModSecurity-conector-build/results/with-crs/`.
+`make runtime-matrix-haproxy` consumes live summary evidence from the split
+No-CRS and With-CRS HAProxy runs. The current combined artifact is copied from
+the With-CRS run and records `48 PASS`, `0 FAIL`, and `7 BLOCKED` across 55
+shared executable YAML rows. The No-CRS split records `46 PASS`, `0 FAIL`, and
+`8 BLOCKED`. Split artifacts are written under
+`/src/ModSecurity-conector-build/results/no-crs/` and
+`/src/ModSecurity-conector-build/results/with-crs/`.
 
-No full SPOE/SPOA protocol implementation, CRS behavior beyond the single SQLi
-anomaly smoke, RESPONSE_BODY handling, negative/pass-through matrix beyond the
-clean probes, or productive adapter ownership is claimed by this connector.
+The proven request-side variables are `REQUEST_URI`, `REQUEST_HEADERS`,
+`REQUEST_HEADERS_NAMES`, `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
+`REQUEST_COOKIES_NAMES`, `REQUEST_BODY`, `FILES`, and `XML`. URL-encoded,
+JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
+evidence, limited by the current single-frame SPOE path (`max-frame-size 65532`
+and HAProxy `tune.bufsize 65536`). Response phases, audit-log assertions,
+redirects, and non-403 disruptive statuses remain blocked unless live HAProxy
+support is added and proven. `RESPONSE_BODY` is not promoted.
 
 ## Global Contract
 
@@ -46,26 +55,19 @@ Shared connector-neutral data shapes used by the starter:
 - Metadata: `metadata.c` and `metadata.h` present.
 - Build: metadata object and local SPOA agent starter build are present.
 - Self-test: local starter self-test exists; it does not start HAProxy.
-- Diagnostic SPOP subset: buildable and self-testable under
-  `/src/ModSecurity-conector-build/haproxy-spoa-runtime/`; not a full SPOA
-  agent implementation.
+- SPOP runtime: buildable and self-testable under
+  `/src/ModSecurity-conector-build/haproxy-spoa-runtime/`; request-side runtime
+  evidence exists, but this is still not a complete production SPOA agent.
 - ModSecurity binding self-test: buildable and self-testable under
-  `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/`; verifies only
-  local libmodsecurity phase-1 header blocking.
-- Harness: `make smoke-haproxy` verifies live HAProxy to diagnostic SPOA to
-  libmodsecurity enforcement for `haproxy_phase1_header_block` and
-  `haproxy_crs_sqli_anomaly_block` only.
-- No-CRS minimal phase-1 runtime: PASS for `haproxy_phase1_header_block` only.
-- No-CRS HAProxy matrix: attempted 141 YAML rows; 0 YAML PASS, 0 FAIL, 59
-  BLOCKED, 82 NOT_EXECUTABLE, and 10 MAPPED_ONLY. The smoke alias
-  `haproxy_phase1_header_block` is preserved as live evidence but is not mapped
-  to the framework `phase1_header_block` YAML row because the header/rule input
-  differs.
-- With-CRS minimal SQLi runtime: PASS for `haproxy_crs_sqli_anomaly_block`
-  with CRS loaded from the prepared preamble.
-- With-CRS HAProxy matrix: attempted 141 YAML rows; 1 YAML PASS
-  (`crs_sqli_anomaly_block`), 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and 10
-  MAPPED_ONLY.
+  `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/`; verifies
+  phase-1 header blocking and request-body append/processing in process.
+- Harness: `make smoke-haproxy` verifies live HAProxy to SPOA/SPOP to
+  libmodsecurity enforcement for shared framework YAML request-side cases.
+- No-CRS HAProxy split: 46 PASS, 0 FAIL, 8 BLOCKED.
+- With-CRS HAProxy split: 48 PASS, 0 FAIL, 7 BLOCKED, including
+  `crs_sqli_anomaly_block`.
+- Combined HAProxy artifact: 48 PASS, 0 FAIL, 7 BLOCKED from the With-CRS
+  live summary.
 - RESPONSE_BODY blocking: not verified.
 
 ## Build Starter
@@ -94,16 +96,15 @@ and run a synthetic allow/block decision self-test. It does not compile HAProxy,
 does not compile a HAProxy module, does not parse SPOP frames, does not run as a
 verified SPOA server, and does not link libmodsecurity.
 
-`build-spoa-runtime` compiles a minimal diagnostic SPOP handshake subset. Its
-self-test is protocol diagnostic evidence only; `make smoke-haproxy` is the
-runtime gate that starts HAProxy against this diagnostic agent.
+`build-spoa-runtime` compiles the request-side SPOP runtime. Its self-test is
+protocol diagnostic evidence; `make smoke-haproxy` is the live gate that starts
+HAProxy against this runtime and executes framework YAML cases.
 
 `build-modsecurity-binding` first verifies the local libmodsecurity C API
 signatures through a compiled probe, then builds a small self-test binary.
-`self-test-modsecurity-binding` proves only an in-process phase-1 header block
-decision with status 403. `make smoke-haproxy` is required to set
-`runtime_verified: true`, and only for the live
-`haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block` cases.
+`self-test-modsecurity-binding` proves in-process phase-1 header blocking and
+request-body processing. `make smoke-haproxy` is required for live HAProxy
+runtime evidence.
 
 ## Tests
 
@@ -121,8 +122,7 @@ Framework-owned paths and targets to use for future evidence:
 - `make test-with-crs`
 - `make smoke-common`
 
-No broader No-CRS or With-CRS PASS is claimed from the matrix rows. Unsupported
-or currently unmaterializable rows are documented as BLOCKED or
-NOT_EXECUTABLE. RESPONSE_BODY, negative/pass-through, audit/log, and full
-runtime compatibility remain unverified until live HAProxy evidence exists for
-those exact scopes.
+Unsupported or currently unmaterializable rows are documented as BLOCKED or
+NOT_EXECUTABLE. Response phases, audit/log assertions, redirects,
+non-403 disruptive statuses, and `RESPONSE_BODY` remain unverified until live
+HAProxy evidence exists for those exact scopes.
