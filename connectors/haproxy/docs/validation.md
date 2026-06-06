@@ -15,6 +15,9 @@ framework YAML case. The latest combined artifact attempted 141 YAML rows and
 recorded 1 PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and 10 mapped-only
 inventory entries. PASS/FAIL is used only for live HAProxy execution.
 
+The complete local compile and verification flow is documented in the root
+guide: [`COMPILE_HAPROXY.md`](../../../COMPILE_HAPROXY.md).
+
 Global runtime rules and promotion gates are defined in:
 
 - `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`

@@ -78,8 +78,8 @@ Generated file — do not edit manually.
 - HAProxy per-case results: `reports/testing/generated/haproxy-runtime-results.generated.md`
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-06-06** (2026-06-06 11:40:07 CEST)
-- Git: branch `integrate-new-connectors-local`, commit `6c6e23e`
+- Snapshot: **2026-06-06** (2026-06-06 12:16:03 CEST)
+- Git: branch `integrate-new-connectors-local`, commit `1354b23`
 - BUILD_ROOT: `/src/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache, NGINX, and HAProxy summary JSON files when present.
@@ -237,7 +237,7 @@ Generated file — do not edit manually.
 | Case | Variant | Expected | Actual | Evidence |
 |---|---|---:|---:|---|
 | haproxy_phase1_header_block | no-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; alias=no_crs; pass_actual=200 |
-| crs_sqli_anomaly_block | with-crs | 403 | 403 | 1780738804 CRS live decision disruptive=1 status=403 uri=/?id=1%20UNION%20SELECT%20password%20FROM%20users |
+| crs_sqli_anomaly_block | with-crs | 403 | 403 | 1780740959 CRS live decision disruptive=1 status=403 uri=/?id=1%20UNION%20SELECT%20password%20FROM%20users |
 
 - `haproxy_phase1_header_block` is live no-CRS alias evidence and is not counted as a framework YAML PASS row.
 

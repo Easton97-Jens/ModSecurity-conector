@@ -219,7 +219,7 @@ repository does not maintain a separate coverage-summary source of truth.
 
 ## Documentation Links
 
-- Build docs: [Compile Nginx](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md)
+- Build docs: [Compile Nginx](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md), [Compile HAProxy connector](./COMPILE_HAPROXY.md)
 - Shared connector feature docs: [Shared Features](./SHARED_FEATURES.md)
 - Roadmap: [docs/roadmap/roadmap.md](./docs/roadmap/roadmap.md)
 - Architecture docs: [docs/architecture/](./docs/architecture/)

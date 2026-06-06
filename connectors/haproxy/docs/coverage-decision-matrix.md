@@ -11,6 +11,9 @@ matrix structure and promotion rules are defined in:
 - `connectors/_template/docs/coverage-decision-matrix.md`
 - `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
 
+The complete local compile and verification flow is documented in the root
+guide: [`COMPILE_HAPROXY.md`](../../../COMPILE_HAPROXY.md).
+
 ## Current HAProxy Status
 
 | Area | HAProxy status | Evidence |

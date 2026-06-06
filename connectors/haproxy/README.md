@@ -70,6 +70,10 @@ Shared connector-neutral data shapes used by the starter:
 
 ## Build Starter
 
+For the complete repository-supported HAProxy compile and local verification
+flow, see the root guide: [`COMPILE_HAPROXY.md`](../../COMPILE_HAPROXY.md).
+The connector-local notes below describe status and target scope only.
+
 Supported local build targets:
 
 ```sh

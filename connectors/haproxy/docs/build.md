@@ -1,93 +1,47 @@
-# HAProxy Build
+# HAProxy Build Status
 
-Status: spoa-agent-starter
-Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
+The complete repository-supported HAProxy compile and local verification flow
+is documented in the root guide:
 
-The repository contains HAProxy metadata and a local SPOA agent starter build.
-It also contains a minimal diagnostic SPOP handshake subset and a local
-libmodsecurity binding used by the `haproxy_phase1_header_block` runtime smoke.
-The binding also has a CRS self-test path used by the minimal
-`haproxy_crs_sqli_anomaly_block` runtime smoke.
-It does not contain a productive HAProxy adapter build for broader scopes.
+- [`COMPILE_HAPROXY.md`](../../../COMPILE_HAPROXY.md)
 
-## Build Targets
+This connector-local page records connector-specific status only. It should not
+duplicate the full root compile guide.
 
-Metadata command:
+## Current Status
 
-```sh
-make -C connectors/haproxy build-metadata
-```
+- Build status: local diagnostic build available.
+- Runtime status: partial runtime-smoke evidence for
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
+- CRS verified: scoped only to `haproxy_crs_sqli_anomaly_block`.
+- RESPONSE_BODY: not verified.
+- Full matrix: partial / not fully verified.
 
-SPOA starter command:
+## What Exists
 
-```sh
-make -C connectors/haproxy build-spoa-starter
-```
+- repo-owned HAProxy metadata
+- local SPOA agent starter
+- minimal diagnostic SPOP handshake subset
+- local libmodsecurity binding self-tests
+- framework-owned HAProxy runtime smoke and matrix writers
 
-Combined local starter command:
+## What Is Not Claimed
 
-```sh
-make -C connectors/haproxy build-starter
-```
+- productive HAProxy adapter ownership
+- complete SPOE/SPOA protocol implementation
+- broad No-CRS YAML execution
+- broad With-CRS YAML execution
+- RESPONSE_BODY blocking
+- audit/log coverage
+- full-matrix promotion
 
-Local self-test command:
+## Evidence
 
-```sh
-make -C connectors/haproxy self-test-spoa
-```
+Use the root compile guide for commands. Current evidence is written under
+`/src/ModSecurity-conector-build/results/` and summarized in:
 
-Diagnostic SPOP subset commands:
-
-```sh
-make -C connectors/haproxy build-spoa-runtime
-make -C connectors/haproxy self-test-spoa-runtime
-```
-
-ModSecurity binding self-test commands:
-
-```sh
-make -C connectors/haproxy build-modsecurity-binding
-make -C connectors/haproxy self-test-modsecurity-binding
-make -C connectors/haproxy self-test-modsecurity-binding-crs
-```
-
-What these targets build:
-
-- `connectors/haproxy/metadata.c`
-- `connectors/haproxy/src/haproxy_spoa_agent_starter.c`
-- `connectors/haproxy/src/haproxy_spoa_main.c`
-- `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`
-- `connectors/haproxy/src/haproxy_modsecurity_binding.c`
-- `connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c`
-- shared `common/src/intervention.c`
-- outputs under `$(BUILD_ROOT)/haproxy-build-starter/`,
-  `$(BUILD_ROOT)/haproxy-spoa-runtime/`, and
-  `$(BUILD_ROOT)/haproxy-modsecurity-binding/`
-
-What they do not build:
-
-- HAProxy itself
-- a HAProxy native module/filter
-- a complete SPOA service
-- a full SPOA/SPOP implementation
-- broader CRS or RESPONSE_BODY runtime handling
-- a productive HAProxy runtime adapter for the full framework matrix
-
-## Productive Adapter Build Status
-
-Productive HAProxy adapter build: BLOCKED.
-
-Missing dependencies/evidence:
-
-- full SPOA/SPOP implementation beyond the diagnostic handshake subset
-- broader HAProxy runtime harness support
-- Framework cases beyond `haproxy_phase1_header_block` and
-  `haproxy_crs_sqli_anomaly_block`
-- broader CRS runtime evidence
-- RESPONSE_BODY runtime evidence
-- productive adapter build command and logs
-- productive runtime artifact path
-
-Until those items are recorded from executed HAProxy runtime builds/harnesses,
-HAProxy productive build status remains blocked and runtime status remains
-partial.
+- `/src/ModSecurity-conector-build/results/haproxy-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/haproxy-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/haproxy-summary.json`
+- `reports/testing/generated/haproxy-runtime-results.generated.md`
+- `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`

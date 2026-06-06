@@ -33,7 +33,7 @@ Generated file — do not edit manually.
 | Case | Variant | Expected | Actual | Evidence |
 |---|---|---:|---:|---|
 | haproxy_phase1_header_block | no-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; alias=no_crs; pass_actual=200 |
-| crs_sqli_anomaly_block | with-crs | 403 | 403 | 1780738804 CRS live decision disruptive=1 status=403 uri=/?id=1%20UNION%20SELECT%20password%20FROM%20users |
+| crs_sqli_anomaly_block | with-crs | 403 | 403 | 1780740959 CRS live decision disruptive=1 status=403 uri=/?id=1%20UNION%20SELECT%20password%20FROM%20users |
 
 - `haproxy_phase1_header_block` is live no-CRS alias evidence and is not counted as a framework YAML PASS row.
 

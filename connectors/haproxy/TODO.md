@@ -30,6 +30,7 @@ Global gate definitions:
 ## Phase 2: Build
 
 - [x] metadata build-starter approach documented
+- [x] root compile guide documented in `COMPILE_HAPROXY.md`
 - [x] metadata object build command documented
 - [x] local SPOA agent starter build documented
 - [x] local SPOA agent starter self-test documented
