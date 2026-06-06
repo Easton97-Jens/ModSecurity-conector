@@ -10,11 +10,6 @@ permissions:
 jobs:
   common-structure:
     runs-on: ubuntu-latest
-    env:
-      SOURCE_ROOT: ${{ runner.temp }}/sources
-      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
-      TMP_ROOT: ${{ runner.temp }}/ModSecurity-conector-build/tmp
-      LOG_ROOT: ${{ runner.temp }}/ModSecurity-conector-build/logs
     steps:
       - uses: actions/checkout@v6
         with:
@@ -24,6 +19,15 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
+      - name: Initialize runner temp paths
+        run: |
+          set -eu
+          {
+            echo "SOURCE_ROOT=$RUNNER_TEMP/sources"
+            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build"
+            echo "TMP_ROOT=$RUNNER_TEMP/ModSecurity-conector-build/tmp"
+            echo "LOG_ROOT=$RUNNER_TEMP/ModSecurity-conector-build/logs"
+          } >> "$GITHUB_ENV"
       - name: Check common scaffold
         run: |
           set -eu
