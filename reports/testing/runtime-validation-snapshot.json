@@ -1,8 +1,8 @@
 {
   "snapshot_date": "2026-06-06",
-  "captured_at": "2026-06-06 11:02:16 CEST",
+  "captured_at": "2026-06-06 11:40:07 CEST",
   "branch": "integrate-new-connectors-local",
-  "commit": "4a8b51d",
+  "commit": "6c6e23e",
   "build_root": "/src/ModSecurity-conector-build",
   "force_all_cases": false,
   "notes": [
@@ -7277,7 +7277,7 @@
           "crs_verified": true,
           "reason": "live HAProxy With-CRS SQLi probe matched framework YAML request and expectation",
           "promotion": "promotion eligible for this HAProxy-scoped case only",
-          "source_evidence": "1780736532 CRS live decision disruptive=1 status=403 uri=/?id=1%20UNION%20SELECT%20password%20FROM%20users",
+          "source_evidence": "1780738804 CRS live decision disruptive=1 status=403 uri=/?id=1%20UNION%20SELECT%20password%20FROM%20users",
           "response_body_non_verified": false,
           "evidence": "/src/ModSecurity-conector-build/results/haproxy-summary.json; case=crs_sqli_anomaly_block; status=pass; expected=403; actual=403",
           "not_auto_promoted": false
