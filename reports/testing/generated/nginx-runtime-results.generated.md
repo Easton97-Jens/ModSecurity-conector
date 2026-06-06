@@ -8,7 +8,7 @@ Generated file — do not edit manually.
 - Build status: `unknown`
 - Per-case results: `available`
 - Summary evidence: `/src/ModSecurity-conector-build/results/nginx-summary.json`
-- Attempted YAML cases in latest snapshot: **140**
+- Attempted YAML cases in default runtime snapshot: **140**
 - Runtime evidence is current local snapshot evidence only; it is not xfail/pending promotion.
 - RESPONSE_BODY remains non-verified/non-promoted.
 - RESPONSE_BODY pass-through evidence only; not proof of response-body blocking/inspection.
@@ -19,6 +19,7 @@ Generated file — do not edit manually.
 | PASS | 94 |
 | FAIL | 46 |
 | BLOCKED | 0 |
+| NOT_EXECUTABLE | unknown |
 | SKIPPED | 0 |
 | XFAIL | 0 |
 

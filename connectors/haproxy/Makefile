@@ -8,7 +8,7 @@ HAPROXY_MODSECURITY_BINDING_DIR ?= $(BUILD_ROOT)/haproxy-modsecurity-binding
 COMMON_INCLUDE := $(REPO_ROOT)/common/include
 COMMON_SRC := $(REPO_ROOT)/common/src
 SPOA_STARTER_BIN := $(HAPROXY_BUILD_DIR)/haproxy-spoa-agent-starter
-SPOA_RUNTIME_BIN := $(HAPROXY_SPOA_RUNTIME_DIR)/haproxy-spoa-diagnostic-runtime
+SPOA_RUNTIME_BIN := $(HAPROXY_SPOA_RUNTIME_DIR)/haproxy-modsecurity-spoa
 MODSECURITY_BINDING_BIN := $(HAPROXY_MODSECURITY_BINDING_DIR)/haproxy-modsecurity-binding-self-test
 MODSECURITY_INCLUDE_CANDIDATES ?= $(BUILD_ROOT)/nginx-build/output/modsecurity/include $(BUILD_ROOT)/apache-build/output/modsecurity/include /src/ModSecurity_V3/headers
 MODSECURITY_LIB_CANDIDATES ?= $(BUILD_ROOT)/nginx-build/output/modsecurity/lib $(BUILD_ROOT)/apache-build/output/modsecurity/lib $(BUILD_ROOT)/nginx-build/ModSecurity_V3/src/.libs $(BUILD_ROOT)/apache-build/ModSecurity_V3/src/.libs
@@ -33,8 +33,8 @@ self-test-spoa: $(SPOA_STARTER_BIN)
 	"$(SPOA_STARTER_BIN)" --self-test
 
 build-spoa-runtime: $(SPOA_RUNTIME_BIN)
-	@echo "HAProxy minimal diagnostic SPOP handshake subset built at $(SPOA_RUNTIME_BIN)"
-	@echo "Scope: diagnostic SPOP HELLO/ACK/set-var/DISCONNECT subset only; no CRS or RESPONSE_BODY runtime is claimed."
+	@echo "HAProxy ModSecurity SPOA production agent built at $(SPOA_RUNTIME_BIN)"
+	@echo "Scope: production SPOP agent path with request phases, response headers, bounded experimental response body, audit/decision logging."
 
 self-test-spoa-runtime: $(SPOA_RUNTIME_BIN)
 	@set -eu; \
@@ -93,11 +93,11 @@ $(SPOA_RUNTIME_BIN): FORCE src/haproxy_spop_diagnostic_runtime.c src/haproxy_mod
 		exit 77; \
 	}; \
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I"$$MODSECURITY_INCLUDE_DIR" -Isrc -c src/haproxy_spop_diagnostic_runtime.c -o "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_spop_diagnostic_runtime.o" || { \
-		echo "BLOCKED: HAProxy diagnostic SPOP runtime source did not compile" >&2; \
+		echo "BLOCKED: HAProxy ModSecurity SPOA runtime source did not compile" >&2; \
 		exit 77; \
 	}; \
 	$(CXX) $(LDFLAGS) "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_spop_diagnostic_runtime.o" "$(HAPROXY_SPOA_RUNTIME_DIR)/haproxy_modsecurity_binding.o" -L"$$MODSECURITY_LIB_DIR" -Wl,-rpath,"$$MODSECURITY_LIB_DIR" -lmodsecurity $(LDLIBS) -o "$@" || { \
-		echo "BLOCKED: HAProxy diagnostic SPOP runtime did not link with libmodsecurity" >&2; \
+		echo "BLOCKED: HAProxy ModSecurity SPOA runtime did not link with libmodsecurity" >&2; \
 		exit 77; \
 	}
 
@@ -131,6 +131,7 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 	probe="$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_api.c"; \
 	printf '%s\n' \
 		'#include <stddef.h>' \
+		'#include <stdint.h>' \
 		'#include <modsecurity/modsecurity.h>' \
 		'#include <modsecurity/rules_set.h>' \
 		'#include <modsecurity/transaction.h>' \
@@ -144,17 +145,23 @@ $(MODSECURITY_BINDING_BIN): FORCE src/haproxy_modsecurity_binding.c src/haproxy_
 		'    void (*fn_msc_rules_error_cleanup)(const char *) = msc_rules_error_cleanup;' \
 		'    int (*fn_msc_rules_cleanup)(RulesSet *) = msc_rules_cleanup;' \
 		'    Transaction *(*fn_msc_new_transaction)(ModSecurity *, RulesSet *, void *) = msc_new_transaction;' \
+		'    Transaction *(*fn_msc_new_transaction_with_id)(ModSecurity *, RulesSet *, const char *, void *) = msc_new_transaction_with_id;' \
 		'    int (*fn_msc_process_connection)(Transaction *, const char *, int, const char *, int) = msc_process_connection;' \
 		'    int (*fn_msc_process_uri)(Transaction *, const char *, const char *, const char *) = msc_process_uri;' \
 		'    int (*fn_msc_add_request_header)(Transaction *, const unsigned char *, const unsigned char *) = msc_add_request_header;' \
 		'    int (*fn_msc_process_request_headers)(Transaction *) = msc_process_request_headers;' \
 		'    int (*fn_msc_append_request_body)(Transaction *, const unsigned char *, size_t) = msc_append_request_body;' \
 		'    int (*fn_msc_process_request_body)(Transaction *) = msc_process_request_body;' \
+		'    int (*fn_msc_add_response_header)(Transaction *, const unsigned char *, const unsigned char *) = msc_add_response_header;' \
+		'    int (*fn_msc_process_response_headers)(Transaction *, int, const char *) = msc_process_response_headers;' \
+		'    int (*fn_msc_append_response_body)(Transaction *, const unsigned char *, size_t) = msc_append_response_body;' \
+		'    int (*fn_msc_process_response_body)(Transaction *) = msc_process_response_body;' \
 		'    int (*fn_msc_intervention)(Transaction *, ModSecurityIntervention *) = msc_intervention;' \
 		'    void (*fn_msc_intervention_cleanup)(ModSecurityIntervention *) = msc_intervention_cleanup;' \
 		'    int (*fn_msc_process_logging)(Transaction *) = msc_process_logging;' \
 		'    void (*fn_msc_transaction_cleanup)(Transaction *) = msc_transaction_cleanup;' \
-		'    return fn_msc_init == 0 || fn_msc_cleanup == 0 || fn_msc_set_connector_info == 0 || fn_msc_create_rules_set == 0 || fn_msc_rules_add == 0 || fn_msc_rules_add_file == 0 || fn_msc_rules_error_cleanup == 0 || fn_msc_rules_cleanup == 0 || fn_msc_new_transaction == 0 || fn_msc_process_connection == 0 || fn_msc_process_uri == 0 || fn_msc_add_request_header == 0 || fn_msc_process_request_headers == 0 || fn_msc_append_request_body == 0 || fn_msc_process_request_body == 0 || fn_msc_intervention == 0 || fn_msc_intervention_cleanup == 0 || fn_msc_process_logging == 0 || fn_msc_transaction_cleanup == 0;' \
+		'    size_t (*fn_msc_get_rules_messages_rule_ids)(const Transaction *, int64_t *, size_t) = msc_get_rules_messages_rule_ids;' \
+		'    return fn_msc_init == 0 || fn_msc_cleanup == 0 || fn_msc_set_connector_info == 0 || fn_msc_create_rules_set == 0 || fn_msc_rules_add == 0 || fn_msc_rules_add_file == 0 || fn_msc_rules_error_cleanup == 0 || fn_msc_rules_cleanup == 0 || fn_msc_new_transaction == 0 || fn_msc_new_transaction_with_id == 0 || fn_msc_process_connection == 0 || fn_msc_process_uri == 0 || fn_msc_add_request_header == 0 || fn_msc_process_request_headers == 0 || fn_msc_append_request_body == 0 || fn_msc_process_request_body == 0 || fn_msc_add_response_header == 0 || fn_msc_process_response_headers == 0 || fn_msc_append_response_body == 0 || fn_msc_process_response_body == 0 || fn_msc_intervention == 0 || fn_msc_intervention_cleanup == 0 || fn_msc_process_logging == 0 || fn_msc_transaction_cleanup == 0 || fn_msc_get_rules_messages_rule_ids == 0;' \
 		'}' > "$$probe"; \
 	$(CC) $(CPPFLAGS) -I"$$include_dir" -Werror=implicit-function-declaration -Werror=incompatible-pointer-types -c "$$probe" -o "$(HAPROXY_MODSECURITY_BINDING_DIR)/verify_modsecurity_api.o" || { \
 		echo "BLOCKED: local libmodsecurity C API signatures do not match binding requirements" >&2; \

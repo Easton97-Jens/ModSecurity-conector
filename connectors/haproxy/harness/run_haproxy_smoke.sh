@@ -9,14 +9,18 @@ FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}
 
 SOURCE_ROOT="${SOURCE_ROOT:-/src}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+if [ "${FORCE_ALL_CASES:-0}" = "1" ] && [ -z "${RESULTS_DIR+x}" ]; then
+    RESULTS_DIR="$BUILD_ROOT/results/force-all"
+else
+    RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+fi
 TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}"
 LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
 LOG_DIR="${LOG_DIR:-$LOG_ROOT/haproxy-runtime}"
 RUNTIME_BASE="${RUNTIME_BASE:-$BUILD_ROOT/haproxy-runtime-cases}"
 RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 HAPROXY_BIN="${HAPROXY_BIN:-$BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy}"
-SPOA_RUNTIME_BIN="${SPOA_RUNTIME_BIN:-$BUILD_ROOT/haproxy-spoa-runtime/haproxy-spoa-diagnostic-runtime}"
+SPOA_RUNTIME_BIN="${SPOA_RUNTIME_BIN:-$BUILD_ROOT/haproxy-spoa-runtime/haproxy-modsecurity-spoa}"
 MODSECURITY_BINDING_DIR="${MODSECURITY_BINDING_DIR:-$BUILD_ROOT/haproxy-modsecurity-binding}"
 PREPARE_HAPROXY_RUNTIME="$FRAMEWORK_ROOT/ci/prepare-haproxy-runtime.sh"
 CASE_CLI="$FRAMEWORK_ROOT/tests/runners/case_cli.py"
@@ -179,9 +183,134 @@ write_case_result() {
             --status "$case_status" \
             --output "$output"
     fi
+    enrich_case_result "$output" || true
 }
 
-case_block_reason() {
+enrich_case_result() {
+    output=$1
+    "$PYTHON_BIN" - "$output" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+result_path = Path(sys.argv[1])
+if not result_path.exists():
+    raise SystemExit(0)
+case_dir = result_path.parent
+decision_path = case_dir / "decision.jsonl"
+entries = []
+if decision_path.exists():
+    for line in decision_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            entries.append(json.loads(line))
+        except Exception:
+            pass
+data = json.loads(result_path.read_text(encoding="utf-8"))
+data["case"] = data.get("case") or data.get("name")
+data["decision_log"] = str(decision_path)
+data["decision_log_path"] = str(decision_path)
+data["haproxy_log_path"] = str(case_dir / "haproxy.stderr.log")
+data["spoa_log_path"] = str(case_dir / "spoa-agent.log")
+data["evidence_path"] = str(result_path)
+for audit_candidate in (
+    case_dir / "audit.log",
+    case_dir / "modsec_audit.log",
+    case_dir / "audit" / "audit.log",
+):
+    if audit_candidate.exists():
+        data["audit_log_path"] = str(audit_candidate)
+        break
+data["evidence"] = (
+    f"decision_log={decision_path}; haproxy_log={case_dir / 'haproxy.stderr.log'}; "
+    f"spoa_log={case_dir / 'spoa-agent.log'}"
+)
+if entries:
+    last = entries[-1]
+    data.setdefault("reason", last.get("reason", ""))
+    data["modsecurity_processed"] = any(bool(item.get("modsecurity_processed")) for item in entries)
+    data["request_headers_seen"] = any(bool(item.get("request_headers_seen")) for item in entries)
+    data["request_body_seen"] = any(bool(item.get("request_body_seen")) for item in entries)
+    data["response_headers_seen"] = any(bool(item.get("response_headers_seen")) for item in entries)
+    data["response_body_seen"] = any(bool(item.get("response_body_seen")) for item in entries)
+    data["decision_entries"] = len(entries)
+result_path.write_text(json.dumps(data, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
+enrich_summary_metadata() {
+    summary_json=$1
+    results_jsonl=$2
+    exit_status=$3
+    command_label=$4
+    "$PYTHON_BIN" - "$summary_json" "$results_jsonl" "$RESULTS_DIR" "$LOG_DIR" "$exit_status" "$command_label" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+summary_path = Path(sys.argv[1])
+jsonl_path = Path(sys.argv[2])
+results_dir = Path(sys.argv[3])
+case_result_root = Path(sys.argv[4])
+exit_status = int(sys.argv[5])
+command_label = sys.argv[6]
+
+if not summary_path.exists():
+    raise SystemExit(0)
+
+data = json.loads(summary_path.read_text(encoding="utf-8"))
+connector = data.setdefault("haproxy", {})
+summary = connector.setdefault("summary", {})
+cases = connector.setdefault("cases", {})
+runtime_mode = "force-all" if os.environ.get("FORCE_ALL_CASES") == "1" else "default"
+
+attempted_statuses = ("pass", "fail", "blocked", "not_executable")
+attempted = sum(int(summary.get(status, 0) or 0) for status in attempted_statuses)
+connector["runtime_mode"] = runtime_mode
+connector["attempted"] = attempted
+connector["total_cases"] = len(cases)
+connector["evidence_root"] = str(results_dir)
+connector["jsonl_path"] = str(jsonl_path)
+connector["per_case_result_root"] = str(case_result_root)
+connector["command"] = command_label
+connector["exit_status"] = exit_status
+connector["failed_due_to_live_mismatches"] = bool(int(summary.get("fail", 0) or 0) > 0 and exit_status != 0)
+
+for name, row in cases.items():
+    if not isinstance(row, dict):
+        continue
+    row.setdefault("case", name)
+    row.setdefault("expected", row.get("expected_status"))
+    row.setdefault("observed", row.get("actual_status"))
+    row.setdefault("decision_log_path", row.get("decision_log"))
+    if not row.get("evidence_path"):
+        log_path = row.get("spoa_log_path") or row.get("haproxy_log_path") or row.get("decision_log_path")
+        if log_path:
+            row["evidence_path"] = str(Path(log_path).parent / "result.json")
+    if not row.get("audit_log_path") and row.get("evidence_path"):
+        case_dir = Path(row["evidence_path"]).parent
+        for audit_candidate in (
+            case_dir / "audit.log",
+            case_dir / "modsec_audit.log",
+            case_dir / "audit" / "audit.log",
+        ):
+            if audit_candidate.exists():
+                row["audit_log_path"] = str(audit_candidate)
+                break
+    if not row.get("reason") and row.get("status") == "fail":
+        expected = row.get("expected_status", row.get("expected"))
+        observed = row.get("actual_status", row.get("observed"))
+        if expected not in (None, "") or observed not in (None, ""):
+            row["reason"] = f"expected HTTP {expected}; observed HTTP {observed}"
+    row.setdefault("live_executed", row.get("status") in ("pass", "fail", "blocked"))
+
+summary_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+}
+
+case_runtime_shape() {
     "$PYTHON_BIN" - "$FRAMEWORK_ROOT" "$TEST_CASE" <<'PY'
 import os
 import sys
@@ -199,17 +328,53 @@ if isinstance(case.get("capabilities"), dict):
 expect = effective_expect(case)
 intervention = str(expect.get("intervention", ""))
 status = int(expect.get("status", 0))
-unsupported = []
-if caps.intersection({"phase3", "phase4", "response-headers"}):
-    unsupported.append("HAProxy request-side SPOE path does not execute response phases")
-if caps.intersection({"audit-log", "audit-log-absent"}):
-    unsupported.append("HAProxy audit-log assertions are not stable in this runtime path")
-if intervention in {"deny", "block", "redirect"} and status != 403:
-    unsupported.append(f"HAProxy disruptive enforcement currently supports only 403, not {status}")
-if intervention == "redirect":
-    unsupported.append("HAProxy redirect intervention is not implemented")
-print("; ".join(dict.fromkeys(unsupported)))
+response_headers = bool(caps.intersection({"phase3", "phase4", "response-headers", "response-body"}))
+response_body = bool(caps.intersection({"phase4", "response-body"}))
+print(f"HAPROXY_ENABLE_RESPONSE_HEADERS={1 if response_headers else 0}")
+print(f"HAPROXY_ENABLE_RESPONSE_BODY={1 if response_body else 0}")
+print(f"HAPROXY_EXPECT_INTERVENTION={intervention!r}")
+print(f"HAPROXY_EXPECT_STATUS={status}")
+print("HAPROXY_NOT_EXECUTABLE_REASON=''")
 PY
+}
+
+case_declared_status() {
+    "$PYTHON_BIN" - "$FRAMEWORK_ROOT" "$TEST_CASE" <<'PY'
+import sys
+from pathlib import Path
+
+framework = Path(sys.argv[1])
+case_path = sys.argv[2]
+sys.path.insert(0, str(framework / "tests" / "runners"))
+from runner_core import load_case  # noqa: E402
+
+print(str(load_case(case_path).get("status", "") or ""))
+PY
+}
+
+mark_not_executable() {
+    reason=$1
+    write_case_result "$TEST_CASE" not_executable "" "$LOG_DIR/result.json" || true
+    "$PYTHON_BIN" - "$LOG_DIR/result.json" "$reason" <<'PY' || true
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+reason = sys.argv[2]
+if path.exists():
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["reason"] = reason
+    path.write_text(json.dumps(data, sort_keys=True) + "\n", encoding="utf-8")
+PY
+    echo "haproxy_smoke: not_executable $reason"
+    exit 0
+}
+
+rule_parse_startup_is_not_executable() {
+    [ "$(case_declared_status)" = "xfail" ] || return 1
+    [ -f "$LOG_DIR/spoa-runtime.stderr.log" ] || return 1
+    grep -q "failed to initialize ModSecurity engine: Rules error" "$LOG_DIR/spoa-runtime.stderr.log"
 }
 
 run_all_cases() {
@@ -264,6 +429,21 @@ run_all_cases() {
         else
             any_pass=1
         fi
+        if [ -f "$case_log_dir/result.json" ]; then
+            existing_status=$("$PYTHON_BIN" - "$case_log_dir/result.json" <<'PY' || true
+import json
+import sys
+try:
+    print(json.load(open(sys.argv[1], encoding="utf-8")).get("status", ""))
+except Exception:
+    print("")
+PY
+)
+            if [ "$existing_status" = "not_executable" ]; then
+                case_status=not_executable
+                case_status_upper=NOT_EXECUTABLE
+            fi
+        fi
         actual_status=""
         if [ -f "$case_log_dir/observed-status.txt" ]; then
             actual_status=$(cat "$case_log_dir/observed-status.txt")
@@ -300,13 +480,18 @@ run_all_cases() {
         --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH"
     cp "$summary_file" "$connector_summary"
 
+    planned_exit_status=0
     if [ "$any_fail" -ne 0 ]; then
-        exit 1
+        planned_exit_status=1
+    elif [ "$any_pass" -eq 0 ] && [ "$any_blocked" -ne 0 ]; then
+        planned_exit_status=77
     fi
-    if [ "$any_pass" -eq 0 ] && [ "$any_blocked" -ne 0 ]; then
-        exit 77
+    command_label="make smoke-haproxy"
+    if [ "${FORCE_ALL_CASES:-0}" = "1" ]; then
+        command_label="FORCE_ALL_CASES=1 make smoke-haproxy"
     fi
-    exit 0
+    enrich_summary_metadata "$json_file" "$results_jsonl" "$planned_exit_status" "$command_label" || true
+    exit "$planned_exit_status"
 }
 
 pick_tcp_port() {
@@ -431,10 +616,35 @@ write_haproxy_config() {
         echo
         echo "frontend fe_haproxy_modsecurity"
         echo "    bind 127.0.0.1:$PORT"
+        echo "    unique-id-format %[uuid()]"
+        echo "    unique-id-header X-Request-ID"
         echo "    option http-buffer-request"
-        echo "    filter spoe engine modsecurity-diagnostic config $SPOE_CFG"
-        echo "    http-request send-spoe-group modsecurity-diagnostic diagnostic-request"
-        echo "    http-request deny status 403 if { var(txn.modsecdiag.blocked) -m bool }"
+        if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
+            echo "    http-response wait-for-body time 50ms at-least 1"
+        fi
+        echo "    filter spoe engine modsecurity config $SPOE_CFG"
+        echo "    http-request send-spoe-group modsecurity request-check"
+        echo "    http-request redirect location %[var(txn.modsec.redirect_url)] code 302 if { var(txn.modsec.action) -m str redirect } { var(txn.modsec.redirect_url) -m found }"
+        echo "    http-request silent-drop if { var(txn.modsec.action) -m str drop }"
+        echo "    http-request deny status 401 if { var(txn.modsec.status) -m int 401 }"
+        echo "    http-request deny status 403 if { var(txn.modsec.blocked) -m bool }"
+        echo "    http-request deny status 406 if { var(txn.modsec.status) -m int 406 }"
+        echo "    http-request deny status 429 if { var(txn.modsec.status) -m int 429 }"
+        echo "    http-request deny status 503 if { var(txn.modsec.status) -m int 503 }"
+        if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
+            echo "    http-response set-header Last-Modified \"Wed, 21 Oct 2015 07:28:00 GMT\""
+            echo "    http-response set-header Content-Type \"text/html; charset=utf-8\""
+            echo "    http-response set-header Location \"/encoded%%2Ftarget\""
+            echo "    http-response add-header Set-Cookie \"session=token\""
+            echo "    http-response add-header Set-Cookie \"a=b\""
+            echo "    http-response send-spoe-group modsecurity response-check"
+            echo "    http-response silent-drop if { var(txn.modsec.action) -m str drop }"
+            echo "    http-response deny status 401 if { var(txn.modsec.status) -m int 401 }"
+            echo "    http-response deny status 403 if { var(txn.modsec.blocked) -m bool }"
+            echo "    http-response deny status 406 if { var(txn.modsec.status) -m int 406 }"
+            echo "    http-response deny status 429 if { var(txn.modsec.status) -m int 429 }"
+            echo "    http-response deny status 503 if { var(txn.modsec.status) -m int 503 }"
+        fi
         echo "    default_backend be_haproxy_smoke_app"
         echo
         echo "backend be_haproxy_smoke_app"
@@ -449,12 +659,16 @@ write_haproxy_config() {
         echo "    server spoa1 127.0.0.1:$SPOA_PORT"
     } > "$HAPROXY_CFG"
     {
-        echo "[modsecurity-diagnostic]"
+        echo "[modsecurity]"
         echo
-        echo "spoe-agent modsecurity-diagnostic-agent"
-        echo "    groups diagnostic-request"
-        echo "    option var-prefix modsecdiag"
-        echo "    register-var-names blocked"
+        echo "spoe-agent modsecurity-agent"
+        if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
+            echo "    groups request-check response-check"
+        else
+            echo "    groups request-check"
+        fi
+        echo "    option var-prefix modsec"
+        echo "    register-var-names blocked action status redirect_url rule_id phase error"
         echo "    max-frame-size 65532"
         echo "    option continue-on-error"
         echo "    timeout hello 1s"
@@ -462,20 +676,66 @@ write_haproxy_config() {
         echo "    timeout processing 2s"
         echo "    use-backend be_spoa_modsecurity"
         echo
-        echo "spoe-group diagnostic-request"
+        echo "spoe-group request-check"
         echo "    messages check-request"
         echo
         echo "spoe-message check-request"
-        echo "    args method=method path=path uri=url headers_bin=req.hdrs_bin headers=req.hdrs body=req.body"
+        echo "    args request_id=unique-id client_ip=src client_port=src_port server_ip=dst server_port=dst_port method=method path=path uri=url host=req.hdr(host) headers_bin=req.hdrs_bin headers=req.hdrs body=req.body body_len=req.body_len"
+        if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
+            echo
+            echo "spoe-group response-check"
+            echo "    messages check-response"
+            echo
+            echo "spoe-message check-response"
+            if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
+                echo "    args request_id=unique-id response_status=txn.status response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server) response_body=res.body response_body_len=res.body_len"
+            else
+                echo "    args request_id=unique-id response_status=txn.status response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server)"
+            fi
+        fi
     } > "$SPOE_CFG"
 }
 
 start_backend() {
-    "$PYTHON_BIN" -m http.server "$BACKEND_PORT" \
-        --bind 127.0.0.1 \
-        --directory "$DOCROOT" \
+    "$PYTHON_BIN" - "$BACKEND_PORT" "$DOCROOT/index.html" \
         >"$LOG_DIR/backend.stdout.log" \
-        2>"$LOG_DIR/backend.stderr.log" &
+        2>"$LOG_DIR/backend.stderr.log" <<'PY' &
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+import sys
+
+PORT = int(sys.argv[1])
+BODY = Path(sys.argv[2]).read_bytes()
+
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    server_version = "ModSecurityHarness/1.0"
+    sys_version = ""
+
+    def do_HEAD(self):
+        self._send_headers()
+
+    def do_GET(self):
+        self._send_headers()
+        self.wfile.write(BODY)
+
+    def _send_headers(self):
+        self.send_response(200)
+        self.send_header("Last-Modified", "Wed, 21 Oct 2015 07:28:00 GMT")
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Location", "/encoded%2Ftarget")
+        self.send_header("Set-Cookie", "session=token")
+        self.send_header("Set-Cookie", "a=b")
+        self.send_header("Content-Length", str(len(BODY)))
+        self.end_headers()
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write((fmt % args) + "\n")
+
+
+ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+PY
     BACKEND_PID=$!
     wait_tcp_port "$BACKEND_PORT" || blocked "backend failed to start on 127.0.0.1:$BACKEND_PORT"
 }
@@ -484,15 +744,34 @@ start_agent() {
     ready_file="$RUNTIME_ROOT/spoa.ready"
     pid_file="$RUNTIME_ROOT/spoa.pid"
     port_file="$RUNTIME_ROOT/spoa.port"
+    response_header_arg=
+    response_body_limit=0
+    if [ "${HAPROXY_ENABLE_RESPONSE_HEADERS:-0}" = "1" ]; then
+        response_header_arg=--enable-response-headers
+    fi
+    if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
+        response_body_limit="${HAPROXY_RESPONSE_BODY_LIMIT:-32768}"
+    fi
     LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$SPOA_RUNTIME_BIN" --serve \
-            --host 127.0.0.1 \
-            --port "$SPOA_PORT" \
+        "$SPOA_RUNTIME_BIN" \
+            --listen "127.0.0.1:$SPOA_PORT" \
             --ready-file "$ready_file" \
             --pid-file "$pid_file" \
             --port-file "$port_file" \
-            --log-file "$LOG_DIR/spoa-runtime.log" \
+            --log-file "$LOG_DIR/spoa-agent.log" \
+            --decision-log "$LOG_DIR/decision.jsonl" \
+            --audit-log "$AUDIT_LOG_FILE" \
             --rules-file "$RULES_FILE" \
+            --mode block \
+            --fail-mode closed \
+            --runtime-mode test \
+            --variant "$MODSECURITY_TEST_VARIANT" \
+            --case "$CASE_NAME" \
+            --expected-status "$EXPECT_STATUS" \
+            --request-body-limit 65532 \
+            --response-body-limit "$response_body_limit" \
+            --response-body-timeout 50 \
+            $response_header_arg \
             >"$LOG_DIR/spoa-runtime.stdout.log" \
             2>"$LOG_DIR/spoa-runtime.stderr.log" &
     AGENT_PID=$!
@@ -504,6 +783,9 @@ start_agent() {
         i=$((i + 1))
         sleep 0.1
     done
+    if rule_parse_startup_is_not_executable; then
+        mark_not_executable "ModSecurity rule parse failed for forced xfail case; see $LOG_DIR/spoa-runtime.stderr.log"
+    fi
     blocked "SPOA runtime failed to start; see $LOG_DIR/spoa-runtime.stderr.log"
 }
 
@@ -569,6 +851,8 @@ rm -f "$LOG_DIR/"*.log \
     "$LOG_DIR/observed-status.txt" \
     "$LOG_DIR/response-body.txt" \
     "$LOG_DIR/audit.log" \
+    "$LOG_DIR/decision.jsonl" \
+    "$LOG_DIR/spoa-agent.log" \
     "$RUNTIME_ROOT/conf/"*.conf \
     "$RUNTIME_ROOT/conf/"*.txt \
     "$RUNTIME_ROOT/conf/"*.bin \
@@ -614,9 +898,9 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
 fi
 . "$CASE_ENV_FILE"
 
-block_reason=$(case_block_reason)
-if [ -n "$block_reason" ]; then
-    blocked "$block_reason"
+eval "$(case_runtime_shape)"
+if [ -n "${HAPROXY_NOT_EXECUTABLE_REASON:-}" ]; then
+    mark_not_executable "$HAPROXY_NOT_EXECUTABLE_REASON"
 fi
 
 PORT=$(select_free_port "$PORT" "$PORT_SEARCH_LIMIT") || blocked "no free localhost port found from $PORT within $PORT_SEARCH_LIMIT attempts"

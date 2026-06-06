@@ -1,37 +1,37 @@
 # HAProxy Connector
 
-Status: live-yaml-spoa-runtime (partial)
-Runtime status: live request-side YAML execution through HAProxy, SPOA/SPOP,
-and libmodsecurity. Current evidence:
-No-CRS `46 PASS / 0 FAIL / 8 BLOCKED`; With-CRS
-`48 PASS / 0 FAIL / 7 BLOCKED`.
-Template alignment: scaffold-aligned plus local SPOA agent starter/runtime
+Status: production-spoa-runtime (partial)
+Runtime status: live YAML execution through HAProxy, SPOA/SPOP, and a
+repo-built `haproxy-modsecurity-spoa` agent. Request phases, audit-log
+assertions, response headers, fixed disruptive statuses, and bounded
+experimental response body probes execute through the same production binary.
+`RESPONSE_BODY` remains non-promoted.
+Template alignment: scaffold-aligned plus local SPOA agent starter/runtime.
 
 This connector contains repository-owned metadata, a local HAProxy SPOA agent
-starter, a request-side SPOP runtime, and a local libmodsecurity binding. The
-runtime self-tests HELLO/AGENT-HELLO, NOTIFY parsing, verified
-`set-var txn.modsecdiag.blocked true` ACK encoding, and DISCONNECT handling.
-`make smoke-haproxy` now lists shared framework YAML cases with `case_cli.py`,
-materializes each case, starts HAProxy plus the SPOP runtime plus a backend,
-sends the case request with curl, asserts the observed status, and writes the
-standard HAProxy summary artifacts.
+starter, a production SPOP runtime, and a local libmodsecurity binding. The
+production agent loads ModSecurity rules once, creates transactions with the
+HAProxy `unique-id`, keeps bounded transactions for response phases, emits
+decision JSONL, and returns typed SPOE ACK variables for HAProxy enforcement.
+`make smoke-haproxy` lists shared framework YAML cases with `case_cli.py`,
+materializes each case, starts HAProxy plus the production SPOA agent plus a
+backend, sends the case request with curl, asserts the observed status, and
+writes the standard HAProxy summary artifacts.
 
 `make runtime-matrix-haproxy` consumes live summary evidence from the split
-No-CRS and With-CRS HAProxy runs. The current combined artifact is copied from
-the With-CRS run and records `48 PASS`, `0 FAIL`, and `7 BLOCKED` across 55
-shared executable YAML rows. The No-CRS split records `46 PASS`, `0 FAIL`, and
-`8 BLOCKED`. Split artifacts are written under
-`/src/ModSecurity-conector-build/results/no-crs/` and
-`/src/ModSecurity-conector-build/results/with-crs/`.
+No-CRS and With-CRS HAProxy runs. PASS/FAIL rows must come from live HAProxy
+execution; structurally unmappable rows use `NOT_EXECUTABLE`, and real
+environment/build/runtime blockers use `BLOCKED`.
 
 The proven request-side variables are `REQUEST_URI`, `REQUEST_HEADERS`,
 `REQUEST_HEADERS_NAMES`, `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
 `REQUEST_COOKIES_NAMES`, `REQUEST_BODY`, `FILES`, and `XML`. URL-encoded,
 JSON, XML, multipart, and CRS SQLi anomaly request-body coverage is live
-evidence, limited by the current single-frame SPOE path (`max-frame-size 65532`
-and HAProxy `tune.bufsize 65536`). Response phases, audit-log assertions,
-redirects, and non-403 disruptive statuses remain blocked unless live HAProxy
-support is added and proven. `RESPONSE_BODY` is not promoted.
+evidence, limited by HAProxy request buffering, SPOE frame size, and configured
+request-body limits. Response-header and audit-log evidence now uses live
+SPOE response messages. Bounded Phase 4 response-body execution is available
+for experimental strict-abort probes only and is not promotion evidence for
+full `RESPONSE_BODY` support.
 
 ## Global Contract
 
@@ -56,19 +56,17 @@ Shared connector-neutral data shapes used by the starter:
 - Build: metadata object and local SPOA agent starter build are present.
 - Self-test: local starter self-test exists; it does not start HAProxy.
 - SPOP runtime: buildable and self-testable under
-  `/src/ModSecurity-conector-build/haproxy-spoa-runtime/`; request-side runtime
-  evidence exists, but this is still not a complete production SPOA agent.
+  `/src/ModSecurity-conector-build/haproxy-spoa-runtime/` as
+  `haproxy-modsecurity-spoa`; the harness and normal deployments use this same
+  binary path.
 - ModSecurity binding self-test: buildable and self-testable under
   `/src/ModSecurity-conector-build/haproxy-modsecurity-binding/`; verifies
   phase-1 header blocking and request-body append/processing in process.
 - Harness: `make smoke-haproxy` verifies live HAProxy to SPOA/SPOP to
-  libmodsecurity enforcement for shared framework YAML request-side cases.
-- No-CRS HAProxy split: 46 PASS, 0 FAIL, 8 BLOCKED.
-- With-CRS HAProxy split: 48 PASS, 0 FAIL, 7 BLOCKED, including
-  `crs_sqli_anomaly_block`.
-- Combined HAProxy artifact: 48 PASS, 0 FAIL, 7 BLOCKED from the With-CRS
-  live summary.
-- RESPONSE_BODY blocking: not verified.
+  libmodsecurity enforcement for shared framework YAML cases.
+- Decision evidence: per-case `decision.jsonl`, HAProxy logs, SPOA logs, audit
+  logs, observed status, and normalized `result.json`.
+- RESPONSE_BODY blocking: bounded experimental evidence only; not promoted.
 
 ## Build Starter
 
@@ -96,9 +94,9 @@ and run a synthetic allow/block decision self-test. It does not compile HAProxy,
 does not compile a HAProxy module, does not parse SPOP frames, does not run as a
 verified SPOA server, and does not link libmodsecurity.
 
-`build-spoa-runtime` compiles the request-side SPOP runtime. Its self-test is
-protocol diagnostic evidence; `make smoke-haproxy` is the live gate that starts
-HAProxy against this runtime and executes framework YAML cases.
+`build-spoa-runtime` compiles `haproxy-modsecurity-spoa`. Its self-test is
+protocol compatibility evidence; `make smoke-haproxy` is the live gate that
+starts HAProxy against this production agent and executes framework YAML cases.
 
 `build-modsecurity-binding` first verifies the local libmodsecurity C API
 signatures through a compiled probe, then builds a small self-test binary.
@@ -122,7 +120,8 @@ Framework-owned paths and targets to use for future evidence:
 - `make test-with-crs`
 - `make smoke-common`
 
-Unsupported or currently unmaterializable rows are documented as BLOCKED or
-NOT_EXECUTABLE. Response phases, audit/log assertions, redirects,
-non-403 disruptive statuses, and `RESPONSE_BODY` remain unverified until live
-HAProxy evidence exists for those exact scopes.
+Unsupported or currently unmaterializable rows are documented as
+`NOT_EXECUTABLE`. Harness, dependency, build, and runtime failures are
+documented as `BLOCKED`. `RESPONSE_BODY` rows stay non-promoted unless a future
+implementation proves full-body guarantees beyond the current bounded
+experimental path.

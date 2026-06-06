@@ -63,14 +63,14 @@ Generated file — do not edit manually.
 ## Runtime Matrix Status
 - Default runtime-executable YAML cases: **61**
 - Force-all runtime-executable YAML cases: **141**
-- Apache attempted YAML cases from latest summary: **133**
-- NGINX attempted YAML cases from latest summary: **140**
-- HAProxy attempted YAML cases from latest summary: **55**
+- Apache attempted YAML cases from default summary: **133**
+- NGINX attempted YAML cases from default summary: **140**
+- HAProxy attempted YAML cases from default summary: **55**
+- HAProxy attempted YAML cases from force-all summary: **133**
 | Status | Apache | NGINX | HAProxy |
 |---|---:|---:|---:|
-| PASS | 53 | 56 | 48 |
-| RESPONSE_BODY_PASS_THROUGH | 1 | 4 | 0 |
-| BLOCKED | 0 | 0 | 7 |
+| PASS | 53 | 56 | 54 |
+| RESPONSE_BODY_PASS_THROUGH | 1 | 4 | 1 |
 | XFAIL_PASS | 16 | 16 | 0 |
 | XFAIL_FAIL | 20 | 21 | 0 |
 | PENDING_FAIL | 1 | 1 | 0 |
@@ -87,8 +87,8 @@ Generated file — do not edit manually.
 - HAProxy per-case results: `reports/testing/generated/haproxy-runtime-results.generated.md`
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-06-06** (2026-06-06 17:37:38 CEST)
-- Git: branch `integrate-new-connectors-local`, commit `890800b`
+- Snapshot: **2026-06-06** (2026-06-06 22:19:59 CEST)
+- Git: branch `integrate-new-connectors-local`, commit `1a09900`
 - BUILD_ROOT: `/src/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache, NGINX, and HAProxy summary JSON files when present.
@@ -123,20 +123,27 @@ Generated file — do not edit manually.
 | optional installed readiness | BLOCKED | System Apache/APXS/NGINX/libmodsecurity readiness remains diagnostic only and is not required for source-build smokes |
 | make runtime-matrix-all | PASS | Force-all matrix orchestration completed and recorded Apache/NGINX per-case evidence; expected runtime FAILs remain evidence and are not PASS promotions |
 
-## Runtime Smoke Status
-| Command | Status | Exit | PASS | FAIL | BLOCKED | XFAIL | Evidence |
-|---|---|---|---|---|---|---|---|
-| FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache | FAIL | 2 | 87 | 46 | 0 | 0 | /src/ModSecurity-conector-build/results/apache-summary.json |
-| FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx | FAIL | 2 | 94 | 46 | 0 | 0 | /src/ModSecurity-conector-build/results/nginx-summary.json |
-| make runtime-matrix-haproxy | BLOCKED | 0 | 48 | 0 | 7 | 0 | /src/ModSecurity-conector-build/results/haproxy-summary.json |
-| REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
+## Default Runtime Smoke Status
+| Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | XFAIL | Evidence |
+|---|---|---|---|---|---|---|---|---|---|---|
+| apache | FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache | FAIL | 2 | 133 | 87 | 46 | 0 | unknown | 0 | /src/ModSecurity-conector-build/results/apache-summary.json |
+| nginx | FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx | FAIL | 2 | 140 | 94 | 46 | 0 | unknown | 0 | /src/ModSecurity-conector-build/results/nginx-summary.json |
+| haproxy | make smoke-haproxy | PASS | 0 | 55 | 55 | 0 | 0 | 0 | 0 | /src/ModSecurity-conector-build/results/haproxy-summary.json |
+| all | REFRESH=1 make smoke-all | NOT_RUN | not_run | 0 | unknown | unknown | unknown | unknown | unknown | not available |
+
+## Force-All Runtime Smoke Status
+| Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | XFAIL | Evidence |
+|---|---|---|---|---|---|---|---|---|---|---|
+| apache | FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache | NOT_AVAILABLE | not_run | 0 | unknown | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
+| nginx | FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx | NOT_AVAILABLE | not_run | 0 | unknown | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 2 | 133 | 104 | 23 | 0 | 6 | 0 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 ## Connector Runtime Availability
 | Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |
 |---|---|---|---|---:|---|---|
 | Apache | FAIL | unknown | available | 133 | /src/ModSecurity-conector-build/results/apache-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. |
 | NGINX | FAIL | unknown | available | 140 | /src/ModSecurity-conector-build/results/nginx-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. |
-| HAProxy | BLOCKED | unknown | available | 55 | /src/ModSecurity-conector-build/results/haproxy-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. |
+| HAProxy | PASS | unknown | available | 55 | /src/ModSecurity-conector-build/results/haproxy-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. |
 
 ## Runtime FAIL Details
 
@@ -245,54 +252,60 @@ Generated file — do not edit manually.
 ### HAProxy PASS Details
 | Case | Variant | Expected | Actual | Evidence |
 |---|---|---:|---:|---|
-| action_allow_phase1_pass | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=action_allow_phase1_pass; status=pass; expected=200; actual=200 |
-| action_deny_phase1 | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=action_deny_phase1; status=pass; expected=403; actual=403 |
-| action_deny_phase2 | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=action_deny_phase2; status=pass; expected=403; actual=403 |
-| action_status_401_phase1_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=action_status_401_phase1_block; status=pass; expected=403; actual=403 |
-| collection_args_combined_size_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=collection_args_combined_size_block; status=pass; expected=403; actual=403 |
-| collection_args_get_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=collection_args_get_block; status=pass; expected=403; actual=403 |
-| collection_args_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=collection_args_names_block; status=pass; expected=403; actual=403 |
-| crs_sqli_anomaly_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=crs_sqli_anomaly_block; status=pass; expected=403; actual=403 |
-| json_request_body_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=json_request_body_block; status=pass; expected=403; actual=403 |
-| multipart_basic_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=multipart_basic_block; status=pass; expected=403; actual=403 |
-| multipart_filename_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=multipart_filename_block; status=pass; expected=403; actual=403 |
-| multipart_files_combined_size | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=multipart_files_combined_size; status=pass; expected=403; actual=403 |
-| multipart_files_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=multipart_files_names_block; status=pass; expected=403; actual=403 |
-| multipart_files_value_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=multipart_files_value_block; status=pass; expected=403; actual=403 |
-| phase1_header_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=phase1_header_block; status=pass; expected=403; actual=403 |
-| phase2_args_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=phase2_args_block; status=pass; expected=403; actual=403 |
-| phase2_args_pass | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=phase2_args_pass; status=pass; expected=200; actual=200 |
-| request_body_args_post_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=request_body_args_post_names_block; status=pass; expected=403; actual=403 |
-| request_body_json_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=request_body_json_block; status=pass; expected=403; actual=403 |
-| request_body_raw_text_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=request_body_raw_text_block; status=pass; expected=403; actual=403 |
-| request_body_urlencoded_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=request_body_urlencoded_block; status=pass; expected=403; actual=403 |
-| rule_chain_both_match_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=rule_chain_both_match_block; status=pass; expected=403; actual=403 |
-| rule_chain_first_only_pass | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=rule_chain_first_only_pass; status=pass; expected=200; actual=200 |
-| rule_chain_second_only_pass | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=rule_chain_second_only_pass; status=pass; expected=200; actual=200 |
-| v2_operator_begins_with_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_operator_begins_with_block; status=pass; expected=403; actual=403 |
-| v2_operator_contains_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_operator_contains_block; status=pass; expected=403; actual=403 |
-| v2_operator_contains_word_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_operator_contains_word_block; status=pass; expected=403; actual=403 |
-| v2_operator_ends_with_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_operator_ends_with_block; status=pass; expected=403; actual=403 |
-| v2_operator_pm_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_operator_pm_block; status=pass; expected=403; actual=403 |
-| v2_operator_streq_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_operator_streq_block; status=pass; expected=403; actual=403 |
-| v2_transformation_html_entity_decode_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_transformation_html_entity_decode_block; status=pass; expected=403; actual=403 |
-| v2_transformation_lowercase_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_transformation_lowercase_block; status=pass; expected=403; actual=403 |
-| v2_transformation_trim_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_transformation_trim_block; status=pass; expected=403; actual=403 |
-| v2_transformation_url_decode_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_transformation_url_decode_block; status=pass; expected=403; actual=403 |
-| v2_transformation_url_decode_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v2_transformation_url_decode_pass_no_match; status=pass; expected=200; actual=200 |
-| v3_args_names_get_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_args_names_get_block; status=pass; expected=403; actual=403 |
-| v3_args_names_get_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_args_names_get_pass_no_match; status=pass; expected=200; actual=200 |
-| v3_operator_pm_digit_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_operator_pm_digit_block; status=pass; expected=403; actual=403 |
-| v3_operator_rx_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_operator_rx_block; status=pass; expected=403; actual=403 |
-| v3_request_cookies_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_request_cookies_block; status=pass; expected=403; actual=403 |
-| v3_request_cookies_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_request_cookies_names_block; status=pass; expected=403; actual=403 |
-| v3_request_cookies_names_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_request_cookies_names_pass_no_match; status=pass; expected=200; actual=200 |
-| v3_request_cookies_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_request_cookies_pass_no_match; status=pass; expected=200; actual=200 |
-| v3_request_headers_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_request_headers_names_block; status=pass; expected=403; actual=403 |
-| v3_request_headers_names_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_request_headers_names_pass_no_match; status=pass; expected=200; actual=200 |
-| v3_secaction_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_secaction_block; status=pass; expected=403; actual=403 |
-| v3_transformation_trim_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=v3_transformation_trim_block; status=pass; expected=403; actual=403 |
-| xml_request_body_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403 |
+| action_allow_phase1_pass | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/action_allow_phase1_pass/result.json |
+| action_deny_phase1 | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/action_deny_phase1/result.json |
+| action_deny_phase2 | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/action_deny_phase2/result.json |
+| action_status_401_phase1_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/action_status_401_phase1_block/result.json |
+| audit_log_phase1_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/audit_log_phase1_block/result.json |
+| collection_args_combined_size_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/collection_args_combined_size_block/result.json |
+| collection_args_get_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/collection_args_get_block/result.json |
+| collection_args_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/collection_args_names_block/result.json |
+| crs_sqli_anomaly_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/crs_sqli_anomaly_block/result.json |
+| json_request_body_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/json_request_body_block/result.json |
+| multipart_basic_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_basic_block/result.json |
+| multipart_filename_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_filename_block/result.json |
+| multipart_files_combined_size | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_files_combined_size/result.json |
+| multipart_files_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_files_names_block/result.json |
+| multipart_files_value_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_files_value_block/result.json |
+| phase1_header_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase1_header_block/result.json |
+| phase2_args_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase2_args_block/result.json |
+| phase2_args_pass | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase2_args_pass/result.json |
+| pr70_phase1_audit_request_header | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/pr70_phase1_audit_request_header/result.json |
+| pr70_phase2_audit_urlencoded_body | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/pr70_phase2_audit_urlencoded_body/result.json |
+| pr70_phase3_audit_response_header | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/pr70_phase3_audit_response_header/result.json |
+| request_body_args_post_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/request_body_args_post_names_block/result.json |
+| request_body_json_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/request_body_json_block/result.json |
+| request_body_raw_text_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/request_body_raw_text_block/result.json |
+| request_body_urlencoded_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/request_body_urlencoded_block/result.json |
+| response_header_basic | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/response_header_basic/result.json |
+| rule_chain_both_match_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/rule_chain_both_match_block/result.json |
+| rule_chain_first_only_pass | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/rule_chain_first_only_pass/result.json |
+| rule_chain_second_only_pass | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/rule_chain_second_only_pass/result.json |
+| v2_operator_begins_with_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_operator_begins_with_block/result.json |
+| v2_operator_contains_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_operator_contains_block/result.json |
+| v2_operator_contains_word_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_operator_contains_word_block/result.json |
+| v2_operator_ends_with_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_operator_ends_with_block/result.json |
+| v2_operator_pm_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_operator_pm_block/result.json |
+| v2_operator_streq_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_operator_streq_block/result.json |
+| v2_transformation_html_entity_decode_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_html_entity_decode_block/result.json |
+| v2_transformation_lowercase_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_lowercase_block/result.json |
+| v2_transformation_trim_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_trim_block/result.json |
+| v2_transformation_url_decode_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_url_decode_block/result.json |
+| v2_transformation_url_decode_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_url_decode_pass_no_match/result.json |
+| v3_args_names_get_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_args_names_get_block/result.json |
+| v3_args_names_get_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_args_names_get_pass_no_match/result.json |
+| v3_auditlog_serial_fields_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_auditlog_serial_fields_block/result.json |
+| v3_operator_pm_digit_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_operator_pm_digit_block/result.json |
+| v3_operator_rx_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_operator_rx_block/result.json |
+| v3_request_cookies_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_cookies_block/result.json |
+| v3_request_cookies_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_cookies_names_block/result.json |
+| v3_request_cookies_names_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_cookies_names_pass_no_match/result.json |
+| v3_request_cookies_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_cookies_pass_no_match/result.json |
+| v3_request_headers_names_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_headers_names_block/result.json |
+| v3_request_headers_names_pass_no_match | with-crs | 200 | 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_headers_names_pass_no_match/result.json |
+| v3_secaction_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_secaction_block/result.json |
+| v3_transformation_trim_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_transformation_trim_block/result.json |
+| xml_request_body_block | with-crs | 403 | 403 | /src/ModSecurity-conector-build/logs/haproxy-runtime/xml_request_body_block/result.json |
 
 ### HAProxy FAIL Details
 | Status | Count | Note |
@@ -303,7 +316,7 @@ Generated file — do not edit manually.
 | Status | Count | Note |
 |---|---:|---|
 | FAIL | 0 | Live-executed HAProxy runtime mismatches only; PASS/FAIL require live execution. |
-| BLOCKED | 7 | Relevant HAProxy rows blocked by current harness or prerequisites. |
+| BLOCKED | 0 | Relevant HAProxy rows blocked by current harness or prerequisites. |
 | NOT_EXECUTABLE | 0 | Rows outside the current HAProxy runtime surface. |
 | MAPPED_ONLY | 0 | Import inventory only; not runtime-executable YAML evidence. |
 
