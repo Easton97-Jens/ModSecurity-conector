@@ -10,6 +10,14 @@ local synthetic request-decision self-test, and two verified live runtime-smoke
 cases. This is not a productive HAProxy adapter and is not broader CRS,
 RESPONSE_BODY, or full-matrix verified.
 
+The framework-owned HAProxy matrix target now records one row per existing
+framework YAML case. The latest combined artifact attempted 141 YAML rows and
+recorded 1 PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and 10 mapped-only
+inventory entries. PASS is limited to the live With-CRS
+`crs_sqli_anomaly_block` YAML case. The No-CRS
+`haproxy_phase1_header_block` smoke remains a preserved diagnostic alias and is
+not claimed as the framework `phase1_header_block` YAML row.
+
 ## Claims Not Made
 
 - No local `connectors/haproxy/tests` folder is used.
@@ -18,10 +26,9 @@ RESPONSE_BODY, or full-matrix verified.
 - No complete SPOE/SPOA protocol implementation is present.
 - HAProxy runtime PASS is claimed only for `haproxy_phase1_header_block` and
   `haproxy_crs_sqli_anomaly_block`.
-- No broader No-CRS matrix result is claimed beyond the minimal phase-1
-  header-block smoke.
-- No broader With-CRS matrix result is claimed beyond the minimal CRS SQLi
-  anomaly smoke.
+- No broader No-CRS YAML PASS is claimed beyond the minimal phase-1 diagnostic
+  header-block smoke alias.
+- No broader With-CRS YAML PASS is claimed beyond `crs_sqli_anomaly_block`.
 - No RESPONSE_BODY blocking result is claimed.
 - No negative/pass-through result is claimed.
 - No audit/log evidence is claimed.
@@ -51,8 +58,11 @@ RESPONSE_BODY, or full-matrix verified.
 | SPOE config syntax | syntax-valid | `make smoke-haproxy` generates config under `/src/ModSecurity-conector-build/haproxy-runtime/spoe/` |
 | Diagnostic HAProxy-to-agent runtime | diagnostic-enforcement-verified | fresh run-specific NOTIFY, arg extraction, ModSecurity 403, set-var ACK, block 403, and pass 200 evidence for No-CRS and With-CRS minimal scopes |
 | ModSecurity binding | live-enforcement-verified | local libmodsecurity C API signatures verified; phase-1 header block and CRS SQLi anomaly decisions enforced by HAProxy over SPOA |
-| Productive adapter build | BLOCKED for broader adapter ownership | Full SPOA implementation and broader Framework-case runtime evidence missing |
+| Productive adapter build | BLOCKED for broader adapter ownership | Full SPOA implementation and live PASS/FAIL execution for currently BLOCKED framework rows are missing |
 | Runtime smoke | PASS for two cases | `make smoke-haproxy` verifies `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block` |
+| Combined matrix | partial | `make runtime-matrix-haproxy`; 141 YAML rows, 1 PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, 10 MAPPED_ONLY |
+| No-CRS split matrix | partial | `make test-haproxy-no-crs`; 141 YAML rows, 0 YAML PASS, 0 FAIL, 59 BLOCKED, 82 NOT_EXECUTABLE, 10 MAPPED_ONLY; diagnostic alias preserved separately |
+| With-CRS split matrix | partial | `make test-haproxy-with-crs`; 141 YAML rows, `crs_sqli_anomaly_block` PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, 10 MAPPED_ONLY |
 
 ## Phase Matrix
 
@@ -62,9 +72,9 @@ RESPONSE_BODY, or full-matrix verified.
 | Phase 1 | Origin/Metadata | spoa-agent-starter |
 | Phase 2 | Build | spoa-agent-starter plus ModSecurity binding self-test; productive build BLOCKED |
 | Phase 3 | Harness | PASS for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`; broader harness incomplete |
-| Phase 4 | No-CRS | partial; header-block smoke only |
-| Phase 5 | With-CRS | partial; CRS SQLi anomaly smoke only |
-| Phase 6 | Coverage Matrix | spoa-agent-starter documented |
+| Phase 4 | No-CRS | partial; diagnostic alias PASS, YAML rows otherwise BLOCKED/NOT_EXECUTABLE |
+| Phase 5 | With-CRS | partial; `crs_sqli_anomaly_block` YAML PASS, other rows BLOCKED/NOT_EXECUTABLE |
+| Phase 6 | Coverage Matrix | HAProxy generated beside Apache/NGINX; mapped-only inventory separate |
 | Phase 7 | RESPONSE_BODY | not-verified |
 | Phase 8 | Negative/pass-through | not-verified |
 | Phase 9 | Audit/log | not-verified |
@@ -100,5 +110,9 @@ HAProxy, the diagnostic SPOP agent, and a local backend, then records
 sub-scope records `crs_verified: true` only for
 `haproxy_crs_sqli_anomaly_block`; the verified cases are scoped to
 `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
-RESPONSE_BODY, broader No-CRS/With-CRS, negative/pass-through, audit/log, and
-full-matrix evidence remain not verified.
+`make runtime-matrix-haproxy`, `make test-haproxy-no-crs`, and
+`make test-haproxy-with-crs` write matrix evidence under
+`/src/ModSecurity-conector-build/results/`, including split `no-crs/` and
+`with-crs/` directories. RESPONSE_BODY, broader No-CRS/With-CRS live YAML
+execution, negative/pass-through, audit/log, and full-matrix evidence remain
+not verified.

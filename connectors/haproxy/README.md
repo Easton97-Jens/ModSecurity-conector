@@ -13,6 +13,13 @@ handling, then `make smoke-haproxy` live-starts HAProxy and verifies the narrow
 No-CRS `haproxy_phase1_header_block` and With-CRS
 `haproxy_crs_sqli_anomaly_block` runtime-smoke cases.
 
+`make runtime-matrix-haproxy` now writes a HAProxy-specific framework matrix
+without changing Apache or NGINX runtime semantics. The latest combined matrix
+attempted 141 existing framework YAML cases and recorded 1 PASS, 0 FAIL, 59
+BLOCKED, 81 NOT_EXECUTABLE, and 10 mapped-only import inventory entries. Split
+artifacts are written under `/src/ModSecurity-conector-build/results/no-crs/`
+and `/src/ModSecurity-conector-build/results/with-crs/`.
+
 No full SPOE/SPOA protocol implementation, CRS behavior beyond the single SQLi
 anomaly smoke, RESPONSE_BODY handling, negative/pass-through matrix beyond the
 clean probes, or productive adapter ownership is claimed by this connector.
@@ -49,10 +56,16 @@ Shared connector-neutral data shapes used by the starter:
   libmodsecurity enforcement for `haproxy_phase1_header_block` and
   `haproxy_crs_sqli_anomaly_block` only.
 - No-CRS minimal phase-1 runtime: PASS for `haproxy_phase1_header_block` only.
-- Broader No-CRS matrix: not run.
+- No-CRS HAProxy matrix: attempted 141 YAML rows; 0 YAML PASS, 0 FAIL, 59
+  BLOCKED, 82 NOT_EXECUTABLE, and 10 MAPPED_ONLY. The smoke alias
+  `haproxy_phase1_header_block` is preserved as live evidence but is not mapped
+  to the framework `phase1_header_block` YAML row because the header/rule input
+  differs.
 - With-CRS minimal SQLi runtime: PASS for `haproxy_crs_sqli_anomaly_block`
   with CRS loaded from the prepared preamble.
-- Broader With-CRS matrix: not run.
+- With-CRS HAProxy matrix: attempted 141 YAML rows; 1 YAML PASS
+  (`crs_sqli_anomaly_block`), 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and 10
+  MAPPED_ONLY.
 - RESPONSE_BODY blocking: not verified.
 
 ## Build Starter
@@ -97,10 +110,15 @@ Framework-owned paths and targets to use for future evidence:
 
 - `modules/ModSecurity-test-Framework/tests/cases/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+- `make runtime-matrix-haproxy`
+- `make test-haproxy-no-crs`
+- `make test-haproxy-with-crs`
 - `make test-no-crs`
 - `make test-with-crs`
 - `make smoke-common`
 
-No broader No-CRS, broader With-CRS, RESPONSE_BODY, negative/pass-through, or
-audit/log runtime result is claimed for HAProxy until those commands are
-executed for an explicit HAProxy scope and their evidence paths are recorded.
+No broader No-CRS or With-CRS PASS is claimed from the matrix rows. Unsupported
+or currently unmaterializable rows are documented as BLOCKED or
+NOT_EXECUTABLE. RESPONSE_BODY, negative/pass-through, audit/log, and full
+runtime compatibility remain unverified until live HAProxy evidence exists for
+those exact scopes.

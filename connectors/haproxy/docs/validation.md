@@ -10,6 +10,11 @@ scope. RESPONSE_BODY, broader No-CRS/With-CRS matrix coverage,
 negative/pass-through matrix coverage, and audit/log behavior remain not
 verified.
 
+`make runtime-matrix-haproxy` now records one HAProxy row for each existing
+framework YAML case. The latest combined artifact attempted 141 YAML rows and
+recorded 1 PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and 10 mapped-only
+inventory entries. PASS/FAIL is used only for live HAProxy execution.
+
 Global runtime rules and promotion gates are defined in:
 
 - `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
@@ -42,12 +47,17 @@ Global runtime rules and promotion gates are defined in:
 - HAProxy enforcement path for ModSecurity decisions: verified only for
   `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
 - Framework case runtime for broader HAProxy to SPOA to ModSecurity coverage:
-  missing.
+  matrix-recorded as BLOCKED/NOT_EXECUTABLE unless the row has live HAProxy
+  evidence.
 - No-CRS minimal phase-1 runtime: PASS for `haproxy_phase1_header_block` only.
-- Broader No-CRS matrix: not run.
+- No-CRS matrix artifact: 141 YAML rows; 0 YAML PASS, 0 FAIL, 59 BLOCKED, 82
+  NOT_EXECUTABLE, 10 MAPPED_ONLY; diagnostic alias
+  `haproxy_phase1_header_block` preserved separately.
 - With-CRS minimal SQLi runtime: PASS for `haproxy_crs_sqli_anomaly_block`
   with CRS loaded from `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`.
-- Broader With-CRS matrix: not run.
+- With-CRS matrix artifact: 141 YAML rows; 1 YAML PASS
+  (`crs_sqli_anomaly_block`), 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, 10
+  MAPPED_ONLY.
 - CRS verified: true only for `haproxy_crs_sqli_anomaly_block`.
 - RESPONSE_BODY: not verified.
 - Negative/pass-through: not verified.
@@ -61,6 +71,9 @@ Executable tests are framework-owned and must use evidence from paths such as:
 Future HAProxy validation may reference these parent Make targets only after an
 explicit HAProxy runtime scope exists and is executed:
 
+- `make runtime-matrix-haproxy`
+- `make test-haproxy-no-crs`
+- `make test-haproxy-with-crs`
 - `make test-no-crs`
 - `make test-with-crs`
 - `make smoke-common`
@@ -71,9 +84,10 @@ explicit HAProxy runtime scope exists and is executed:
 entrypoint for the two minimal cases listed above. The local starter self-test
 remains synthetic in-process request-decision logic only.
 
-A future broader harness must add No-CRS, With-CRS, RESPONSE_BODY,
-negative/pass-through, and audit/log evidence before this connector can be
-promoted beyond the current narrow runtime-smoke case.
+A future broader harness must turn currently BLOCKED rows into live-executed
+PASS/FAIL rows and add RESPONSE_BODY, negative/pass-through, and audit/log
+evidence before this connector can be promoted beyond the current narrow
+runtime-smoke case.
 
 HAProxy cannot be promoted beyond partial status without those broader recorded
 runtime scopes.

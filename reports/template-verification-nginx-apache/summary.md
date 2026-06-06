@@ -134,7 +134,7 @@ Executable connector tests are framework-owned and are not maintained in local
 | `test ! -d connectors/apache/tests` | PASS | Local Apache test folder is absent. |
 | `test ! -d connectors/nginx/tests` | PASS | Local NGINX test folder is absent. |
 | `make generate-test-matrix` | PASS | Command exited 0. |
-| `make check-test-matrix` | PASS | Command exited 0. |
+| `make check-test-matrix` | FAIL | Exited 2 because generated reports intentionally differ from HEAD in this uncommitted HAProxy matrix update. |
 | `make lint` | PASS | `actionlint unavailable` was informational; command exited 0. |
 | `make quick-check` | PASS | Command exited 0. |
 | `modules/ModSecurity-test-Framework: make lint` | PASS | Command exited 0. |
@@ -204,13 +204,23 @@ evidence.
   block-probe 403, and pass-probe 200 evidence.
 - Runtime status: `runtime-smoke-verified` for
   `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
+- HAProxy matrix status: `make runtime-matrix-haproxy` records 141 existing
+  framework YAML rows with 1 PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and
+  10 MAPPED_ONLY entries. The PASS is `crs_sqli_anomaly_block`; the No-CRS
+  header smoke is preserved as a diagnostic alias, not promoted to the
+  framework `phase1_header_block` YAML row.
+- HAProxy split matrix status: `make test-haproxy-no-crs` records 0 YAML PASS,
+  0 FAIL, 59 BLOCKED, 82 NOT_EXECUTABLE, 10 MAPPED_ONLY; `make
+  test-haproxy-with-crs` records 1 YAML PASS, 0 FAIL, 59 BLOCKED, 81
+  NOT_EXECUTABLE, 10 MAPPED_ONLY.
 - CRS status: verified only for the minimal
   `haproxy_crs_sqli_anomaly_block` runtime smoke; broader CRS coverage remains
   not verified.
 - No complete SPOE/SPOA implementation or RESPONSE_BODY runtime evidence is
   present.
-- Current runtime blockers: broader Framework-case runtime, broader CRS,
-  RESPONSE_BODY, negative/pass-through, audit/log, and full-matrix evidence.
+- Current runtime blockers: live PASS/FAIL execution for currently BLOCKED YAML
+  rows, broader CRS, RESPONSE_BODY, negative/pass-through, audit/log, and
+  full-matrix evidence.
 - No local `connectors/haproxy/tests` folder is used.
 - RESPONSE_BODY blocking remains not verified.
 - HAProxy-specific alignment is documented in

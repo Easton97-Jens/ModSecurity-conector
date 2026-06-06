@@ -72,15 +72,15 @@ Apache, and NGINX scaffold decisions?
 
 Decision: accepted.
 
-Reason: `TEST-COVERAGE-SUMMARY.md` is generated reporting and explicitly says
-it is not runtime proof. It records framework coverage, runtime snapshot
-PASS/FAIL counts, and that `runtime_verified=true` remains 0. Separate
-coverage decision matrices make that distinction visible for Template, Apache,
-and NGINX.
+Reason: `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md` is
+framework-owned generated reporting and explicitly says it is not runtime
+proof. It records framework coverage, runtime snapshot PASS/FAIL counts, and
+that `runtime_verified=true` remains 0. Separate coverage decision matrices
+make that distinction visible for Template, Apache, and NGINX.
 
 Evidence/paths:
 
-- `TEST-COVERAGE-SUMMARY.md`
+- `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 - `connectors/_template/docs/coverage-decision-matrix.md`
 - `connectors/apache/docs/coverage-decision-matrix.md`
 - `connectors/nginx/docs/coverage-decision-matrix.md`

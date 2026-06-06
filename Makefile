@@ -88,7 +88,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs runtime-matrix runtime-matrix-all probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
+.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix
 
 check-framework:
 	@test -d "$(FRAMEWORK_ROOT)" || { \
@@ -166,6 +166,15 @@ runtime-matrix: check-framework
 
 runtime-matrix-all: check-framework
 	FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
+
+runtime-matrix-haproxy: check-framework
+	HAPROXY_MATRIX_VARIANT=all sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
+
+test-haproxy-no-crs: check-framework
+	HAPROXY_MATRIX_VARIANT=no-crs sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
+
+test-haproxy-with-crs: check-framework
+	HAPROXY_MATRIX_VARIANT=with-crs sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
 
 probe-response-body: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/probe-response-body-blocking.sh"
@@ -255,7 +264,15 @@ generate-test-matrix: check-framework
 
 check-test-matrix: check-framework
 	$(PYTHON) "$(FRAMEWORK_ROOT)/ci/generate-case-matrix.py" --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CURDIR)" --output-root "$(CURDIR)"
-	@git diff --exit-code -- reports/testing TEST-COVERAGE-SUMMARY.md >/dev/null || { \
+	@test ! -f TEST-COVERAGE-SUMMARY.md || { \
+		echo "Generated root coverage summary moved to $(FRAMEWORK_ROOT)/TEST-COVERAGE-SUMMARY.md; remove parent TEST-COVERAGE-SUMMARY.md"; \
+		exit 1; \
+	}
+	@git diff --exit-code -- reports/testing >/dev/null || { \
 		echo "Generated test matrix docs are out of date. Run make generate-test-matrix"; \
+		exit 1; \
+	}
+	@git -C "$(FRAMEWORK_ROOT)" diff --exit-code -- TEST-COVERAGE-SUMMARY.md >/dev/null || { \
+		echo "Framework coverage summary is out of date. Run make generate-test-matrix"; \
 		exit 1; \
 	}

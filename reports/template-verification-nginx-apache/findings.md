@@ -31,7 +31,7 @@ runtime results reviewed in this repository.
 | Command | Result | Evidence |
 | --- | --- | --- |
 | `make generate-test-matrix` | PASS | Generator exited 0; generated reporting is not runtime proof. |
-| `make check-test-matrix` | PASS | Matrix check exited 0. |
+| `make check-test-matrix` | FAIL | Exited 2 because generated reports intentionally differ from HEAD in this uncommitted HAProxy matrix update. |
 | `modules/ModSecurity-test-Framework: make lint` | PASS | Framework-local lint exited 0. |
 | `modules/ModSecurity-test-Framework: make quick-check` | not found | No `quick-check` target was found in the framework Makefile. |
 | `modules/ModSecurity-test-Framework: make check-test-matrix` | PASS | Framework-local matrix check exited 0 with a warning about missing `config/testing/import-status.json`. |
@@ -199,6 +199,18 @@ Detailed report:
 - `make smoke-haproxy` now PASSes the scoped `haproxy_phase1_header_block` and
   `haproxy_crs_sqli_anomaly_block` runtime smokes and records evidence in
   `/src/ModSecurity-conector-build/results/haproxy-summary.json`.
+- `make runtime-matrix-haproxy` records one HAProxy row per existing framework
+  YAML case: 141 attempted rows, 1 PASS, 0 FAIL, 59 BLOCKED, 81
+  NOT_EXECUTABLE, and 10 MAPPED_ONLY entries. The YAML PASS is only
+  `crs_sqli_anomaly_block`.
+- `make test-haproxy-no-crs` records the No-CRS split: 141 attempted YAML
+  rows, 0 YAML PASS, 0 FAIL, 59 BLOCKED, 82 NOT_EXECUTABLE, and 10
+  MAPPED_ONLY entries. The `haproxy_phase1_header_block` smoke remains a live
+  diagnostic alias and is not promoted to the framework `phase1_header_block`
+  YAML case.
+- `make test-haproxy-with-crs` records the With-CRS split: 141 attempted YAML
+  rows, 1 PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and 10 MAPPED_ONLY
+  entries.
 - Generated SPOE config is syntax-valid by `haproxy -c`; local HAProxy
   SPOE/SPOP docs/source verify set-var action type 1, arg count 3, transaction
   scope 2, and bool true `0x11`.
@@ -210,7 +222,8 @@ Detailed report:
   the SQLi URI from `crs_sqli_anomaly_block`, records CRS decision evidence,
   and verifies block-probe 403 plus pass-probe 200.
 - Productive adapter build remains BLOCKED because the repository still lacks a
-  full SPOA implementation and broader Framework-case runtime evidence.
+  full SPOA implementation and live PASS/FAIL execution for the currently
+  BLOCKED framework YAML rows.
 - No local `connectors/haproxy/tests` folder is used.
 - RESPONSE_BODY blocking remains not verified.
 ## lighttpd Bridge-Starter Finding

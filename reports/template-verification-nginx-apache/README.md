@@ -11,7 +11,8 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 - Documentation/decision commit readiness: yes.
 - Local connector test folders are absent:
   `connectors/_template/tests`, `connectors/apache/tests`, and
-  `connectors/nginx/tests`, and `connectors/envoy/tests`.
+  `connectors/nginx/tests`, `connectors/envoy/tests`, and
+  `connectors/haproxy/tests`.
 - Executable connector tests are framework-owned, not connector-local.
 - Actual framework path: `modules/ModSecurity-test-Framework`.
 - Current framework commit referenced by the parent:
@@ -30,6 +31,9 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
   scoped With-CRS expectation. No-CRS remains 401/401 PASS; With-CRS is
   403/403 PASS.
 - Current With-CRS `crs_sqli_anomaly_block`: PASS for Apache and NGINX.
+- Current HAProxy matrix: `make runtime-matrix-haproxy` records 141 YAML rows
+  with 1 PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and 10 MAPPED_ONLY
+  entries; split no-CRS/with-CRS artifacts are recorded separately.
 - Historical NGINX 11 BLOCKED rows were a docroot permission/environment
   blocker and are resolved in the current `/src` runs.
 - RESPONSE_BODY blocking remains not verified.
@@ -74,6 +78,7 @@ runtime evidence, CRS/No-CRS test-target results, and scaffold decisions.
 | `connectors/apache` | aligned with Template gates for executed scope; runtime status partial |
 | `connectors/nginx` | aligned with Template gates for executed scope; runtime status partial |
 | `connectors/envoy` | bridge-starter; runtime status not-verified |
+| `connectors/haproxy` | spoa-agent-starter; runtime status partial HAProxy matrix |
 | `connectors/lighttpd` | bridge-starter only; runtime status not-verified |
 
 For the Template, `suitable scaffold, not runtime-verified` means it is a

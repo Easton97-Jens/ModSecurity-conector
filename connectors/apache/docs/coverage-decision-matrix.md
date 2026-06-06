@@ -14,7 +14,7 @@ because RESPONSE_BODY blocking and the full minimum matrix are not verified.
 
 Evidence sources:
 
-- `TEST-COVERAGE-SUMMARY.md`
+- `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 - `reports/template-verification-nginx-apache/apache-template-alignment.md`
 - `reports/template-verification-nginx-apache/verified-runtime-run.md`
 - `reports/template-verification-nginx-apache/crs-action-status-401-analysis.md`

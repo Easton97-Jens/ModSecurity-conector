@@ -213,7 +213,9 @@ FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make runtime-matrix-all
 The framework owns YAML cases, runners, normalizers, runtime-matrix logic,
 coverage generation, v3 API smoke helpers, and reusable testing documentation.
 Connector-specific generated evidence is written in this repository under
-`reports/testing/`, with a generated root copy at `TEST-COVERAGE-SUMMARY.md`.
+`reports/testing/`. The root coverage summary is framework-owned at
+`modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`; the parent
+repository does not maintain a separate coverage-summary source of truth.
 
 ## Documentation Links
 
@@ -235,7 +237,7 @@ Connector-specific generated evidence is written in this repository under
 - Licensing and origin index: [docs/licensing/license-and-origin.md](./docs/licensing/license-and-origin.md)
 - Framework docs: `modules/ModSecurity-test-Framework/README.md`
 - Connector test evidence: `reports/testing/`
-- Generated coverage summary: `TEST-COVERAGE-SUMMARY.md`
+- Framework-owned coverage summary: `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 
 ## Local Development
 

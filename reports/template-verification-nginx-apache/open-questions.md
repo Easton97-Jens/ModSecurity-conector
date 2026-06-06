@@ -141,15 +141,16 @@ still blocked until one path supplies real dependencies:
 
 - Expand or replace the minimal diagnostic SPOP handshake subset with a full
   SPOA agent implementation before claiming HAProxy runtime compatibility.
-- Extend the single-case HAProxy entrypoint into broader Framework cases beyond
-  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
+- Convert currently BLOCKED HAProxy matrix rows into live-executed PASS/FAIL
+  rows before claiming broader framework coverage.
 - Keep the diagnostic HAProxy-to-agent subset separate from full adapter
   promotion; current `spoe_runtime_status` is
   `diagnostic-enforcement-verified` only for the scoped header-block and CRS
   SQLi anomaly smokes.
-- Add runtime evidence for broader No-CRS, broader With-CRS, RESPONSE_BODY
-  blocking, negative/pass-through behavior, audit/log artifacts, and full
-  matrix coverage.
+- Add runtime evidence for broader No-CRS live YAML execution, broader With-CRS
+  live YAML execution beyond `crs_sqli_anomaly_block`, RESPONSE_BODY blocking,
+  negative/pass-through behavior, audit/log artifacts, and full matrix
+  promotion.
 - Promote beyond `spoa-agent-starter` only after productive adapter build and
   runtime evidence are recorded.
 ## lighttpd Open Gates
@@ -213,6 +214,6 @@ and CRS SQLi anomaly smokes:
 For HAProxy specifically, framework-owned local HAProxy source acquisition,
 binary preparation, diagnostic SPOP contact, verified set-var ACK encoding, and
 the two scoped live ModSecurity enforcement paths are no longer open gates. The
-remaining open HAProxy runtime gates are broader Framework-case runtime
-evidence, broader CRS coverage, RESPONSE_BODY, negative/pass-through behavior,
-audit/log evidence, and full-matrix evidence.
+remaining open HAProxy runtime gates are live PASS/FAIL execution for currently
+BLOCKED framework rows, broader CRS coverage, RESPONSE_BODY,
+negative/pass-through behavior, audit/log evidence, and full-matrix promotion.

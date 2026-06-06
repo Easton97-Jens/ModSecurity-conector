@@ -48,6 +48,20 @@ Framework runtime-smoke entrypoint:
 make smoke-haproxy
 ```
 
+Framework HAProxy matrix entrypoints:
+
+```sh
+make runtime-matrix-haproxy
+make test-haproxy-no-crs
+make test-haproxy-with-crs
+```
+
+`make runtime-matrix-haproxy` preserves the narrow smoke as live evidence and
+then writes one HAProxy row per existing framework YAML case. Split targets
+write only their split directories and restore any existing combined root
+matrix after their own smoke run, so root `haproxy-summary.json` remains the
+combined matrix when it was already present.
+
 The current `run_haproxy_smoke.sh` entrypoint writes PASS evidence under
 `/src/ModSecurity-conector-build/results/` only when live HAProxy sends NOTIFY
 to the diagnostic agent, the agent extracts request arguments, libmodsecurity
@@ -67,8 +81,8 @@ removed from `blocked_reasons`. When all live enforcement checks pass:
 - `modsecurity_binding_status` is `live-enforcement-verified`;
 - `runtime_verified` is `true` for the recorded `verified_cases` only:
   `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
-- `crs_verified` is `true` only when `with_crs.status` is `PASS` with
-  `crs_loaded: true`.
+- `crs_verified` is `true` only when the With-CRS evidence is `PASS` with
+  CRS loaded.
 
 The ModSecurity binding self-test can be run directly:
 
@@ -94,6 +108,7 @@ requires:
 - result JSON path
 - evidence paths
 - PASS/FAIL/BLOCKED counts for broader scopes
+- NOT_EXECUTABLE reasons for unsupported framework rows
 - logs needed for HAProxy, connector, and audit evidence
 - broader No-CRS and With-CRS matrix evidence
 - RESPONSE_BODY, negative/pass-through, and audit/log evidence

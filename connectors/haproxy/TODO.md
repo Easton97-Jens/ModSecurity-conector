@@ -59,24 +59,28 @@ Global gate definitions:
 
 - [x] minimal phase-1 header-block smoke executed for
   `haproxy_phase1_header_block`
-- [ ] `make test-no-crs` executed for HAProxy scope
-- [ ] PASS/FAIL/BLOCKED counts documented
+- [x] `make test-haproxy-no-crs` executed for HAProxy scope
+- [x] PASS/FAIL/BLOCKED/NOT_EXECUTABLE counts documented for the No-CRS matrix
+- [ ] broader No-CRS live YAML PASS/FAIL execution beyond the diagnostic alias
 
 ## Phase 5: With-CRS Runtime
 
 - [x] minimal CRS SQLi anomaly smoke executed for
   `haproxy_crs_sqli_anomaly_block`
-- [ ] `make test-with-crs` executed for HAProxy scope
+- [x] `make test-haproxy-with-crs` executed for HAProxy scope
 - [x] CRS loaded/effective evidence documented for the minimal smoke
 - [x] PASS/BLOCKED/FAIL counts documented for the minimal smoke
-- [ ] broader With-CRS matrix PASS/FAIL/BLOCKED counts documented
+- [x] With-CRS matrix PASS/FAIL/BLOCKED/NOT_EXECUTABLE counts documented
+- [ ] broader With-CRS live YAML PASS/FAIL execution beyond `crs_sqli_anomaly_block`
 
 ## Phase 6: Coverage Matrix
 
 - [x] Phase 0/1/2 starter status documented
-- [ ] productive Phase 2/3/4 status documented
-- [ ] negative/pass-through status documented
-- [ ] audit/log evidence documented
+- [x] HAProxy matrix target documented with per-case BLOCKED/NOT_EXECUTABLE rows
+- [x] split No-CRS and With-CRS result artifacts documented
+- [ ] productive Phase 2/3/4 live status documented
+- [ ] negative/pass-through live evidence documented
+- [ ] audit/log live evidence documented
 - [ ] RESPONSE_BODY blocking evaluated
 
 ## Phase 7: Promotion

@@ -4,7 +4,7 @@
 
 - `README.md`
 - `Makefile`
-- `TEST-COVERAGE-SUMMARY.md`
+- `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 - `ci/README.md`
 - `ci/check-common-helpers.sh`
 - `ci/check-adapter-helpers.sh`
@@ -81,6 +81,10 @@
 - `modules/ModSecurity-test-Framework/ci/prepare-crs.sh`
 - `modules/ModSecurity-test-Framework/ci/run-nginx-smoke.sh`
 - `modules/ModSecurity-test-Framework/ci/run-apache-smoke.sh`
+- `modules/ModSecurity-test-Framework/ci/run-haproxy-runtime-matrix.sh`
+- `modules/ModSecurity-test-Framework/ci/write-haproxy-runtime-matrix.py`
+- `modules/ModSecurity-test-Framework/ci/update-runtime-snapshot.py`
+- `modules/ModSecurity-test-Framework/ci/generate-case-matrix.py`
 - `modules/ModSecurity-test-Framework/ci/run-connector-smokes.sh`
 - `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh`
 - `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh`
@@ -207,6 +211,15 @@
 - `connectors/haproxy/harness/run_haproxy_smoke.sh`
 - `/src/ModSecurity-conector-build/results/haproxy-summary.json`
 - `/src/ModSecurity-conector-build/results/haproxy-results.jsonl`
+- `/src/ModSecurity-conector-build/results/haproxy-summary.txt`
+- `/src/ModSecurity-conector-build/results/no-crs/haproxy-summary.json`
+- `/src/ModSecurity-conector-build/results/no-crs/haproxy-results.jsonl`
+- `/src/ModSecurity-conector-build/results/no-crs/haproxy-summary.txt`
+- `/src/ModSecurity-conector-build/results/with-crs/haproxy-summary.json`
+- `/src/ModSecurity-conector-build/results/with-crs/haproxy-results.jsonl`
+- `/src/ModSecurity-conector-build/results/with-crs/haproxy-summary.txt`
+- `/src/ModSecurity-conector-build/results/haproxy-smoke-summary.json`
+- `/src/ModSecurity-conector-build/results/haproxy-smoke-results.jsonl`
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/diagnostic-agent.log`
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/haproxy-runtime.stderr.log`
 - `/src/ModSecurity-conector-build/logs/haproxy/<run-id>/backend.stderr.log`
