@@ -209,6 +209,44 @@ fetches/prepares OWASP CRS using the central pin in
 `modules/ModSecurity-test-Framework/ci/common.sh` and loads CRS before the
 local case rules. `test` runs both variants.
 
+## MRTS Tests
+
+MRTS is integrated in the framework as an optional test-generation source. The
+connector repository does not copy MRTS generator logic; these targets delegate
+to `FRAMEWORK_ROOT`.
+
+MRTS is not vendored. To use the default framework path:
+
+```sh
+mkdir -p modules/ModSecurity-test-Framework/tools
+git clone https://github.com/owasp-modsecurity/MRTS.git modules/ModSecurity-test-Framework/tools/MRTS
+```
+
+Or point at a separate checkout:
+
+```sh
+MRTS_ROOT=/path/to/MRTS make mrts-generate
+```
+
+Delegated targets:
+
+```sh
+make mrts-generate
+make test-no-mrts
+make test-with-mrts
+make test-mrts-matrix
+make mrts-ftw
+```
+
+MRTS/CRS result paths are separated by variant:
+
+```text
+$BUILD_ROOT/results/no-crs/no-mrts
+$BUILD_ROOT/results/no-crs/with-mrts
+$BUILD_ROOT/results/with-crs/no-mrts
+$BUILD_ROOT/results/with-crs/with-mrts
+```
+
 Source-build variables remain configurable:
 
 ```sh
