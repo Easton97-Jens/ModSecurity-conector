@@ -9,6 +9,9 @@ BUILD_ROOT="${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecur
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache-runtime}"
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+if [ -n "${FORCE_ALL_CASES:-}" ] && [ "$RESULTS_DIR" = "$BUILD_ROOT/results" ]; then
+    RESULTS_DIR="$BUILD_ROOT/results/force-all"
+fi
 RUNTIME_BASE="${RUNTIME_BASE:-$BUILD_ROOT/apache-runtime}"
 RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
@@ -71,6 +74,18 @@ fail() {
     exit 1
 }
 
+not_executable() {
+    echo "apache_smoke: not_executable $*"
+    mkdir -p "$LOG_DIR"
+    echo "not_executable: $*" >> "$STATUS_FILE"
+    exit 78
+}
+
+configtest_case_not_executable() {
+    grep -E "Rules error|modsecurity-smoke\\.conf|modsecurity_rules_file|modsecurity_rules" \
+        "$LOG_DIR/configtest.log" >/dev/null 2>&1
+}
+
 require_absolute_generated_path() {
     path=$1
     label=$2
@@ -128,18 +143,35 @@ write_case_result() {
     case_status=$2
     actual_status=${3:-}
     output=$4
+    observed_transport=${5:-http_status}
+    reason=${6:-}
+    output_dir=$(dirname "$output")
     if [ -n "$actual_status" ]; then
         "$PYTHON_BIN" "$CASE_CLI" case-info \
             --case "$case_path" \
             --connector apache \
             --status "$case_status" \
             --actual-status "$actual_status" \
+            --observed-transport-result "$observed_transport" \
+            --reason "$reason" \
+            --response-body-file "$output_dir/response-body.txt" \
+            --audit-log-file "$output_dir/audit.log" \
+            --access-log-file "$output_dir/access.log" \
+            --error-log-file "$output_dir/error.log" \
+            --phase4-log-file "$output_dir/phase4.log" \
             --output "$output"
     else
         "$PYTHON_BIN" "$CASE_CLI" case-info \
             --case "$case_path" \
             --connector apache \
             --status "$case_status" \
+            --observed-transport-result "$observed_transport" \
+            --reason "$reason" \
+            --response-body-file "$output_dir/response-body.txt" \
+            --audit-log-file "$output_dir/audit.log" \
+            --access-log-file "$output_dir/access.log" \
+            --error-log-file "$output_dir/error.log" \
+            --phase4-log-file "$output_dir/phase4.log" \
             --output "$output"
     fi
 }
@@ -166,6 +198,7 @@ run_all_cases() {
 
     any_fail=0
     any_blocked=0
+    any_not_executable=0
     index=0
     for case_path in $cases; do
         case_name=$(basename "$case_path" .yaml)
@@ -188,6 +221,10 @@ run_all_cases() {
             case_status=blocked
             case_status_upper=BLOCKED
             any_blocked=1
+        elif [ "$rc" -eq 78 ]; then
+            case_status=not_executable
+            case_status_upper=NOT_EXECUTABLE
+            any_not_executable=1
         elif [ "$rc" -ne 0 ]; then
             case_status=fail
             case_status_upper=FAIL
@@ -197,7 +234,15 @@ run_all_cases() {
         if [ -f "$case_log_dir/observed-status.txt" ]; then
             actual_status=$(cat "$case_log_dir/observed-status.txt")
         fi
-        write_case_result "$case_path" "$case_status" "$actual_status" "$case_log_dir/result.json" || true
+        observed_transport=http_status
+        if [ -f "$case_log_dir/observed-transport-result.txt" ]; then
+            observed_transport=$(cat "$case_log_dir/observed-transport-result.txt")
+        fi
+        reason=""
+        if [ -f "$case_log_dir/status.txt" ]; then
+            reason=$(tail -n 1 "$case_log_dir/status.txt")
+        fi
+        write_case_result "$case_path" "$case_status" "$actual_status" "$case_log_dir/result.json" "$observed_transport" "$reason" || true
         if [ -f "$case_log_dir/result.json" ]; then
             cat "$case_log_dir/result.json" >> "$results_jsonl"
         fi
@@ -223,7 +268,11 @@ run_all_cases() {
         --origin-source-commit "$CONNECTOR_ORIGIN_SOURCE_COMMIT" \
         --origin-source-version "$CONNECTOR_ORIGIN_SOURCE_VERSION" \
         --origin-license "$CONNECTOR_ORIGIN_LICENSE" \
-        --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH"
+        --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH" \
+        --runtime-mode "$([ -n "${FORCE_ALL_CASES:-}" ] && printf force-all || printf default)" \
+        --command "$([ -n "${FORCE_ALL_CASES:-}" ] && printf 'FORCE_ALL_CASES=1 make smoke-apache' || printf 'make smoke-apache')" \
+        --exit-status "$([ "$any_fail" -ne 0 ] && printf 1 || { [ "$any_blocked" -ne 0 ] && printf 77 || printf 0; })" \
+        --per-case-result-root "$LOG_DIR"
     cp "$summary_file" "$connector_summary"
 
     if [ "$any_fail" -ne 0 ]; then
@@ -321,11 +370,13 @@ escape_sed() {
 render_config() {
     sed \
         -e "s|@@RUNTIME_ROOT@@|$(escape_sed "$RUNTIME_ROOT")|g" \
+        -e "s|@@LOG_DIR@@|$(escape_sed "$LOG_DIR")|g" \
         -e "s|@@PORT@@|$(escape_sed "$PORT")|g" \
         -e "s|@@MODULES_FILE@@|$(escape_sed "$MODULES_FILE")|g" \
         -e "s|@@APACHE_MODULE@@|$(escape_sed "$APACHE_MODULE")|g" \
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
+        -e "s|@@APACHE_PHASE4_LOG@@|$(escape_sed "$APACHE_PHASE4_LOG_FILE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
@@ -413,6 +464,7 @@ stop_stale_runtime_pid() {
 bind_conflict_seen() {
     grep -E "Address already in use|could not bind|make_sock.*could not bind" \
         "$LOG_DIR/httpd.log" \
+        "$LOG_DIR/error.log" \
         "$RUNTIME_ROOT/logs/error.log" >/dev/null 2>&1
 }
 
@@ -429,6 +481,9 @@ start_server() {
         render_config
 
         if ! "$APACHE_HTTPD_BIN" -t -f "$CONFIG_FILE" > "$LOG_DIR/configtest.log" 2>&1; then
+            if configtest_case_not_executable; then
+                not_executable "Apache rejected generated ModSecurity rules; see $LOG_DIR/configtest.log"
+            fi
             fail "Apache configtest failed; see $LOG_DIR/configtest.log"
         fi
 
@@ -530,6 +585,9 @@ rm -f "$RUNTIME_ROOT/logs/"* \
     "$LOG_DIR/curl-attack.err" \
     "$LOG_DIR/curl-ready.err" \
     "$LOG_DIR/httpd.log" \
+    "$LOG_DIR/access.log" \
+    "$LOG_DIR/error.log" \
+    "$LOG_DIR/phase4.log" \
     "$LOG_DIR/response-body.txt" \
     "$LOG_DIR/audit.log"
 rm -f "$LOG_DIR/audit/"*
@@ -563,6 +621,7 @@ REQUEST_HEADERS_FILE="$RUNTIME_ROOT/conf/request-headers.txt"
 REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
 AUDIT_LOG_FILE="$LOG_DIR/audit.log"
 AUDIT_LOG_DIR="$LOG_DIR/audit"
+APACHE_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
 
 if [ -f "$HTTPD_PREFIX/conf/mime.types" ]; then
     cp -a "$HTTPD_PREFIX/conf/mime.types" "$MIME_TYPES_FILE"
@@ -579,7 +638,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     --audit-log-file "$AUDIT_LOG_FILE" \
     --audit-log-dir "$AUDIT_LOG_DIR" \
     --rules-preamble-file "$MODSECURITY_RULE_PREAMBLE_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
-    blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+    not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
 
@@ -591,6 +650,7 @@ if modules_dir=$(apache_modules_dir); then
     append_load_if_exists "unixd_module" "mod_unixd.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "dir_module" "mod_dir.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "mime_module" "mod_mime.so" "$modules_dir" "$MODULES_FILE"
+    append_load_if_exists "log_config_module" "mod_log_config.so" "$modules_dir" "$MODULES_FILE"
 fi
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -603,24 +663,30 @@ set +e
 http_status=$(send_case_request)
 curl_rc=$?
 set -e
-printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-
+observed_transport_result=http_status
 if [ "$curl_rc" -ne 0 ]; then
-    write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
-    fail "curl attack request failed rc=$curl_rc; see $LOG_DIR/curl-attack.err"
+    observed_transport_result=connection_aborted
 fi
+printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+printf '%s\n' "$observed_transport_result" > "$LOG_DIR/observed-transport-result.txt"
 
 if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --case "$TEST_CASE" \
     --actual-status "$http_status" \
+    --observed-transport-result "$observed_transport_result" \
     --response-body-file "$RESPONSE_BODY" \
     --audit-log-file "$AUDIT_LOG_FILE" \
+    --phase4-log-file "$APACHE_PHASE4_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
-    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" || true
+    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
     echo "apache_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
 fi
 
-write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
+reason=$(cat "$LOG_DIR/case-assert.log" 2>/dev/null || true)
+if [ "$curl_rc" -ne 0 ]; then
+    reason="curl attack request failed rc=$curl_rc; $reason"
+fi
+write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" "$reason" || true
 echo "apache_smoke: fail case=$CASE_NAME observed=$http_status expected=$EXPECT_STATUS"
 exit 1

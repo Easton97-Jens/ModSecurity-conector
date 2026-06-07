@@ -23,6 +23,9 @@ NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$NGINX_BUILD_DIR/output/modsecurity/lib}"
 LOG_DIR="${LOG_DIR:-$NGINX_HARNESS_WORK_ROOT/logs}"
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+if [ -n "${FORCE_ALL_CASES:-}" ] && [ "$RESULTS_DIR" = "$BUILD_ROOT/results" ]; then
+    RESULTS_DIR="$BUILD_ROOT/results/force-all"
+fi
 RUNTIME_BASE="${RUNTIME_BASE:-$NGINX_HARNESS_WORK_ROOT/runtime}"
 RUNTIME_ROOT="${RUNTIME_ROOT:-}"
 CURL_BIN="${CURL:-}"
@@ -78,6 +81,18 @@ fail() {
     mkdir -p "$LOG_DIR"
     echo "fail: $*" >> "$STATUS_FILE"
     exit 1
+}
+
+not_executable() {
+    echo "nginx_smoke: not_executable $*"
+    mkdir -p "$LOG_DIR"
+    echo "not_executable: $*" >> "$STATUS_FILE"
+    exit 78
+}
+
+configtest_case_not_executable() {
+    grep -E "Rules error|modsecurity-smoke\\.conf|modsecurity_rules_file|modsecurity_rules" \
+        "$LOG_DIR/configtest.log" >/dev/null 2>&1
 }
 
 ensure_dir_755() {
@@ -213,18 +228,35 @@ write_case_result() {
     case_status=$2
     actual_status=${3:-}
     output=$4
+    observed_transport=${5:-http_status}
+    reason=${6:-}
+    output_dir=$(dirname "$output")
     if [ -n "$actual_status" ]; then
         "$PYTHON_BIN" "$CASE_CLI" case-info \
             --case "$case_path" \
             --connector nginx \
             --status "$case_status" \
             --actual-status "$actual_status" \
+            --observed-transport-result "$observed_transport" \
+            --reason "$reason" \
+            --response-body-file "$output_dir/response-body.txt" \
+            --audit-log-file "$output_dir/audit.log" \
+            --access-log-file "$output_dir/access.log" \
+            --error-log-file "$output_dir/error.log" \
+            --phase4-log-file "$output_dir/phase4.log" \
             --output "$output"
     else
         "$PYTHON_BIN" "$CASE_CLI" case-info \
             --case "$case_path" \
             --connector nginx \
             --status "$case_status" \
+            --observed-transport-result "$observed_transport" \
+            --reason "$reason" \
+            --response-body-file "$output_dir/response-body.txt" \
+            --audit-log-file "$output_dir/audit.log" \
+            --access-log-file "$output_dir/access.log" \
+            --error-log-file "$output_dir/error.log" \
+            --phase4-log-file "$output_dir/phase4.log" \
             --output "$output"
     fi
 }
@@ -251,6 +283,7 @@ run_all_cases() {
 
     any_fail=0
     any_blocked=0
+    any_not_executable=0
     index=0
     for case_path in $cases; do
         case_name=$(basename "$case_path" .yaml)
@@ -273,6 +306,10 @@ run_all_cases() {
             case_status=blocked
             case_status_upper=BLOCKED
             any_blocked=1
+        elif [ "$rc" -eq 78 ]; then
+            case_status=not_executable
+            case_status_upper=NOT_EXECUTABLE
+            any_not_executable=1
         elif [ "$rc" -ne 0 ]; then
             case_status=fail
             case_status_upper=FAIL
@@ -282,7 +319,15 @@ run_all_cases() {
         if [ -f "$case_log_dir/observed-status.txt" ]; then
             actual_status=$(cat "$case_log_dir/observed-status.txt")
         fi
-        write_case_result "$case_path" "$case_status" "$actual_status" "$case_log_dir/result.json" || true
+        observed_transport=http_status
+        if [ -f "$case_log_dir/observed-transport-result.txt" ]; then
+            observed_transport=$(cat "$case_log_dir/observed-transport-result.txt")
+        fi
+        reason=""
+        if [ -f "$case_log_dir/status.txt" ]; then
+            reason=$(tail -n 1 "$case_log_dir/status.txt")
+        fi
+        write_case_result "$case_path" "$case_status" "$actual_status" "$case_log_dir/result.json" "$observed_transport" "$reason" || true
         if [ -f "$case_log_dir/result.json" ]; then
             cat "$case_log_dir/result.json" >> "$results_jsonl"
         fi
@@ -308,7 +353,11 @@ run_all_cases() {
         --origin-source-commit "$CONNECTOR_ORIGIN_SOURCE_COMMIT" \
         --origin-source-version "$CONNECTOR_ORIGIN_SOURCE_VERSION" \
         --origin-license "$CONNECTOR_ORIGIN_LICENSE" \
-        --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH"
+        --origin-imported-path "$CONNECTOR_ORIGIN_IMPORTED_PATH" \
+        --runtime-mode "$([ -n "${FORCE_ALL_CASES:-}" ] && printf force-all || printf default)" \
+        --command "$([ -n "${FORCE_ALL_CASES:-}" ] && printf 'FORCE_ALL_CASES=1 make smoke-nginx' || printf 'make smoke-nginx')" \
+        --exit-status "$([ "$any_fail" -ne 0 ] && printf 1 || { [ "$any_blocked" -ne 0 ] && printf 77 || printf 0; })" \
+        --per-case-result-root "$LOG_DIR"
     cp "$summary_file" "$connector_summary"
 
     if [ "$any_fail" -ne 0 ]; then
@@ -341,6 +390,7 @@ render_config() {
         -e "s|@@NGINX_MODULE@@|$(escape_sed "$NGINX_MODULE")|g" \
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
+        -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \
         -e "s|@@NGINX_LOCATION_DIRECTIVES@@|$(escape_sed "$NGINX_LOCATION_DIRECTIVES_FILE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
@@ -445,6 +495,9 @@ start_server() {
         render_config
 
         if ! "$NGINX_BINARY" -t -p "$RUNTIME_ROOT" -c "$CONFIG_FILE" > "$LOG_DIR/configtest.log" 2>&1; then
+            if configtest_case_not_executable; then
+                not_executable "NGINX rejected generated ModSecurity rules; see $LOG_DIR/configtest.log"
+            fi
             fail "NGINX configtest failed; see $LOG_DIR/configtest.log"
         fi
 
@@ -591,7 +644,7 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
 	    --nginx-location-directives-file "$NGINX_LOCATION_DIRECTIVES_FILE" \
 	    --nginx-runtime-config-dir "$RUNTIME_ROOT/conf" \
 	    --nginx-phase4-log-file "$NGINX_PHASE4_LOG_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
-    blocked "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
+    not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 ensure_worker_runtime_permissions
 . "$CASE_ENV_FILE"
@@ -606,28 +659,33 @@ set +e
 http_status=$(send_case_request)
 curl_rc=$?
 set -e
-printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
-
+observed_transport_result=http_status
 if [ "$curl_rc" -ne 0 ]; then
-    write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
-    fail "curl attack request failed rc=$curl_rc; see $LOG_DIR/curl-attack.err"
+    observed_transport_result=connection_aborted
 fi
+printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+printf '%s\n' "$observed_transport_result" > "$LOG_DIR/observed-transport-result.txt"
 
 if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --case "$TEST_CASE" \
 	    --actual-status "$http_status" \
+	    --observed-transport-result "$observed_transport_result" \
 	    --response-body-file "$RESPONSE_BODY" \
 	    --audit-log-file "$AUDIT_LOG_FILE" \
-	    --nginx-phase4-log-file "$NGINX_PHASE4_LOG_FILE" \
+	    --phase4-log-file "$NGINX_PHASE4_LOG_FILE" \
 	    --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
-    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" || true
+    write_case_result "$TEST_CASE" pass "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" || true
     echo "nginx_smoke: pass case=$CASE_NAME status=$http_status"
     exit 0
 fi
 
-write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" || true
+reason=$(cat "$LOG_DIR/case-assert.log" 2>/dev/null || true)
+if [ "$curl_rc" -ne 0 ]; then
+    reason="curl attack request failed rc=$curl_rc; $reason"
+fi
+write_case_result "$TEST_CASE" fail "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" "$reason" || true
 if [ "$http_status" = "403" ] && nginx_docroot_permission_denied; then
-    write_case_result "$TEST_CASE" blocked "$http_status" "$LOG_DIR/result.json" || true
+    write_case_result "$TEST_CASE" blocked "$http_status" "$LOG_DIR/result.json" "$observed_transport_result" "NGINX could not read generated docroot" || true
     write_permission_diagnostics
     blocked "NGINX could not read generated docroot; see $LOG_DIR/error.log and $LOG_DIR/permissions.log"
 fi

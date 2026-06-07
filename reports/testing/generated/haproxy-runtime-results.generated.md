@@ -11,7 +11,7 @@ Generated file — do not edit manually.
 - Attempted YAML cases in default runtime snapshot: **55**
 - Runtime evidence is current local snapshot evidence only; it is not xfail/pending promotion.
 - RESPONSE_BODY remains non-verified/non-promoted.
-- RESPONSE_BODY pass-through evidence only; not proof of response-body blocking/inspection.
+- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
 
 ## Raw Smoke Summary
 | Status | Count |
@@ -112,7 +112,7 @@ Generated file — do not edit manually.
 - Runtime mode: `force-all`
 - Command: `FORCE_ALL_CASES=1 make smoke-haproxy`
 - Status: **FAIL**
-- Exit code: `2`
+- Exit code: `1`
 - Attempted YAML cases: **133**
 - Total cases in summary: **133**
 - Evidence root: `/src/ModSecurity-conector-build/results/force-all`
