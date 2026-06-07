@@ -338,20 +338,6 @@ print("HAPROXY_NOT_EXECUTABLE_REASON=''")
 PY
 }
 
-case_declared_status() {
-    "$PYTHON_BIN" - "$FRAMEWORK_ROOT" "$TEST_CASE" <<'PY'
-import sys
-from pathlib import Path
-
-framework = Path(sys.argv[1])
-case_path = sys.argv[2]
-sys.path.insert(0, str(framework / "tests" / "runners"))
-from runner_core import load_case  # noqa: E402
-
-print(str(load_case(case_path).get("status", "") or ""))
-PY
-}
-
 mark_not_executable() {
     reason=$1
     write_case_result "$TEST_CASE" not_executable "" "$LOG_DIR/result.json" || true
@@ -372,7 +358,6 @@ PY
 }
 
 rule_parse_startup_is_not_executable() {
-    [ "$(case_declared_status)" = "xfail" ] || return 1
     [ -f "$LOG_DIR/spoa-runtime.stderr.log" ] || return 1
     grep -q "failed to initialize ModSecurity engine: Rules error" "$LOG_DIR/spoa-runtime.stderr.log"
 }
@@ -784,7 +769,7 @@ start_agent() {
         sleep 0.1
     done
     if rule_parse_startup_is_not_executable; then
-        mark_not_executable "ModSecurity rule parse failed for forced xfail case; see $LOG_DIR/spoa-runtime.stderr.log"
+        mark_not_executable "ModSecurity rule parse failed for generated case; see $LOG_DIR/spoa-runtime.stderr.log"
     fi
     blocked "SPOA runtime failed to start; see $LOG_DIR/spoa-runtime.stderr.log"
 }

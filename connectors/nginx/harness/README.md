@@ -71,5 +71,5 @@ at runtime. It uses `/__modsec_smoke_ready` with ModSecurity disabled only for
 readiness checks. Do not duplicate the rule, request path, request method,
 headers, body, response fixture, or expected HTTP status in the harness.
 
-Response-body blocking remains mapped as xfail until the NGINX smoke observes a
+Response-body blocking remains non-promoted until the NGINX smoke observes a
 stable HTTP 403 for the same common YAML case.

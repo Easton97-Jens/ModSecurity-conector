@@ -61,7 +61,7 @@ are useful evidence, but they do not by themselves promote connector behavior.
 - YAML case corpus and generated report flow owned by
   `modules/ModSecurity-test-Framework`, with connector evidence emitted under
   `reports/testing/` and root summary copy `TEST-COVERAGE-SUMMARY.md`.
-- Current generated coverage summary for 140 YAML cases, including 80 xfail
+- Current generated coverage summary for 140 YAML cases, including 80 former expected-failure
   cases, 10 mapped-only import inventory entries, 11 connector-gap cases,
   13 runtime-difference cases, and 24 `RESPONSE_BODY` cases that remain
   non-verified.
@@ -74,14 +74,14 @@ are useful evidence, but they do not by themselves promote connector behavior.
 - Current local default connector summary data under `$BUILD_ROOT/results/`
   reports Apache 54 PASS / 0 FAIL / 0 BLOCKED and NGINX 60 PASS / 0 FAIL /
   0 BLOCKED. This is local default-smoke evidence only; it is not a blanket
-  stability claim for force-all, xfail, mapped-only, future, or blocked cases.
+  stability claim for force-all, former expected-failure, mapped-only, future, or blocked cases.
 - This workspace's 2026-05-24 normal-scope refresh executed
   `make smoke-common`, `make smoke-apache`, `make smoke-nginx`, and
   `make smoke-all` with exit code 0. These local smoke results remain separate
   from the tracked force-all runtime-matrix snapshot.
 - The tracked 2026-05-24 runtime matrix snapshot records force-all evidence:
   Apache 87 PASS / 46 FAIL / 0 BLOCKED and NGINX 94 PASS / 46 FAIL /
-  0 BLOCKED, with xfail, future, connector-gap, runtime-difference, and
+  0 BLOCKED, with former expected-failure, future, connector-gap, runtime-difference, and
   response-body pass-through results not promoted.
 - Documentation for the capability model, status model, adapter interface,
   common runtime boundaries, directive parity, rule-load stats, source
@@ -137,7 +137,7 @@ are useful evidence, but they do not by themselves promote connector behavior.
 - XML schema/DTD validation, parser-error cases, file-backed operators,
   malformed multipart bodies, HTTP/2, streaming, and large body/response
   scenarios are waiting on explicit fixture and transport support.
-- `v3_action_nolog_pass_no_audit` remains xfail because local Apache/NGINX
+- `v3_action_nolog_pass_no_audit` remains former expected-failure because local Apache/NGINX
   observations and GitHub Actions audit behavior have differed.
 - Future connectors are waiting on a selected integration path and a real server
   harness that can emit the same status/origin/intervention metadata.

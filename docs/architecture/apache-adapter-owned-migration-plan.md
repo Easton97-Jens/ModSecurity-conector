@@ -61,7 +61,7 @@ The migration does not change:
 - libmodsecurity transaction ownership;
 - intervention runtime semantics;
 - YAML case behavior;
-- `RESPONSE_BODY` xfail/mapped-only status.
+- `RESPONSE_BODY` non-promoted/mapped-only status.
 
 ## Remaining Risk
 
