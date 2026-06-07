@@ -235,9 +235,16 @@ Delegated targets:
 make mrts-generate
 make test-no-mrts
 make test-with-mrts
+make test-with-mrts-feature-demo
 make test-mrts-matrix
 make mrts-ftw
 ```
+
+The framework uses `upstream-config-tests` as the default runnable MRTS corpus.
+Feature-demo tests are reported as optional/demo coverage and can be attempted
+only through the explicit opt-in target or
+`MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`. Golden references under the framework
+`tests/mrts/imported/` tree are never runtime inputs.
 
 MRTS/CRS result paths are separated by variant:
 
