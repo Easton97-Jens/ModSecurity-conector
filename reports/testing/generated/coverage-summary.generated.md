@@ -15,8 +15,7 @@ Generated file — do not edit manually.
 
 ## By status
 - active: 8
-- imported: 53
-- xfail: 80
+- imported: 133
 
 ## By variable/collection
 - `RESPONSE_BODY`: 20
