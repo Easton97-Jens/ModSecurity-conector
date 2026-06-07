@@ -211,18 +211,19 @@ local case rules. `test` runs both variants.
 
 ## MRTS Tests
 
-MRTS is integrated in the framework as an optional test-generation source. The
+MRTS is integrated in the framework as a required framework submodule. The
 connector repository does not copy MRTS generator logic; these targets delegate
 to `FRAMEWORK_ROOT`.
 
-MRTS is not vendored. To use the default framework path:
+Initialize connector submodules recursively so the nested framework MRTS
+submodule is available:
 
 ```sh
-mkdir -p modules/ModSecurity-test-Framework/tools
-git clone https://github.com/owasp-modsecurity/MRTS.git modules/ModSecurity-test-Framework/tools/MRTS
+git submodule update --init --recursive
 ```
 
-Or point at a separate checkout:
+The delegated targets use `modules/ModSecurity-test-Framework/tools/MRTS` by
+default. You can still point at a separate checkout:
 
 ```sh
 MRTS_ROOT=/path/to/MRTS make mrts-generate
