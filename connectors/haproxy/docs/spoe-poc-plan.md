@@ -1,114 +1,29 @@
-# HAProxy SPOE/SPOA Proof-of-Concept Plan
+# HAProxy SPOE/SPOA PoC Plan
 
-## Status
-poc_status: planned
-implementation_status: not_started
-runtime_verified: false
-decision_status: undecided
-promoted: false
+Status: implemented for current production SPOA runtime scope
 
-## Zweck
-Dieser Plan beschreibt nur, welche minimale Evidenz ein SPOE/SPOA-PoC liefern
-müsste. Er implementiert nichts und beweist noch keine Funktionsfähigkeit.
+The earlier plan has moved from planned-only documentation to a live
+production-style SPOA path. The remaining plan is now about promotion evidence
+and production hardening.
 
-## Warum SPOE/SPOA als erste Prüfspur?
-SPOE/SPOA ist eine sinnvolle erste Prüfspur, weil HAProxy SPOE als Filter für
-externe Komponenten dokumentiert (Extern zu verifizieren) und das Repository
-HAProxy als erwartetes Modell mit SPOE oder nativer Extension erwähnt (Belegt
-durch Repository).
+## Implemented
 
-Die Eignung für vollständige ModSecurity-Semantik ist noch nicht bewiesen.
-Noch zu prüfen.
+- HAProxy starts with SPOE config.
+- `haproxy-modsecurity-spoa` starts as the external SPOA/SPOP component.
+- Benign requests can pass.
+- Disruptive decisions can block through HAProxy enforcement rules.
+- `decision.jsonl` records runtime decisions.
+- Audit-log plumbing is available.
+- Generated reports are produced by the framework report flow.
 
-## Nicht-Ziele
-- Keine produktive Integration.
-- Keine vollständige ModSecurity-Parität.
-- Keine Response-Body-Garantie.
-- Kein Performance-Versprechen.
-- Keine CI-Promotion.
-- Keine Änderung an Apache/NGINX.
-- Keine Änderung am Makefile.
+## Remaining Plan
 
-## Minimale PoC-Fragen
-Der PoC muss mindestens beantworten:
+- Expand force-all FAIL investigation.
+- Add production service-manager examples.
+- Prove long-running multi-worker behavior.
+- Define promotion criteria for full RESPONSE_BODY support.
+- Keep generated root summaries connector-neutral and row-level HAProxy detail
+  in generated HAProxy detail reports.
 
-1. Kann HAProxy eine Anfrage an eine externe SPOA-Komponente übergeben? (Extern zu verifizieren.)
-2. Kann die externe Komponente Request-Metadaten empfangen? (Extern zu verifizieren.)
-3. Kann eine harmlose Anfrage erlaubt werden? (Noch zu prüfen.)
-4. Kann eine bösartige Anfrage blockiert oder als block-würdig markiert werden? (Noch zu prüfen.)
-5. Kann das Ergebnis nachvollziehbar geloggt werden? (Noch zu prüfen.)
-6. Kann ein reproduzierbarer Report erzeugt werden? (Noch zu prüfen; zentral im ModSecurity-test-Framework.)
-7. Welche Daten fehlen für ModSecurity? (Noch zu prüfen.)
-8. Ist Response-Header-Inspection möglich? (Extern zu verifizieren.)
-9. Ist Response-Body-Inspection möglich oder explizit nicht im Scope? (Extern zu verifizieren.)
-10. Wie sähe ein Fail-open/Fail-closed-Verhalten aus? (Extern zu verifizieren.)
-
-## Minimaler Scope
-In Scope:
-- HAProxy startet mit minimaler Testkonfiguration. (Noch zu prüfen.)
-- Eine externe SPOA-/Prüfkomponente startet. (Noch zu prüfen.)
-- Ein benign request wird erlaubt. (Noch zu prüfen.)
-- Ein malicious request wird blockiert oder eindeutig als block-würdig signalisiert. (Noch zu prüfen.)
-- Logs werden gesammelt. (Noch zu prüfen.)
-- Ein Report wird zentral im ModSecurity-test-Framework erzeugt. (Noch zu prüfen.)
-
-Out of Scope:
-- Produktionsreife.
-- Vollständige CRS-Abdeckung.
-- Vollständige Response-Body-Prüfung.
-- Performance-Benchmark.
-- Packaging.
-- CI-Promotion.
-- Makefile-Integration.
-
-## Erwartete Harness-Hooks
-
-| Hook | Zweck | Minimaler Erfolg | Offene Punkte |
-|---|---|---|---|
-| prepare | Testumgebung vorbereiten | Noch zu prüfen. | Noch zu prüfen. |
-| start | HAProxy und externe Komponente starten | Noch zu prüfen. | Noch zu prüfen. |
-| send_request | Benign/malicious Requests senden | Noch zu prüfen. | Noch zu prüfen. |
-| collect_logs | Logs einsammeln | Noch zu prüfen. | Noch zu prüfen. |
-| stop | Prozesse stoppen | Noch zu prüfen. | Noch zu prüfen. |
-| cleanup | Umgebung bereinigen | Noch zu prüfen. | Noch zu prüfen. |
-
-Hinweis: Hook-Namen sind als allgemeine Harness-Aufgaben im Repository belegt,
-aber die HAProxy-spezifische Umsetzung ist extern zu verifizieren.
-Die konkrete Testdefinition liegt ausschließlich im ModSecurity-test-Framework.
-
-## Framework-seitige Testerwartungen
-Diese Punkte sind nur Framework-Erwartungen (keine lokalen Tests in diesem Repository):
-- haproxy_config_syntax
-- haproxy_startup
-- spoa_component_startup
-- benign_request_allowed
-- malicious_request_block_signal
-- logs_emitted
-- report_generated
-
-No tests are stored in this connector repository.
-
-## Evidenzformat
-Definiere ein minimales Report-Format als Dokumentation:
-
-```json
-{
-  "connector": "haproxy",
-  "integration_model": "spoe_spoa",
-  "validation_mode": "poc",
-  "runtime_verified": false,
-  "tests": [],
-  "open_questions": []
-}
-```
-
-## Beleglage und Grenzen
-- SPOE/SPOA als HAProxy-Mechanismus: Extern zu verifizieren.
-- Erwartungsmodell "SPOE oder native extension" im Repository: Belegt durch Repository.
-- Vollständige ModSecurity-Semantik über SPOE/SPOA: Nicht belegbar aus dem aktuellen Repository.
-- Response-Header/Response-Body-Inspektion im Zielbild: Noch zu prüfen.
-- Konkrete Build-Artefakte/Deployment-Details: Nicht belegbar aus dem aktuellen Repository.
-
-## Nächster Schritt
-Für SPOE/SPOA die externen HAProxy-Dokumentstellen und einen kleinen
-Dokument-Proof gegen diesen Plan erfassen, ohne Code zu schreiben.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

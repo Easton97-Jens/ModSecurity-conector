@@ -1,27 +1,96 @@
 # Apache ModSecurity Examples
 
-These examples show request-only and bounded Phase 4 response-body inspection
-for Apache httpd.
+## Purpose
 
-- Load `mod_security3.so`, enable `modsecurity on`, and point
-  `modsecurity_rules_file` at a production config under `/etc/modsecurity`.
-- Put CRS under `/etc/modsecurity/crs` and include it from the ModSecurity
-  config.
-- Request-only mode sets `SecResponseBodyAccess Off`; it is the safer default
-  when late response disruption is not acceptable.
-- Phase 4 mode sets `SecResponseBodyAccess On`, MIME restrictions, and bounded
-  response-body limits. The Apache connector also uses
-  `modsecurity_phase4_body_limit` to bound connector buffering.
-- If Apache can inspect the buffered response before commit, a disruptive Phase
-  4 rule can return a blocking status. If the response has already committed,
-  the connector records strict-abort evidence instead.
-- Connector decisions are JSON lines in
-  `/var/log/modsecurity/apache-phase4.jsonl`; Apache access/error logs stay
-  under `/var/log/apache2` or `/var/log/httpd` depending on distribution.
-- Audit logs come from libmodsecurity through `SecAuditLog`; rotate connector,
-  audit, and server logs with normal production log rotation.
-- Validate filter ordering with compression disabled first. Document whether
-  your deployment inspects compressed or uncompressed bytes before enabling
-  response compression.
-- RESPONSE_BODY support remains bounded/non-promoted unless full-body behavior is
-  separately proven in live runtime evidence.
+These examples show production-style Apache httpd configuration for
+request-only ModSecurity and bounded Phase 4 / RESPONSE_BODY evidence.
+
+## Files
+
+- `apache-modsecurity-request-only.conf`: Apache module and request-only
+  connector directives.
+- `modsecurity-request-only.conf`: libmodsecurity request-phase rules config.
+- `apache-modsecurity-phase4-buffered.conf`: Apache connector directives for
+  bounded Phase 4 buffering.
+- `modsecurity-phase4.conf`: libmodsecurity response-body rules config.
+
+## Production Paths
+
+The examples use common Debian-style paths:
+
+- `/usr/lib/apache2/modules/mod_security3.so`
+- `/etc/modsecurity/modsecurity-request-only.conf`
+- `/etc/modsecurity/modsecurity-phase4.conf`
+- `/etc/modsecurity/crs/`
+- `/var/log/modsecurity/apache-phase4.jsonl`
+- `/var/log/modsecurity/apache-audit.log`
+- `/var/log/apache2/access.log`
+- `/var/log/apache2/error.log`
+
+Adjust paths for distributions that use `/etc/httpd` and `/var/log/httpd`.
+
+## Request-Only Mode
+
+Request-only mode enables ModSecurity for request phases and keeps
+`SecResponseBodyAccess Off`. It is the conservative default when late response
+disruption is not acceptable.
+
+```bash
+apachectl configtest
+apachectl graceful
+```
+
+## Phase 4 / RESPONSE_BODY Mode
+
+The Phase 4 example enables `SecResponseBodyAccess On`, MIME restrictions,
+`SecResponseBodyLimit`, `SecResponseBodyLimitAction ProcessPartial`, and the
+Apache connector `modsecurity_phase4_body_limit`. If Apache can inspect the
+buffered response before commit, a disruptive Phase 4 rule can return a
+blocking status. If a response has already committed, strict-abort behavior is
+runtime evidence, not a clean full-body promotion.
+
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented as runtime evidence only.
+
+## Variable And Placeholder Reference
+
+| Name | Type | Required | Example value | Used in | Meaning | Change requires restart/reload | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `security3_module` | Apache module name | Yes | `mod_security3.so` | `apache-modsecurity-*.conf` | Loads the Apache connector. | restart or graceful reload | Path is distribution-specific. |
+| `modsecurity` | Apache directive | Yes | `on` | `apache-modsecurity-*.conf` | Enables ModSecurity in the configured scope. | graceful reload | Use inside global config or vhost scope. |
+| `modsecurity_rules_file` | Apache directive | Yes | `/etc/modsecurity/modsecurity-request-only.conf` | `apache-modsecurity-*.conf` | Points Apache to the libmodsecurity rules file. | graceful reload | Use the Phase 4 rules file only for bounded response evidence. |
+| `modsecurity_use_error_log` | Apache directive | No | `on` | `apache-modsecurity-*.conf` | Sends connector diagnostics to Apache error log. | graceful reload | Useful during rollout. |
+| `modsecurity_phase4_mode` | Apache directive | Phase 4 only | `safe` | `apache-modsecurity-phase4-buffered.conf` | Selects connector Phase 4 behavior. | graceful reload | Safe mode prefers clean blocking before response commit. |
+| `modsecurity_phase4_content_types_file` | Apache directive | Phase 4 only | `/etc/modsecurity/phase4-content-types.conf` | `apache-modsecurity-phase4-buffered.conf` | Optional allow-list for response-body MIME types. | graceful reload | Keep narrow in production. |
+| `modsecurity_phase4_log` | Apache directive | Phase 4 only | `/var/log/modsecurity/apache-phase4.jsonl` | `apache-modsecurity-phase4-buffered.conf` | JSONL connector decision evidence. | graceful reload | Rotate with normal log rotation. |
+| `modsecurity_phase4_body_limit` | Apache directive | Phase 4 only | `1048576` | `apache-modsecurity-phase4-buffered.conf` | Bounds connector response buffering. | graceful reload | Keep aligned with `SecResponseBodyLimit`. |
+| `SecRuleEngine` | ModSecurity directive | Yes | `On` | `modsecurity-*.conf` | Enables rule execution. | graceful reload | Use `DetectionOnly` for non-disruptive rollout. |
+| `SecRequestBodyAccess` | ModSecurity directive | Yes | `On` | `modsecurity-*.conf` | Enables request-body processing. | graceful reload | Request body support is promoted separately from RESPONSE_BODY. |
+| `SecResponseBodyAccess` | ModSecurity directive | Yes | `Off` or `On` | `modsecurity-*.conf` | Enables or disables RESPONSE_BODY processing. | graceful reload | `On` is bounded evidence only in these examples. |
+| `SecResponseBodyMimeType` | ModSecurity directive | Phase 4 only | `text/plain text/html application/json` | `modsecurity-phase4.conf` | Limits inspected response MIME types. | graceful reload | Keep explicit to avoid binary responses. |
+| `SecResponseBodyLimit` | ModSecurity directive | Phase 4 only | `1048576` | `modsecurity-phase4.conf` | Bounds libmodsecurity response-body buffering. | graceful reload | Keep aligned with connector limit. |
+| `SecResponseBodyLimitAction` | ModSecurity directive | Phase 4 only | `ProcessPartial` | `modsecurity-phase4.conf` | Defines behavior when the body exceeds the limit. | graceful reload | Avoid unbounded buffering. |
+| `IncludeOptional` | ModSecurity directive | No | `/etc/modsecurity/crs/rules/*.conf` | `modsecurity-*.conf` | Includes CRS files if present. | graceful reload | Missing CRS files do not block startup. |
+| `SecAuditEngine` | ModSecurity directive | No | `RelevantOnly` | `modsecurity-*.conf` | Enables audit logging for relevant transactions. | graceful reload | Use with log rotation. |
+| `SecAuditLog` | ModSecurity directive | No | `/var/log/modsecurity/apache-audit.log` | `modsecurity-*.conf` | Audit log destination. | graceful reload | Ensure directory permissions allow Apache writes. |
+| `RESPONSE_BODY` | ModSecurity collection | Phase 4 only | `@contains response-attack` | `modsecurity-phase4.conf` | Example outbound rule target. | graceful reload | Replace the example rule with production rules. |
+
+## Logging And Evidence
+
+Connector decisions are written to `apache-phase4.jsonl` when Phase 4 connector
+logging is enabled. Audit records are written by libmodsecurity through
+`SecAuditLog`. Apache access and error logs remain under the Apache log
+directory.
+
+## Security Notes
+
+Start with request-only mode, enable audit logging, validate CRS includes, and
+disable compression until the deployment proves whether the connector sees
+compressed or uncompressed response bytes.
+
+## Related Docs
+
+- `COMPILE_APACHE.md`
+- `connectors/apache/docs/build.md`
+- `connectors/apache/docs/validation.md`
+- `reports/testing/apache-poc.md`

@@ -20,9 +20,12 @@ connector trees:
   `connectors/apache/src/`.
 - `connectors/nginx/` contains the NGINX connector adapter, module `config`,
   harness files, metadata, and productive source under `connectors/nginx/src/`.
-- `connectors/{envoy,haproxy,lighttpd}/` are scaffolded future
-  connector areas with documentation and TODOs; `connectors/traefik/` adds a
-  local decision-service starter without runtime verification.
+- `connectors/haproxy/` contains a production SPOA/SPOP runtime path,
+  examples, harness files, metadata, and productive source under
+  `connectors/haproxy/src/`.
+- `connectors/{envoy,lighttpd}/` are scaffolded future connector areas with
+  documentation and TODOs; `connectors/traefik/` adds a local decision-service
+  starter without runtime verification.
 
 Connector source is repo-local. Apache and NGINX connector repositories are not
 fetched as runtime defaults.
@@ -33,17 +36,18 @@ fetched as runtime defaults.
 | --- | --- | --- |
 | Apache | adapter-owned source tree with real-world smoke harness; evidence-scoped, not blanket stable | `connectors/apache/` |
 | NGINX | adapter-owned source tree with real-world smoke harness; evidence-scoped, not blanket stable | `connectors/nginx/` |
+| HAProxy | production SPOA/SPOP runtime with live HAProxy smoke evidence; evidence-scoped and partial | `connectors/haproxy/` |
 | Envoy | deferred placeholder scaffold | `connectors/envoy/` |
-| HAProxy | deferred placeholder scaffold | `connectors/haproxy/` |
 | Lighttpd | deferred placeholder scaffold | `connectors/lighttpd/` |
 | Traefik | local decision-service starter; runtime not verified | `connectors/traefik/` |
 
-Apache and NGINX pass claims must be tied to a specific smoke result. The
-current local `$BUILD_ROOT/results/connector-summary.json` can record default
-real-world connector PASS evidence, while the tracked force-all runtime matrix
-still records expected FAIL classes for xfail, future, connector-gap,
-runtime-difference, and response-body cases. API-only smokes are not connector
-proof.
+Apache, NGINX, and HAProxy pass claims must be tied to a specific smoke result.
+Current generated default runtime evidence is Apache `54/54 PASS`, NGINX
+`60/60 PASS`, and HAProxy `55/55 PASS`. Force-all runtime evidence remains
+separate: Apache `133 attempted / 100 PASS / 27 FAIL / 0 BLOCKED /
+6 NOT_EXECUTABLE`, NGINX `140 attempted / 95 PASS / 39 FAIL / 0 BLOCKED /
+6 NOT_EXECUTABLE`, and HAProxy `133 attempted / 104 PASS / 23 FAIL /
+0 BLOCKED / 6 NOT_EXECUTABLE`. API-only smokes are not connector proof.
 
 ## Connector Feature Status
 
@@ -63,7 +67,7 @@ describe the current implemented state only.
 | Error-log forwarding policy | Supported | Supported | <code>modsecurity_use_error_log on&#124;off</code>; default is on. Audit logs, interventions, and request/response handling are unchanged. |
 | Rule-load stats metadata | Supported | Supported | Common data shape in `common/include/msconnector/rule_load_stats.h`; metadata only. |
 | Common directive metadata | Used | Used | Shared directive-name constants are used by both connectors. |
-| Common option metadata | Partial | Partial | Apache uses common bool/default metadata for error-log policy. NGINX uses common defaults for enablement, error-log forwarding, and phase-4 mode. |
+| Common option metadata | Partial | Partial | Apache and NGINX use common defaults for enablement, error-log forwarding, and bounded phase-4 options where implemented. |
 
 ### Apache
 
@@ -77,6 +81,10 @@ The Apache connector is an adapter-owned Apache module under
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`
+- `modsecurity_phase4_mode minimal|safe|strict`
+- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_body_limit <bytes>`
 
 `modsecurity_transaction_id` keeps the existing static-string semantics.
 `modsecurity_transaction_id_expr` is an opt-in Apache string expression, for
@@ -93,8 +101,8 @@ interventions, hooks, filters, buckets, transaction ownership, or request and
 response handling.
 
 Apache tracks rule-load stats internally in `msc_conf_t`. It does not currently
-report those stats in the post-config log. Apache does not implement NGINX
-phase-4 parity yet.
+report those stats in the post-config log. Apache bounded Phase 4 support is
+evidence-scoped and does not promote full RESPONSE_BODY behavior.
 
 ### NGINX
 
@@ -116,16 +124,39 @@ per-request NGINX variables. NGINX exposes rule-load stats in its existing
 startup log through the common rule-load-stats helper without changing the log
 text, format, level, or order.
 
-The phase-4 directives are NGINX-specific runtime controls. They are not a
-common connector contract and are not implemented by Apache.
+The phase-4 directives are bounded runtime controls. They are not a common
+promotion contract and do not promote full RESPONSE_BODY behavior.
+
+### HAProxy
+
+The HAProxy connector uses a production SPOA/SPOP path under
+`connectors/haproxy/`. It currently supports:
+
+- `haproxy-modsecurity-spoa`
+- HAProxy SPOE/SPOP integration
+- libmodsecurity rule loading and decision processing
+- `decision.jsonl` runtime decision evidence
+- audit-log plumbing
+- request phases 1/2
+- implemented phase 3 response-header evidence
+- bounded Phase 4 strict-abort evidence
+
+HAProxy is configured through HAProxy, SPOE, and SPOA-agent configuration files,
+not Apache/NGINX-style `modsecurity_*` directives. There is no synthetic matrix
+writer; generated HAProxy reports consume live runtime summaries and the runtime
+validation snapshot.
+
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.
 
 ### Known Differences And Deferred Areas
 
 | Area | Current state |
 | --- | --- |
 | Transaction ID mapping | Apache supports static strings plus opt-in Apache string expressions through `modsecurity_transaction_id_expr`; NGINX supports complex values through `modsecurity_transaction_id`. |
-| Apache phase-4 directives | `modsecurity_phase4_mode`, `modsecurity_phase4_content_types_file`, and `modsecurity_phase4_log` are not implemented for Apache. |
-| Apache response body behavior | Not promoted; `RESPONSE_BODY` remains non-verified and non-promoted. |
+| Phase-4 directives | Apache and NGINX implement bounded phase-4 controls; full RESPONSE_BODY behavior remains non-promoted. |
+| HAProxy directive model | HAProxy uses HAProxy config, SPOE config, and `haproxy-modsecurity-spoa` agent config rather than `modsecurity_*` server directives. |
+| RESPONSE_BODY behavior | Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is documented/reported as runtime evidence only. |
 | Apache bucket/filter/intervention paths | Intentionally not refactored in this common-metadata work. |
 | Common layer | Contains connector-neutral metadata and data shapes only; it does not own Apache or NGINX runtime APIs. |
 | Rule-load stats reporting | NGINX reports via its existing startup log; Apache keeps stats as internal metadata until display aggregation and merge semantics are explicitly designed. |
@@ -160,7 +191,9 @@ make runtime-matrix-all
 make smoke-common
 make smoke-apache
 make smoke-nginx
+make smoke-haproxy
 make smoke-all
+make runtime-matrix-haproxy
 ```
 
 CRS variants are available through the framework module:
@@ -219,7 +252,8 @@ repository does not maintain a separate coverage-summary source of truth.
 
 ## Documentation Links
 
-- Build docs: [Compile Nginx](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md), [Compile HAProxy connector](./COMPILE_HAPROXY.md)
+- Build docs: [Compile NGINX](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md), [Compile HAProxy](./COMPILE_HAPROXY.md)
+- Example configs: [Apache examples](./examples/apache/README.md), [NGINX examples](./examples/nginx/README.md), [HAProxy examples](./examples/haproxy/README.md)
 - Shared connector feature docs: [Shared Features](./SHARED_FEATURES.md)
 - Roadmap: [docs/roadmap/roadmap.md](./docs/roadmap/roadmap.md)
 - Architecture docs: [docs/architecture/](./docs/architecture/)
@@ -232,6 +266,7 @@ repository does not maintain a separate coverage-summary source of truth.
 - Shared fixtures: [modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md](./modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md)
 - Smoke target semantics: [modules/ModSecurity-test-Framework/docs/testing/fast-checks.md](./modules/ModSecurity-test-Framework/docs/testing/fast-checks.md)
 - Real-world connector validation: [reports/testing/real-world-connector-validation.md](./reports/testing/real-world-connector-validation.md)
+- HAProxy PoC evidence: [reports/testing/haproxy-poc.md](./reports/testing/haproxy-poc.md)
 - Case matrix reports: [reports/testing/case-matrix.md](./reports/testing/case-matrix.md), [reports/testing/generated/case-matrix.generated.md](./reports/testing/generated/case-matrix.generated.md)
 - PR/source evidence: [reports/testing/evidence/pr-evidence-summary.md](./reports/testing/evidence/pr-evidence-summary.md), [reports/testing/evidence/raw-args-pr3564.md](./reports/testing/evidence/raw-args-pr3564.md)
 - Licensing and origin index: [docs/licensing/license-and-origin.md](./docs/licensing/license-and-origin.md)
@@ -255,4 +290,5 @@ make check-test-matrix
 Runtime and coverage evidence must not be inferred from generated metadata
 alone. XFAIL, pending, future, connector-gap, and runtime-difference cases stay
 evidence classes until explicitly promoted by documented runtime proof.
-RESPONSE_BODY remains non-verified and non-promoted.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

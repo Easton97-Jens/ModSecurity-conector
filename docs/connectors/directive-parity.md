@@ -1,25 +1,31 @@
 # Connector Directive Parity
 
-Status: current adapter-owned Apache and NGINX code
+Status: current adapter-owned Apache and NGINX code, plus HAProxy SPOA config
 
-This document records directive support in the local adapter-owned connectors.
-It describes the current code state only; it does not promote deferred runtime
-paths or claim future parity work as implemented.
+This document records directive and configuration support in the local
+connector implementations. Runtime promotion is still evidence-scoped; a
+directive existing in code does not by itself promote full behavior.
 
 ## Directive Matrix
 
-| Directive | Apache | NGINX | Apache Semantics | NGINX Semantics | Notes / Risk |
-| --- | --- | --- | --- | --- | --- |
-| `modsecurity` | Supported | Supported | `on` or `off`; available in server and directory context. | `on` or `off`; available in main, server, and location context. | SAFE: shared directive metadata. |
-| `modsecurity_rules` | Supported | Supported | Loads inline ModSecurity rules into the Apache context rules set. | Loads inline ModSecurity rules into the NGINX context rules set. | CAREFUL: rules-loading behavior remains connector-owned. |
-| `modsecurity_rules_file` | Supported | Supported | Loads ModSecurity rules from a local file. | Loads ModSecurity rules from a local file. | CAREFUL: rules-loading behavior remains connector-owned. |
-| `modsecurity_rules_remote` | Supported | Supported | Loads remote rules using the configured key and URL arguments. | Loads remote rules using the configured key and URL arguments. | CAREFUL: remote rules-loading behavior remains connector-owned. |
-| `modsecurity_use_error_log` | Supported | Supported | `on` or `off`; default is on. `off` suppresses Apache error-log forwarding from the libmodsecurity log callback only. | `on` or `off`; default is on. `off` suppresses the connector's NGINX error-log write from the libmodsecurity log callback. | CAREFUL: logging policy only; audit log, intervention, request, and response behavior are unchanged. |
-| `modsecurity_transaction_id` | Supported | Supported | Static string. Mutually exclusive with `modsecurity_transaction_id_expr` in the same context. If no transaction-ID directive is set, Apache keeps the existing `UNIQUE_ID` fallback, then creates a transaction without an explicit ID. | NGINX complex value. Values may be evaluated per request by NGINX. | CAREFUL: transaction-ID selection is per connector and uses server-specific syntax. |
-| `modsecurity_transaction_id_expr` | Supported | Not supported | Apache string expression evaluated per request, for example `%{REQUEST_URI}`. Empty results or evaluation errors fall back to `UNIQUE_ID`, then to a transaction without an explicit ID. | NGINX uses `modsecurity_transaction_id` for complex values instead. | CAREFUL: Apache expression evaluation is opt-in and adapter-owned. |
-| `modsecurity_phase4_mode` | Not supported | Supported | Not implemented. | Selects phase-4 response-body mode: `minimal`, `safe`, or `strict`; default is `safe`. | RISKY: response-body, filter, and intervention paths. Apache parity is intentionally deferred. |
-| `modsecurity_phase4_content_types_file` | Not supported | Supported | Not implemented. | Loads the phase-4 response content-type allow list from a file. | RISKY: response-body content-type gating. Apache parity is intentionally deferred. |
-| `modsecurity_phase4_log` | Not supported | Supported | Not implemented. | Configures phase-4 diagnostic logging. | RISKY: phase-4 runtime diagnostics. Apache parity is intentionally deferred. |
+| Directive / Config Surface | Apache | NGINX | HAProxy | Notes / Risk |
+| --- | --- | --- | --- | --- |
+| `modsecurity` | Supported | Supported | Not applicable | HAProxy uses HAProxy/SPOE/SPOA config, not server `modsecurity_*` directives. |
+| `modsecurity_rules` | Supported | Supported | Not applicable | Rule loading remains connector-owned. HAProxy loads rules through the SPOA agent `rules-file`. |
+| `modsecurity_rules_file` | Supported | Supported | Not applicable | HAProxy equivalent is `rules-file=/etc/modsecurity/haproxy-rules.conf`. |
+| `modsecurity_rules_remote` | Supported | Supported | Not applicable | Remote rule loading is connector-owned for Apache/NGINX; HAProxy agent config does not expose this server directive. |
+| `modsecurity_use_error_log` | Supported | Supported | Not applicable | Logging policy only; audit and intervention behavior are separate. |
+| `modsecurity_transaction_id` | Supported | Supported | Not applicable | Apache uses static string semantics; NGINX uses complex values; HAProxy correlates through HAProxy `unique-id` / SPOE `request_id`. |
+| `modsecurity_transaction_id_expr` | Supported | Not supported | Not applicable | Apache-only expression directive. |
+| `modsecurity_phase4_mode` | Supported | Supported | Not applicable | Bounded Phase 4 control. This does not promote full RESPONSE_BODY support. |
+| `modsecurity_phase4_content_types_file` | Supported | Supported | Not applicable | Bounded response content-type allow-list. |
+| `modsecurity_phase4_log` | Supported | Supported | Not applicable | JSONL Phase 4 decision/evidence log for Apache/NGINX. |
+| `modsecurity_phase4_body_limit` | Supported | Not supported | Not applicable | Apache connector response-buffer bound. NGINX uses libmodsecurity limits and strict-abort controls instead. |
+| `filter spoe engine modsecurity` | Not applicable | Not applicable | Supported | HAProxy SPOE entry point. |
+| `http-request send-spoe-group` | Not applicable | Not applicable | Supported | Sends request phases 1/2 evidence to `haproxy-modsecurity-spoa`. |
+| `http-response send-spoe-group` | Not applicable | Not applicable | Supported | Sends response headers and bounded response-body evidence. |
+| `decision-log` | Not applicable | Not applicable | Supported | SPOA agent JSONL decision log, usually `/var/log/haproxy-modsecurity/decision.jsonl`. |
+| `audit-log` | Not applicable | Not applicable | Supported | SPOA/libmodsecurity audit-log plumbing. |
 
 ## Apache Directives
 
@@ -32,26 +38,21 @@ The Apache connector currently registers:
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`
+- `modsecurity_phase4_mode minimal|safe|strict`
+- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_body_limit <bytes>`
 
-`modsecurity_transaction_id` keeps the existing static-string semantics.
-`modsecurity_transaction_id_expr` is a separate opt-in Apache string expression
-directive. Confirmed syntax includes `%{REQUEST_URI}`. The directives are
-mutually exclusive in the same Apache context, and normal child-context
-overrides apply during config merge. If neither directive is set, or if the
-expression evaluates to an empty value or fails, Apache keeps the existing
-`UNIQUE_ID` fallback and then falls back to creating a transaction without an
-explicit ID.
+`modsecurity_transaction_id` keeps static-string semantics.
+`modsecurity_transaction_id_expr` is a separate opt-in Apache string
+expression. Static and expression transaction IDs are mutually exclusive in the
+same Apache context, and normal child-context overrides apply during config
+merge.
 
-`modsecurity_use_error_log off` only suppresses Apache error-log forwarding from
-the libmodsecurity log callback. It does not change audit logging,
-interventions, hooks, filters, buckets, transaction ownership, or request and
-response handling.
-
-Apache does not currently implement the NGINX phase-4 directives:
-
-- `modsecurity_phase4_mode`
-- `modsecurity_phase4_content_types_file`
-- `modsecurity_phase4_log`
+Apache Phase 4 support is bounded. The connector can inspect buffered response
+bytes, log Phase 4 decisions, and record strict-abort evidence when a disruptive
+intervention arrives after response commit. It is not a full RESPONSE_BODY
+promotion.
 
 ## NGINX Directives
 
@@ -69,30 +70,50 @@ The NGINX connector currently registers:
 
 NGINX `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
 per-request variables. Apache expression transaction IDs use
-`modsecurity_transaction_id_expr` instead. The NGINX phase-4 directives remain
-NGINX-specific runtime controls and are not a common connector contract.
+`modsecurity_transaction_id_expr` instead. NGINX Phase 4 support is bounded
+strict-abort evidence and not full RESPONSE_BODY promotion.
 
-## Deferred and Risky Areas
+## HAProxy Configuration Surface
 
-Apache phase-4 parity is intentionally not implemented yet. Response body
-behavior remains not promoted, and `RESPONSE_BODY` is not treated as a verified
-blocking capability by this documentation update.
+HAProxy does not implement Apache/NGINX `modsecurity_*` directives. The current
+production path is:
 
-Bucket brigades, input and output filters, intervention runtime paths, hook
-registration, transaction ownership, and request/response lifecycle behavior
-remain connector-specific runtime areas. They are outside this documentation
-change and must not be moved to `common/` without a separate design and smoke
-evidence.
+```text
+HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurity
+```
+
+Supported configuration is split across:
+
+- HAProxy config: `filter spoe engine modsecurity`,
+  `http-request send-spoe-group`, `http-response send-spoe-group`, and
+  enforcement rules that read `txn.modsec.*` variables.
+- SPOE config: request and response message argument mapping in
+  `spoe-modsecurity.conf`.
+- SPOA agent config: `listen`, `rules-file`, `decision-log`, `audit-log`,
+  `mode`, `fail-mode`, `request-body-limit`, `response-body-limit`, and
+  `response-body-timeout`.
+
+HAProxy runtime evidence includes request phases 1/2, implemented phase 3
+response headers, decision/audit logs, and bounded Phase 4 strict-abort
+evidence. There is no synthetic matrix writer.
+
+## Deferred And Risky Areas
+
+Bucket brigades, input and output filters, body buffering, intervention runtime
+paths, hook/filter ordering, transaction ownership, and request/response
+lifecycle behavior remain connector-specific. They must not be moved into
+`common/` without a separate design and runtime evidence.
+
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.
 
 ## Common Metadata
 
 `common/include/msconnector/directives.h` contains shared directive-name
-metadata used by both Apache and NGINX.
+metadata used by Apache and NGINX.
 
-`common/include/msconnector/options.h` contains shared option/default metadata.
-NGINX currently uses the common defaults for enablement, error-log forwarding,
-and phase-4 mode. Apache uses common bool values for error-log policy.
-
-These headers contain no Apache types, no NGINX types, no hooks, no filters, no
-bucket brigades, no transaction ownership, and no request or response-body
+`common/include/msconnector/options.h` contains shared option/default metadata
+for enablement, logging policy, and bounded Phase 4 options. These headers
+contain no Apache types, no NGINX types, no HAProxy types, no hooks, no filters,
+no bucket brigades, no transaction ownership, and no request or response-body
 runtime behavior.
