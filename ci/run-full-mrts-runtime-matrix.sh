@@ -1,0 +1,125 @@
+#!/bin/sh
+set -u
+
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(CDPATH= cd "$(dirname "$0")/.." && pwd)}"
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}"
+SOURCE_ROOT="${SOURCE_ROOT:-/src}"
+BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
+TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}"
+LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
+PYTHON="${PYTHON:-python3}"
+PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
+FORCE_ALL_CASES="${FORCE_ALL_CASES:-1}"
+COMMON_SH="$FRAMEWORK_ROOT/ci/common.sh"
+if [ -f "$COMMON_SH" ]; then
+    . "$COMMON_SH"
+fi
+
+FULL_MATRIX_RESULTS_ROOT="${FULL_MATRIX_RESULTS_ROOT:-$BUILD_ROOT/results/full-matrix}"
+FULL_MATRIX_LOG_ROOT="${FULL_MATRIX_LOG_ROOT:-$LOG_ROOT/full-matrix}"
+FULL_MATRIX_REPORT_DIR="${FULL_MATRIX_REPORT_DIR:-$CONNECTOR_ROOT/reports/testing/generated}"
+FULL_MATRIX_MANIFEST="${FULL_MATRIX_MANIFEST:-$FULL_MATRIX_RESULTS_ROOT/full-runtime-matrix-runs.jsonl}"
+
+export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT
+export PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES
+
+mkdir -p "$FULL_MATRIX_RESULTS_ROOT" "$FULL_MATRIX_LOG_ROOT" "$FULL_MATRIX_REPORT_DIR"
+: > "$FULL_MATRIX_MANIFEST"
+
+prepare_haproxy_crs_preamble() {
+    if [ "$1" != "haproxy" ] || [ "$2" != "with-crs" ]; then
+        return 0
+    fi
+    sh "$FRAMEWORK_ROOT/ci/fetch-crs.sh"
+    sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
+    MODSECURITY_RULE_PREAMBLE_FILE="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
+    export MODSECURITY_RULE_PREAMBLE_FILE
+}
+
+run_one() {
+    test_variant=$1
+    mrts_variant=$2
+    connector=$3
+
+    results_dir="$FULL_MATRIX_RESULTS_ROOT/$test_variant/$mrts_variant/$connector"
+    log_dir="$FULL_MATRIX_LOG_ROOT/$test_variant/$mrts_variant"
+    log_path="$log_dir/$connector.log"
+    summary_path="$results_dir/$connector-summary.json"
+
+    mkdir -p "$log_dir"
+    rm -rf "$results_dir"
+    mkdir -p "$results_dir"
+    : > "$log_path"
+
+    echo "full-matrix: running connector=$connector test_variant=$test_variant mrts_variant=$mrts_variant results=$results_dir"
+    started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+    MODSECURITY_RULE_PREAMBLE_FILE=
+    if prepare_haproxy_crs_preamble "$connector" "$test_variant" >> "$log_path" 2>&1; then
+        env \
+            FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+            SOURCE_ROOT="$SOURCE_ROOT" \
+            BUILD_ROOT="$BUILD_ROOT" \
+            TMP_ROOT="$TMP_ROOT" \
+            LOG_ROOT="$LOG_ROOT" \
+            RESULTS_DIR="$results_dir" \
+            MODSECURITY_TEST_VARIANT="$test_variant" \
+            MODSECURITY_MRTS_VARIANT="$mrts_variant" \
+            MODSECURITY_RULE_PREAMBLE_FILE="$MODSECURITY_RULE_PREAMBLE_FILE" \
+            FORCE_ALL_CASES="$FORCE_ALL_CASES" \
+            PYTHONDONTWRITEBYTECODE="$PYTHONDONTWRITEBYTECODE" \
+            make -C "$CONNECTOR_ROOT" "smoke-$connector" >> "$log_path" 2>&1
+        rc=$?
+    else
+        rc=$?
+        echo "full-matrix: blocked preparing connector=$connector test_variant=$test_variant rc=$rc" >> "$log_path"
+    fi
+    ended_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+    echo "full-matrix: finished connector=$connector test_variant=$test_variant mrts_variant=$mrts_variant rc=$rc log=$log_path"
+
+    RUN_CONNECTOR="$connector" \
+    RUN_TEST_VARIANT="$test_variant" \
+    RUN_MRTS_VARIANT="$mrts_variant" \
+    RUN_RC="$rc" \
+    RUN_STARTED_AT="$started_at" \
+    RUN_ENDED_AT="$ended_at" \
+    RUN_RESULTS_DIR="$results_dir" \
+    RUN_SUMMARY_PATH="$summary_path" \
+    RUN_LOG_PATH="$log_path" \
+    "$PYTHON" - <<'PY' >> "$FULL_MATRIX_MANIFEST"
+import json
+import os
+
+print(json.dumps({
+    "connector": os.environ["RUN_CONNECTOR"],
+    "test_variant": os.environ["RUN_TEST_VARIANT"],
+    "mrts_variant": os.environ["RUN_MRTS_VARIANT"],
+    "return_code": int(os.environ["RUN_RC"]),
+    "started_at": os.environ["RUN_STARTED_AT"],
+    "ended_at": os.environ["RUN_ENDED_AT"],
+    "results_dir": os.environ["RUN_RESULTS_DIR"],
+    "summary_path": os.environ["RUN_SUMMARY_PATH"],
+    "log_path": os.environ["RUN_LOG_PATH"],
+}, sort_keys=True))
+PY
+}
+
+for test_variant in no-crs with-crs; do
+    for mrts_variant in no-mrts with-mrts; do
+        for connector in apache nginx haproxy; do
+            run_one "$test_variant" "$mrts_variant" "$connector"
+        done
+    done
+done
+
+"$PYTHON" "$CONNECTOR_ROOT/ci/generate-full-runtime-matrix.py" \
+    --connector-root "$CONNECTOR_ROOT" \
+    --framework-root "$FRAMEWORK_ROOT" \
+    --build-root "$BUILD_ROOT" \
+    --log-root "$LOG_ROOT" \
+    --manifest "$FULL_MATRIX_MANIFEST" \
+    --output-dir "$FULL_MATRIX_REPORT_DIR"
+report_rc=$?
+
+echo "full-matrix: manifest=$FULL_MATRIX_MANIFEST"
+echo "full-matrix: report=$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.md"
+exit "$report_rc"
