@@ -1,5 +1,5 @@
 #!/bin/sh
-set -u
+set -eu
 
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(CDPATH= cd "$(dirname "$0")/.." && pwd)}"
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}"
@@ -31,44 +31,75 @@ terminate_jobs() {
     for pid in $pids; do
         kill "$pid" >/dev/null 2>&1 || true
     done
+    return 0
+}
+
+safe_rm_rf() {
+    target=$1
+    parent=$2
+    label=$3
+
+    case "$target" in
+        "$parent"/*) ;;
+        *)
+            echo "ERROR: refusing to remove $label outside $parent: $target" >&2
+            return 2
+            ;;
+    esac
+    rm -rf "$target"
+    return 0
 }
 
 trap 'terminate_jobs; exit 77' INT TERM
 
 variant_base_port() {
-    case "$1/$2" in
+    test_variant=$1
+    mrts_variant=$2
+
+    case "$test_variant/$mrts_variant" in
         no-crs/no-mrts) printf '%s\n' 18000 ;;
         no-crs/with-mrts) printf '%s\n' 21000 ;;
         with-crs/no-mrts) printf '%s\n' 24000 ;;
         with-crs/with-mrts) printf '%s\n' 27000 ;;
-        *) echo "ERROR: unsupported variant $1/$2" >&2; exit 2 ;;
+        *) echo "ERROR: unsupported variant $test_variant/$mrts_variant" >&2; return 2 ;;
     esac
+    return 0
 }
 
 connector_offset() {
-    case "$1" in
+    connector=$1
+
+    case "$connector" in
         apache) printf '%s\n' 0 ;;
         nginx) printf '%s\n' 1000 ;;
         haproxy) printf '%s\n' 2000 ;;
-        *) echo "ERROR: unsupported connector $1" >&2; exit 2 ;;
+        *) echo "ERROR: unsupported connector $connector" >&2; return 2 ;;
     esac
+    return 0
 }
 
 validate_matrix_connectors() {
     for connector in $FULL_MATRIX_CONNECTORS; do
         case "$connector" in
             apache|nginx|haproxy) ;;
-            *) echo "ERROR: unsupported FULL_MATRIX_CONNECTORS item: $connector" >&2; exit 2 ;;
+            *) echo "ERROR: unsupported FULL_MATRIX_CONNECTORS item: $connector" >&2; return 2 ;;
         esac
     done
+    return 0
 }
 
 summary_path_for() {
-    printf '%s/%s-summary.json\n' "$1" "$2"
+    results_dir=$1
+    connector=$2
+
+    printf '%s/%s-summary.json\n' "$results_dir" "$connector"
+    return 0
 }
 
 shared_connector_ready() {
-    case "$1" in
+    connector=$1
+
+    case "$connector" in
         apache)
             [ -x "$SHARED_BUILD_ROOT/apache-runtime/httpd/bin/httpd" ] &&
                 [ -f "$SHARED_BUILD_ROOT/apache-build/output/apache/mod_security3.so" ] &&
@@ -84,6 +115,7 @@ shared_connector_ready() {
                 [ -x "$SHARED_BUILD_ROOT/haproxy-spoa-runtime/haproxy-modsecurity-spoa" ] &&
                 [ -f "$SHARED_BUILD_ROOT/haproxy-modsecurity-binding/paths.env" ]
             ;;
+        *) return 1 ;;
     esac
 }
 
@@ -113,7 +145,7 @@ prepare_shared_connector() {
         PYTHONDONTWRITEBYTECODE="$PYTHONDONTWRITEBYTECODE" \
         make -C "$CONNECTOR_ROOT" "smoke-$connector" > "$prep_root/run.log" 2>&1
     rc=$?
-    set -u
+    set -eu
     printf '%s\n' "$rc" > "$prep_root/exit.code"
     if [ "$rc" -ne 0 ]; then
         echo "full-matrix-parallel: shared $connector prepare exited $rc; runtime jobs will report blockers if artifacts are unavailable"
@@ -125,6 +157,7 @@ prepare_shared_builds() {
     for connector in $FULL_MATRIX_CONNECTORS; do
         prepare_shared_connector "$connector"
     done
+    return 0
 }
 
 prepare_batch() {
@@ -164,6 +197,7 @@ prepare_batch() {
             sh "$FRAMEWORK_ROOT/ci/fetch-crs.sh" > "$batch_root/crs-fetch.log" 2>&1 || \
             echo "full-matrix-parallel: CRS fetch failed for $test_variant/$mrts_variant; jobs may block"
     fi
+    return 0
 }
 
 run_job() {
@@ -183,7 +217,7 @@ run_job() {
     job_json="$job_root/job.json"
     summary_path=$(summary_path_for "$results_dir" "$connector")
 
-    rm -rf "$job_root"
+    safe_rm_rf "$job_root" "$MATRIX_ROOT" "matrix job root"
     mkdir -p "$job_build_root" "$job_tmp_root" "$job_log_root" "$results_dir"
     : > "$run_log"
     printf '%s\n' "$summary_path" > "$summary_path_file"
@@ -246,7 +280,7 @@ run_job() {
             echo "unsupported connector: $connector" >> "$run_log"
             ;;
     esac
-    set -u
+    set -eu
     ended_epoch=$(date +%s)
     ended_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
     duration=$((ended_epoch - started_epoch))
@@ -294,6 +328,7 @@ append_job_json() {
         cat "$job_json" >> "$FULL_MATRIX_MANIFEST"
         printf '\n' >> "$FULL_MATRIX_MANIFEST"
     fi
+    return 0
 }
 
 collect_batch_ports() {
@@ -306,6 +341,7 @@ collect_batch_ports() {
         fi
     done
     sort -u "$ports_file" -o "$ports_file"
+    return 0
 }
 
 check_ports_free() {
@@ -333,6 +369,7 @@ if busy:
     print("busy ports after batch: " + " ".join(map(str, busy)), file=sys.stderr)
     sys.exit(1)
 PY
+    return 0
 }
 
 run_batch() {
@@ -360,9 +397,7 @@ run_batch() {
 
     batch_rc=0
     for pid in $pids; do
-        wait "$pid"
-        rc=$?
-        if [ "$rc" -ne 0 ]; then
+        if ! wait "$pid"; then
             batch_rc=1
         fi
     done
@@ -396,6 +431,7 @@ for variant in $FULL_MATRIX_VARIANTS; do
     echo "full-matrix-parallel: batch end $test_variant/$mrts_variant"
 done
 
+set +e
 "$PYTHON" "$CONNECTOR_ROOT/ci/generate-full-runtime-matrix.py" \
     --connector-root "$CONNECTOR_ROOT" \
     --framework-root "$FRAMEWORK_ROOT" \
@@ -420,6 +456,7 @@ work_queue_rc=$?
     --phase-coverage "$FULL_MATRIX_REPORT_DIR/phase-coverage.generated.md" \
     --full-runtime-matrix "$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.json"
 phase_work_queue_rc=$?
+set -eu
 
 echo "full-matrix-parallel: manifest=$FULL_MATRIX_MANIFEST"
 echo "full-matrix-parallel: report=$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.md"

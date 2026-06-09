@@ -39,6 +39,8 @@
 
 #define SPOP_ACT_SET_VAR 1U
 #define SPOP_SCOPE_TXN 2U
+#define RUNTIME_PATH_LIMIT 4096U
+#define RUNTIME_TEXT_LIMIT 65536U
 
 typedef struct spop_buffer {
     unsigned char data[SPOP_FRAME_MAX];
@@ -170,6 +172,39 @@ static void log_line(FILE *log, const char *fmt, ...) {
     fflush(log);
 }
 
+static int bounded_cstring_length(const char *value, size_t max_len, size_t *out_len) {
+    const char *end = 0;
+
+    if (value == 0 || out_len == 0 || max_len == 0) {
+        return -1;
+    }
+    end = (const char *)memchr(value, '\0', max_len);
+    if (end == 0) {
+        return -1;
+    }
+    *out_len = (size_t)(end - value);
+    return 0;
+}
+
+static size_t safe_cstring_length(const char *value, size_t max_len) {
+    size_t len = 0;
+
+    if (bounded_cstring_length(value, max_len, &len) != 0) {
+        return 0;
+    }
+    return len;
+}
+
+static void close_owned_stream(FILE **stream, FILE *standard_stream) {
+    if (stream == 0 || *stream == 0) {
+        return;
+    }
+    if (*stream != standard_stream) {
+        fclose(*stream);
+    }
+    *stream = 0;
+}
+
 static int mkdir_p(const char *path) {
     char tmp[4096];
     char *p;
@@ -178,8 +213,7 @@ static int mkdir_p(const char *path) {
     if (path == 0 || path[0] == '\0') {
         return -1;
     }
-    len = strlen(path);
-    if (len >= sizeof(tmp)) {
+    if (bounded_cstring_length(path, sizeof(tmp), &len) != 0) {
         return -1;
     }
     memcpy(tmp, path, len + 1);
@@ -189,13 +223,13 @@ static int mkdir_p(const char *path) {
     for (p = tmp + 1; *p != '\0'; ++p) {
         if (*p == '/') {
             *p = '\0';
-            if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+            if (mkdir(tmp, S_IRWXU) != 0 && errno != EEXIST) {
                 return -1;
             }
             *p = '/';
         }
     }
-    if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+    if (mkdir(tmp, S_IRWXU) != 0 && errno != EEXIST) {
         return -1;
     }
     return 0;
@@ -210,7 +244,8 @@ static int dirname_to_buffer(const char *path, char *out, size_t out_len) {
         if (out_len < 2) {
             return -1;
         }
-        strcpy(out, ".");
+        out[0] = '.';
+        out[1] = '\0';
         return 0;
     }
     len = (size_t)(slash - path);
@@ -347,7 +382,11 @@ static int read_varint(const unsigned char *data, size_t len, size_t *pos, uint6
 }
 
 static int append_string(spop_buffer *buf, const char *value) {
-    size_t len = strlen(value);
+    size_t len;
+
+    if (bounded_cstring_length(value, SPOP_FRAME_MAX, &len) != 0) {
+        return -1;
+    }
     if (append_varint(buf, len) != 0) {
         return -1;
     }
@@ -397,14 +436,21 @@ static int read_string_ref(const unsigned char *data, size_t len, size_t *pos, c
 }
 
 static int key_equals(const unsigned char *key, size_t key_len, const char *expected) {
-    size_t expected_len = strlen(expected);
+    size_t expected_len;
+
+    if (bounded_cstring_length(expected, RUNTIME_TEXT_LIMIT, &expected_len) != 0) {
+        return 0;
+    }
     return key_len == expected_len && memcmp(key, expected, expected_len) == 0;
 }
 
 static int contains_bytes(const unsigned char *value, size_t value_len, const char *needle) {
-    size_t needle_len = strlen(needle);
+    size_t needle_len;
     size_t i;
 
+    if (bounded_cstring_length(needle, RUNTIME_TEXT_LIMIT, &needle_len) != 0) {
+        return 0;
+    }
     if (needle_len == 0 || value_len < needle_len) {
         return 0;
     }
@@ -1036,13 +1082,19 @@ static int parse_notify_payload(const unsigned char *data, size_t len, notify_re
                 } else if (key_equals(arg_name, arg_name_len, "response_header_server")) {
                     header_name = "Server";
                 }
-                if (present && header_value[0] != '\0' &&
-                        add_request_header(request,
-                            (const unsigned char *)header_name,
-                            strlen(header_name),
-                            (const unsigned char *)header_value,
-                            strlen(header_value)) != 0) {
-                    return -1;
+                if (present && header_value[0] != '\0') {
+                    size_t header_name_len = 0;
+                    size_t header_value_len = 0;
+
+                    if (bounded_cstring_length(header_name, RUNTIME_TEXT_LIMIT, &header_name_len) != 0 ||
+                            bounded_cstring_length(header_value, sizeof(header_value), &header_value_len) != 0 ||
+                            add_request_header(request,
+                                (const unsigned char *)header_name,
+                                header_name_len,
+                                (const unsigned char *)header_value,
+                                header_value_len) != 0) {
+                        return -1;
+                    }
                 }
                 request->is_response = 1;
                 continue;
@@ -1359,17 +1411,17 @@ static int send_haproxy_hello(int fd, int healthcheck) {
 static void config_init(agent_config *config) {
     memset(config, 0, sizeof(*config));
     copy_spop_string(config->host, sizeof(config->host),
-        (const unsigned char *)"127.0.0.1", strlen("127.0.0.1"));
+        (const unsigned char *)"127.0.0.1", sizeof("127.0.0.1") - 1U);
     copy_spop_string(config->mode, sizeof(config->mode),
-        (const unsigned char *)"block", strlen("block"));
+        (const unsigned char *)"block", sizeof("block") - 1U);
     copy_spop_string(config->fail_mode, sizeof(config->fail_mode),
-        (const unsigned char *)"closed", strlen("closed"));
+        (const unsigned char *)"closed", sizeof("closed") - 1U);
     copy_spop_string(config->runtime_mode, sizeof(config->runtime_mode),
-        (const unsigned char *)"production", strlen("production"));
+        (const unsigned char *)"production", sizeof("production") - 1U);
     copy_spop_string(config->variant, sizeof(config->variant),
-        (const unsigned char *)"-", strlen("-"));
+        (const unsigned char *)"-", sizeof("-") - 1U);
     copy_spop_string(config->log_file, sizeof(config->log_file),
-        (const unsigned char *)"-", strlen("-"));
+        (const unsigned char *)"-", sizeof("-") - 1U);
     config->request_body_limit = 65532U;
     config->response_body_limit = 0U;
     config->response_body_timeout_ms = 0U;
@@ -1410,7 +1462,7 @@ static int config_set(agent_config *config, const char *key, const char *value) 
     }
     if (strcmp(key, "host") == 0) {
         copy_spop_string(config->host, sizeof(config->host),
-            (const unsigned char *)value, strlen(value));
+            (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT));
         return 0;
     }
     if (strcmp(key, "port") == 0) {
@@ -1420,7 +1472,7 @@ static int config_set(agent_config *config, const char *key, const char *value) 
 #define SET_STRING_FIELD(name, field) \
     if (strcmp(key, name) == 0) { \
         copy_spop_string(config->field, sizeof(config->field), \
-            (const unsigned char *)value, strlen(value)); \
+            (const unsigned char *)value, safe_cstring_length(value, RUNTIME_TEXT_LIMIT)); \
         return 0; \
     }
     SET_STRING_FIELD("ready-file", ready_file)
@@ -1487,11 +1539,15 @@ static int config_set(agent_config *config, const char *key, const char *value) 
 
 static char *trim_in_place(char *value) {
     char *end;
+    size_t len;
 
     while (*value == ' ' || *value == '\t' || *value == '\r' || *value == '\n') {
         value++;
     }
-    end = value + strlen(value);
+    if (bounded_cstring_length(value, RUNTIME_TEXT_LIMIT, &len) != 0) {
+        return value;
+    }
+    end = value + len;
     while (end > value && (end[-1] == ' ' || end[-1] == '\t' ||
             end[-1] == '\r' || end[-1] == '\n')) {
         *--end = '\0';
@@ -1544,11 +1600,13 @@ static int mode_enforces(const agent_config *config) {
 }
 
 static void json_write_string(FILE *file, const char *value) {
-    const unsigned char *p = (const unsigned char *)(value != 0 ? value : "");
+    const char *safe_value = value != 0 ? value : "";
+    size_t value_len = safe_cstring_length(safe_value, RUNTIME_TEXT_LIMIT);
+    size_t i;
 
     fputc('"', file);
-    while (*p != '\0') {
-        unsigned char ch = *p++;
+    for (i = 0; i < value_len; ++i) {
+        unsigned char ch = (unsigned char)safe_value[i];
         switch (ch) {
             case '\\':
                 fputs("\\\\", file);
@@ -1727,7 +1785,8 @@ static int transaction_cache_store(
         slot = transaction_slot_for_store(state);
     }
     copy_spop_string(slot->request_id, sizeof(slot->request_id),
-        (const unsigned char *)request_id, strlen(request_id));
+        (const unsigned char *)request_id,
+        safe_cstring_length(request_id, RUNTIME_TEXT_LIMIT));
     slot->transaction = transaction;
     slot->updated = time(0);
     return 0;
@@ -1768,15 +1827,18 @@ static void runtime_init_decision(
         const char *action,
         int status,
         const char *message) {
+    const char *safe_action = action != 0 ? action : "pass";
+    const char *safe_message = message != 0 ? message : "";
+
     memset(decision, 0, sizeof(*decision));
     decision->phase = phase;
     decision->status = status;
     copy_spop_string(decision->action, sizeof(decision->action),
-        (const unsigned char *)(action != 0 ? action : "pass"),
-        strlen(action != 0 ? action : "pass"));
+        (const unsigned char *)safe_action,
+        safe_cstring_length(safe_action, RUNTIME_TEXT_LIMIT));
     copy_spop_string(decision->log_message, sizeof(decision->log_message),
-        (const unsigned char *)(message != 0 ? message : ""),
-        strlen(message != 0 ? message : ""));
+        (const unsigned char *)safe_message,
+        safe_cstring_length(safe_message, RUNTIME_TEXT_LIMIT));
 }
 
 static int handle_connection(int fd, agent_state *state, FILE *log, const char *rules_file, const char *crs_preamble_file) {
@@ -2367,9 +2429,7 @@ static int run_agent_server(const agent_config *config) {
         decision_log = open_append_file_or_standard(config->decision_log, stdout);
         if (decision_log == 0) {
             fprintf(stderr, "failed to open decision log: %s\n", config->decision_log);
-            if (log != stderr) {
-                fclose(log);
-            }
+            close_owned_stream(&log, stderr);
             return 77;
         }
     }
@@ -2385,23 +2445,15 @@ static int run_agent_server(const agent_config *config) {
     if (haproxy_modsecurity_engine_create(&engine_config, &state.engine, &decision) != 0) {
         fprintf(stderr, "failed to initialize ModSecurity engine: %s\n",
             decision.log_message[0] != '\0' ? decision.log_message : "unknown");
-        if (decision_log != 0 && decision_log != stdout) {
-            fclose(decision_log);
-        }
-        if (log != stderr) {
-            fclose(log);
-        }
+        close_owned_stream(&decision_log, stdout);
+        close_owned_stream(&log, stderr);
         return 77;
     }
     if (transaction_cache_init(&state) != 0) {
         fprintf(stderr, "failed to allocate transaction cache\n");
         haproxy_modsecurity_engine_destroy(state.engine);
-        if (decision_log != 0 && decision_log != stdout) {
-            fclose(decision_log);
-        }
-        if (log != stderr) {
-            fclose(log);
-        }
+        close_owned_stream(&decision_log, stdout);
+        close_owned_stream(&log, stderr);
         return 77;
     }
 
@@ -2410,12 +2462,8 @@ static int run_agent_server(const agent_config *config) {
         fprintf(stderr, "failed to bind %s:%u\n", config->host, config->port);
         transaction_cache_destroy(&state);
         haproxy_modsecurity_engine_destroy(state.engine);
-        if (decision_log != 0 && decision_log != stdout) {
-            fclose(decision_log);
-        }
-        if (log != stderr) {
-            fclose(log);
-        }
+        close_owned_stream(&decision_log, stdout);
+        close_owned_stream(&log, stderr);
         return 77;
     }
     if ((config->pid_file[0] != '\0' && write_text_file(config->pid_file, "%ld\n", (long)getpid()) != 0) ||
@@ -2424,12 +2472,8 @@ static int run_agent_server(const agent_config *config) {
         close(listen_fd);
         transaction_cache_destroy(&state);
         haproxy_modsecurity_engine_destroy(state.engine);
-        if (decision_log != 0 && decision_log != stdout) {
-            fclose(decision_log);
-        }
-        if (log != stderr) {
-            fclose(log);
-        }
+        close_owned_stream(&decision_log, stdout);
+        close_owned_stream(&log, stderr);
         return 77;
     }
     log_line(log,
@@ -2442,12 +2486,8 @@ static int run_agent_server(const agent_config *config) {
     close(listen_fd);
     transaction_cache_destroy(&state);
     haproxy_modsecurity_engine_destroy(state.engine);
-    if (decision_log != 0 && decision_log != stdout) {
-        fclose(decision_log);
-    }
-    if (log != stderr) {
-        fclose(log);
-    }
+    close_owned_stream(&decision_log, stdout);
+    close_owned_stream(&log, stderr);
     return rc;
 }
 

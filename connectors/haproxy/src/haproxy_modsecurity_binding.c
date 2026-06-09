@@ -13,6 +13,21 @@
 #include <modsecurity/transaction.h>
 
 #define HAPROXY_MODSECURITY_EXPECTED_STATUS 403
+#define HAPROXY_PATH_LIMIT 4096U
+
+static int bounded_cstring_length(const char *value, size_t max_len, size_t *out_len) {
+    const char *end = 0;
+
+    if (value == 0 || out_len == 0 || max_len == 0) {
+        return -1;
+    }
+    end = (const char *)memchr(value, '\0', max_len);
+    if (end == 0) {
+        return -1;
+    }
+    *out_len = (size_t)(end - value);
+    return 0;
+}
 
 static void copy_message(char *dst, size_t dst_len, const char *src) {
     if (dst == 0 || dst_len == 0) {
@@ -73,7 +88,9 @@ static int has_conf_suffix(const char *name) {
     if (name == 0) {
         return 0;
     }
-    len = strlen(name);
+    if (bounded_cstring_length(name, HAPROXY_PATH_LIMIT, &len) != 0) {
+        return 0;
+    }
     return len > 5U && strcmp(name + len - 5U, ".conf") == 0;
 }
 
@@ -103,8 +120,11 @@ static char *join_path(const char *dir, const char *name) {
     if (dir == 0 || name == 0) {
         return 0;
     }
-    dir_len = strlen(dir);
-    name_len = strlen(name);
+    if (bounded_cstring_length(dir, HAPROXY_PATH_LIMIT, &dir_len) != 0 ||
+            bounded_cstring_length(name, HAPROXY_PATH_LIMIT, &name_len) != 0 ||
+            dir_len > SIZE_MAX - name_len - 2U) {
+        return 0;
+    }
     path = (char *)calloc(dir_len + name_len + 2U, 1U);
     if (path == 0) {
         return 0;

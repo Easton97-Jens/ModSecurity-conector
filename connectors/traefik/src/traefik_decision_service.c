@@ -9,16 +9,13 @@ static int string_equals(const char *left, const char *right) {
 static int header_matches(
     const msconnector_header *header,
     const char *name,
-    const char *value) {
-    size_t name_size;
-    size_t value_size;
-
+    size_t name_size,
+    const char *value,
+    size_t value_size) {
     if (header == 0 || name == 0 || value == 0 || header->name == 0 || header->value == 0) {
         return 0;
     }
 
-    name_size = strlen(name);
-    value_size = strlen(value);
     return header->name_size == name_size && header->value_size == value_size &&
         strncmp(header->name, name, name_size) == 0 &&
         strncmp(header->value, value, value_size) == 0;
@@ -35,7 +32,9 @@ static int has_block_header(const msconnector_request *request) {
         if (header_matches(
                 &request->headers[index],
                 "X-ModSecurity-Connector-Decision",
-                "block")) {
+                sizeof("X-ModSecurity-Connector-Decision") - 1U,
+                "block",
+                sizeof("block") - 1U)) {
             return 1;
         }
     }

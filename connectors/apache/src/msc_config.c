@@ -333,7 +333,9 @@ static const char *msc_config_phase4_content_types_file(cmd_parms *cmd,
         {
             *comment = '\0';
         }
-        end = start + strlen(start);
+        for (end = start; *end != '\0'; end++)
+        {
+        }
         while (end > start && apr_isspace(*(end - 1)))
         {
             end--;

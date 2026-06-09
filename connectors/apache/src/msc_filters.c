@@ -126,7 +126,9 @@ static const char *apache_normalized_content_type(apr_pool_t *pool,
     {
         *semi = '\0';
     }
-    end = copy + strlen(copy);
+    for (end = copy; *end != '\0'; end++)
+    {
+    }
     while (end > copy && apr_isspace(*(end - 1)))
     {
         end--;
@@ -195,6 +197,7 @@ static const char *apache_json_escape(apr_pool_t *pool, const char *value)
     char *out;
     char *dst;
     apr_size_t extra = 0;
+    apr_size_t value_len = 0;
 
     if (value == NULL)
     {
@@ -203,13 +206,14 @@ static const char *apache_json_escape(apr_pool_t *pool, const char *value)
 
     for (src = (const unsigned char *)value; *src != '\0'; src++)
     {
+        value_len++;
         if (*src < 0x20 || *src == '"' || *src == '\\')
         {
             extra++;
         }
     }
 
-    out = apr_palloc(pool, strlen(value) + extra + 1);
+    out = apr_palloc(pool, value_len + extra + 1);
     if (out == NULL)
     {
         return "";

@@ -1,5 +1,5 @@
 #!/bin/sh
-set -u
+set -eu
 
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(CDPATH= cd "$(dirname "$0")/.." && pwd)}"
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}"
@@ -28,14 +28,34 @@ export PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES
 mkdir -p "$FULL_MATRIX_RESULTS_ROOT" "$FULL_MATRIX_LOG_ROOT" "$FULL_MATRIX_REPORT_DIR"
 : > "$FULL_MATRIX_MANIFEST"
 
+safe_rm_rf() {
+    target=$1
+    parent=$2
+    label=$3
+
+    case "$target" in
+        "$parent"/*) ;;
+        *)
+            echo "ERROR: refusing to remove $label outside $parent: $target" >&2
+            return 2
+            ;;
+    esac
+    rm -rf "$target"
+    return 0
+}
+
 prepare_haproxy_crs_preamble() {
-    if [ "$1" != "haproxy" ] || [ "$2" != "with-crs" ]; then
+    connector=$1
+    test_variant=$2
+
+    if [ "$connector" != "haproxy" ] || [ "$test_variant" != "with-crs" ]; then
         return 0
     fi
     sh "$FRAMEWORK_ROOT/ci/fetch-crs.sh"
     sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
     MODSECURITY_RULE_PREAMBLE_FILE="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
     export MODSECURITY_RULE_PREAMBLE_FILE
+    return 0
 }
 
 run_one() {
@@ -49,7 +69,7 @@ run_one() {
     summary_path="$results_dir/$connector-summary.json"
 
     mkdir -p "$log_dir"
-    rm -rf "$results_dir"
+    safe_rm_rf "$results_dir" "$FULL_MATRIX_RESULTS_ROOT" "full matrix results directory"
     mkdir -p "$results_dir"
     : > "$log_path"
 
@@ -57,6 +77,7 @@ run_one() {
     started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
     MODSECURITY_RULE_PREAMBLE_FILE=
     if prepare_haproxy_crs_preamble "$connector" "$test_variant" >> "$log_path" 2>&1; then
+        set +e
         env \
             FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
             SOURCE_ROOT="$SOURCE_ROOT" \
@@ -72,6 +93,7 @@ run_one() {
             PYTHONDONTWRITEBYTECODE="$PYTHONDONTWRITEBYTECODE" \
             make -C "$CONNECTOR_ROOT" "smoke-$connector" >> "$log_path" 2>&1
         rc=$?
+        set -eu
     else
         rc=$?
         echo "full-matrix: blocked preparing connector=$connector test_variant=$test_variant rc=$rc" >> "$log_path"
@@ -104,6 +126,7 @@ print(json.dumps({
     "log_path": os.environ["RUN_LOG_PATH"],
 }, sort_keys=True))
 PY
+    return 0
 }
 
 for test_variant in no-crs with-crs; do
@@ -114,6 +137,7 @@ for test_variant in no-crs with-crs; do
     done
 done
 
+set +e
 "$PYTHON" "$CONNECTOR_ROOT/ci/generate-full-runtime-matrix.py" \
     --connector-root "$CONNECTOR_ROOT" \
     --framework-root "$FRAMEWORK_ROOT" \
@@ -122,6 +146,7 @@ done
     --manifest "$FULL_MATRIX_MANIFEST" \
     --output-dir "$FULL_MATRIX_REPORT_DIR"
 report_rc=$?
+set -eu
 
 echo "full-matrix: manifest=$FULL_MATRIX_MANIFEST"
 echo "full-matrix: report=$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.md"

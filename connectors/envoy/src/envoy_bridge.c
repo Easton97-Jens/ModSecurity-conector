@@ -2,19 +2,17 @@
 
 #include <string.h>
 
-static int string_equals(const char *left, size_t left_size, const char *right) {
-    size_t right_size;
+static int string_equals(const char *left, size_t left_size, const char *right, size_t right_size) {
     if (left == 0 || right == 0) {
         return 0;
     }
-    right_size = strlen(right);
     return left_size == right_size && memcmp(left, right, right_size) == 0;
 }
 
 static int value_is_block(const char *value, size_t value_size) {
-    return string_equals(value, value_size, "1") ||
-        string_equals(value, value_size, "true") ||
-        string_equals(value, value_size, "block");
+    return string_equals(value, value_size, "1", sizeof("1") - 1U) ||
+        string_equals(value, value_size, "true", sizeof("true") - 1U) ||
+        string_equals(value, value_size, "block", sizeof("block") - 1U);
 }
 
 static int uri_contains_bridge_block_query(const char *uri) {
@@ -29,7 +27,8 @@ static int request_has_bridge_block_header(const msconnector_request *request) {
     for (index = 0; index < request->header_count; ++index) {
         const msconnector_header *header = &request->headers[index];
         if (string_equals(header->name, header->name_size,
-                MSCONNECTOR_ENVOY_BRIDGE_BLOCK_HEADER) &&
+                MSCONNECTOR_ENVOY_BRIDGE_BLOCK_HEADER,
+                sizeof(MSCONNECTOR_ENVOY_BRIDGE_BLOCK_HEADER) - 1U) &&
             value_is_block(header->value, header->value_size)) {
             return 1;
         }

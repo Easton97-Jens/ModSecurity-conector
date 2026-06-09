@@ -52,28 +52,48 @@ def read_json(path: Path) -> Any:
         return json.load(handle)
 
 
-def load_manifest(path: Path, build_root: Path, log_root: Path) -> list[RunRecord]:
+def manifest_record(item: dict[str, Any]) -> RunRecord:
+    return RunRecord(
+        connector=item["connector"],
+        test_variant=item["test_variant"],
+        mrts_variant=item["mrts_variant"],
+        return_code=item.get("return_code", item.get("exit_code")),
+        results_dir=Path(item["results_dir"]),
+        summary_path=Path(item.get("summary_path") or item.get("runtime_summary_path")),
+        log_path=Path(item["log_path"]),
+        started_at=item.get("started_at", ""),
+        ended_at=item.get("ended_at", ""),
+        duration_seconds=item.get("duration_seconds"),
+    )
+
+
+def default_record(build_root: Path, log_root: Path, test_variant: str, mrts_variant: str, connector: str) -> RunRecord:
+    results_dir = build_root / "results" / "full-matrix" / test_variant / mrts_variant / connector
+    return RunRecord(
+        connector=connector,
+        test_variant=test_variant,
+        mrts_variant=mrts_variant,
+        return_code=None,
+        results_dir=results_dir,
+        summary_path=results_dir / f"{connector}-summary.json",
+        log_path=log_root / "full-matrix" / test_variant / mrts_variant / f"{connector}.log",
+    )
+
+
+def manifest_records(path: Path) -> list[RunRecord]:
+    if not path.is_file():
+        return []
+
     records: list[RunRecord] = []
-    by_key: set[tuple[str, str, str]] = set()
-    if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            item = json.loads(line)
-            record = RunRecord(
-                connector=item["connector"],
-                test_variant=item["test_variant"],
-                mrts_variant=item["mrts_variant"],
-                return_code=item.get("return_code", item.get("exit_code")),
-                results_dir=Path(item["results_dir"]),
-                summary_path=Path(item.get("summary_path") or item.get("runtime_summary_path")),
-                log_path=Path(item["log_path"]),
-                started_at=item.get("started_at", ""),
-                ended_at=item.get("ended_at", ""),
-                duration_seconds=item.get("duration_seconds"),
-            )
-            records.append(record)
-            by_key.add((record.test_variant, record.mrts_variant, record.connector))
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        records.append(manifest_record(json.loads(line)))
+    return records
+
+
+def append_missing_manifest_records(records: list[RunRecord], build_root: Path, log_root: Path) -> None:
+    by_key = {(record.test_variant, record.mrts_variant, record.connector) for record in records}
 
     for test_variant in TEST_VARIANTS:
         for mrts_variant in MRTS_VARIANTS:
@@ -81,18 +101,12 @@ def load_manifest(path: Path, build_root: Path, log_root: Path) -> list[RunRecor
                 key = (test_variant, mrts_variant, connector)
                 if key in by_key:
                     continue
-                results_dir = build_root / "results" / "full-matrix" / test_variant / mrts_variant / connector
-                records.append(
-                    RunRecord(
-                        connector=connector,
-                        test_variant=test_variant,
-                        mrts_variant=mrts_variant,
-                        return_code=None,
-                        results_dir=results_dir,
-                        summary_path=results_dir / f"{connector}-summary.json",
-                        log_path=log_root / "full-matrix" / test_variant / mrts_variant / f"{connector}.log",
-                    )
-                )
+                records.append(default_record(build_root, log_root, test_variant, mrts_variant, connector))
+
+
+def load_manifest(path: Path, build_root: Path, log_root: Path) -> list[RunRecord]:
+    records = manifest_records(path)
+    append_missing_manifest_records(records, build_root, log_root)
     return records
 
 
@@ -163,21 +177,25 @@ def summarize_cases(cases: dict[str, dict[str, Any]]) -> Counter[str]:
     return counts
 
 
-def populate_record(record: RunRecord) -> None:
-    if record.duration_seconds is None:
-        record.duration_seconds = duration_seconds(record.started_at, record.ended_at)
-    if not record.summary_path.is_file():
-        if record.return_code is not None or record.started_at:
-            record.outcome = "BLOCKED"
-            record.blocked = 1
-            record.missing_summary = True
-            record.missing_summary_reason = f"summary JSON missing: {record.summary_path}"
-        return
-
+def load_summary_data(record: RunRecord) -> dict[str, Any]:
     raw = read_json(record.summary_path)
     data = raw.get(record.connector, raw) if isinstance(raw, dict) else {}
     if not isinstance(data, dict):
-        data = {}
+        return {}
+    return data
+
+
+def mark_missing_summary(record: RunRecord) -> None:
+    if record.return_code is None and not record.started_at:
+        return
+
+    record.outcome = "BLOCKED"
+    record.blocked = 1
+    record.missing_summary = True
+    record.missing_summary_reason = f"summary JSON missing: {record.summary_path}"
+
+
+def apply_case_counts(record: RunRecord, data: dict[str, Any]) -> None:
     summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
     cases = data.get("cases") if isinstance(data.get("cases"), dict) else {}
     record.cases = {str(name): case for name, case in cases.items() if isinstance(case, dict)}
@@ -190,6 +208,8 @@ def populate_record(record: RunRecord) -> None:
     record.not_executable = int(summary.get("not_executable", derived["not_executable"]) or 0)
     record.pending = int(derived["pending"] or 0)
 
+
+def apply_mrts_counts(record: RunRecord) -> None:
     for case in record.cases.values():
         if case_is_feature_demo(case):
             record.feature_demo_cases += 1
@@ -208,6 +228,8 @@ def populate_record(record: RunRecord) -> None:
             record.mrts_upstream["pending"] += 1
         record.mrts_upstream["attempted"] += 1
 
+
+def apply_record_outcome(record: RunRecord) -> None:
     if record.blocked and record.attempted == 0:
         record.outcome = "BLOCKED"
     elif record.failed or (record.return_code not in (None, 0) and record.return_code != 77):
@@ -216,6 +238,18 @@ def populate_record(record: RunRecord) -> None:
         record.outcome = "BLOCKED"
     else:
         record.outcome = "PASS"
+
+
+def populate_record(record: RunRecord) -> None:
+    if record.duration_seconds is None:
+        record.duration_seconds = duration_seconds(record.started_at, record.ended_at)
+    if not record.summary_path.is_file():
+        mark_missing_summary(record)
+        return
+
+    apply_case_counts(record, load_summary_data(record))
+    apply_mrts_counts(record)
+    apply_record_outcome(record)
 
 
 def record_to_json(record: RunRecord) -> dict[str, Any]:
