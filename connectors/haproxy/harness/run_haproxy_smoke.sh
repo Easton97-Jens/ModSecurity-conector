@@ -557,6 +557,12 @@ ensure_local_haproxy() {
 }
 
 ensure_spoa_runtime() {
+    if [ -x "$SPOA_RUNTIME_BIN" ] && [ -f "$MODSECURITY_BINDING_DIR/paths.env" ]; then
+        . "$MODSECURITY_BINDING_DIR/paths.env"
+        export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR
+        [ -n "${MODSECURITY_LIB_DIR:-}" ] || blocked "ModSecurity library directory missing from paths.env"
+        return 0
+    fi
     BUILD_ROOT="$BUILD_ROOT" \
         TMP_ROOT="$TMP_ROOT" \
         LOG_ROOT="$LOG_ROOT" \

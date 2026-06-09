@@ -27,6 +27,7 @@ class RunRecord:
     log_path: Path
     started_at: str = ""
     ended_at: str = ""
+    duration_seconds: int | None = None
     attempted: int = 0
     passed: int = 0
     failed: int = 0
@@ -34,6 +35,8 @@ class RunRecord:
     not_executable: int = 0
     pending: int = 0
     outcome: str = "NOT_RUN"
+    missing_summary: bool = False
+    missing_summary_reason: str = ""
     cases: dict[str, dict[str, Any]] = field(default_factory=dict)
     mrts_upstream: Counter[str] = field(default_factory=Counter)
     feature_demo_cases: int = 0
@@ -56,12 +59,13 @@ def load_manifest(path: Path, build_root: Path, log_root: Path) -> list[RunRecor
                 connector=item["connector"],
                 test_variant=item["test_variant"],
                 mrts_variant=item["mrts_variant"],
-                return_code=item.get("return_code"),
+                return_code=item.get("return_code", item.get("exit_code")),
                 results_dir=Path(item["results_dir"]),
-                summary_path=Path(item["summary_path"]),
+                summary_path=Path(item.get("summary_path") or item.get("runtime_summary_path")),
                 log_path=Path(item["log_path"]),
                 started_at=item.get("started_at", ""),
                 ended_at=item.get("ended_at", ""),
+                duration_seconds=item.get("duration_seconds"),
             )
             records.append(record)
             by_key.add((record.test_variant, record.mrts_variant, record.connector))
@@ -121,6 +125,24 @@ def case_is_feature_demo(case: dict[str, Any]) -> bool:
     )
 
 
+def parse_time(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def duration_seconds(started_at: str, ended_at: str) -> int | None:
+    start = parse_time(started_at)
+    end = parse_time(ended_at)
+    if start is None or end is None:
+        return None
+    seconds = int((end - start).total_seconds())
+    return seconds if seconds >= 0 else None
+
+
 def summarize_cases(cases: dict[str, dict[str, Any]]) -> Counter[str]:
     counts: Counter[str] = Counter()
     for case in cases.values():
@@ -139,12 +161,14 @@ def summarize_cases(cases: dict[str, dict[str, Any]]) -> Counter[str]:
 
 
 def populate_record(record: RunRecord) -> None:
+    if record.duration_seconds is None:
+        record.duration_seconds = duration_seconds(record.started_at, record.ended_at)
     if not record.summary_path.is_file():
-        if record.return_code == 77:
+        if record.return_code is not None or record.started_at:
             record.outcome = "BLOCKED"
             record.blocked = 1
-        elif record.return_code not in (None, 0):
-            record.outcome = "FAIL"
+            record.missing_summary = True
+            record.missing_summary_reason = f"summary JSON missing: {record.summary_path}"
         return
 
     raw = read_json(record.summary_path)
@@ -208,6 +232,9 @@ def record_to_json(record: RunRecord) -> dict[str, Any]:
         "log_path": str(record.log_path),
         "started_at": record.started_at,
         "ended_at": record.ended_at,
+        "duration_seconds": record.duration_seconds,
+        "missing_summary": record.missing_summary,
+        "missing_summary_reason": record.missing_summary_reason,
         "mrts_upstream_config_tests": dict(record.mrts_upstream),
         "feature_demo_runtime_cases": record.feature_demo_cases,
     }
@@ -226,11 +253,11 @@ def markdown(records: list[RunRecord], totals: Counter[str], generated_at: str) 
     lines.append(f"- Pending metadata rows observed in runtime summaries: **{totals['pending']}**")
     lines.append("")
     lines.append("## Variant Results")
-    lines.append("| Connector | Test variant | MRTS variant | Outcome | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending | Summary | Log |")
-    lines.append("|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---|")
+    lines.append("| Connector | Test variant | MRTS variant | Outcome | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending | Duration seconds | Summary | Log |")
+    lines.append("|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|")
     for record in records:
         lines.append(
-            "| {connector} | {test_variant} | {mrts_variant} | {outcome} | {attempted} | {passed} | {failed} | {blocked} | {not_executable} | {pending} | {summary} | {log} |".format(
+            "| {connector} | {test_variant} | {mrts_variant} | {outcome} | {attempted} | {passed} | {failed} | {blocked} | {not_executable} | {pending} | {duration} | {summary} | {log} |".format(
                 connector=record.connector,
                 test_variant=record.test_variant,
                 mrts_variant=record.mrts_variant,
@@ -241,6 +268,7 @@ def markdown(records: list[RunRecord], totals: Counter[str], generated_at: str) 
                 blocked=record.blocked,
                 not_executable=record.not_executable,
                 pending=record.pending,
+                duration=record.duration_seconds if record.duration_seconds is not None else "-",
                 summary=record.summary_path,
                 log=record.log_path,
             )
