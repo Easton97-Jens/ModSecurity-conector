@@ -3,26 +3,26 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-09T14:02:31Z`
+- Generated at: `2026-06-09T14:48:40Z`
 - Runtime evidence rows analyzed: **2632**
-- Queued work rows: **1926**
-- Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **1826** / **4** / **48**
+- Queued work rows: **1718**
+- Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **1508** / **4** / **48**
 - Unknown-phase runtime rows: **20**
 - Recommended order: Phase 1 intervention/blocking, Phase 2 ARGS/ARGS_NAMES, Phase 2 JSON/body, Phase 2 XML/multipart/FILES, Phase 3 headers, Phase 4 response body non-promoted.
 
 | phase | coverage cases | runtime rows | PASS/FAIL/BLOCKED/NOT_EXECUTABLE | active/imported/pending | main work direction |
 |---|---|---|---|---|---|
-| 1 | 105 | 552 | PASS:408, FAIL:136, NOT_EXECUTABLE:8 | active:2, imported:34, pending:69 | intervention_blocking(112) |
-| 2 | 192 | 988 | PASS:270, FAIL:694, NOT_EXECUTABLE:24 | active:5, imported:69, pending:118 | operator_semantics(416) |
-| 3 | 114 | 504 | PASS:28, FAIL:468, NOT_EXECUTABLE:8 | active:1, imported:11, pending:102 | request_routing(204) |
-| 4 | 126 | 568 | PASS:48, FAIL:512, NOT_EXECUTABLE:8 | imported:20, pending:106 | response_body_non_promoted(568) |
+| 1 | 105 | 552 | PASS:412, FAIL:132, NOT_EXECUTABLE:8 | active:2, imported:34, pending:69 | intervention_blocking(116) |
+| 2 | 192 | 988 | PASS:372, FAIL:592, NOT_EXECUTABLE:24 | active:5, imported:69, pending:118 | operator_semantics(319) |
+| 3 | 114 | 504 | PASS:130, FAIL:366, NOT_EXECUTABLE:8 | active:1, imported:11, pending:102 | connector_gap(194) |
+| 4 | 126 | 568 | PASS:154, FAIL:406, NOT_EXECUTABLE:8 | imported:20, pending:106 | response_body_non_promoted(568) |
 
 ## Phase 1 Work Queue
 - Focus: action/intervention, request headers, request URI, cookies, and early blocking
 - Directions: intervention_blocking, request_header_mapping, request_uri_mapping, collection_mapping, audit_log_evidence
 - Goal: Stabilize Phase 1 first because it avoids body and multipart complexity.
-- Top failure patterns: expected_block_got_200(112), expected_200_got_404(8), not_executable(8), expected_block_got_404(6), expected_pass_but_evidence_missing(4), expected_block_got_501(3)
-- Top work directions: intervention_blocking(112), request_uri_mapping(25), collection_mapping(4), request_body_processor(3)
+- Top failure patterns: expected_block_got_200(116), not_executable(8), expected_200_got_404(4), expected_pass_but_evidence_missing(4), expected_block_got_501(3), expected_block_got_404(3)
+- Top work directions: intervention_blocking(116), request_uri_mapping(17), collection_mapping(4), request_body_processor(3)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P0 | haproxy | no-crs/with-mrts | action_deny_phase1 | INTERVENTION | FAIL | 403 | 200 | expected_block_got_200 | intervention_blocking | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/action_deny_phase1/result.json |
@@ -55,8 +55,8 @@ Generated file - do not edit manually.
 - Focus: ARGS, ARGS_NAMES, REQUEST_BODY, JSON, XML, Multipart/FILES, operators, and transformations
 - Directions: intervention_blocking, request_body_processor, json_processor, xml_processor, multipart_files, operator_semantics, transformation_semantics, request_routing
 - Goal: Treat Phase 2 as the largest coverage lever, but split body/XML/multipart work into separate clusters.
-- Top failure patterns: expected_200_got_501(204), expected_block_got_200(158), expected_200_got_404(140), expected_200_got_405(64), expected_block_got_501(60), expected_block_got_405(60)
-- Top work directions: operator_semantics(416), transformation_semantics(76), multipart_files(76), intervention_blocking(62), xml_processor(40), json_processor(32)
+- Top failure patterns: expected_200_got_501(204), expected_block_got_200(182), expected_200_got_404(70), expected_block_got_501(60), expected_block_got_405(36), expected_200_got_405(32)
+- Top work directions: operator_semantics(319), transformation_semantics(76), multipart_files(72), intervention_blocking(66), xml_processor(39), json_processor(32)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P0 | haproxy | no-crs/with-mrts | action_deny_phase2 | INTERVENTION | FAIL | 403 | 200 | expected_block_got_200 | intervention_blocking | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/action_deny_phase2/result.json |
@@ -89,9 +89,9 @@ Generated file - do not edit manually.
 
 #### Phase 2 / ARGS and ARGS_NAMES
 - Runtime rows: **824**
-- Queued rows: **570**
-- Runtime status: PASS:254, FAIL:546, NOT_EXECUTABLE:24
-- Top work directions: operator_semantics(296), transformation_semantics(76), multipart_files(60), intervention_blocking(54), xml_processor(36)
+- Queued rows: **503**
+- Runtime status: PASS:321, FAIL:479, NOT_EXECUTABLE:24
+- Top work directions: operator_semantics(229), transformation_semantics(76), multipart_files(60), intervention_blocking(58), xml_processor(36)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P0 | haproxy | no-crs/with-mrts | audit_log_matched_var_encoded_value | INTERVENTION, ARGS, AUDIT_LOG | FAIL | 403 | 200 | expected_block_got_200 | intervention_blocking | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/audit_log_matched_var_encoded_value/result.json |
@@ -129,15 +129,15 @@ Generated file - do not edit manually.
 | P1 | haproxy | with-crs/with-mrts | request_body_json_block | INTERVENTION, REQUEST_BODY/JSON, REQUEST_BODY | FAIL | 403 | 501 | expected_block_got_501 | json_processor | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/request_body_json_block/result.json |
 | P1 | haproxy | no-crs/with-mrts | request_body_json_invalid_runtime_difference | INTERVENTION, REQUEST_BODY/JSON, REQUEST_BODY | FAIL | 403 | 501 | expected_block_got_501 | json_processor | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/request_body_json_invalid_runtime_difference/result.json |
 | P1 | haproxy | with-crs/with-mrts | request_body_json_invalid_runtime_difference | INTERVENTION, REQUEST_BODY/JSON, REQUEST_BODY | FAIL | 403 | 501 | expected_block_got_501 | json_processor | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/request_body_json_invalid_runtime_difference/result.json |
-| P1 | nginx | no-crs/with-mrts | json_duplicate_keys_runtime_difference | INTERVENTION, REQUEST_BODY/JSON, REQUEST_BODY | FAIL | 403 | 405 | expected_block_got_405 | json_processor | fail: expected HTTP 403, observed 405 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/nginx/logs/nginx-runtime/json_duplicate_keys_runtime_difference/result.json |
+| P1 | nginx | no-crs/with-mrts | json_duplicate_keys_runtime_difference | INTERVENTION, REQUEST_BODY/JSON, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | json_processor | fail: expected HTTP 403, observed 200 | /src/ModSecurity-conector-full-matrix-nginx-routing/no-crs/with-mrts/nginx/logs/nginx-runtime/json_duplicate_keys_runtime_difference/result.json |
 | P1 | nginx | with-crs/with-mrts | json_duplicate_keys_runtime_difference | INTERVENTION, REQUEST_BODY/JSON, REQUEST_BODY | FAIL | 403 | 405 | expected_block_got_405 | json_processor | fail: expected HTTP 403, observed 405 | /src/ModSecurity-conector-full-matrix/with-crs/with-mrts/nginx/logs/nginx-runtime/json_duplicate_keys_runtime_difference/result.json |
-| P1 | nginx | no-crs/with-mrts | json_nested_object_future_compatibility | INTERVENTION, REQUEST_BODY/JSON, REQUEST_BODY | FAIL | 403 | 405 | expected_block_got_405 | json_processor | fail: expected HTTP 403, observed 405 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/nginx/logs/nginx-runtime/json_nested_object_future_compatibility/result.json |
+| P1 | nginx | no-crs/with-mrts | json_nested_object_future_compatibility | INTERVENTION, REQUEST_BODY/JSON, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | json_processor | fail: expected HTTP 403, observed 200 | /src/ModSecurity-conector-full-matrix-nginx-routing/no-crs/with-mrts/nginx/logs/nginx-runtime/json_nested_object_future_compatibility/result.json |
 
 #### Phase 2 / XML
 - Runtime rows: **44**
-- Queued rows: **40**
-- Runtime status: PASS:4, FAIL:40
-- Top work directions: xml_processor(40)
+- Queued rows: **39**
+- Runtime status: PASS:5, FAIL:39
+- Top work directions: xml_processor(39)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P1 | haproxy | no-crs/with-mrts | mrts_100154_mrts_110_xml_100154_1 | INTERVENTION, XML | FAIL | 200 | 501 | expected_200_got_501 | xml_processor | expected HTTP 200; observed HTTP 501 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/mrts_100154_mrts_110_xml_100154_1/result.json |
@@ -158,9 +158,9 @@ Generated file - do not edit manually.
 
 #### Phase 2 / Multipart and FILES
 - Runtime rows: **104**
-- Queued rows: **76**
-- Runtime status: PASS:28, FAIL:60, NOT_EXECUTABLE:16
-- Top work directions: multipart_files(76)
+- Queued rows: **72**
+- Runtime status: PASS:32, FAIL:56, NOT_EXECUTABLE:16
+- Top work directions: multipart_files(72)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P1 | haproxy | no-crs/no-mrts | files_names_mixed_case_filename_gap | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 501 | expected_block_got_501 | multipart_files | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json |
@@ -181,9 +181,9 @@ Generated file - do not edit manually.
 
 #### Phase 2 / Operators
 - Runtime rows: **500**
-- Queued rows: **432**
-- Runtime status: PASS:68, FAIL:432
-- Top work directions: operator_semantics(416), multipart_files(16)
+- Queued rows: **331**
+- Runtime status: PASS:169, FAIL:331
+- Top work directions: operator_semantics(319), multipart_files(12)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P0 | haproxy | no-crs/with-mrts | v2_operator_begins_with_block | INTERVENTION, ARGS, OPERATORS | FAIL | 403 | 200 | expected_block_got_200 | operator_semantics | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_operator_begins_with_block/result.json |
@@ -200,7 +200,7 @@ Generated file - do not edit manually.
 | P0 | haproxy | with-crs/with-mrts | v2_operator_streq_block | INTERVENTION, ARGS, OPERATORS | FAIL | 403 | 200 | expected_block_got_200 | operator_semantics | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_operator_streq_block/result.json |
 | P0 | haproxy | no-crs/with-mrts | v3_operator_rx_block | INTERVENTION, ARGS, OPERATORS | FAIL | 403 | 200 | expected_block_got_200 | operator_semantics | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_operator_rx_block/result.json |
 | P0 | haproxy | with-crs/with-mrts | v3_operator_rx_block | INTERVENTION, ARGS, OPERATORS | FAIL | 403 | 200 | expected_block_got_200 | operator_semantics | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_operator_rx_block/result.json |
-| P0 | nginx | no-crs/with-mrts | v2_operator_begins_with_block | INTERVENTION, ARGS, OPERATORS | FAIL | 403 | 200 | expected_block_got_200 | operator_semantics | fail: expected HTTP 403, observed 200 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/nginx/logs/nginx-runtime/v2_operator_begins_with_block/result.json |
+| P0 | nginx | no-crs/with-mrts | v2_operator_begins_with_block | INTERVENTION, ARGS, OPERATORS | FAIL | 403 | 200 | expected_block_got_200 | operator_semantics | fail: expected HTTP 403, observed 200 | /src/ModSecurity-conector-full-matrix-nginx-routing/no-crs/with-mrts/nginx/logs/nginx-runtime/v2_operator_begins_with_block/result.json |
 
 #### Phase 2 / Transformations
 - Runtime rows: **120**
@@ -229,8 +229,8 @@ Generated file - do not edit manually.
 - Focus: RESPONSE_HEADERS, Set-Cookie, response-header hooks, and audit-log phase 3 evidence
 - Directions: response_header_hook, response_header_mapping, audit_log_evidence, intervention_blocking
 - Goal: Separate response-header hook/mapping work from request-side intervention issues.
-- Top failure patterns: expected_200_got_501(204), expected_200_got_404(140), expected_200_got_405(64), expected_block_got_200(60), not_executable(8)
-- Top work directions: request_routing(204), connector_gap(194), response_header_hook(68), multipart_files(8), xml_processor(2)
+- Top failure patterns: expected_200_got_501(204), expected_200_got_404(70), expected_block_got_200(60), expected_200_got_405(32), not_executable(8)
+- Top work directions: connector_gap(194), request_routing(102), response_header_hook(68), multipart_files(8), xml_processor(2)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P1 | haproxy | no-crs/with-mrts | mrts_100002_mrts_002_args_a_get_100002_1 | INTERVENTION, ARGS, OPERATORS | FAIL | 200 | 501 | expected_200_got_501 | connector_gap | expected HTTP 200; observed HTTP 501 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/mrts_100002_mrts_002_args_a_get_100002_1/result.json |
@@ -263,7 +263,7 @@ Generated file - do not edit manually.
 - Focus: RESPONSE_BODY, bounded phase 4 execution, strict abort behavior, and phase 4 logs
 - Directions: response_body_non_promoted
 - Goal: Keep Phase 4 visible but non-promoted unless real runtime evidence and project policy allow promotion.
-- Top failure patterns: expected_200_got_501(212), expected_200_got_404(148), expected_block_got_200(82), expected_200_got_405(64), not_executable(8), expected_pass_but_evidence_missing(6)
+- Top failure patterns: expected_200_got_501(212), expected_block_got_200(82), expected_200_got_404(74), expected_200_got_405(32), not_executable(8), expected_pass_but_evidence_missing(6)
 - Top work directions: response_body_non_promoted(568)
 - Promotion policy: Phase 4 / RESPONSE_BODY remains visible but non-promoted; queued rows default to P3.
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
@@ -298,7 +298,7 @@ Generated file - do not edit manually.
 | connector | phase 1 top problems | phase 2 top problems | phase 3 top problems | phase 4 non-promoted rows | next sensible fix |
 |---|---|---|---|---|---|
 | apache | - | - | - | 0 | Repair Apache build/harness first, then Phase 1/2 intervention_blocking. |
-| nginx | intervention_blocking(54), request_uri_mapping(21), collection_mapping(2) | operator_semantics(208), multipart_files(38), transformation_semantics(38) | request_routing(204), response_header_hook(38) | 292 | Fix request_routing / method-location handling, especially Phase 2 404/405, then intervention_blocking. |
+| nginx | intervention_blocking(58), request_uri_mapping(13), collection_mapping(2) | operator_semantics(111), transformation_semantics(38), intervention_blocking(37) | request_routing(102), response_header_hook(38) | 292 | Fix request_routing / method-location handling, especially Phase 2 404/405, then intervention_blocking. |
 | haproxy | intervention_blocking(58), request_uri_mapping(4), request_body_processor(3) | operator_semantics(208), multipart_files(38), transformation_semantics(38) | connector_gap(194), response_header_hook(30), multipart_files(8) | 276 | Fix HAProxy 501 connector gaps around Body/XML/Multipart/SPOA, then 403->200 intervention_blocking. |
 
 ## Recommended Work Order

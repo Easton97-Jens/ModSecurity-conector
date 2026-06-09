@@ -1,12 +1,12 @@
 {
   "build_root": "/src/ModSecurity-conector-full-matrix",
-  "generated_at": "2026-06-09T08:59:56Z",
+  "generated_at": "2026-06-09T14:48:37Z",
   "guardrails": {
     "feature_demo_runtime_cases": 0,
     "no_mrts_mrts_runtime_cases": 0
   },
   "log_root": "/src/ModSecurity-conector-full-matrix",
-  "manifest": "/src/ModSecurity-conector-full-matrix/full-runtime-matrix-runs.jsonl",
+  "manifest": "/src/ModSecurity-conector-full-matrix-nginx-routing/combined-full-runtime-matrix-runs.jsonl",
   "runs": [
     {
       "attempted": 0,
@@ -100,27 +100,26 @@
       "attempted": 523,
       "blocked": 0,
       "connector": "nginx",
-      "duration_seconds": 1332,
-      "ended_at": "2026-06-09T08:27:18Z",
-      "fail": 430,
+      "duration_seconds": 1308,
+      "ended_at": "2026-06-09T14:38:01Z",
+      "fail": 112,
       "feature_demo_runtime_cases": 0,
-      "log_path": "/src/ModSecurity-conector-full-matrix/no-crs/with-mrts/nginx/run.log",
+      "log_path": "/src/ModSecurity-conector-full-matrix-nginx-routing/no-crs/with-mrts/nginx/run.log",
       "missing_summary": false,
       "missing_summary_reason": "",
       "mrts_upstream_config_tests": {
         "attempted": 383,
-        "fail": 318,
-        "pass": 65,
+        "pass": 383,
         "pending": 383
       },
       "mrts_variant": "with-mrts",
       "not_executable": 6,
       "outcome": "FAIL",
-      "pass": 87,
+      "pass": 405,
       "pending": 383,
       "return_code": 2,
-      "runtime_summary_path": "/src/ModSecurity-conector-full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "started_at": "2026-06-09T08:05:06Z",
+      "runtime_summary_path": "/src/ModSecurity-conector-full-matrix-nginx-routing/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
+      "started_at": "2026-06-09T14:16:13Z",
       "test_variant": "no-crs"
     },
     {
@@ -296,9 +295,9 @@
   "totals": {
     "attempted": 2628,
     "blocked": 4,
-    "fail": 1826,
+    "fail": 1508,
     "not_executable": 48,
-    "pass": 754,
+    "pass": 1072,
     "pending": 1532
   }
 }

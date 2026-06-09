@@ -10,6 +10,7 @@ PYTHON="${PYTHON:-python3}"
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 FORCE_ALL_CASES="${FORCE_ALL_CASES:-1}"
 FULL_MATRIX_VARIANTS="${FULL_MATRIX_VARIANTS:-no-crs/no-mrts no-crs/with-mrts with-crs/no-mrts with-crs/with-mrts}"
+FULL_MATRIX_CONNECTORS="${FULL_MATRIX_CONNECTORS:-apache nginx haproxy}"
 FULL_MATRIX_REPORT_DIR="${FULL_MATRIX_REPORT_DIR:-$CONNECTOR_ROOT/reports/testing/generated}"
 FULL_MATRIX_MANIFEST="${FULL_MATRIX_MANIFEST:-$MATRIX_ROOT/full-runtime-matrix-runs.jsonl}"
 FULL_MATRIX_PORT_SPAN="${FULL_MATRIX_PORT_SPAN:-1000}"
@@ -49,6 +50,15 @@ connector_offset() {
         haproxy) printf '%s\n' 2000 ;;
         *) echo "ERROR: unsupported connector $1" >&2; exit 2 ;;
     esac
+}
+
+validate_matrix_connectors() {
+    for connector in $FULL_MATRIX_CONNECTORS; do
+        case "$connector" in
+            apache|nginx|haproxy) ;;
+            *) echo "ERROR: unsupported FULL_MATRIX_CONNECTORS item: $connector" >&2; exit 2 ;;
+        esac
+    done
 }
 
 summary_path_for() {
@@ -110,9 +120,9 @@ prepare_shared_connector() {
 }
 
 prepare_shared_builds() {
-    prepare_shared_connector apache
-    prepare_shared_connector nginx
-    prepare_shared_connector haproxy
+    for connector in $FULL_MATRIX_CONNECTORS; do
+        prepare_shared_connector "$connector"
+    done
 }
 
 prepare_batch() {
@@ -332,7 +342,7 @@ run_batch() {
     pids=""
     job_jsons=""
     logs=""
-    for connector in apache nginx haproxy; do
+    for connector in $FULL_MATRIX_CONNECTORS; do
         offset=$(connector_offset "$connector")
         port=$((batch_base + offset))
         job_root="$MATRIX_ROOT/$test_variant/$mrts_variant/$connector"
@@ -367,6 +377,7 @@ run_batch() {
     return "$batch_rc"
 }
 
+validate_matrix_connectors
 prepare_shared_builds
 
 for variant in $FULL_MATRIX_VARIANTS; do

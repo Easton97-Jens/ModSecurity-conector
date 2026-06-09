@@ -3,10 +3,10 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-09T14:02:30Z`
+- Generated at: `2026-06-09T14:48:40Z`
 - Total runtime cases analyzed: **2632**
-- Total failures: **1826**
-- P0/P1/P2/P3: **0** / **1302** / **0** / **576**
+- Total failures: **1508**
+- P0/P1/P2/P3: **0** / **1094** / **0** / **466**
 - Source inventory split: framework-owned(141), MRTS imported(0), feature-demo report-only(0), golden-only(170)
 - Runtime source split: framework-owned(1096), MRTS imported(1532), feature-demo report-only(0), golden-only(0), runtime-job(4)
 
@@ -18,10 +18,10 @@ Generated file - do not edit manually.
 - Recommended next work: harness_incompatibility(4)
 
 ### nginx
-- Top failure patterns: expected_200_got_404(444), expected_block_got_200(223), expected_200_got_405(192), expected_block_got_405(63), not_executable(24)
-- Top functional areas: action_intervention(950), operators(630), args(515), request_cookies(190), args_names(114)
-- Top work directions: request_routing(485), response_body_non_promoted(284), intervention_blocking(169), harness_incompatibility(24), audit_log_evidence(2)
-- Recommended next work: request_routing(485)
+- Top failure patterns: expected_block_got_200(251), expected_200_got_404(222), expected_200_got_405(96), expected_block_got_405(38), not_executable(24)
+- Top functional areas: action_intervention(632), operators(323), args(314), request_cookies(100), request_body_urlencoded(75)
+- Top work directions: request_routing(249), intervention_blocking(197), response_body_non_promoted(174), harness_incompatibility(24), audit_log_evidence(2)
+- Recommended next work: request_routing(249)
 
 ### haproxy
 - Top failure patterns: expected_200_got_501(628), expected_block_got_200(189), expected_block_got_501(63), not_executable(24), expected_200_got_0(4)
@@ -33,7 +33,7 @@ Generated file - do not edit manually.
 - all_connectors_fail: **0**
 - apache_only_fail: **0**
 - nginx_only_fail: **27** - mrts_100148_mrts_061_request_filename_100148_1, mrts_100148_mrts_061_request_filename_100148_2, mrts_100148_mrts_061_request_filename_100148_3, mrts_100148_mrts_061_request_filename_100148_4, nginx_phase4_content_type_out_of_scope, nginx_phase4_minimal_log_only, nginx_phase4_safe_log_only, nginx_phase4_strict_connection_abort, nginx_redirect_phase1_302, nginx_tx_scoring_absolute_block
-- haproxy_only_fail: **0**
+- haproxy_only_fail: **314** - mrts_100001_mrts_002_args_a_get_100001_1, mrts_100001_mrts_002_args_a_get_100001_2, mrts_100001_mrts_002_args_a_get_100001_3, mrts_100001_mrts_002_args_a_get_100001_4, mrts_100002_mrts_002_args_a_get_100002_1, mrts_100002_mrts_002_args_a_get_100002_2, mrts_100002_mrts_002_args_a_get_100002_3, mrts_100002_mrts_002_args_a_get_100002_4, mrts_100003_mrts_002_args_a_get_100003_1, mrts_100003_mrts_002_args_a_get_100003_2
 - different_actual_statuses: **362** - files_names_mixed_case_filename_gap, json_duplicate_keys_runtime_difference, json_nested_object_future_compatibility, json_request_body_block, mrts_100001_mrts_002_args_a_get_100001_1, mrts_100001_mrts_002_args_a_get_100001_2, mrts_100001_mrts_002_args_a_get_100001_3, mrts_100001_mrts_002_args_a_get_100001_4, mrts_100002_mrts_002_args_a_get_100002_1, mrts_100002_mrts_002_args_a_get_100002_2
 
 ## Work Direction Summary
@@ -42,23 +42,23 @@ Generated file - do not edit manually.
 | audit_log_evidence | 0 | 2 | 2 | 4 |
 | connector_gap | 0 | 0 | 388 | 388 |
 | harness_incompatibility | 4 | 24 | 24 | 52 |
-| intervention_blocking | 0 | 169 | 161 | 330 |
+| intervention_blocking | 0 | 197 | 161 | 358 |
 | multipart_files | 0 | 0 | 38 | 38 |
 | request_body_processor | 0 | 0 | 23 | 23 |
-| request_routing | 0 | 485 | 0 | 485 |
-| response_body_non_promoted | 0 | 284 | 252 | 536 |
+| request_routing | 0 | 249 | 0 | 249 |
+| response_body_non_promoted | 0 | 174 | 252 | 426 |
 | xml_processor | 0 | 0 | 22 | 22 |
 
 ## Failure Pattern Summary
 | failure_pattern | apache | nginx | haproxy | total |
 |---|---|---|---|---|
 | expected_200_got_0 | 0 | 4 | 4 | 8 |
-| expected_200_got_404 | 0 | 444 | 0 | 444 |
-| expected_200_got_405 | 0 | 192 | 0 | 192 |
+| expected_200_got_404 | 0 | 222 | 0 | 222 |
+| expected_200_got_405 | 0 | 96 | 0 | 96 |
 | expected_200_got_501 | 0 | 0 | 628 | 628 |
-| expected_block_got_200 | 0 | 223 | 189 | 412 |
-| expected_block_got_404 | 0 | 6 | 0 | 6 |
-| expected_block_got_405 | 0 | 63 | 0 | 63 |
+| expected_block_got_200 | 0 | 251 | 189 | 440 |
+| expected_block_got_404 | 0 | 3 | 0 | 3 |
+| expected_block_got_405 | 0 | 38 | 0 | 38 |
 | expected_block_got_501 | 0 | 0 | 63 | 63 |
 | expected_pass_but_evidence_missing | 0 | 8 | 2 | 10 |
 | no_runtime_evidence | 4 | 0 | 0 | 4 |
@@ -272,7 +272,7 @@ Generated file - do not edit manually.
 | connector | attempted | pass | fail | blocked | top work directions |
 |---|---|---|---|---|---|
 | apache | 0 | 0 | 0 | 0 | - |
-| nginx | 766 | 130 | 636 | 0 | request_routing(416), response_body_non_promoted(220) |
+| nginx | 766 | 448 | 318 | 0 | request_routing(208), response_body_non_promoted(110) |
 | haproxy | 766 | 138 | 628 | 0 | connector_gap(388), response_body_non_promoted(220), multipart_files(16), xml_processor(4) |
 - Feature-demo: visible as report-only unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is set.
 - Golden references: drift/reference only, never runtime input.

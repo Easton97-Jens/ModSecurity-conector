@@ -2,10 +2,10 @@
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-09T08:59:56Z`
+- Generated at: `2026-06-09T14:48:37Z`
 - Variant runs: **12**
 - Total attempted: **2628**
-- Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **754** / **1826** / **4** / **48**
+- Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **1072** / **1508** / **4** / **48**
 - Pending metadata rows observed in runtime summaries: **1532**
 
 ## Variant Results
@@ -15,7 +15,7 @@ Generated file - do not edit manually.
 | nginx | no-crs | no-mrts | FAIL | 140 | 95 | 39 | 0 | 6 | 0 | 351 | /src/ModSecurity-conector-full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /src/ModSecurity-conector-full-matrix/no-crs/no-mrts/nginx/run.log |
 | haproxy | no-crs | no-mrts | FAIL | 133 | 104 | 23 | 0 | 6 | 0 | 303 | /src/ModSecurity-conector-full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json | /src/ModSecurity-conector-full-matrix/no-crs/no-mrts/haproxy/run.log |
 | apache | no-crs | with-mrts | BLOCKED | 0 | 0 | 0 | 1 | 0 | 0 | 1 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/apache/results/apache-summary.json | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/apache/run.log |
-| nginx | no-crs | with-mrts | FAIL | 523 | 87 | 430 | 0 | 6 | 383 | 1332 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/nginx/run.log |
+| nginx | no-crs | with-mrts | FAIL | 523 | 405 | 112 | 0 | 6 | 383 | 1308 | /src/ModSecurity-conector-full-matrix-nginx-routing/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /src/ModSecurity-conector-full-matrix-nginx-routing/no-crs/with-mrts/nginx/run.log |
 | haproxy | no-crs | with-mrts | FAIL | 516 | 91 | 419 | 0 | 6 | 383 | 1081 | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json | /src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/run.log |
 | apache | with-crs | no-mrts | BLOCKED | 0 | 0 | 0 | 1 | 0 | 0 | 1 | /src/ModSecurity-conector-full-matrix/with-crs/no-mrts/apache/results/apache-summary.json | /src/ModSecurity-conector-full-matrix/with-crs/no-mrts/apache/run.log |
 | nginx | with-crs | no-mrts | FAIL | 141 | 96 | 39 | 0 | 6 | 0 | 403 | /src/ModSecurity-conector-full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /src/ModSecurity-conector-full-matrix/with-crs/no-mrts/nginx/run.log |
@@ -28,7 +28,7 @@ Generated file - do not edit manually.
 | Connector | Variant | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending |
 |---|---|---:|---:|---:|---:|---:|---:|
 | apache | no-crs/with-mrts | 0 | 0 | 0 | 0 | 0 | 0 |
-| nginx | no-crs/with-mrts | 383 | 65 | 318 | 0 | 0 | 383 |
+| nginx | no-crs/with-mrts | 383 | 383 | 0 | 0 | 0 | 383 |
 | haproxy | no-crs/with-mrts | 383 | 69 | 314 | 0 | 0 | 383 |
 | apache | with-crs/with-mrts | 0 | 0 | 0 | 0 | 0 | 0 |
 | nginx | with-crs/with-mrts | 383 | 65 | 318 | 0 | 0 | 383 |
