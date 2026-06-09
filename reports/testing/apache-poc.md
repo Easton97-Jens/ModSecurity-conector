@@ -247,8 +247,8 @@ Open Apache PoC follow-ups are tracked in
 
 - Apache httpd install documentation:
   https://httpd.apache.org/docs/current/install.html.en
-- Apache httpd distribution index:
-  https://downloads.apache.org/httpd/
+- Apache httpd archive for pinned releases:
+  https://archive.apache.org/dist/httpd/
 - Apache APR download page:
   https://apr.apache.org/download.cgi
 - PCRE2 build and release documentation:

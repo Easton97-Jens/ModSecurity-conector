@@ -1,7 +1,7 @@
 {
   "connector_root": "$CONNECTOR_ROOT",
   "framework_root": "$FRAMEWORK_ROOT",
-  "generated_at": "2026-06-09T15:45:28Z",
+  "generated_at": "2026-06-09T18:33:59Z",
   "native_root": "$MRTS_NATIVE_ROOT",
   "nginx_pr24_overlay": {
     "adopted_files": [
@@ -71,7 +71,27 @@
       "exit_code": 77,
       "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
       "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
-      "reason": "missing native dependencies: go-ftw, albedo, apachectl",
+      "reason": "missing native dependencies: go-ftw (set GO_FTW_BIN), albedo (set ALBEDO_BIN), apachectl (set APACHECTL_BIN)",
+      "remediation": [
+        {
+          "dependency": "go-ftw",
+          "env_var": "GO_FTW_BIN",
+          "hint": "Set GO_FTW_BIN to a local go-ftw binary.",
+          "scope": "native MRTS targets and mrts-ftw-style go-ftw execution"
+        },
+        {
+          "dependency": "albedo",
+          "env_var": "ALBEDO_BIN",
+          "hint": "Set ALBEDO_BIN to a local albedo backend binary.",
+          "scope": "native MRTS targets only"
+        },
+        {
+          "dependency": "apachectl",
+          "env_var": "APACHECTL_BIN",
+          "hint": "Set APACHECTL_BIN to a local apachectl-compatible binary.",
+          "scope": "apache2_ubuntu native MRTS target only"
+        }
+      ],
       "run_log": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
       "status": "BLOCKED",
       "summary_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
@@ -82,7 +102,33 @@
       "exit_code": 77,
       "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
       "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",
-      "reason": "missing native dependencies: go-ftw, albedo, nginx, ngx_http_modsecurity_module.so",
+      "reason": "missing native dependencies: go-ftw (set GO_FTW_BIN), albedo (set ALBEDO_BIN), nginx (set MRTS_NATIVE_NGINX_BIN), ngx_http_modsecurity_module.so (set MRTS_NATIVE_NGINX_MODULE_DIR)",
+      "remediation": [
+        {
+          "dependency": "go-ftw",
+          "env_var": "GO_FTW_BIN",
+          "hint": "Set GO_FTW_BIN to a local go-ftw binary.",
+          "scope": "native MRTS targets and mrts-ftw-style go-ftw execution"
+        },
+        {
+          "dependency": "albedo",
+          "env_var": "ALBEDO_BIN",
+          "hint": "Set ALBEDO_BIN to a local albedo backend binary.",
+          "scope": "native MRTS targets only"
+        },
+        {
+          "dependency": "nginx",
+          "env_var": "MRTS_NATIVE_NGINX_BIN",
+          "hint": "Set MRTS_NATIVE_NGINX_BIN to a local nginx binary.",
+          "scope": "nginx-pr24 native MRTS target only"
+        },
+        {
+          "dependency": "ngx_http_modsecurity_module.so",
+          "env_var": "MRTS_NATIVE_NGINX_MODULE_DIR",
+          "hint": "Set MRTS_NATIVE_NGINX_MODULE_DIR to a local directory containing ngx_http_modsecurity_module.so.",
+          "scope": "nginx-pr24 native MRTS target only"
+        }
+      ],
       "run_log": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
       "status": "BLOCKED",
       "summary_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",

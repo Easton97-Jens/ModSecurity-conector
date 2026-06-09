@@ -225,13 +225,17 @@ run_job() {
     started_epoch=$(date +%s)
     started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
     prepared_flag=0
+    job_refresh=0
     if [ "$mrts_variant" = "with-mrts" ]; then
         prepared_flag=1
+    fi
+    if ! shared_connector_ready "$connector"; then
+        job_refresh=1
     fi
 
     echo "full-matrix-parallel: job start connector=$connector variant=$test_variant/$mrts_variant port=$port" >> "$run_log"
 
-    common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=0 AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load"
+    common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=$job_refresh AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load"
 
     set +e
     case "$connector" in
@@ -263,6 +267,10 @@ run_job() {
             ;;
         haproxy)
             env $common_env \
+                BUILD_ROOT="$SHARED_BUILD_ROOT" \
+                TMP_ROOT="$job_tmp_root" \
+                LOG_ROOT="$job_log_root" \
+                RESULTS_DIR="$results_dir" \
                 HAPROXY_TEST_PORT="$port" \
                 TEST_BACKEND_PORT=$((port + 500)) \
                 HAPROXY_RUNTIME_BUILD_DIR="$SHARED_BUILD_ROOT/haproxy-runtime-build" \

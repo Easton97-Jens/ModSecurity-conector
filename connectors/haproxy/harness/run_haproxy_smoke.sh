@@ -95,6 +95,23 @@ require_under_source_root() {
     esac
 }
 
+require_under_runtime_root() {
+    path=$1
+    label=$2
+    state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
+
+    require_absolute "$path" "$label"
+    case "$path" in
+        /src|/src/*|/tmp|/tmp/*) return 0 ;;
+    esac
+    if [ -n "$state_root" ]; then
+        case "$path" in
+            "$state_root"|"$state_root"/*) return 0 ;;
+        esac
+    fi
+    blocked "$label must be under /src, /tmp, or XDG state home: $path"
+}
+
 require_under_build_root() {
     path=$1
     label=$2
@@ -107,7 +124,7 @@ require_under_build_root() {
 
 require_generated_roots() {
     require_under_source_root "$SOURCE_ROOT" SOURCE_ROOT
-    require_under_source_root "$BUILD_ROOT" BUILD_ROOT
+    require_under_runtime_root "$BUILD_ROOT" BUILD_ROOT
     require_under_build_root "$RESULTS_DIR" RESULTS_DIR
     require_under_build_root "$TMP_ROOT" TMP_ROOT
     require_under_build_root "$LOG_ROOT" LOG_ROOT

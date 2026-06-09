@@ -14,10 +14,12 @@ MRTS_NATIVE_TARGETS="${MRTS_NATIVE_TARGETS:-apache2_ubuntu nginx-pr24}"
 MRTS_NATIVE_APACHE_PORT="${MRTS_NATIVE_APACHE_PORT:-19080}"
 MRTS_NATIVE_NGINX_PORT="${MRTS_NATIVE_NGINX_PORT:-19081}"
 MRTS_NATIVE_BACKEND_PORT="${MRTS_NATIVE_BACKEND_PORT:-19082}"
+GO_FTW_BIN="${GO_FTW_BIN:-go-ftw}"
+ALBEDO_BIN="${ALBEDO_BIN:-albedo}"
 PYTHON="${PYTHON:-python3}"
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 
-export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT MRTS_ROOT MRTS_BUILD_ROOT MRTS_NATIVE_ROOT PYTHONDONTWRITEBYTECODE
+export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT MRTS_ROOT MRTS_BUILD_ROOT MRTS_NATIVE_ROOT GO_FTW_BIN ALBEDO_BIN PYTHONDONTWRITEBYTECODE
 
 mkdir -p "$MRTS_NATIVE_ROOT" "$LOG_ROOT"
 
@@ -71,7 +73,7 @@ require_path() {
 missing_tools() {
     missing=""
     for tool in "$@"; do
-        if ! command -v "$tool" >/dev/null 2>&1; then
+        if ! command_available "$tool"; then
             missing="${missing}${missing:+, }$tool"
         fi
     done
@@ -80,6 +82,25 @@ missing_tools() {
         return 1
     fi
     return 0
+}
+
+command_available() {
+    cmd=$1
+    case "$cmd" in
+        */*) [ -x "$cmd" ] ;;
+        *) command -v "$cmd" >/dev/null 2>&1 ;;
+    esac
+}
+
+append_missing_dep() {
+    current=$1
+    binary=$2
+    env_var=$3
+    if [ -n "$current" ]; then
+        printf '%s, %s (set %s)' "$current" "$binary" "$env_var"
+    else
+        printf '%s (set %s)' "$binary" "$env_var"
+    fi
 }
 
 prepare_mrts_outputs() {
@@ -140,22 +161,28 @@ stage_nginx() {
 
 native_target_deps() {
     target=$1
-    common_missing=$(missing_tools go-ftw albedo || true)
+    common_missing=""
+    if ! command_available "$GO_FTW_BIN"; then
+        common_missing=$(append_missing_dep "$common_missing" "go-ftw" "GO_FTW_BIN")
+    fi
+    if ! command_available "$ALBEDO_BIN"; then
+        common_missing=$(append_missing_dep "$common_missing" "albedo" "ALBEDO_BIN")
+    fi
     case "$target" in
         apache2_ubuntu)
             apachectl_bin="${APACHECTL_BIN:-apachectl}"
-            if ! command -v "$apachectl_bin" >/dev/null 2>&1; then
-                common_missing="${common_missing}${common_missing:+, }$apachectl_bin"
+            if ! command_available "$apachectl_bin"; then
+                common_missing=$(append_missing_dep "$common_missing" "apachectl" "APACHECTL_BIN")
             fi
             ;;
         nginx-pr24)
             nginx_bin="${MRTS_NATIVE_NGINX_BIN:-$(command -v nginx 2>/dev/null || true)}"
-            if [ -z "$nginx_bin" ] || [ ! -x "$nginx_bin" ]; then
-                common_missing="${common_missing}${common_missing:+, }nginx"
+            if [ -z "$nginx_bin" ] || ! command_available "$nginx_bin"; then
+                common_missing=$(append_missing_dep "$common_missing" "nginx" "MRTS_NATIVE_NGINX_BIN")
             fi
             module_path="${MRTS_NATIVE_NGINX_MODULE_DIR:-/usr/lib/nginx/modules}/ngx_http_modsecurity_module.so"
             if [ ! -f "$module_path" ]; then
-                common_missing="${common_missing}${common_missing:+, }ngx_http_modsecurity_module.so"
+                common_missing=$(append_missing_dep "$common_missing" "ngx_http_modsecurity_module.so" "MRTS_NATIVE_NGINX_MODULE_DIR")
             fi
             ;;
     esac
@@ -236,7 +263,7 @@ run_native_target() {
     }
     trap cleanup EXIT INT TERM
 
-    albedo -b 127.0.0.1 -p "$MRTS_NATIVE_BACKEND_PORT" >> "$run_log" 2>&1 &
+    "$ALBEDO_BIN" -b 127.0.0.1 -p "$MRTS_NATIVE_BACKEND_PORT" >> "$run_log" 2>&1 &
     backend_pid=$!
     "$PYTHON" "$stage/start.py" >> "$run_log" 2>&1
     start_rc=$?
@@ -252,7 +279,7 @@ run_native_target() {
         return "$rc"
     fi
 
-    go-ftw run --config "$stage/ftw.mrts.config.yaml" --dir "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" --wait-for-expect-status-code 200 --fail-fast >> "$run_log" 2>&1
+    "$GO_FTW_BIN" run --config "$stage/ftw.mrts.config.yaml" --dir "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" --wait-for-expect-status-code 200 --fail-fast >> "$run_log" 2>&1
     rc=$?
     cleanup
     trap - EXIT INT TERM

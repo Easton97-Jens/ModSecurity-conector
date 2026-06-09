@@ -1,0 +1,430 @@
+{
+  "fixes": [
+    "Allowed connector runtime/log/result roots under the requested BUILD_ROOT for isolated /tmp full-matrix jobs while preserving SOURCE_ROOT guardrails.",
+    "Switched pinned Apache source download default to archive.apache.org after downloads.apache.org returned 404 for the pinned httpd release.",
+    "Added Apache expat.h and HAProxy crypt.h preflight checks with clear local CPPFLAGS/LDFLAGS remediation instead of late compile failure.",
+    "Made full-matrix HAProxy jobs reuse shared build artifacts while keeping per-job tmp/log/result roots isolated.",
+    "Added GO_FTW_BIN and ALBEDO_BIN support plus native report remediation metadata for missing native tools."
+  ],
+  "full_matrix": {
+    "build_root": "/tmp/modsec-full-run",
+    "by_connector": {
+      "apache": {
+        "attempted": 0,
+        "blocked": 4,
+        "fail": 0,
+        "jobs": 4,
+        "logs": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/apache/run.log",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/apache/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/apache/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/apache/run.log"
+        ],
+        "not_executable": 0,
+        "outcomes": {
+          "BLOCKED": 4
+        },
+        "pass": 0,
+        "pending": 0,
+        "summaries": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/apache/results/apache-summary.json",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/apache/results/apache-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/apache/results/apache-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/apache/results/apache-summary.json"
+        ]
+      },
+      "haproxy": {
+        "attempted": 1300,
+        "blocked": 1300,
+        "fail": 0,
+        "jobs": 4,
+        "logs": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/haproxy/run.log",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/haproxy/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/haproxy/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/haproxy/run.log"
+        ],
+        "not_executable": 0,
+        "outcomes": {
+          "FAIL": 4
+        },
+        "pass": 0,
+        "pending": 766,
+        "summaries": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json"
+        ]
+      },
+      "nginx": {
+        "attempted": 1328,
+        "blocked": 0,
+        "fail": 304,
+        "jobs": 4,
+        "logs": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/nginx/run.log",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/nginx/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/nginx/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/nginx/run.log"
+        ],
+        "not_executable": 24,
+        "outcomes": {
+          "FAIL": 4
+        },
+        "pass": 1000,
+        "pending": 766,
+        "summaries": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json"
+        ]
+      }
+    },
+    "command": "FRAMEWORK_ROOT=/root/git/ModSecurity-test-Framework SOURCE_ROOT=/src BUILD_ROOT=/tmp/modsec-full-run MATRIX_ROOT=/tmp/modsec-full-run/full-matrix PYTHONDONTWRITEBYTECODE=1 make full-matrix-parallel",
+    "external_blockers": [
+      {
+        "connector": "apache",
+        "dependency": "expat.h",
+        "reason": "missing development header for Apache httpd source build",
+        "remediation": "Provide local CPPFLAGS/LDFLAGS for expat headers/libs or install the matching system development package outside this run.",
+        "scope": "connector full matrix Apache jobs"
+      },
+      {
+        "connector": "haproxy",
+        "dependency": "crypt.h",
+        "reason": "missing development header for HAProxy source build",
+        "remediation": "Provide local CPPFLAGS/LDFLAGS for crypt headers/libs or install the matching system development package outside this run.",
+        "scope": "connector full matrix HAProxy jobs"
+      }
+    ],
+    "generated_at": "2026-06-09T18:28:41Z",
+    "make_exit_code": 2,
+    "manifest": "/tmp/modsec-full-run/full-matrix/full-runtime-matrix-runs.jsonl",
+    "matrix_root": "/tmp/modsec-full-run/full-matrix",
+    "mrts_build_root": "/tmp/modsec-full-run/mrts",
+    "report_json": "reports/testing/generated/full-runtime-matrix.generated.json",
+    "report_md": "reports/testing/generated/full-runtime-matrix.generated.md",
+    "top_work_queue_patterns": {
+      "apache": {
+        "classification": [
+          {
+            "count": 4,
+            "value": "harness-incompatibility"
+          }
+        ],
+        "failure_pattern": [
+          {
+            "count": 4,
+            "value": "no_runtime_evidence"
+          }
+        ],
+        "priority": [
+          {
+            "count": 4,
+            "value": "P1"
+          }
+        ],
+        "runtime_status": [
+          {
+            "count": 4,
+            "value": "BLOCKED"
+          }
+        ],
+        "work_direction": [
+          {
+            "count": 4,
+            "value": "harness_incompatibility"
+          }
+        ]
+      },
+      "haproxy": {
+        "classification": [
+          {
+            "count": 1016,
+            "value": "harness-incompatibility"
+          },
+          {
+            "count": 284,
+            "value": "response-body-non-promoted"
+          }
+        ],
+        "failure_pattern": [
+          {
+            "count": 1300,
+            "value": "no_runtime_evidence"
+          }
+        ],
+        "priority": [
+          {
+            "count": 848,
+            "value": "P1"
+          },
+          {
+            "count": 284,
+            "value": "P3"
+          },
+          {
+            "count": 168,
+            "value": "P2"
+          }
+        ],
+        "runtime_status": [
+          {
+            "count": 1300,
+            "value": "BLOCKED"
+          }
+        ],
+        "work_direction": [
+          {
+            "count": 1016,
+            "value": "harness_incompatibility"
+          },
+          {
+            "count": 284,
+            "value": "response_body_non_promoted"
+          }
+        ]
+      },
+      "nginx": {
+        "classification": [
+          {
+            "count": 764,
+            "value": "pass"
+          },
+          {
+            "count": 300,
+            "value": "response-body-non-promoted"
+          },
+          {
+            "count": 244,
+            "value": "runtime-difference"
+          },
+          {
+            "count": 20,
+            "value": "pending"
+          }
+        ],
+        "failure_pattern": [
+          {
+            "count": 1000,
+            "value": "<empty>"
+          },
+          {
+            "count": 292,
+            "value": "expected_block_got_200"
+          },
+          {
+            "count": 24,
+            "value": "not_executable"
+          },
+          {
+            "count": 8,
+            "value": "expected_pass_but_evidence_missing"
+          },
+          {
+            "count": 4,
+            "value": "expected_200_got_0"
+          }
+        ],
+        "priority": [
+          {
+            "count": 1084,
+            "value": "P3"
+          },
+          {
+            "count": 244,
+            "value": "P1"
+          }
+        ],
+        "runtime_status": [
+          {
+            "count": 1000,
+            "value": "PASS"
+          },
+          {
+            "count": 304,
+            "value": "FAIL"
+          },
+          {
+            "count": 24,
+            "value": "NOT_EXECUTABLE"
+          }
+        ],
+        "work_direction": [
+          {
+            "count": 578,
+            "value": "operator_semantics"
+          },
+          {
+            "count": 300,
+            "value": "response_body_non_promoted"
+          },
+          {
+            "count": 238,
+            "value": "intervention_blocking"
+          },
+          {
+            "count": 108,
+            "value": "runtime_difference"
+          },
+          {
+            "count": 36,
+            "value": "transformation_semantics"
+          },
+          {
+            "count": 24,
+            "value": "harness_incompatibility"
+          },
+          {
+            "count": 14,
+            "value": "multipart_files"
+          },
+          {
+            "count": 12,
+            "value": "json_processor"
+          },
+          {
+            "count": 10,
+            "value": "response_header_hook"
+          },
+          {
+            "count": 6,
+            "value": "xml_processor"
+          }
+        ]
+      }
+    },
+    "totals": {
+      "attempted": 2628,
+      "blocked": 1304,
+      "fail": 304,
+      "not_executable": 24,
+      "pass": 1000,
+      "pending": 1532
+    }
+  },
+  "generated_at": "2026-06-09T18:40:47Z",
+  "guardrails": {
+    "generated_mrts_artifacts_not_committed": true,
+    "mrts_definitions_unchanged": true,
+    "no_push": true,
+    "runtime_pass_fail_not_manually_changed": true,
+    "tmp_src_build_outputs_not_committed": true,
+    "tools_mrts_unchanged": true
+  },
+  "local_tool_availability": {
+    "albedo": null,
+    "apachectl": null,
+    "go-ftw": null,
+    "nginx": null,
+    "ngx_http_modsecurity_module.so_search": []
+  },
+  "mrts_native": {
+    "build_root": "/tmp/modsec-native-full-run",
+    "command": "FRAMEWORK_ROOT=/root/git/ModSecurity-test-Framework BUILD_ROOT=/tmp/modsec-native-full-run MRTS_NATIVE_TARGETS=\"apache2_ubuntu nginx-pr24\" PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run",
+    "generated_at": "2026-06-09T18:33:59Z",
+    "make_exit_code": 2,
+    "mrts_build_root": "/tmp/modsec-native-full-run/mrts",
+    "mrts_native_root": "/tmp/modsec-native-full-run/mrts-native",
+    "report_json": "reports/testing/generated/mrts-native-full.generated.json",
+    "report_md": "reports/testing/generated/mrts-native-full.generated.md",
+    "summary": {
+      "BLOCKED": 2
+    },
+    "target_script_exit_code": 77,
+    "targets": {
+      "apache2_ubuntu": {
+        "duration_seconds": 2,
+        "exit_code": 77,
+        "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
+        "reason": "missing native dependencies: go-ftw (set GO_FTW_BIN), albedo (set ALBEDO_BIN), apachectl (set APACHECTL_BIN)",
+        "remediation": [
+          {
+            "dependency": "go-ftw",
+            "env_var": "GO_FTW_BIN",
+            "hint": "Set GO_FTW_BIN to a local go-ftw binary.",
+            "scope": "native MRTS targets and mrts-ftw-style go-ftw execution"
+          },
+          {
+            "dependency": "albedo",
+            "env_var": "ALBEDO_BIN",
+            "hint": "Set ALBEDO_BIN to a local albedo backend binary.",
+            "scope": "native MRTS targets only"
+          },
+          {
+            "dependency": "apachectl",
+            "env_var": "APACHECTL_BIN",
+            "hint": "Set APACHECTL_BIN to a local apachectl-compatible binary.",
+            "scope": "apache2_ubuntu native MRTS target only"
+          }
+        ],
+        "run_log": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+        "status": "BLOCKED",
+        "summary_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "target": "apache2_ubuntu"
+      },
+      "nginx-pr24": {
+        "duration_seconds": 2,
+        "exit_code": 77,
+        "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",
+        "reason": "missing native dependencies: go-ftw (set GO_FTW_BIN), albedo (set ALBEDO_BIN), nginx (set MRTS_NATIVE_NGINX_BIN), ngx_http_modsecurity_module.so (set MRTS_NATIVE_NGINX_MODULE_DIR)",
+        "remediation": [
+          {
+            "dependency": "go-ftw",
+            "env_var": "GO_FTW_BIN",
+            "hint": "Set GO_FTW_BIN to a local go-ftw binary.",
+            "scope": "native MRTS targets and mrts-ftw-style go-ftw execution"
+          },
+          {
+            "dependency": "albedo",
+            "env_var": "ALBEDO_BIN",
+            "hint": "Set ALBEDO_BIN to a local albedo backend binary.",
+            "scope": "native MRTS targets only"
+          },
+          {
+            "dependency": "nginx",
+            "env_var": "MRTS_NATIVE_NGINX_BIN",
+            "hint": "Set MRTS_NATIVE_NGINX_BIN to a local nginx binary.",
+            "scope": "nginx-pr24 native MRTS target only"
+          },
+          {
+            "dependency": "ngx_http_modsecurity_module.so",
+            "env_var": "MRTS_NATIVE_NGINX_MODULE_DIR",
+            "hint": "Set MRTS_NATIVE_NGINX_MODULE_DIR to a local directory containing ngx_http_modsecurity_module.so.",
+            "scope": "nginx-pr24 native MRTS target only"
+          }
+        ],
+        "run_log": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+        "status": "BLOCKED",
+        "summary_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "target": "nginx-pr24"
+      }
+    }
+  },
+  "reports": [
+    "reports/testing/generated/full-runtime-matrix.generated.json",
+    "reports/testing/generated/full-runtime-matrix.generated.md",
+    "reports/testing/generated/connector-work-queue.generated.json",
+    "reports/testing/generated/connector-work-queue.generated.md",
+    "reports/testing/generated/phase-work-queue.generated.json",
+    "reports/testing/generated/phase-work-queue.generated.md",
+    "reports/testing/generated/mrts-native-full.generated.json",
+    "reports/testing/generated/mrts-native-full.generated.md",
+    "reports/testing/generated/full-run-evidence.generated.json",
+    "reports/testing/generated/full-run-evidence.generated.md"
+  ],
+  "source_state_at_report_generation": {
+    "connector_framework_gitlink": "d467034cdf3fb28cea5329f90d97eedc22e630cc",
+    "connector_recursive_submodules": [
+      "+d467034cdf3fb28cea5329f90d97eedc22e630cc modules/ModSecurity-test-Framework (remotes/origin/HEAD-2-gd467034)",
+      " 13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main)"
+    ],
+    "connector_sha": "a9969f91ebe908d2440bd8ba296532b924189f62",
+    "framework_mrts_submodule_sha": "13aa91291adea12d5c607fdd165d010fcfb1da78",
+    "framework_sha": "d467034cdf3fb28cea5329f90d97eedc22e630cc"
+  }
+}
