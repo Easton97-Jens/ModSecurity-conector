@@ -3,7 +3,7 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-09T14:48:40Z`
+- Generated at: `2026-06-09T15:47:42Z`
 - Runtime evidence rows analyzed: **2632**
 - Queued work rows: **1718**
 - Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **1508** / **4** / **48**

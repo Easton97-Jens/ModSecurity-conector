@@ -1,11 +1,11 @@
 {
-  "build_root": "/src/ModSecurity-conector-full-matrix",
-  "generated_at": "2026-06-09T14:48:37Z",
+  "build_root": "/src/ModSecurity-conector-build",
+  "generated_at": "2026-06-09T15:47:40Z",
   "guardrails": {
     "feature_demo_runtime_cases": 0,
     "no_mrts_mrts_runtime_cases": 0
   },
-  "log_root": "/src/ModSecurity-conector-full-matrix",
+  "log_root": "/src/ModSecurity-conector-build/logs",
   "manifest": "/src/ModSecurity-conector-full-matrix-nginx-routing/combined-full-runtime-matrix-runs.jsonl",
   "runs": [
     {
@@ -107,11 +107,7 @@
       "log_path": "/src/ModSecurity-conector-full-matrix-nginx-routing/no-crs/with-mrts/nginx/run.log",
       "missing_summary": false,
       "missing_summary_reason": "",
-      "mrts_upstream_config_tests": {
-        "attempted": 383,
-        "pass": 383,
-        "pending": 383
-      },
+      "mrts_upstream_config_tests": {},
       "mrts_variant": "with-mrts",
       "not_executable": 6,
       "outcome": "FAIL",
@@ -133,12 +129,7 @@
       "log_path": "/src/ModSecurity-conector-full-matrix/no-crs/with-mrts/haproxy/run.log",
       "missing_summary": false,
       "missing_summary_reason": "",
-      "mrts_upstream_config_tests": {
-        "attempted": 383,
-        "fail": 314,
-        "pass": 69,
-        "pending": 383
-      },
+      "mrts_upstream_config_tests": {},
       "mrts_variant": "with-mrts",
       "not_executable": 6,
       "outcome": "FAIL",
@@ -248,12 +239,7 @@
       "log_path": "/src/ModSecurity-conector-full-matrix/with-crs/with-mrts/nginx/run.log",
       "missing_summary": false,
       "missing_summary_reason": "",
-      "mrts_upstream_config_tests": {
-        "attempted": 383,
-        "fail": 318,
-        "pass": 65,
-        "pending": 383
-      },
+      "mrts_upstream_config_tests": {},
       "mrts_variant": "with-mrts",
       "not_executable": 6,
       "outcome": "FAIL",
@@ -275,12 +261,7 @@
       "log_path": "/src/ModSecurity-conector-full-matrix/with-crs/with-mrts/haproxy/run.log",
       "missing_summary": false,
       "missing_summary_reason": "",
-      "mrts_upstream_config_tests": {
-        "attempted": 383,
-        "fail": 314,
-        "pass": 69,
-        "pending": 383
-      },
+      "mrts_upstream_config_tests": {},
       "mrts_variant": "with-mrts",
       "not_executable": 6,
       "outcome": "FAIL",

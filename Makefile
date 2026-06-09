@@ -1,13 +1,19 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 FRAMEWORK_PYTHON := $(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON))
 STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
-SOURCE_ROOT ?= /src
-BUILD_ROOT ?= /src/ModSecurity-conector-build
+SOURCE_ROOT ?= $(STATE_HOME)/ModSecurity-conector-src
+BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
 TMP_ROOT ?= $(BUILD_ROOT)/tmp
 LOG_ROOT ?= $(BUILD_ROOT)/logs
 FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
 CONNECTOR_ROOT := $(CURDIR)
 NGINX_HARNESS_PARENT ?= $(BUILD_ROOT)
+MRTS_BUILD_ROOT ?= $(BUILD_ROOT)/mrts
+MRTS_NATIVE_ROOT ?= $(BUILD_ROOT)/mrts-native
+MRTS_NATIVE_TARGETS ?= apache2_ubuntu nginx-pr24
+MRTS_NATIVE_APACHE_PORT ?= 19080
+MRTS_NATIVE_NGINX_PORT ?= 19081
+MRTS_NATIVE_BACKEND_PORT ?= 19082
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
@@ -52,6 +58,14 @@ export MRTS_RULES_OUT
 export MRTS_FTW_OUT
 export MRTS_LOAD_FILE
 export MRTS_CASE_ROOT
+export MRTS_BUILD_ROOT
+export MRTS_NATIVE_ROOT
+export MRTS_NATIVE_TARGETS
+export MRTS_NATIVE_APACHE_PORT
+export MRTS_NATIVE_NGINX_BIN
+export MRTS_NATIVE_NGINX_MODULE_DIR
+export MRTS_NATIVE_NGINX_PORT
+export MRTS_NATIVE_BACKEND_PORT
 export CRS_REPO_URL
 export CRS_GIT_REF
 export CRS_SOURCE_DIR
@@ -100,7 +114,7 @@ export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
 
-.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-mrts-runtime-matrix full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-mrts-runtime-matrix full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue mrts-native-full-run mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 check-framework:
 	@test -d "$(FRAMEWORK_ROOT)" || { \
@@ -221,6 +235,24 @@ generate-work-queue: check-framework
 
 generate-phase-work-queue: check-framework
 	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-phase-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --connector-work-queue "$(CURDIR)/reports/testing/generated/connector-work-queue.generated.json" --phase-coverage "$(CURDIR)/reports/testing/generated/phase-coverage.generated.md" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/full-runtime-matrix.generated.json"
+
+mrts-native-full-run: check-framework
+	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
+
+mrts-native-apache-full: check-framework
+	MRTS_NATIVE_TARGETS=apache2_ubuntu PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
+
+mrts-native-nginx-pr24-full: check-framework
+	MRTS_NATIVE_TARGETS=nginx-pr24 PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
+
+mrts-upstream-infra-check: check-framework
+	@sh -eu -c ' \
+		MRTS_ROOT="$${MRTS_ROOT:-$(FRAMEWORK_ROOT)/tools/MRTS}"; \
+		test -d "$$MRTS_ROOT/config_infra/apache2_ubuntu" || { echo "BLOCKED: missing $$MRTS_ROOT/config_infra/apache2_ubuntu"; exit 77; }; \
+		test -d "$(FRAMEWORK_ROOT)/tests/mrts/infra-overlays/nginx-pr24" || { echo "BLOCKED: missing Framework NGINX PR24 overlay"; exit 77; }; \
+		test -f "$(FRAMEWORK_ROOT)/tests/mrts/infra-overlays/nginx-pr24/metadata.yaml" || { echo "BLOCKED: missing NGINX PR24 overlay metadata"; exit 77; }; \
+		echo "MRTS upstream/native infrastructure inputs present"; \
+	'
 
 test-haproxy-no-crs: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=no-crs sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"

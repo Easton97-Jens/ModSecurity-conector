@@ -240,11 +240,27 @@ make test-mrts-matrix
 make mrts-ftw
 ```
 
-The framework uses `upstream-config-tests` as the default runnable MRTS corpus.
-Feature-demo tests are reported as optional/demo coverage and can be attempted
-only through the explicit opt-in target or
-`MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`. Golden references under the framework
-`tests/mrts/imported/` tree are never runtime inputs.
+The framework reads upstream MRTS inputs directly from `$MRTS_ROOT`, writes
+generated rules, go-ftw YAML, framework cases, and `mrts.load` under
+`$MRTS_BUILD_ROOT`, and uses `upstream-config-tests` as the default runnable
+MRTS corpus. Feature-demo tests are reported as optional/demo coverage and can
+be attempted only through the explicit opt-in target or
+`MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`. Golden references under the MRTS
+submodule are drift/report inputs only and are never runtime inputs.
+
+Native MRTS infrastructure evidence is separate from connector smoke evidence:
+
+```sh
+make mrts-upstream-infra-check
+make mrts-native-apache-full
+make mrts-native-nginx-pr24-full
+make mrts-native-full-run
+```
+
+Native outputs are staged under `$MRTS_NATIVE_ROOT` and reported under
+`reports/testing/generated/mrts-native-full.generated.*`. Missing local
+dependencies such as `go-ftw`, `albedo`, `apachectl`, `nginx`, or the NGINX
+ModSecurity module are reported as `BLOCKED`; nothing is installed globally.
 
 MRTS/CRS result paths are separated by variant:
 

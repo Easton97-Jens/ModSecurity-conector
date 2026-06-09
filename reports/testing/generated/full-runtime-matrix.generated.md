@@ -2,7 +2,7 @@
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-09T14:48:37Z`
+- Generated at: `2026-06-09T15:47:40Z`
 - Variant runs: **12**
 - Total attempted: **2628**
 - Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **1072** / **1508** / **4** / **48**
@@ -28,14 +28,14 @@ Generated file - do not edit manually.
 | Connector | Variant | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending |
 |---|---|---:|---:|---:|---:|---:|---:|
 | apache | no-crs/with-mrts | 0 | 0 | 0 | 0 | 0 | 0 |
-| nginx | no-crs/with-mrts | 383 | 383 | 0 | 0 | 0 | 383 |
-| haproxy | no-crs/with-mrts | 383 | 69 | 314 | 0 | 0 | 383 |
+| nginx | no-crs/with-mrts | 0 | 0 | 0 | 0 | 0 | 0 |
+| haproxy | no-crs/with-mrts | 0 | 0 | 0 | 0 | 0 | 0 |
 | apache | with-crs/with-mrts | 0 | 0 | 0 | 0 | 0 | 0 |
-| nginx | with-crs/with-mrts | 383 | 65 | 318 | 0 | 0 | 383 |
-| haproxy | with-crs/with-mrts | 383 | 69 | 314 | 0 | 0 | 383 |
+| nginx | with-crs/with-mrts | 0 | 0 | 0 | 0 | 0 | 0 |
+| haproxy | with-crs/with-mrts | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Guardrails
 - `feature-demo` is visible in reports but not runtime-executed unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is set.
-- `tests/mrts/imported/**` is golden/reference/drift input only and is not a runtime case root.
+- MRTS golden outputs under the submodule are golden/reference/drift input only and are not runtime case roots.
 - `no-mrts` variants should have zero MRTS runtime cases.
 - Runtime PASS/FAIL/BLOCKED values come from connector summary JSON, not classification overlays.

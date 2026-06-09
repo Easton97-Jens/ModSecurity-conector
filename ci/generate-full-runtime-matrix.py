@@ -14,6 +14,11 @@ from typing import Any
 CONNECTORS = ("apache", "nginx", "haproxy")
 TEST_VARIANTS = ("no-crs", "with-crs")
 MRTS_VARIANTS = ("no-mrts", "with-mrts")
+DEFAULT_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
+DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_STATE_HOME / "ModSecurity-conector-build"))).resolve()
+MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(DEFAULT_BUILD_ROOT / "mrts"))).resolve()
+MRTS_UPSTREAM_CASE_MARKER = "/upstream-config-tests/framework-cases/"
+MRTS_FEATURE_DEMO_CASE_MARKER = "/feature-demo/framework-cases/"
 
 
 @dataclass
@@ -109,8 +114,7 @@ def case_is_mrts_upstream(case: dict[str, Any]) -> bool:
     path = str(case.get("path") or case.get("test_case") or "")
     metadata = case.get("metadata") if isinstance(case.get("metadata"), dict) else {}
     return (
-        "/tests/mrts/generated/framework-cases/upstream-config-tests/" in path
-        or "tests/mrts/generated/framework-cases/upstream-config-tests/" in path
+        MRTS_UPSTREAM_CASE_MARKER in path
         or metadata.get("mrts_corpus") == "upstream-config-tests"
     )
 
@@ -119,8 +123,7 @@ def case_is_feature_demo(case: dict[str, Any]) -> bool:
     path = str(case.get("path") or case.get("test_case") or "")
     metadata = case.get("metadata") if isinstance(case.get("metadata"), dict) else {}
     return (
-        "/tests/mrts/generated/framework-cases/feature-demo/" in path
-        or "tests/mrts/generated/framework-cases/feature-demo/" in path
+        MRTS_FEATURE_DEMO_CASE_MARKER in path
         or metadata.get("mrts_corpus") == "feature-demo"
     )
 
@@ -287,7 +290,7 @@ def markdown(records: list[RunRecord], totals: Counter[str], generated_at: str) 
     lines.append("")
     lines.append("## Guardrails")
     lines.append("- `feature-demo` is visible in reports but not runtime-executed unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is set.")
-    lines.append("- `tests/mrts/imported/**` is golden/reference/drift input only and is not a runtime case root.")
+    lines.append("- MRTS golden outputs under the submodule are golden/reference/drift input only and are not runtime case roots.")
     lines.append("- `no-mrts` variants should have zero MRTS runtime cases.")
     lines.append("- Runtime PASS/FAIL/BLOCKED values come from connector summary JSON, not classification overlays.")
     return "\n".join(lines) + "\n"
@@ -297,7 +300,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
-    parser.add_argument("--build-root", default=os.environ.get("BUILD_ROOT", "/src/ModSecurity-conector-build"))
+    parser.add_argument("--build-root", default=os.environ.get("BUILD_ROOT", str(DEFAULT_BUILD_ROOT)))
     parser.add_argument("--log-root", default=os.environ.get("LOG_ROOT"))
     parser.add_argument("--manifest", default=None)
     parser.add_argument("--output-dir", default=None)

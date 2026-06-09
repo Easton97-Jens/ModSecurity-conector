@@ -3,12 +3,12 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-09T14:48:40Z`
+- Generated at: `2026-06-09T15:47:42Z`
 - Total runtime cases analyzed: **2632**
 - Total failures: **1508**
 - P0/P1/P2/P3: **0** / **1094** / **0** / **466**
-- Source inventory split: framework-owned(141), MRTS imported(0), feature-demo report-only(0), golden-only(170)
-- Runtime source split: framework-owned(1096), MRTS imported(1532), feature-demo report-only(0), golden-only(0), runtime-job(4)
+- Source inventory split: framework-owned(141), MRTS imported(0), feature-demo report-only(0), golden-only(0)
+- Runtime source split: framework-owned(2628), MRTS imported(0), feature-demo report-only(0), golden-only(0), runtime-job(4)
 
 ## Per Connector Summary
 ### apache
@@ -272,8 +272,8 @@ Generated file - do not edit manually.
 | connector | attempted | pass | fail | blocked | top work directions |
 |---|---|---|---|---|---|
 | apache | 0 | 0 | 0 | 0 | - |
-| nginx | 766 | 448 | 318 | 0 | request_routing(208), response_body_non_promoted(110) |
-| haproxy | 766 | 138 | 628 | 0 | connector_gap(388), response_body_non_promoted(220), multipart_files(16), xml_processor(4) |
+| nginx | 0 | 0 | 0 | 0 | - |
+| haproxy | 0 | 0 | 0 | 0 | - |
 - Feature-demo: visible as report-only unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is set.
 - Golden references: drift/reference only, never runtime input.
 
@@ -282,5 +282,5 @@ Generated file - do not edit manually.
 - Classification does not alter expected or actual status.
 - `no-mrts` variants must not contain MRTS runtime cases.
 - `with-mrts` variants include only selected MRTS runtime cases.
-- `tests/mrts/imported/**` is golden/reference only.
+- MRTS golden outputs under the submodule are drift/reference only.
 - Generated MRTS artifacts remain ignored and uncommitted.
