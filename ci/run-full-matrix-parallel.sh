@@ -397,11 +397,21 @@ report_rc=$?
     --full-runtime-matrix "$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.json"
 work_queue_rc=$?
 
+"$PYTHON" "$FRAMEWORK_ROOT/ci/generate-phase-work-queue.py" \
+    --connector-root "$CONNECTOR_ROOT" \
+    --framework-root "$FRAMEWORK_ROOT" \
+    --output-root "$CONNECTOR_ROOT" \
+    --connector-work-queue "$FULL_MATRIX_REPORT_DIR/connector-work-queue.generated.json" \
+    --phase-coverage "$FULL_MATRIX_REPORT_DIR/phase-coverage.generated.md" \
+    --full-runtime-matrix "$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.json"
+phase_work_queue_rc=$?
+
 echo "full-matrix-parallel: manifest=$FULL_MATRIX_MANIFEST"
 echo "full-matrix-parallel: report=$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.md"
 echo "full-matrix-parallel: work_queue=$FULL_MATRIX_REPORT_DIR/connector-work-queue.generated.md"
+echo "full-matrix-parallel: phase_work_queue=$FULL_MATRIX_REPORT_DIR/phase-work-queue.generated.md"
 
-if [ "$report_rc" -ne 0 ] || [ "$work_queue_rc" -ne 0 ]; then
+if [ "$report_rc" -ne 0 ] || [ "$work_queue_rc" -ne 0 ] || [ "$phase_work_queue_rc" -ne 0 ]; then
     exit 2
 fi
 
