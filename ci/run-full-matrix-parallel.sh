@@ -262,6 +262,7 @@ run_job() {
             env $common_env \
                 APACHE_TEST_PORT="$port" \
                 APACHE_BUILD_ROOT="$SHARED_BUILD_ROOT/apache-build" \
+                APACHE_BUILD_OWNER_ROOT="$SHARED_BUILD_ROOT" \
                 HTTPD_PREFIX="$SHARED_BUILD_ROOT/apache-runtime/httpd" \
                 APACHE_MODULE="$SHARED_BUILD_ROOT/apache-build/output/apache/mod_security3.so" \
                 MODSECURITY_LIB_DIR="$SHARED_BUILD_ROOT/apache-build/output/modsecurity/lib" \
