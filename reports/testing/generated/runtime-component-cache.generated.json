@@ -1,0 +1,184 @@
+{
+  "archives": [
+    {
+      "archive_list": "PASS",
+      "blocker_reason": "",
+      "checksum_status": "PASS",
+      "expected_sha256": "66cd206637b0d5c446fa7dabe75fe03525da8fb55855876c46288cd88b136aa4",
+      "name": "httpd",
+      "path": "/src/ModSecurity-conector-cache/archives/apache/httpd-2.4.67.tar.bz2",
+      "sha256": "66cd206637b0d5c446fa7dabe75fe03525da8fb55855876c46288cd88b136aa4",
+      "size": 7493067,
+      "status": "present",
+      "url": "https://archive.apache.org/dist/httpd/httpd-2.4.67.tar.bz2"
+    },
+    {
+      "archive_list": "PASS",
+      "blocker_reason": "",
+      "checksum_status": "PASS",
+      "expected_sha256": "49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32",
+      "name": "apr",
+      "path": "/src/ModSecurity-conector-cache/archives/apache/apr-1.7.6.tar.bz2",
+      "sha256": "49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32",
+      "size": 899670,
+      "status": "present",
+      "url": "https://downloads.apache.org/apr/apr-1.7.6.tar.bz2"
+    },
+    {
+      "archive_list": "PASS",
+      "blocker_reason": "",
+      "checksum_status": "PASS",
+      "expected_sha256": "a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5",
+      "name": "apr-util",
+      "path": "/src/ModSecurity-conector-cache/archives/apache/apr-util-1.6.3.tar.bz2",
+      "sha256": "a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5",
+      "size": 432692,
+      "status": "present",
+      "url": "https://downloads.apache.org/apr/apr-util-1.6.3.tar.bz2"
+    },
+    {
+      "archive_list": "PASS",
+      "blocker_reason": "",
+      "checksum_status": "checksum_unavailable",
+      "name": "pcre2",
+      "path": "/src/ModSecurity-conector-cache/archives/apache/pcre2-10.47.tar.bz2",
+      "sha256": "47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7",
+      "size": 2145789,
+      "status": "present",
+      "url": "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.tar.bz2"
+    },
+    {
+      "archive_list": "PASS",
+      "blocker_reason": "",
+      "checksum_status": "PASS",
+      "expected_sha256": "b08ebbd57f575012e4a5eb5b772721531fbacf6913ffd334f0281736a1ad78b6",
+      "name": "haproxy",
+      "path": "/src/ModSecurity-conector-cache/archives/haproxy/haproxy-3.2.19.tar.gz",
+      "sha256": "b08ebbd57f575012e4a5eb5b772721531fbacf6913ffd334f0281736a1ad78b6",
+      "size": 5152214,
+      "status": "present",
+      "url": "https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz"
+    },
+    {
+      "archive_list": "PASS",
+      "blocker_reason": "",
+      "checksum_status": "checksum_unavailable",
+      "name": "nginx",
+      "path": "/src/ModSecurity-conector-cache/archives/nginx/release-1.31.1.tar.gz",
+      "resolved_tag": "release-1.31.1",
+      "sha256": "c7e3053faef6b037ba402594767d0bbf5be6e32a0d7f9772cc03bde713fcd246",
+      "size": 1321617,
+      "status": "present",
+      "url": "https://github.com/nginx/nginx/archive/refs/tags/release-1.31.1.tar.gz"
+    }
+  ],
+  "cache_root": "/src/ModSecurity-conector-cache",
+  "connector_root": "/root/git/ModSecurity-conector",
+  "dependencies": [
+    {
+      "access": "read-only/executable",
+      "configured": "go-ftw",
+      "env_var": "GO_FTW_BIN",
+      "name": "go-ftw",
+      "path": null,
+      "status": "missing"
+    },
+    {
+      "access": "read-only/executable",
+      "configured": "albedo",
+      "env_var": "ALBEDO_BIN",
+      "name": "albedo",
+      "path": null,
+      "status": "missing"
+    },
+    {
+      "access": "read-only/executable",
+      "configured": "apachectl",
+      "env_var": "APACHECTL_BIN",
+      "name": "apachectl",
+      "path": null,
+      "status": "missing"
+    },
+    {
+      "access": "read-only/executable",
+      "configured": "nginx",
+      "env_var": "MRTS_NATIVE_NGINX_BIN",
+      "name": "nginx",
+      "path": null,
+      "status": "missing"
+    },
+    {
+      "access": "read-only/module-reference",
+      "configured": "",
+      "env_var": "MRTS_NATIVE_NGINX_MODULE_DIR",
+      "name": "ngx_http_modsecurity_module.so",
+      "path": "ngx_http_modsecurity_module.so",
+      "status": "missing"
+    }
+  ],
+  "framework_root": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
+  "generated_at": "2026-06-10T08:44:44Z",
+  "git_components": [
+    {
+      "actual_head": "2fd49292d751fc383b8faf7da6a8d480904774d0",
+      "blocker_reason": "",
+      "expected_ref": "v3/master",
+      "git_fsck": "SKIPPED_CACHED_PASS",
+      "name": "modsecurity-v3",
+      "path": "/src/ModSecurity-conector-cache/sources/ModSecurity_V3",
+      "recursive_submodules": true,
+      "status": "present",
+      "status_short": "",
+      "submodule_count": 8,
+      "submodule_status": "bc625d5bb0bac6a64bcce8dc9902208612399348 bindings/python (bc625d5)\n 211782219663f889f471650150df12b623c5766e others/libinjection (v4.0.0)\n 0fe989b6b514192783c469039edd325fd0989806 others/mbedtls (v4.1.0)\n dff9da04438d712f7647fd995bc90fadd0c0e2ce others/mbedtls/framework (mbedtls-4.1.0_tf-psa-crypto-1.1.0)\n 29160dd877d29658279fd683b2ae57b320ddcf09 others/mbedtls/tf-psa-crypto (v1.1.0)\n 5772b4f4a0105694b1203abb582273f78fa951b7 others/mbedtls/tf-psa-crypto/drivers/pqcp/mldsa-native (remotes/origin/main-53-g5772b4f)\n dff9da04438d712f7647fd995bc90fadd0c0e2ce others/mbedtls/tf-psa-crypto/framework (mbedtls-4.1.0_tf-psa-crypto-1.1.0)\n a3d4405e5a2c90488c387e589c5534974575e35b test/test-cases/secrules-language-tests (a3d4405)",
+      "submodule_status_clean": true,
+      "tree": {
+        "exists": true,
+        "file_count": 5921,
+        "sha256_manifest": "10c750ae50041561a738d780a03d74e895ed3c76701605dfed11d43234425356",
+        "total_size": 678656068
+      },
+      "url": "https://github.com/owasp-modsecurity/ModSecurity.git"
+    },
+    {
+      "actual_head": "955649c1221633cc3ea63674904e94fbc5fb6356",
+      "blocker_reason": "",
+      "expected_ref": "v4.26.0",
+      "git_fsck": "SKIPPED_CACHED_PASS",
+      "name": "coreruleset",
+      "path": "/src/ModSecurity-conector-cache/sources/coreruleset",
+      "recursive_submodules": true,
+      "status": "present",
+      "status_short": "",
+      "submodule_count": 0,
+      "submodule_status": "",
+      "submodule_status_clean": true,
+      "tree": {
+        "exists": true,
+        "file_count": 687,
+        "sha256_manifest": "50ac543ef226a99f8262ed02bef60d8d1518484cb4a8f53f8c354c7c32239425",
+        "total_size": 21262112
+      },
+      "url": "https://github.com/coreruleset/coreruleset.git"
+    }
+  ],
+  "guardrails": {
+    "fsck_cache_enabled": true,
+    "no_new_external_sources": true,
+    "system_paths_read_only": true
+  },
+  "runtime_env": {
+    "APACHE_DOWNLOAD_DIR": "/src/ModSecurity-conector-cache/archives/apache",
+    "CONNECTOR_COMPONENT_CACHE": "/src/ModSecurity-conector-cache",
+    "CRS_SOURCE_DIR": "/src/ModSecurity-conector-cache/sources/coreruleset",
+    "HAPROXY_DOWNLOAD_DIR": "/src/ModSecurity-conector-cache/archives/haproxy",
+    "HAPROXY_SOURCE_DIR": "/src/ModSecurity-conector-cache/sources/haproxy/haproxy-3.2.19",
+    "HAPROXY_SOURCE_ROOT": "/src/ModSecurity-conector-cache/sources/haproxy",
+    "MODSECURITY_SOURCE_DIR": "/src/ModSecurity-conector-cache/sources/ModSecurity_V3",
+    "MODSECURITY_V3_ROOT": "/src/ModSecurity-conector-cache/sources/ModSecurity_V3",
+    "MODSECURITY_V3_SOURCE_DIR": "/src/ModSecurity-conector-cache/sources/ModSecurity_V3",
+    "NGINX_DOWNLOAD_DIR": "/src/ModSecurity-conector-cache/archives/nginx",
+    "SOURCE_ROOT": "/src/ModSecurity-conector-cache/sources"
+  },
+  "strict_verify": false
+}

@@ -21,6 +21,19 @@ PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT MRTS_ROOT MRTS_BUILD_ROOT MRTS_NATIVE_ROOT GO_FTW_BIN ALBEDO_BIN PYTHONDONTWRITEBYTECODE
 
+REPO_ROOT="$CONNECTOR_ROOT"
+. "$FRAMEWORK_ROOT/ci/common.sh"
+
+validate_runtime_paths() {
+    assert_safe_runtime_path "$BUILD_ROOT" BUILD_ROOT || exit 77
+    assert_safe_runtime_path "$TMP_ROOT" TMP_ROOT || exit 77
+    assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
+    assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
+    assert_safe_runtime_path "$MRTS_NATIVE_ROOT" MRTS_NATIVE_ROOT || exit 77
+    assert_not_system_path_for_write "$CONNECTOR_ROOT/reports/testing/generated" MRTS_NATIVE_REPORT_DIR || exit 77
+}
+
+validate_runtime_paths
 mkdir -p "$MRTS_NATIVE_ROOT" "$LOG_ROOT"
 
 json_string() {
@@ -114,6 +127,7 @@ patch_common_ftw_config() {
     config=$1
     logfile=$2
     if [ -f "$config" ]; then
+        assert_not_system_path_for_write "$config" "native FTW config" || return 77
         sed -i "s#^logfile:.*#logfile: '$(printf '%s' "$logfile" | sed 's#[\\&#]#\\\\&#g')'#" "$config"
     fi
 }
@@ -123,7 +137,8 @@ stage_apache() {
     source_root="$MRTS_ROOT/config_infra/apache2_ubuntu"
     stage="$target_root/stage"
     require_path "$source_root" "MRTS apache native infrastructure" || return 1
-    rm -rf "$stage"
+    assert_safe_runtime_path "$target_root" "Apache native target root" || return 77
+    safe_remove_runtime_path "$stage" "$target_root" "Apache native stage" || return 77
     mkdir -p "$stage"
     cp -a "$source_root/." "$stage/"
     mkdir -p "$stage/infra/log" "$stage/infra/run"
@@ -140,7 +155,8 @@ stage_nginx() {
     source_root="$FRAMEWORK_ROOT/tests/mrts/infra-overlays/nginx-pr24"
     stage="$target_root/stage"
     require_path "$source_root" "Framework NGINX PR24 overlay" || return 1
-    rm -rf "$stage"
+    assert_safe_runtime_path "$target_root" "NGINX native target root" || return 77
+    safe_remove_runtime_path "$stage" "$target_root" "NGINX native stage" || return 77
     mkdir -p "$stage"
     cp -a "$source_root/." "$stage/"
     mkdir -p "$stage/infra/log" "$stage/infra/run"
@@ -205,7 +221,7 @@ run_native_target() {
     exit_code_file="$target_root/exit.code"
     job_json="$target_root/job.json"
     summary_path="$job_json"
-    rm -rf "$target_root"
+    safe_remove_runtime_path "$target_root" "$MRTS_NATIVE_ROOT" "native target root" || return 77
     mkdir -p "$target_root"
     : > "$run_log"
     started=$(date +%s)

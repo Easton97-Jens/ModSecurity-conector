@@ -14,6 +14,7 @@ PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 FORCE_ALL_CASES="${FORCE_ALL_CASES:-1}"
 COMMON_SH="$FRAMEWORK_ROOT/ci/common.sh"
 if [ -f "$COMMON_SH" ]; then
+    REPO_ROOT="$CONNECTOR_ROOT"
     . "$COMMON_SH"
 fi
 
@@ -25,6 +26,14 @@ FULL_MATRIX_MANIFEST="${FULL_MATRIX_MANIFEST:-$FULL_MATRIX_RESULTS_ROOT/full-run
 export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT BUILD_ROOT MRTS_BUILD_ROOT TMP_ROOT LOG_ROOT
 export PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES
 
+assert_safe_runtime_path "$BUILD_ROOT" BUILD_ROOT || exit 77
+assert_safe_runtime_path "$TMP_ROOT" TMP_ROOT || exit 77
+assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
+assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
+assert_safe_runtime_path "$FULL_MATRIX_RESULTS_ROOT" FULL_MATRIX_RESULTS_ROOT || exit 77
+assert_safe_runtime_path "$FULL_MATRIX_LOG_ROOT" FULL_MATRIX_LOG_ROOT || exit 77
+assert_not_system_path_for_write "$FULL_MATRIX_REPORT_DIR" FULL_MATRIX_REPORT_DIR || exit 77
+assert_not_system_path_for_write "$FULL_MATRIX_MANIFEST" FULL_MATRIX_MANIFEST || exit 77
 mkdir -p "$FULL_MATRIX_RESULTS_ROOT" "$FULL_MATRIX_LOG_ROOT" "$FULL_MATRIX_REPORT_DIR"
 : > "$FULL_MATRIX_MANIFEST"
 
@@ -33,15 +42,8 @@ safe_rm_rf() {
     parent=$2
     label=$3
 
-    case "$target" in
-        "$parent"/*) ;;
-        *)
-            echo "ERROR: refusing to remove $label outside $parent: $target" >&2
-            return 2
-            ;;
-    esac
-    rm -rf "$target"
-    return 0
+    safe_remove_runtime_path "$target" "$parent" "$label"
+    return $?
 }
 
 prepare_haproxy_crs_preamble() {
@@ -68,6 +70,9 @@ run_one() {
     log_path="$log_dir/$connector.log"
     summary_path="$results_dir/$connector-summary.json"
 
+    assert_safe_runtime_path "$log_dir" "full matrix log dir" || exit 77
+    assert_safe_runtime_path "$results_dir" "full matrix results dir" || exit 77
+    assert_not_system_path_for_write "$log_path" "full matrix log path" || exit 77
     mkdir -p "$log_dir"
     safe_rm_rf "$results_dir" "$FULL_MATRIX_RESULTS_ROOT" "full matrix results directory"
     mkdir -p "$results_dir"
@@ -90,6 +95,7 @@ run_one() {
             MODSECURITY_MRTS_VARIANT="$mrts_variant" \
             MODSECURITY_RULE_PREAMBLE_FILE="$MODSECURITY_RULE_PREAMBLE_FILE" \
             FORCE_ALL_CASES="$FORCE_ALL_CASES" \
+            SKIP_RUNTIME_COMPONENT_PREPARE=1 \
             PYTHONDONTWRITEBYTECODE="$PYTHONDONTWRITEBYTECODE" \
             make -C "$CONNECTOR_ROOT" "smoke-$connector" >> "$log_path" 2>&1
         rc=$?

@@ -16,7 +16,12 @@ MRTS_NATIVE_NGINX_PORT ?= 19081
 MRTS_NATIVE_BACKEND_PORT ?= 19082
 GO_FTW_BIN ?= go-ftw
 ALBEDO_BIN ?= albedo
+CONNECTOR_COMPONENT_CACHE ?=
+SKIP_RUNTIME_COMPONENT_PREPARE ?= 0
+RUNTIME_COMPONENT_STRICT_VERIFY ?= 0
+KEEP_RUNTIME_ARTIFACTS ?= 0
 PYTHONDONTWRITEBYTECODE ?= 1
+WITH_RUNTIME_COMPONENTS = SKIP_RUNTIME_COMPONENT_PREPARE=1 sh ci/with-runtime-components.sh
 
 export BUILD_ROOT
 export SOURCE_ROOT
@@ -117,8 +122,12 @@ export NGINX_BIN
 export RESPONSE_BODY_PROBE_REPEAT
 export RESPONSE_BODY_PROBE_ROOT
 export RESPONSE_BODY_PROBE_CASE
+export CONNECTOR_COMPONENT_CACHE
+export SKIP_RUNTIME_COMPONENT_PREPARE
+export RUNTIME_COMPONENT_STRICT_VERIFY
+export KEEP_RUNTIME_ARTIFACTS
 
-.PHONY: check-framework smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-mrts-runtime-matrix full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue mrts-native-full-run mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: check-framework prepare-runtime-components smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-mrts-runtime-matrix full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue mrts-native-full-run mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 check-framework:
 	@test -d "$(FRAMEWORK_ROOT)" || { \
@@ -127,29 +136,36 @@ check-framework:
 		exit 77; \
 	}
 
-smoke-common: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=common sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
+prepare-runtime-components: check-framework
+	@if [ "$(SKIP_RUNTIME_COMPONENT_PREPARE)" = "1" ]; then \
+		echo "prepare-runtime-components: skipped (SKIP_RUNTIME_COMPONENT_PREPARE=1)"; \
+	else \
+		PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/prepare-runtime-components.sh; \
+	fi
 
-smoke-apache: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/apache}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-apache-smoke.sh"
+smoke-common: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=common sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
 
-smoke-nginx: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/nginx}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-nginx-smoke.sh"
+smoke-apache: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/apache}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-apache-smoke.sh"
 
-smoke-envoy: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-envoy-smoke.sh"
+smoke-nginx: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/nginx}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-nginx-smoke.sh"
 
-smoke-haproxy: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/haproxy}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-smoke.sh"
+smoke-envoy: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-envoy-smoke.sh"
 
-smoke-lighttpd: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-lighttpd-smoke.sh"
+smoke-haproxy: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" RESULTS_DIR="$${RESULTS_DIR:-$(BUILD_ROOT)/results/$${MODSECURITY_TEST_VARIANT:-no-crs}/$${MODSECURITY_MRTS_VARIANT:-no-mrts}/haproxy}" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-smoke.sh"
 
-smoke-traefik: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-traefik-smoke.sh"
+smoke-lighttpd: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-lighttpd-smoke.sh"
 
-smoke-new-connectors: check-framework
-	@set +e; \
+smoke-traefik: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-traefik-smoke.sh"
+
+smoke-new-connectors: check-framework prepare-runtime-components
+	@$(WITH_RUNTIME_COMPONENTS) sh -eu -c 'set +e; \
 	passed=0; blocked=0; failed=0; \
 	for connector in envoy haproxy lighttpd traefik; do \
 		echo "smoke-new-connectors: running $$connector"; \
@@ -178,18 +194,18 @@ smoke-new-connectors: check-framework
 		exit 77; \
 	fi; \
 	echo "smoke-new-connectors: PASS - runtime smoke verified"; \
-	exit 0
+	exit 0'
 
-smoke-all: check-framework
-	CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
+smoke-all: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
 
 test: test-no-crs test-with-crs
 
-test-no-crs: check-framework
-	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"'
+test-no-crs: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"'
 
-test-with-crs: check-framework
-	MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; sh "$(FRAMEWORK_ROOT)/ci/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"'
+test-with-crs: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; sh "$(FRAMEWORK_ROOT)/ci/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"'
 
 mrts-generate: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-generate
@@ -200,35 +216,35 @@ mrts-load: check-framework
 mrts-import: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-import
 
-test-no-mrts: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-no-mrts
+test-no-mrts: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-no-mrts
 
-test-with-mrts: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts
+test-with-mrts: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts
 
-test-with-mrts-feature-demo: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts-feature-demo
+test-with-mrts-feature-demo: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts-feature-demo
 
-test-mrts-matrix: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-mrts-matrix
+test-mrts-matrix: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-mrts-matrix
 
-mrts-ftw: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-ftw
+mrts-ftw: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-ftw
 
-runtime-matrix: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
+runtime-matrix: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
 
-runtime-matrix-all: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
+runtime-matrix-all: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
 
-runtime-matrix-haproxy: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=all sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
+runtime-matrix-haproxy: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=all sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
 
-full-mrts-runtime-matrix: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-mrts-runtime-matrix.sh
+full-mrts-runtime-matrix: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-mrts-runtime-matrix.sh
 
-full-matrix-parallel: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-matrix-parallel.sh
+full-matrix-parallel: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-matrix-parallel.sh
 
 generate-full-runtime-matrix: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-full-runtime-matrix.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --log-root "$(LOG_ROOT)"
@@ -240,14 +256,14 @@ generate-work-queue: check-framework
 generate-phase-work-queue: check-framework
 	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-phase-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --connector-work-queue "$(CURDIR)/reports/testing/generated/connector-work-queue.generated.json" --phase-coverage "$(CURDIR)/reports/testing/generated/phase-coverage.generated.md" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/full-runtime-matrix.generated.json"
 
-mrts-native-full-run: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
+mrts-native-full-run: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
 
-mrts-native-apache-full: check-framework
-	MRTS_NATIVE_TARGETS=apache2_ubuntu PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
+mrts-native-apache-full: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env MRTS_NATIVE_TARGETS=apache2_ubuntu PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
 
-mrts-native-nginx-pr24-full: check-framework
-	MRTS_NATIVE_TARGETS=nginx-pr24 PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
+mrts-native-nginx-pr24-full: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env MRTS_NATIVE_TARGETS=nginx-pr24 PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
 
 mrts-upstream-infra-check: check-framework
 	@sh -eu -c ' \
@@ -258,22 +274,23 @@ mrts-upstream-infra-check: check-framework
 		echo "MRTS upstream/native infrastructure inputs present"; \
 	'
 
-test-haproxy-no-crs: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=no-crs sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
+test-haproxy-no-crs: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=no-crs sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
 
-test-haproxy-with-crs: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=with-crs sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
+test-haproxy-with-crs: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=with-crs sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
 
-probe-response-body: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" sh "$(FRAMEWORK_ROOT)/ci/probe-response-body-blocking.sh"
+probe-response-body: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" sh "$(FRAMEWORK_ROOT)/ci/probe-response-body-blocking.sh"
 
-connector-starter-checks: check-framework
-	SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
+connector-starter-checks: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
 lint: check-framework
 	sh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile ci/*.py
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-workflow-yaml.py"
@@ -302,8 +319,8 @@ setup-dev: install-dev-deps
 fetch-modsecurity-v3: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/fetch-smoke-sources.sh" v3
 
-fetch-deps bootstrap-runtime: check-framework
-	sh "$(FRAMEWORK_ROOT)/ci/fetch-smoke-sources.sh" all
+fetch-deps bootstrap-runtime: prepare-runtime-components
+	@echo "fetch-deps: runtime components prepared in CONNECTOR_COMPONENT_CACHE=$${CONNECTOR_COMPONENT_CACHE:-auto}"
 
 fetch-crs: check-framework
 	sh "$(FRAMEWORK_ROOT)/ci/fetch-crs.sh"

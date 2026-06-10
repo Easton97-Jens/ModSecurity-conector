@@ -6,6 +6,9 @@ FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Frame
 DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}}"
 SOURCE_ROOT="${SOURCE_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-src}"
 SHARED_BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
+BUILD_ROOT="$SHARED_BUILD_ROOT"
+TMP_ROOT="${TMP_ROOT:-$SHARED_BUILD_ROOT/tmp}"
+LOG_ROOT="${LOG_ROOT:-$SHARED_BUILD_ROOT/logs}"
 MATRIX_ROOT="${MATRIX_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-full-matrix}"
 MRTS_BUILD_ROOT="${MRTS_BUILD_ROOT:-$SHARED_BUILD_ROOT/mrts}"
 PYTHON="${PYTHON:-python3}"
@@ -19,8 +22,22 @@ FULL_MATRIX_PORT_SPAN="${FULL_MATRIX_PORT_SPAN:-1000}"
 FULL_MATRIX_PREPARE_SHARED_BUILDS="${FULL_MATRIX_PREPARE_SHARED_BUILDS:-1}"
 FULL_MATRIX_PREPARE_CASE="${FULL_MATRIX_PREPARE_CASE:-action_allow_phase1_pass}"
 
-export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES MRTS_BUILD_ROOT
+export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES MRTS_BUILD_ROOT
 
+REPO_ROOT="$CONNECTOR_ROOT"
+. "$FRAMEWORK_ROOT/ci/common.sh"
+
+validate_runner_paths() {
+    assert_safe_runtime_path "$SHARED_BUILD_ROOT" SHARED_BUILD_ROOT || exit 77
+    assert_safe_runtime_path "$TMP_ROOT" TMP_ROOT || exit 77
+    assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
+    assert_safe_runtime_path "$MATRIX_ROOT" MATRIX_ROOT || exit 77
+    assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
+    assert_not_system_path_for_write "$FULL_MATRIX_REPORT_DIR" FULL_MATRIX_REPORT_DIR || exit 77
+    assert_not_system_path_for_write "$FULL_MATRIX_MANIFEST" FULL_MATRIX_MANIFEST || exit 77
+}
+
+validate_runner_paths
 mkdir -p "$MATRIX_ROOT" "$FULL_MATRIX_REPORT_DIR"
 : > "$FULL_MATRIX_MANIFEST"
 
@@ -39,15 +56,8 @@ safe_rm_rf() {
     parent=$2
     label=$3
 
-    case "$target" in
-        "$parent"/*) ;;
-        *)
-            echo "ERROR: refusing to remove $label outside $parent: $target" >&2
-            return 2
-            ;;
-    esac
-    rm -rf "$target"
-    return 0
+    safe_remove_runtime_path "$target" "$parent" "$label"
+    return $?
 }
 
 trap 'terminate_jobs; exit 77' INT TERM
@@ -125,6 +135,7 @@ prepare_shared_connector() {
         return 0
     fi
     prep_root="$MATRIX_ROOT/_prepare/$connector"
+    assert_safe_runtime_path "$prep_root" "matrix prepare root" || return 77
     mkdir -p "$prep_root"
     echo "full-matrix-parallel: preparing shared $connector build artifacts"
     set +e
@@ -137,6 +148,7 @@ prepare_shared_connector() {
         LOG_ROOT="$SHARED_BUILD_ROOT/logs" \
         RESULTS_DIR="$prep_root/results" \
         REFRESH=1 \
+        SKIP_RUNTIME_COMPONENT_PREPARE=1 \
         MODSECURITY_TEST_VARIANT="no-crs" \
         MODSECURITY_MRTS_VARIANT="no-mrts" \
         MODSECURITY_MRTS_PREPARED=0 \
@@ -164,6 +176,7 @@ prepare_batch() {
     test_variant=$1
     mrts_variant=$2
     batch_root="$MATRIX_ROOT/$test_variant/$mrts_variant/_batch"
+    assert_safe_runtime_path "$batch_root" "matrix batch root" || return 77
     mkdir -p "$batch_root"
     if [ "$mrts_variant" = "with-mrts" ]; then
         echo "full-matrix-parallel: preparing MRTS for $test_variant/$mrts_variant"
@@ -217,6 +230,12 @@ run_job() {
     job_json="$job_root/job.json"
     summary_path=$(summary_path_for "$results_dir" "$connector")
 
+    assert_safe_runtime_path "$job_root" "matrix job root" || exit 77
+    assert_safe_runtime_path "$job_tmp_root" "matrix job tmp root" || exit 77
+    assert_safe_runtime_path "$job_log_root" "matrix job log root" || exit 77
+    assert_safe_runtime_path "$results_dir" "matrix job results root" || exit 77
+    assert_not_system_path_for_write "$run_log" "matrix run log" || exit 77
+    assert_not_system_path_for_write "$job_json" "matrix job json" || exit 77
     safe_rm_rf "$job_root" "$MATRIX_ROOT" "matrix job root"
     mkdir -p "$job_build_root" "$job_tmp_root" "$job_log_root" "$results_dir"
     : > "$run_log"
@@ -235,7 +254,7 @@ run_job() {
 
     echo "full-matrix-parallel: job start connector=$connector variant=$test_variant/$mrts_variant port=$port" >> "$run_log"
 
-    common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=$job_refresh AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load"
+    common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=$job_refresh AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load SKIP_RUNTIME_COMPONENT_PREPARE=1"
 
     set +e
     case "$connector" in
@@ -385,6 +404,7 @@ run_batch() {
     mrts_variant=$2
     batch_base=$(variant_base_port "$test_variant" "$mrts_variant")
     batch_root="$MATRIX_ROOT/$test_variant/$mrts_variant/_batch"
+    assert_safe_runtime_path "$batch_root" "matrix batch root" || return 77
     mkdir -p "$batch_root"
     prepare_batch "$test_variant" "$mrts_variant"
 
