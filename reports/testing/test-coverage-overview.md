@@ -3,64 +3,32 @@ Generated file — do not edit manually.
 # ModSecurity Connector Test Coverage Overview
 
 ## Summary
-- Total cases: **540**
+- Total cases: **141**
 - Verified/pass count (`runtime_verified=true`): **0**
 - Current XFAIL count: **0**
 - Former XFAIL cases tracked: **80**
-- Pending runtime verification count: **410**
+- Pending runtime verification count: **11**
 - Connector-gap count: **11**
 - Runtime-difference count: **13**
 - Future/experimental count: **17**
-- RESPONSE_BODY cases: **32** (still **not verified/promoted**)
+- RESPONSE_BODY cases: **24** (still **not verified/promoted**)
 - Mapped-only import inventory entries: **10**
-
-## MRTS Source Summary
-- Total MRTS imported cases: **399**
-- Active MRTS cases: **0**
-- Pending MRTS cases: **399**
-- Unclassified MRTS cases: **399**
-- Phase 4 / RESPONSE_BODY MRTS cases: **110**
-- Runtime-executable MRTS cases: **0**
-- MRTS overlay classifications: **unclassified(399)**
-- Apache observed classifications: **-**
-- NGINX observed classifications: **-**
-- HAProxy observed classifications: **-**
-
-| Corpus | Category | Definitions | Golden tests | Golden rules | Framework cases | Active | Pending | Unclassified | Phase 4 / RESPONSE_BODY | Runtime-executable |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| upstream-config-tests | runnable | 16 | 157 | 15 | 383 | 0 | 383 | 383 | 110 | 0 |
-| feature-demo | optional/demo | 9 | 13 | 8 | 16 | 0 | 16 | 16 | 0 | 0 |
-| upstream-generated | golden-only | - | 157 | 15 | 0 | 0 | 0 | 0 | 0 | 0 |
-| framework-curated | legacy/reference | 16 | - | - | 0 | 0 | 0 | 0 | 0 | 0 |
-
-### MRTS Golden Drift
-| Reference | Generated | Golden | Matched | Mismatch | Missing generated | Extra generated |
-|---|---:|---:|---:|---:|---:|---:|
-| upstream_tests | 157 | 157 | 157 | 0 | 0 | 0 |
-| upstream_rules | 15 | 15 | 15 | 0 | 0 | 0 |
-| feature_demo_tests | 13 | 13 | 0 | 0 | 13 | 13 |
-| feature_demo_rules | 8 | 8 | 7 | 1 | 0 | 0 |
-
-- Duplicate MRTS rule IDs across imported runnable/demo corpora: **13**
-- Golden-only references under `tools/MRTS/generated/**` and `tools/MRTS/feature_demo/generated/**` are drift inputs only.
-- Feature-demo cases are report-visible as optional/demo and pending unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` passes collision checks.
 
 ## Coverage By Variable / Collection
 | Variable | Count |
 |---|---:|
-| `ARGS` | 76 |
-| `REQUEST_COOKIES_NAMES` | 64 |
-| `ARGS_NAMES` | 63 |
-| `REQUEST_COOKIES` | 60 |
-| `RESPONSE_BODY` | 28 |
+| `RESPONSE_BODY` | 20 |
 | `ARGS:q` | 18 |
 | `REQUEST_BODY` | 10 |
-| `XML` | 7 |
+| `ARGS_NAMES` | 7 |
 | `REQUEST_URI` | 7 |
 | `ARGS:test` | 6 |
 | `REQUEST_HEADERS_NAMES` | 5 |
 | `ARGS:a` | 4 |
+| `REQUEST_COOKIES_NAMES` | 4 |
+| `XML` | 4 |
 | `ARGS:param1` | 4 |
+| `ARGS` | 4 |
 | `RESPONSE_HEADERS:Set-Cookie` | 4 |
 | `ARGS:probe` | 4 |
 | `MULTIPART_FILENAME` | 3 |
@@ -68,47 +36,47 @@ Generated file — do not edit manually.
 | `ARGS:chain_b` | 3 |
 | `FILES_NAMES` | 2 |
 | `TX:SCORE` | 2 |
+| `REQUEST_COOKIES:USER_TOKEN` | 2 |
 
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
-| 1 | 105 |
-| 2 | 192 |
-| 3 | 114 |
-| 4 | 126 |
+| 1 | 36 |
+| 2 | 74 |
+| 3 | 12 |
+| 4 | 20 |
 
 ## Coverage By Status
 | Status | Count |
 |---|---:|
 | active | 8 |
 | imported | 133 |
-| pending | 399 |
 
 ## Coverage By Scope
 | Scope | Count |
 |---|---:|
-| common | 533 |
+| common | 134 |
 | apache | 0 |
 | nginx | 7 |
 | unknown | 0 |
 
 ## Runtime Matrix Status
 - Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **540**
+- Force-all runtime-executable YAML cases: **141**
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **54**
 - Apache attempted YAML cases from force-all summary: **516**
-- NGINX attempted YAML cases from force-all summary: **523**
+- NGINX attempted YAML cases from force-all summary: **140**
 - HAProxy attempted YAML cases from force-all summary: **133**
 - Apache force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **183** / **327** / **0** / **6**
-- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **87** / **430** / **0** / **6**
+- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **67** / **67** / **0** / **6**
 - HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **104** / **23** / **0** / **6**
 | Status | Apache | NGINX | HAProxy |
 |---|---:|---:|---:|
 | PASS | 10 | 10 | 10 |
 | FAIL | 44 | 50 | 44 |
-| NOT_EXECUTABLE | 486 | 480 | 486 |
+| NOT_EXECUTABLE | 87 | 81 | 87 |
 | MAPPED_ONLY | 10 | 10 | 10 |
 - Details: `reports/testing/generated/runtime-matrix.generated.md`
 - HAProxy per-case results: `reports/testing/generated/haproxy-runtime-results.generated.md`
@@ -138,9 +106,9 @@ Generated file — do not edit manually.
 | make runtime-matrix-all | PASS | Force-all matrix orchestration completed and recorded Apache/NGINX per-case evidence; expected runtime FAILs remain evidence and are not PASS promotions |
 
 ## Runtime Smoke Status
-- Snapshot: **2026-06-08** (2026-06-08 16:36:28 CEST)
-- Git: branch `integrate-new-connectors-local`, commit `4ccd37b`
-- BUILD_ROOT: `/src/ModSecurity-conector-build`
+- Snapshot: **2026-06-10** (2026-06-10 16:58:51 CEST)
+- Git: branch `integrate-new-connectors-local`, commit `48bdd28`
+- BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
 - Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 
 ### Default Runtime Smoke Status
@@ -155,7 +123,7 @@ Generated file — do not edit manually.
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
 | apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 516 | 183 | 327 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 523 | 87 | 430 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 67 | 67 | 0 | 6 | /root/.local/state/ModSecurity-conector-build/results/force-all/nginx-summary.json |
 | haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 1 | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 ## Connector Runtime Availability

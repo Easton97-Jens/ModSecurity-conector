@@ -116,14 +116,14 @@
       "status": "missing"
     }
   ],
-  "framework_root": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
-  "generated_at": "2026-06-10T08:44:44Z",
+  "framework_root": "/root/git/ModSecurity-test-Framework",
+  "generated_at": "2026-06-10T18:16:47Z",
   "git_components": [
     {
       "actual_head": "2fd49292d751fc383b8faf7da6a8d480904774d0",
       "blocker_reason": "",
       "expected_ref": "v3/master",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "name": "modsecurity-v3",
       "path": "/src/ModSecurity-conector-cache/sources/ModSecurity_V3",
       "recursive_submodules": true,
@@ -144,7 +144,7 @@
       "actual_head": "955649c1221633cc3ea63674904e94fbc5fb6356",
       "blocker_reason": "",
       "expected_ref": "v4.26.0",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "name": "coreruleset",
       "path": "/src/ModSecurity-conector-cache/sources/coreruleset",
       "recursive_submodules": true,
@@ -155,9 +155,9 @@
       "submodule_status_clean": true,
       "tree": {
         "exists": true,
-        "file_count": 687,
-        "sha256_manifest": "50ac543ef226a99f8262ed02bef60d8d1518484cb4a8f53f8c354c7c32239425",
-        "total_size": 21262112
+        "file_count": 688,
+        "sha256_manifest": "57cf63a6c1e7df15ccf84ceca92cedfbca3b3b55dc747cc9218fe4141f69cefe",
+        "total_size": 21262153
       },
       "url": "https://github.com/coreruleset/coreruleset.git"
     }
