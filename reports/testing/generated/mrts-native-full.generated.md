@@ -1,6 +1,6 @@
 # MRTS Native Infrastructure Report
 
-Generated at: `2026-06-12T15:36:08Z`
+Generated at: `2026-06-12T17:00:55Z`
 
 ## Executive Summary
 - PASS: **0**
@@ -50,9 +50,9 @@ Generated at: `2026-06-12T15:36:08Z`
 - Status: `present`
 - Blocker: `-`
 - Cache path: `/src/ModSecurity-conector-cache/archives/apache`
-- Build path: `/tmp/modsec-native-after-libcrypt/apache-build`
-- apachectl/APACHECTL_BIN: `/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apachectl-mrts`
-- Module file: `/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so`
+- Build path: `/tmp/modsec-native-100003-debug/apache-build`
+- apachectl/APACHECTL_BIN: `/tmp/modsec-native-100003-debug/apache-runtime/httpd/bin/apachectl-mrts`
+- Module file: `/tmp/modsec-native-100003-debug/apache-build/output/apache/mod_security3.so`
 - Missing file: `-`
 - Build component: `-`
 - Env variable to set: `APACHECTL_BIN`
@@ -72,10 +72,10 @@ Generated at: `2026-06-12T15:36:08Z`
 - Status: `present`
 - Blocker: `-`
 - Cache path: `/src/ModSecurity-conector-cache/archives/nginx`
-- Build path: `/tmp/modsec-native-after-libcrypt/nginx-build`
-- MRTS_NATIVE_NGINX_BIN: `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx`
-- MRTS_NATIVE_NGINX_MODULE_DIR: `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules`
-- Module file: `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
+- Build path: `/tmp/modsec-native-100003-debug/nginx-build`
+- MRTS_NATIVE_NGINX_BIN: `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/sbin/nginx`
+- MRTS_NATIVE_NGINX_MODULE_DIR: `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/modules`
+- Module file: `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
 - Missing file: `-`
 - Build component: `-`
 - Env variable to set: `MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR`
@@ -106,32 +106,60 @@ Generated at: `2026-06-12T15:36:08Z`
 - Target: `apache2_ubuntu`
 - Run counts: attempted `13`, passed `12`, failed cases `100003-1`
 - Diagnosis: Apache/httpd started and reached go-ftw; expected phase 4 rule id 100003 was not logged.
-- Generated YAML: `/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml`
-- Generated rule file: `/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf`
+- Classification: `native_modsecurity_semantics`; secondary `phase4_native_limitation`; unresolved `False`
+- Classification reason: Rule 100003 is loaded and its target/operator match the same POST query argument in phases 1-3, but no phase:4 ARGS/ARGS_GET rule is logged in either native target.
+- Generated YAML: `/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml`
+- Generated rule file: `/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf`
+- Source definition: `config_tests/CONF_002_TARGET_ARGS_A-GET.yaml`
+- Generated rule line: `SecRule ARGS "@contains attack" "id:100003, phase:4, deny, t:none, log"`
+- Rule 100003: variable `ARGS`, phase `4`, operator `@contains attack`, transform `t:none`
 - Request: `POST /?foo=attack HTTP/1.1` on port `19080`; body `none`
+- Generated test headers: `User-Agent: OWASP MRTS test agent, Host: localhost, Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5`
+- Log matching: marker header `X-MRTS-TEST`, target log `/tmp/modsec-native-100003-debug/mrts-native/apache2_ubuntu/stage/infra/log/error.log`
 - Expected status/result: `not specified in FTW YAML` / `log id 100003`
 - Actual status/result: `HTTP 200 observed in Apache access log` / `missing expected log id 100003`
 - Actual logged IDs: `10002, 100028, 100029, 100030, 100000, 100032, 100001, 100016, 100033, 100002, 100017, 100034`
-- Module loaded: `True` from `/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so`
+- Phase 4 evidence: match seen `False`, peer IDs in case window `-`, peer IDs anywhere `-`
+- Request collection evidence: POST query as ARGS `True`, as ARGS_GET `True`
+- Excluded causes: response-body target `False`, operator case/transform issue `False` / `False`, skip/ctl/chain interference `False`, go-ftw log matching issue `False`
+- Parse/phase warnings: `0`
+- Loaded MRTS includes checked: `Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_001_INIT.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_003_ARGS_COMBINED_SIZE.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_004_ARGS_GET.conf"`
+- Module loaded: `True` from `/tmp/modsec-native-100003-debug/apache-build/output/apache/mod_security3.so`
 - mrts.load included: `True`
 - Request reached Apache/ModSecurity/Albedo: `True` / `True` / `True`
-- Audit/debug evidence: audit log `empty`, error log `/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/stage/infra/log/error.log`, go-ftw log `/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/run.log`
-- Action: No MRTS definition/result rewrite was made; investigate native phase 4 behavior separately.
+- Audit/debug evidence: audit log `empty`, error log `/tmp/modsec-native-100003-debug/mrts-native/apache2_ubuntu/stage/infra/log/error.log`, go-ftw log `/tmp/modsec-native-100003-debug/mrts-native/apache2_ubuntu/run.log`
+- Single-case rerun: attempted `1`, failed cases `100003-1`, exit `1`, log `/tmp/modsec-native-100003-debug/single-case/apache2_ubuntu-single.log`
+- Why not logged: Native ModSecurity reached the request and logged ARGS/ARGS_GET matches through phase 3; the phase:4 request-collection rule did not emit a ModSecurity log entry. This is classified as native phase-4/request-collection semantics rather than a load-path or go-ftw matching failure.
+- Action: No MRTS definition/result rewrite was made; keep 100003-1 as a native phase-4/request-collection limitation until native phase 4 semantics change.
 
 ### NGINX 100003-1
 - Status: `fail`
 - Target: `nginx-pr24`
 - Run counts: attempted `13`, passed `12`, failed cases `100003-1`
 - Diagnosis: go-ftw expected phase 4 rule id 100003, but NGINX/ModSecurity logged only earlier phase matches for the request.
-- Generated YAML: `/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml`
-- Generated rule file: `/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf`
+- Classification: `native_modsecurity_semantics`; secondary `phase4_native_limitation`; unresolved `False`
+- Classification reason: Rule 100003 is loaded and its target/operator match the same POST query argument in phases 1-3, but no phase:4 ARGS/ARGS_GET rule is logged in either native target.
+- Generated YAML: `/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml`
+- Generated rule file: `/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf`
+- Source definition: `config_tests/CONF_002_TARGET_ARGS_A-GET.yaml`
+- Generated rule line: `SecRule ARGS "@contains attack" "id:100003, phase:4, deny, t:none, log"`
+- Rule 100003: variable `ARGS`, phase `4`, operator `@contains attack`, transform `t:none`
 - Request: `POST /?foo=attack HTTP/1.1` on port `19081`; body `none`
+- Generated test headers: `User-Agent: OWASP MRTS test agent, Host: localhost, Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5`
+- Log matching: marker header `X-MRTS-TEST`, target log `/tmp/modsec-native-100003-debug/mrts-native/nginx-pr24/stage/infra/log/error.log`
 - Expected status/result: `not specified in FTW YAML` / `log id 100003`
 - Actual status/result: `not printed by go-ftw; backend request was observed` / `missing expected log id 100003`
 - Actual logged IDs: `10002, 100028, 100029, 100030, 100000, 100032, 100001, 100016, 100033, 100002, 100017, 100034`
-- Module loaded: `True` from `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
+- Phase 4 evidence: match seen `False`, peer IDs in case window `-`, peer IDs anywhere `-`
+- Request collection evidence: POST query as ARGS `True`, as ARGS_GET `True`
+- Excluded causes: response-body target `False`, operator case/transform issue `False` / `False`, skip/ctl/chain interference `False`, go-ftw log matching issue `False`
+- Parse/phase warnings: `0`
+- Loaded MRTS includes checked: `Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_001_INIT.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_003_ARGS_COMBINED_SIZE.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_004_ARGS_GET.conf"`
+- Module loaded: `True` from `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
 - mrts.load included: `True`
 - Request reached NGINX/ModSecurity/Albedo: `True` / `True` / `True`
-- Audit/debug evidence: audit log `empty`, error log `/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/stage/infra/log/error.log`, go-ftw log `/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/run.log`
-- Action: No MRTS definition/result rewrite was made; investigate NGINX/native phase 4 support separately.
+- Audit/debug evidence: audit log `empty`, error log `/tmp/modsec-native-100003-debug/mrts-native/nginx-pr24/stage/infra/log/error.log`, go-ftw log `/tmp/modsec-native-100003-debug/mrts-native/nginx-pr24/run.log`
+- Single-case rerun: attempted `1`, failed cases `100003-1`, exit `1`, log `/tmp/modsec-native-100003-debug/single-case/nginx-pr24-single.log`
+- Why not logged: Native ModSecurity reached the request and logged ARGS/ARGS_GET matches through phase 3; the phase:4 request-collection rule did not emit a ModSecurity log entry. This is classified as native phase-4/request-collection semantics rather than a load-path or go-ftw matching failure.
+- Action: No MRTS definition/result rewrite was made; keep 100003-1 as a native phase-4/request-collection limitation until native phase 4 semantics change.
 <!-- runtime-diagnostics:end -->

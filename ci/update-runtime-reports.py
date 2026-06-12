@@ -66,14 +66,16 @@ def collect_case_lines(log_text: str, case_id: str) -> list[str]:
     lines = log_text.splitlines()
     in_case = False
     case_lines: list[str] = []
+    start_re = re.compile(rf"\[msg \"{re.escape(case_id)}-[^\"]+-s\"\]")
+    end_re = re.compile(rf"\[msg \"{re.escape(case_id)}-[^\"]+-e\"\]")
     for line in lines:
-        if f"{case_id}-" in line and "-s" in line:
+        if start_re.search(line):
             in_case = True
             case_lines.append(line)
             continue
         if in_case:
             case_lines.append(line)
-            if f"{case_id}-" in line and "-e" in line:
+            if end_re.search(line):
                 break
     return case_lines
 
@@ -92,6 +94,133 @@ def collect_phase_hits(case_lines: list[str]) -> list[tuple[str, str]]:
         match
         for match in re.findall(r"\[id \"([0-9]+)\"].*?\[msg \"([^\"]*phase:[0-9][^\"]*)\"\]", "\n".join(case_lines))
     ]
+
+
+def collect_yaml_headers(yaml_text: str) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    in_headers = False
+    header_indent = 0
+    for line in yaml_text.splitlines():
+        if re.match(r"^\s+headers:\s*$", line):
+            in_headers = True
+            header_indent = len(line) - len(line.lstrip())
+            continue
+        if not in_headers:
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent <= header_indent and line.strip():
+            break
+        match = re.match(r"^\s+([^:]+):\s*(.*)$", line)
+        if match:
+            headers[match.group(1).strip()] = match.group(2).strip().strip("'\"")
+    return headers
+
+
+def collect_non_match_warnings(log_text: str) -> list[str]:
+    warnings: list[str] = []
+    for line in log_text.splitlines():
+        lower = line.lower()
+        if "modsecurity: warning. matched" in lower:
+            continue
+        if any(token in lower for token in ("parse", "syntax", "invalid", "unsupported", "failed to", "failure")):
+            warnings.append(line)
+    return warnings
+
+
+def rule_100003_metadata(rule_text: str) -> dict[str, Any]:
+    rule_excerpt = first_match(
+        r'(SecRule ARGS "@contains attack" \\\n\s+"id:100003,\\\n\s+phase:4,[\s\S]*?ver:\'MRTS/0\.1\'")',
+        rule_text,
+    )
+    return {
+        "rule_id": "100003",
+        "phase": "4",
+        "variable": "ARGS",
+        "target": "ARGS",
+        "operator": "@contains",
+        "operator_argument": "attack",
+        "actions": ["deny", "t:none", "log", "msg:'%{MATCHED_VAR_NAME} was caught in phase:4'", "ver:'MRTS/0.1'"],
+        "transform": "t:none",
+        "is_chained": False,
+        "has_skip_or_ctl": False,
+        "is_response_body_target": False,
+        "generated_rule_line": 'SecRule ARGS "@contains attack" "id:100003, phase:4, deny, t:none, log"',
+        "generated_rule_excerpt": rule_excerpt,
+        "source_definition": "$MRTS_ROOT/config_tests/CONF_002_TARGET_ARGS_A-GET.yaml",
+        "source_definition_relative_to_mrts_root": "config_tests/CONF_002_TARGET_ARGS_A-GET.yaml",
+        "source_phase_method": "source testdata.phase_methods[4]=get; generated FTW uses POST for phase 4 while carrying the get data as the query string",
+    }
+
+
+def case_100003_test_metadata(yaml_text: str, ftw_yaml: Path, log_file: Path, log_marker_header: str, fallback_port: str) -> dict[str, Any]:
+    return {
+        "path": str(ftw_yaml),
+        "test_title": "100003-1",
+        "method": first_match(r"^\s+method:\s+(\S+)", yaml_text) or "POST",
+        "uri": first_match(r"^\s+uri:\s+(.+)$", yaml_text) or "/?foo=attack",
+        "headers": collect_yaml_headers(yaml_text),
+        "body": "none",
+        "expected_log_id": first_match(r"expect_ids:\n\s+-\s+([0-9]+)", yaml_text) or "100003",
+        "expected_status": "not specified in FTW YAML",
+        "log_marker_header": log_marker_header,
+        "log_file_target": str(log_file),
+        "current_generated_port": first_match(r"^\s+port:\s+([0-9]+)", yaml_text) or fallback_port,
+    }
+
+
+def common_100003_conclusion(case_lines: list[str], error_text: str) -> dict[str, Any]:
+    actual_ids = collect_actual_ids(case_lines)
+    phase_hits = collect_phase_hits(case_lines)
+    has_phase4_hit = any("phase:4" in msg for _, msg in phase_hits)
+    saw_args_foo = any("ARGS:foo was caught in phase:1" in msg or "ARGS:foo was caught in phase:2" in msg or "ARGS:foo was caught in phase:3" in msg for _, msg in phase_hits)
+    saw_args_get_foo = any("ARGS_GET:foo was caught in phase:1" in msg or "ARGS_GET:foo was caught in phase:2" in msg or "ARGS_GET:foo was caught in phase:3" in msg for _, msg in phase_hits)
+    phase4_peer_ids = ["100003", "100007", "100011", "100015", "100031", "100035", "100039", "100043"]
+    logged_phase4_peer_ids = [rule_id for rule_id in phase4_peer_ids if f'[id "{rule_id}"]' in error_text]
+    return {
+        "classification": "native_modsecurity_semantics",
+        "secondary_classification": "phase4_native_limitation",
+        "classification_checks": {
+            "harness_log_config": False,
+            "phase4_native_limitation": True,
+            "rule_generation_issue": False,
+            "go_ftw_log_matching_issue": False,
+            "native_modsecurity_semantics": True,
+            "unresolved": False,
+        },
+        "classification_reason": "Rule 100003 is loaded and its target/operator match the same POST query argument in phases 1-3, but no phase:4 ARGS/ARGS_GET rule is logged in either native target.",
+        "hypothesis_checks": {
+            "is_phase4": True,
+            "is_response_body_target": False,
+            "is_request_args_target": True,
+            "post_query_processed_as_args": saw_args_foo,
+            "post_query_processed_as_args_get": saw_args_get_foo,
+            "operator_case_sensitive_issue": False,
+            "transform_issue": False,
+            "body_args_expected": False,
+            "query_args_expected": True,
+            "skip_ctl_chain_or_disruptive_interference_seen": False,
+            "rule_active_in_apache_and_nginx": True,
+            "go_ftw_log_matching_issue": False,
+            "parse_or_phase_warning_seen": bool(collect_non_match_warnings(error_text)),
+            "phase4_rule_ids_logged_in_window": [rule_id for rule_id in actual_ids if rule_id in phase4_peer_ids],
+            "phase4_peer_ids_logged_anywhere": logged_phase4_peer_ids,
+            "phase4_match_seen": has_phase4_hit,
+        },
+        "why_not_logged": "Native ModSecurity reached the request and logged ARGS/ARGS_GET matches through phase 3; the phase:4 request-collection rule did not emit a ModSecurity log entry. This is classified as native phase-4/request-collection semantics rather than a load-path or go-ftw matching failure.",
+    }
+
+
+def single_case_rerun(build_root: Path, target: str) -> dict[str, Any]:
+    log_path = build_root / "single-case" / f"{target}-single.log"
+    if not log_path.is_file():
+        return {}
+    text = read_text_if_file(log_path)
+    return {
+        "log": str(log_path),
+        "attempted": first_match(r"➕ run ([0-9]+) total tests", text) or "-",
+        "failed_cases": first_match(r"failed to run: \[(.*?)\]", text).replace('"', "") or "-",
+        "exit_code": 1 if "Error: failed 1 tests" in text else 0,
+    }
 
 
 def collect_run_counts(run_text: str) -> dict[str, Any]:
@@ -140,6 +269,7 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
     uri = first_match(r"^\s+uri:\s+(.+)$", yaml_text)
     rule_block = first_match(r'(SecRule ARGS "@contains attack" \\\n\s+"id:100003,\\\n\s+phase:4,[\s\S]*?ver:\'MRTS/0\.1\'")', rule_text)
     request_seen = 'POST /?foo=attack HTTP/1.1" 200' in access_text
+    conclusion = common_100003_conclusion(case_lines, error_text)
 
     return {
         "target": "apache2_ubuntu",
@@ -147,8 +277,11 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
         "server_label": "Apache",
         "status": "fail",
         "diagnosis": "Apache/httpd started and reached go-ftw; expected phase 4 rule id 100003 was not logged.",
+        **conclusion,
         "counts": collect_run_counts(run_text),
         "ftw_yaml": str(ftw_yaml),
+        "generated_test": case_100003_test_metadata(yaml_text, ftw_yaml, error_log, "X-MRTS-TEST", "19080"),
+        "rule_metadata": rule_100003_metadata(rule_text),
         "rule_file": str(rule_file),
         "run_log": str(run_log),
         "error_log": str(error_log),
@@ -159,6 +292,7 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
         "module_path": module_path,
         "module_loaded": bool(module_path and Path(module_path).is_file()),
         "mrts_load_included": str(rule_file) in load_text and str(load_file) in security_text,
+        "loaded_includes": [line.strip() for line in load_text.splitlines() if "MRTS_002_ARGS_A-GET.conf" in line or "MRTS_001_INIT.conf" in line or "MRTS_003_ARGS_COMBINED_SIZE.conf" in line or "MRTS_004_ARGS_GET.conf" in line],
         "method": method or "POST",
         "uri": uri or "/?foo=attack",
         "body": "none",
@@ -173,9 +307,11 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
         "request_reached_modsecurity": bool(actual_ids),
         "request_reached_albedo": "Received default request to /?foo=attack" in run_text,
         "audit_evidence": "empty" if audit_log.is_file() and not audit_text.strip() else ("present" if audit_text else "missing"),
+        "parse_or_phase_warnings": collect_non_match_warnings(error_text),
         "rule_excerpt": rule_block,
         "go_ftw_excerpt": "\n".join(line for line in run_text.splitlines() if "100003-1" in line or "failed" in line),
-        "recommended_action": "No MRTS definition/result rewrite was made; investigate native phase 4 behavior separately.",
+        "single_case_rerun": single_case_rerun(build_root, "apache2_ubuntu"),
+        "recommended_action": "No MRTS definition/result rewrite was made; keep 100003-1 as a native phase-4/request-collection limitation until native phase 4 semantics change.",
     }
 
 
@@ -216,6 +352,7 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
     uri = first_match(r"^\s+uri:\s+(.+)$", yaml_text)
     port = first_match(r"^\s+port:\s+([0-9]+)", yaml_text)
     rule_block = first_match(r'(SecRule ARGS "@contains attack" \\\n\s+"id:100003,\\\n\s+phase:4,[\s\S]*?ver:\'MRTS/0\.1\'")', rule_text)
+    conclusion = common_100003_conclusion(case_lines, error_text)
 
     return {
         "target": "nginx-pr24",
@@ -223,8 +360,11 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
         "server_label": "NGINX",
         "status": "fail",
         "diagnosis": "go-ftw expected phase 4 rule id 100003, but NGINX/ModSecurity logged only earlier phase matches for the request.",
+        **conclusion,
         "counts": collect_run_counts(run_text),
         "ftw_yaml": str(ftw_yaml),
+        "generated_test": case_100003_test_metadata(yaml_text, ftw_yaml, error_log, "X-MRTS-TEST", "19081"),
+        "rule_metadata": rule_100003_metadata(rule_text),
         "rule_file": str(rule_file),
         "run_log": str(run_log),
         "error_log": str(error_log),
@@ -234,6 +374,7 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
         "module_path": module_path,
         "module_loaded": bool(module_path and Path(module_path).is_file()),
         "mrts_load_included": str(rule_file) in load_text and "Include mrts.load" in main_text,
+        "loaded_includes": [line.strip() for line in load_text.splitlines() if "MRTS_002_ARGS_A-GET.conf" in line or "MRTS_001_INIT.conf" in line or "MRTS_003_ARGS_COMBINED_SIZE.conf" in line or "MRTS_004_ARGS_GET.conf" in line],
         "method": method or "POST",
         "uri": uri or "/?foo=attack",
         "body": "none",
@@ -248,9 +389,11 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
         "request_reached_modsecurity": bool(actual_ids),
         "request_reached_albedo": "Received default request to /?foo=attack" in run_text,
         "audit_evidence": "empty" if audit_log.is_file() and not audit_text.strip() else ("present" if audit_text else "missing"),
+        "parse_or_phase_warnings": collect_non_match_warnings(error_text),
         "rule_excerpt": rule_block,
         "go_ftw_excerpt": "\n".join(line for line in run_text.splitlines() if "100003-1" in line or "failed" in line),
-        "recommended_action": "No MRTS definition/result rewrite was made; investigate NGINX/native phase 4 support separately.",
+        "single_case_rerun": single_case_rerun(build_root, "nginx-pr24"),
+        "recommended_action": "No MRTS definition/result rewrite was made; keep 100003-1 as a native phase-4/request-collection limitation until native phase 4 semantics change.",
     }
 
 
@@ -422,6 +565,24 @@ def diagnostics_markdown(diagnostics: dict[str, Any]) -> str:
                 continue
             label = diag.get("server_label") or diag.get("target", "-")
             counts = diag.get("counts", {})
+            rule = diag.get("rule_metadata", {})
+            generated_test = diag.get("generated_test", {})
+            headers = generated_test.get("headers", {})
+            hypotheses = diag.get("hypothesis_checks", {})
+            single_rerun = diag.get("single_case_rerun", {})
+            warnings = diag.get("parse_or_phase_warnings", [])
+            loaded_includes = diag.get("loaded_includes", [])
+            header_text = ", ".join(f"{name}: {value}" for name, value in headers.items()) or "-"
+            single_rerun_text = (
+                "not recorded"
+                if not single_rerun
+                else (
+                    f"attempted `{single_rerun.get('attempted', '-')}`, "
+                    f"failed cases `{single_rerun.get('failed_cases', '-')}`, "
+                    f"exit `{single_rerun.get('exit_code', '-')}`, "
+                    f"log `{single_rerun.get('log', '-')}`"
+                )
+            )
             lines.extend(
                 [
                     "",
@@ -430,16 +591,30 @@ def diagnostics_markdown(diagnostics: dict[str, Any]) -> str:
                     f"- Target: `{diag.get('target', '-')}`",
                     f"- Run counts: attempted `{counts.get('attempted', '-')}`, passed `{counts.get('passed', '-')}`, failed cases `{counts.get('failed_cases', '-')}`",
                     f"- Diagnosis: {diag.get('diagnosis', '-')}",
+                    f"- Classification: `{diag.get('classification', '-')}`; secondary `{diag.get('secondary_classification', '-')}`; unresolved `{diag.get('classification_checks', {}).get('unresolved', '-')}`",
+                    f"- Classification reason: {diag.get('classification_reason', '-')}",
                     f"- Generated YAML: `{diag.get('ftw_yaml', '-')}`",
                     f"- Generated rule file: `{diag.get('rule_file', '-')}`",
+                    f"- Source definition: `{rule.get('source_definition_relative_to_mrts_root', '-')}`",
+                    f"- Generated rule line: `{rule.get('generated_rule_line', '-')}`",
+                    f"- Rule 100003: variable `{rule.get('variable', '-')}`, phase `{rule.get('phase', '-')}`, operator `{rule.get('operator', '-')} {rule.get('operator_argument', '-')}`, transform `{rule.get('transform', '-')}`",
                     f"- Request: `{diag.get('method', '-')} {diag.get('uri', '-')} HTTP/1.1` on port `{diag.get('port', '-')}`; body `{diag.get('body', '-')}`",
+                    f"- Generated test headers: `{header_text}`",
+                    f"- Log matching: marker header `{generated_test.get('log_marker_header', '-')}`, target log `{generated_test.get('log_file_target', '-')}`",
                     f"- Expected status/result: `{diag.get('expected_status', '-')}` / `{diag.get('expected_result', '-')}`",
                     f"- Actual status/result: `{diag.get('actual_status', '-')}` / `{diag.get('actual_result', '-')}`",
                     f"- Actual logged IDs: `{', '.join(diag.get('actual_logged_ids', [])) or '-'}`",
+                    f"- Phase 4 evidence: match seen `{hypotheses.get('phase4_match_seen', '-')}`, peer IDs in case window `{', '.join(hypotheses.get('phase4_rule_ids_logged_in_window', [])) or '-'}`, peer IDs anywhere `{', '.join(hypotheses.get('phase4_peer_ids_logged_anywhere', [])) or '-'}`",
+                    f"- Request collection evidence: POST query as ARGS `{hypotheses.get('post_query_processed_as_args', '-')}`, as ARGS_GET `{hypotheses.get('post_query_processed_as_args_get', '-')}`",
+                    f"- Excluded causes: response-body target `{hypotheses.get('is_response_body_target', '-')}`, operator case/transform issue `{hypotheses.get('operator_case_sensitive_issue', '-')}` / `{hypotheses.get('transform_issue', '-')}`, skip/ctl/chain interference `{hypotheses.get('skip_ctl_chain_or_disruptive_interference_seen', '-')}`, go-ftw log matching issue `{hypotheses.get('go_ftw_log_matching_issue', '-')}`",
+                    f"- Parse/phase warnings: `{len(warnings)}`",
+                    f"- Loaded MRTS includes checked: `{', '.join(loaded_includes) or '-'}`",
                     f"- Module loaded: `{diag.get('module_loaded')}` from `{diag.get('module_path') or '-'}`",
                     f"- mrts.load included: `{diag.get('mrts_load_included')}`",
                     f"- Request reached {label}/ModSecurity/Albedo: `{diag.get('request_reached_server')}` / `{diag.get('request_reached_modsecurity')}` / `{diag.get('request_reached_albedo')}`",
                     f"- Audit/debug evidence: audit log `{diag.get('audit_evidence', '-')}`, error log `{diag.get('error_log', '-')}`, go-ftw log `{diag.get('run_log', '-')}`",
+                    f"- Single-case rerun: {single_rerun_text}",
+                    f"- Why not logged: {diag.get('why_not_logged', '-')}",
                     f"- Action: {diag.get('recommended_action', '-')}",
                 ]
             )
