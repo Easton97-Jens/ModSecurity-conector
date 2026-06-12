@@ -3,7 +3,7 @@
     "actual_head": "3f7d0238b32d1f98059f5c70e0ffcafad514952c",
     "binary": "/src/ModSecurity-conector-cache/bin/albedo",
     "blocker_reason": "",
-    "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/albedo-build.log",
+    "build_log": "/tmp/modsec-native-after-libcrypt/logs/runtime-components/albedo-build.log",
     "build_package": "github.com/coreruleset/albedo",
     "can_build_locally": true,
     "dependency": "albedo",
@@ -32,23 +32,19 @@
     "submodule_status_clean": true
   },
   "apache_httpd": {
-    "apachectl_bin": "/tmp/modsec-native-local-tools/mrts-native/apache2_ubuntu/bin/apachectl",
-    "aprutil_libs": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
-    "apxs_bin": "/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/apxs",
-    "blocker_reason": "missing_crypt_library",
-    "build_component": "apache_httpd_source_build",
-    "build_exit_code": 77,
-    "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/apache-build.log",
-    "build_path": "/tmp/modsec-native-local-tools/apache-build",
+    "apachectl_bin": "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apachectl-mrts",
+    "aprutil_libs": "-lcrypt",
+    "apxs_bin": "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apxs",
+    "blocker_reason": "",
+    "build_path": "/tmp/modsec-native-after-libcrypt/apache-build",
     "cache_path": "/src/ModSecurity-conector-cache/archives/apache",
     "cppflags": "-I/src/ModSecurity-conector-cache/prefix/expat/include",
-    "crypt_config_cache": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
-    "crypt_lib": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
-    "dependency_searched_paths": [
-      "<configure default libraries>"
-    ],
+    "crypt_config_cache": "-lcrypt",
+    "crypt_h_path": "/usr/include/crypt.h",
+    "crypt_h_status": "present",
+    "crypt_lib": "-lcrypt",
+    "crypt_link_mode": "compiler:-lcrypt",
     "env_override": "APACHECTL_BIN",
-    "env_variable_can_set": "LIBS/LDFLAGS",
     "expat_actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
     "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
     "expat_lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
@@ -56,34 +52,40 @@
     "expat_release_tag": "R_2_8_1",
     "expat_source": "https://github.com/libexpat/libexpat",
     "expected_ref": "2.4.67",
-    "httpd_bin": "/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/httpd",
-    "httpd_prefix": "/tmp/modsec-native-local-tools/apache-runtime/httpd",
+    "httpd_bin": "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/httpd",
+    "httpd_prefix": "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd",
     "ldflags": "-L/src/ModSecurity-conector-cache/prefix/expat/lib",
-    "libs": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
-    "missing_file": "libcrypt.so development link target or explicit -lcrypt linkage",
-    "missing_files": [
-      "httpd_bin:/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/httpd",
-      "apxs_bin:/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/apxs",
-      "module_file:/tmp/modsec-native-local-tools/apache-build/output/apache/mod_security3.so",
-      "modsecurity_lib:/tmp/modsec-native-local-tools/apache-build/output/modsecurity/lib/libmodsecurity.so"
+    "libcrypt_paths": [
+      "/usr/lib/x86_64-linux-gnu/libcrypt.so",
+      "/lib/x86_64-linux-gnu/libcrypt.so",
+      "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
+      "/lib/x86_64-linux-gnu/libcrypt.so.1"
     ],
-    "modsecurity_lib_dir": "/tmp/modsec-native-local-tools/apache-build/output/modsecurity/lib",
-    "module_file": "/tmp/modsec-native-local-tools/apache-build/output/apache/mod_security3.so",
+    "libcrypt_status": "present",
+    "libs": "-lcrypt",
+    "modsecurity_lib_dir": "/tmp/modsec-native-after-libcrypt/apache-build/output/modsecurity/lib",
+    "module_file": "/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so",
     "pkg_config_path": "/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig",
     "searched_paths": [
-      "/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/httpd",
-      "/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/apxs",
-      "/tmp/modsec-native-local-tools/apache-build/output/apache/mod_security3.so",
-      "/tmp/modsec-native-local-tools/apache-build/output/modsecurity/lib/libmodsecurity.so"
+      "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/httpd",
+      "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apxs",
+      "/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so",
+      "/tmp/modsec-native-after-libcrypt/apache-build/output/modsecurity/lib/libmodsecurity.so"
     ],
     "source": "connector-local-build",
-    "status": "blocked"
+    "status": "present",
+    "tree": {
+      "exists": true,
+      "file_count": 13724,
+      "sha256_manifest": "010f0a6635fd20f56408e0a4de2453ebb56b3ae9c4840bbfc2853cee18ec2017",
+      "total_size": 1924234525
+    }
   },
   "connector_root": "$CONNECTOR_ROOT",
   "expat": {
     "actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
     "blocker_reason": "",
-    "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/expat-build.log",
+    "build_log": "/tmp/modsec-native-after-libcrypt/logs/runtime-components/expat-build.log",
     "build_path": "/src/ModSecurity-conector-cache/build/expat",
     "build_source_copy": "/src/ModSecurity-conector-cache/build/expat-source",
     "build_system": "autotools",
@@ -112,12 +114,12 @@
     "url": "https://github.com/libexpat/libexpat"
   },
   "framework_root": "$FRAMEWORK_ROOT",
-  "generated_at": "2026-06-12T14:36:12Z",
+  "generated_at": "2026-06-12T15:36:08Z",
   "go_ftw": {
     "actual_head": "23db497e3a6133888fcd5e087b8cf456556df041",
     "binary": "/src/ModSecurity-conector-cache/bin/go-ftw",
     "blocker_reason": "",
-    "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/go-ftw-build.log",
+    "build_log": "/tmp/modsec-native-after-libcrypt/logs/runtime-components/go-ftw-build.log",
     "build_package": "github.com/coreruleset/go-ftw/v2",
     "can_build_locally": true,
     "dependency": "go-ftw",
@@ -148,31 +150,29 @@
   "native_root": "$MRTS_NATIVE_ROOT",
   "nginx": {
     "blocker_reason": "",
-    "build_exit_code": 0,
-    "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/nginx-build.log",
-    "build_path": "/tmp/modsec-native-local-tools/nginx-build",
+    "build_path": "/tmp/modsec-native-after-libcrypt/nginx-build",
     "cache_path": "/src/ModSecurity-conector-cache/archives/nginx",
     "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
     "expected_ref": "latest",
-    "local_module_file": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
-    "local_nginx_bin": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/sbin/nginx",
-    "modsecurity_lib_dir": "/tmp/modsec-native-local-tools/nginx-build/output/modsecurity/lib",
-    "module_dir": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules",
-    "module_file": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
-    "nginx_bin": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/sbin/nginx",
-    "nginx_prefix": "/tmp/modsec-native-local-tools/nginx-runtime/nginx",
+    "local_module_file": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+    "local_nginx_bin": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx",
+    "modsecurity_lib_dir": "/tmp/modsec-native-after-libcrypt/nginx-build/output/modsecurity/lib",
+    "module_dir": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules",
+    "module_file": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+    "nginx_bin": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx",
+    "nginx_prefix": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx",
     "searched_paths": [
-      "/tmp/modsec-native-local-tools/nginx-runtime/nginx/sbin/nginx",
-      "/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
-      "/tmp/modsec-native-local-tools/nginx-build/output/modsecurity/lib/libmodsecurity.so"
+      "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx",
+      "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+      "/tmp/modsec-native-after-libcrypt/nginx-build/output/modsecurity/lib/libmodsecurity.so"
     ],
     "source": "connector-local-build",
     "status": "present",
     "tree": {
       "exists": true,
       "file_count": 7616,
-      "sha256_manifest": "200d2c95bda89b0a6270de4c30425c753a20e990d70c5fae0cabb08667fd5453",
-      "total_size": 1777998812
+      "sha256_manifest": "ab378a39ba116fae5e20843d501f112e4dd756fd3cf485be335db3b274a57416",
+      "total_size": 1778009565
     }
   },
   "nginx_pr24_overlay": {
@@ -239,7 +239,7 @@
       "actual_head": "3f7d0238b32d1f98059f5c70e0ffcafad514952c",
       "binary": "/src/ModSecurity-conector-cache/bin/albedo",
       "blocker_reason": "",
-      "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/albedo-build.log",
+      "build_log": "/tmp/modsec-native-after-libcrypt/logs/runtime-components/albedo-build.log",
       "build_package": "github.com/coreruleset/albedo",
       "can_build_locally": true,
       "dependency": "albedo",
@@ -268,23 +268,19 @@
       "submodule_status_clean": true
     },
     "apache_httpd": {
-      "apachectl_bin": "/tmp/modsec-native-local-tools/mrts-native/apache2_ubuntu/bin/apachectl",
-      "aprutil_libs": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
-      "apxs_bin": "/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/apxs",
-      "blocker_reason": "missing_crypt_library",
-      "build_component": "apache_httpd_source_build",
-      "build_exit_code": 77,
-      "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/apache-build.log",
-      "build_path": "/tmp/modsec-native-local-tools/apache-build",
+      "apachectl_bin": "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apachectl-mrts",
+      "aprutil_libs": "-lcrypt",
+      "apxs_bin": "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apxs",
+      "blocker_reason": "",
+      "build_path": "/tmp/modsec-native-after-libcrypt/apache-build",
       "cache_path": "/src/ModSecurity-conector-cache/archives/apache",
       "cppflags": "-I/src/ModSecurity-conector-cache/prefix/expat/include",
-      "crypt_config_cache": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
-      "crypt_lib": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
-      "dependency_searched_paths": [
-        "<configure default libraries>"
-      ],
+      "crypt_config_cache": "-lcrypt",
+      "crypt_h_path": "/usr/include/crypt.h",
+      "crypt_h_status": "present",
+      "crypt_lib": "-lcrypt",
+      "crypt_link_mode": "compiler:-lcrypt",
       "env_override": "APACHECTL_BIN",
-      "env_variable_can_set": "LIBS/LDFLAGS",
       "expat_actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
       "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
       "expat_lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
@@ -292,33 +288,39 @@
       "expat_release_tag": "R_2_8_1",
       "expat_source": "https://github.com/libexpat/libexpat",
       "expected_ref": "2.4.67",
-      "httpd_bin": "/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/httpd",
-      "httpd_prefix": "/tmp/modsec-native-local-tools/apache-runtime/httpd",
+      "httpd_bin": "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/httpd",
+      "httpd_prefix": "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd",
       "ldflags": "-L/src/ModSecurity-conector-cache/prefix/expat/lib",
-      "libs": "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
-      "missing_file": "libcrypt.so development link target or explicit -lcrypt linkage",
-      "missing_files": [
-        "httpd_bin:/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/httpd",
-        "apxs_bin:/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/apxs",
-        "module_file:/tmp/modsec-native-local-tools/apache-build/output/apache/mod_security3.so",
-        "modsecurity_lib:/tmp/modsec-native-local-tools/apache-build/output/modsecurity/lib/libmodsecurity.so"
+      "libcrypt_paths": [
+        "/usr/lib/x86_64-linux-gnu/libcrypt.so",
+        "/lib/x86_64-linux-gnu/libcrypt.so",
+        "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
+        "/lib/x86_64-linux-gnu/libcrypt.so.1"
       ],
-      "modsecurity_lib_dir": "/tmp/modsec-native-local-tools/apache-build/output/modsecurity/lib",
-      "module_file": "/tmp/modsec-native-local-tools/apache-build/output/apache/mod_security3.so",
+      "libcrypt_status": "present",
+      "libs": "-lcrypt",
+      "modsecurity_lib_dir": "/tmp/modsec-native-after-libcrypt/apache-build/output/modsecurity/lib",
+      "module_file": "/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so",
       "pkg_config_path": "/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig",
       "searched_paths": [
-        "/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/httpd",
-        "/tmp/modsec-native-local-tools/apache-runtime/httpd/bin/apxs",
-        "/tmp/modsec-native-local-tools/apache-build/output/apache/mod_security3.so",
-        "/tmp/modsec-native-local-tools/apache-build/output/modsecurity/lib/libmodsecurity.so"
+        "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/httpd",
+        "/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apxs",
+        "/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so",
+        "/tmp/modsec-native-after-libcrypt/apache-build/output/modsecurity/lib/libmodsecurity.so"
       ],
       "source": "connector-local-build",
-      "status": "blocked"
+      "status": "present",
+      "tree": {
+        "exists": true,
+        "file_count": 13724,
+        "sha256_manifest": "010f0a6635fd20f56408e0a4de2453ebb56b3ae9c4840bbfc2853cee18ec2017",
+        "total_size": 1924234525
+      }
     },
     "expat": {
       "actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
       "blocker_reason": "",
-      "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/expat-build.log",
+      "build_log": "/tmp/modsec-native-after-libcrypt/logs/runtime-components/expat-build.log",
       "build_path": "/src/ModSecurity-conector-cache/build/expat",
       "build_source_copy": "/src/ModSecurity-conector-cache/build/expat-source",
       "build_system": "autotools",
@@ -350,7 +352,7 @@
       "actual_head": "23db497e3a6133888fcd5e087b8cf456556df041",
       "binary": "/src/ModSecurity-conector-cache/bin/go-ftw",
       "blocker_reason": "",
-      "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/go-ftw-build.log",
+      "build_log": "/tmp/modsec-native-after-libcrypt/logs/runtime-components/go-ftw-build.log",
       "build_package": "github.com/coreruleset/go-ftw/v2",
       "can_build_locally": true,
       "dependency": "go-ftw",
@@ -380,60 +382,254 @@
     },
     "nginx": {
       "blocker_reason": "",
-      "build_exit_code": 0,
-      "build_log": "/tmp/modsec-native-local-tools/logs/runtime-components/nginx-build.log",
-      "build_path": "/tmp/modsec-native-local-tools/nginx-build",
+      "build_path": "/tmp/modsec-native-after-libcrypt/nginx-build",
       "cache_path": "/src/ModSecurity-conector-cache/archives/nginx",
       "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
       "expected_ref": "latest",
-      "local_module_file": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
-      "local_nginx_bin": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/sbin/nginx",
-      "modsecurity_lib_dir": "/tmp/modsec-native-local-tools/nginx-build/output/modsecurity/lib",
-      "module_dir": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules",
-      "module_file": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
-      "nginx_bin": "/tmp/modsec-native-local-tools/nginx-runtime/nginx/sbin/nginx",
-      "nginx_prefix": "/tmp/modsec-native-local-tools/nginx-runtime/nginx",
+      "local_module_file": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+      "local_nginx_bin": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx",
+      "modsecurity_lib_dir": "/tmp/modsec-native-after-libcrypt/nginx-build/output/modsecurity/lib",
+      "module_dir": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules",
+      "module_file": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+      "nginx_bin": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx",
+      "nginx_prefix": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx",
       "searched_paths": [
-        "/tmp/modsec-native-local-tools/nginx-runtime/nginx/sbin/nginx",
-        "/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
-        "/tmp/modsec-native-local-tools/nginx-build/output/modsecurity/lib/libmodsecurity.so"
+        "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx",
+        "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+        "/tmp/modsec-native-after-libcrypt/nginx-build/output/modsecurity/lib/libmodsecurity.so"
       ],
       "source": "connector-local-build",
       "status": "present",
       "tree": {
         "exists": true,
         "file_count": 7616,
-        "sha256_manifest": "200d2c95bda89b0a6270de4c30425c753a20e990d70c5fae0cabb08667fd5453",
-        "total_size": 1777998812
+        "sha256_manifest": "ab378a39ba116fae5e20843d501f112e4dd756fd3cf485be335db3b274a57416",
+        "total_size": 1778009565
       }
     }
   },
+  "runtime_diagnostics": {
+    "apache_100003_1": {
+      "access_log": "/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/stage/infra/log/access.log",
+      "actual_logged_ids": [
+        "10002",
+        "100028",
+        "100029",
+        "100030",
+        "100000",
+        "100032",
+        "100001",
+        "100016",
+        "100033",
+        "100002",
+        "100017",
+        "100034"
+      ],
+      "actual_result": "missing expected log id 100003",
+      "actual_status": "HTTP 200 observed in Apache access log",
+      "audit_evidence": "empty",
+      "audit_log": "/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/stage/infra/log/modsec_audit.log",
+      "body": "none",
+      "case": "100003-1",
+      "counts": {
+        "attempted": "13",
+        "failed_cases": "100003-1",
+        "passed": "12"
+      },
+      "diagnosis": "Apache/httpd started and reached go-ftw; expected phase 4 rule id 100003 was not logged.",
+      "error_log": "/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/stage/infra/log/error.log",
+      "expected_result": "log id 100003",
+      "expected_status": "not specified in FTW YAML",
+      "ftw_yaml": "/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml",
+      "go_ftw_excerpt": "\trunning 100003-1: time=2026-06-12T15:36:02.899Z level=INFO msg=\"Received default request to /status/200\"\n\ud83d\udca5 100003-1 failed in 5.449231ms (RTT 51.686584ms)\n\ud83d\udc4e 1 test(s) failed to run: [\"100003-1\"]\nError: failed 1 tests",
+      "method": "POST",
+      "module_conf": "/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/stage/infra/mods-enabled/security2.load",
+      "module_loaded": true,
+      "module_path": "/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so",
+      "mrts_load": "/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/stage/infra/mrts.load",
+      "mrts_load_included": true,
+      "phase_hits": [
+        [
+          "100028",
+          "ARGS_COMBINED_SIZE was caught in phase:1"
+        ],
+        [
+          "100029",
+          "ARGS_COMBINED_SIZE was caught in phase:2"
+        ],
+        [
+          "100030",
+          "ARGS_COMBINED_SIZE was caught in phase:3"
+        ],
+        [
+          "100000",
+          "ARGS:foo was caught in phase:1"
+        ],
+        [
+          "100032",
+          "ARGS_GET:foo was caught in phase:1"
+        ],
+        [
+          "100001",
+          "ARGS:foo was caught in phase:2"
+        ],
+        [
+          "100016",
+          "ARGS:foo was caught in phase:2"
+        ],
+        [
+          "100033",
+          "ARGS_GET:foo was caught in phase:2"
+        ],
+        [
+          "100002",
+          "ARGS:foo was caught in phase:3"
+        ],
+        [
+          "100017",
+          "ARGS:foo was caught in phase:3"
+        ],
+        [
+          "100034",
+          "ARGS_GET:foo was caught in phase:3"
+        ]
+      ],
+      "port": "19080",
+      "recommended_action": "No MRTS definition/result rewrite was made; investigate native phase 4 behavior separately.",
+      "request_reached_albedo": true,
+      "request_reached_modsecurity": true,
+      "request_reached_server": true,
+      "rule_excerpt": "SecRule ARGS \"@contains attack\" \\\n    \"id:100003,\\\n    phase:4,\\\n    deny,\\\n    t:none,\\\n    log,\\\n    msg:'%{MATCHED_VAR_NAME} was caught in phase:4',\\\n    ver:'MRTS/0.1'\"",
+      "rule_file": "/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf",
+      "run_log": "/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/run.log",
+      "server_label": "Apache",
+      "status": "fail",
+      "target": "apache2_ubuntu",
+      "uri": "/?foo=attack"
+    },
+    "nginx_100003_1": {
+      "actual_logged_ids": [
+        "10002",
+        "100028",
+        "100029",
+        "100030",
+        "100000",
+        "100032",
+        "100001",
+        "100016",
+        "100033",
+        "100002",
+        "100017",
+        "100034"
+      ],
+      "actual_result": "missing expected log id 100003",
+      "actual_status": "not printed by go-ftw; backend request was observed",
+      "audit_evidence": "empty",
+      "audit_log": "/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/stage/infra/log/modsec_audit.log",
+      "body": "none",
+      "case": "100003-1",
+      "counts": {
+        "attempted": "13",
+        "failed_cases": "100003-1",
+        "passed": "12"
+      },
+      "diagnosis": "go-ftw expected phase 4 rule id 100003, but NGINX/ModSecurity logged only earlier phase matches for the request.",
+      "error_log": "/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/stage/infra/log/error.log",
+      "expected_result": "log id 100003",
+      "expected_status": "not specified in FTW YAML",
+      "ftw_yaml": "/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml",
+      "go_ftw_excerpt": "\trunning 100003-1: time=2026-06-12T15:36:08.614Z level=INFO msg=\"Received default request to /status/200\"\n\ud83d\udca5 100003-1 failed in 5.135139ms (RTT 51.345176ms)\n\ud83d\udc4e 1 test(s) failed to run: [\"100003-1\"]\nError: failed 1 tests",
+      "method": "POST",
+      "module_conf": "/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/stage/infra/modules-available/mod-http-modsecurity.conf",
+      "module_loaded": true,
+      "module_path": "/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+      "mrts_load": "/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/stage/infra/mrts.load",
+      "mrts_load_included": true,
+      "phase_hits": [
+        [
+          "100028",
+          "ARGS_COMBINED_SIZE was caught in phase:1"
+        ],
+        [
+          "100029",
+          "ARGS_COMBINED_SIZE was caught in phase:2"
+        ],
+        [
+          "100030",
+          "ARGS_COMBINED_SIZE was caught in phase:3"
+        ],
+        [
+          "100000",
+          "ARGS:foo was caught in phase:1"
+        ],
+        [
+          "100032",
+          "ARGS_GET:foo was caught in phase:1"
+        ],
+        [
+          "100001",
+          "ARGS:foo was caught in phase:2"
+        ],
+        [
+          "100016",
+          "ARGS:foo was caught in phase:2"
+        ],
+        [
+          "100033",
+          "ARGS_GET:foo was caught in phase:2"
+        ],
+        [
+          "100002",
+          "ARGS:foo was caught in phase:3"
+        ],
+        [
+          "100017",
+          "ARGS:foo was caught in phase:3"
+        ],
+        [
+          "100034",
+          "ARGS_GET:foo was caught in phase:3"
+        ]
+      ],
+      "port": "19081",
+      "recommended_action": "No MRTS definition/result rewrite was made; investigate NGINX/native phase 4 support separately.",
+      "request_reached_albedo": true,
+      "request_reached_modsecurity": true,
+      "request_reached_server": true,
+      "rule_excerpt": "SecRule ARGS \"@contains attack\" \\\n    \"id:100003,\\\n    phase:4,\\\n    deny,\\\n    t:none,\\\n    log,\\\n    msg:'%{MATCHED_VAR_NAME} was caught in phase:4',\\\n    ver:'MRTS/0.1'\"",
+      "rule_file": "/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf",
+      "run_log": "/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/run.log",
+      "server_label": "NGINX",
+      "status": "fail",
+      "target": "nginx-pr24",
+      "uri": "/?foo=attack"
+    }
+  },
   "summary": {
-    "BLOCKED": 1,
-    "FAIL": 1
+    "FAIL": 2
   },
   "targets": {
     "apache2_ubuntu": {
-      "duration_seconds": 4,
-      "exit_code": 77,
+      "duration_seconds": 13,
+      "exit_code": 1,
       "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
       "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
-      "reason": "missing native dependencies: apachectl (set APACHECTL_BIN), mod_security3.so (set APACHE_MRTS_MODULE), libmodsecurity.so (set APACHE_MRTS_MODSECURITY_LIB_DIR)",
+      "reason": "native MRTS go-ftw run failed",
       "remediation": [
         {
-          "dependency": "apachectl",
-          "env_var": "APACHECTL_BIN",
-          "hint": "Set APACHECTL_BIN to a local apachectl-compatible binary.",
-          "scope": "apache2_ubuntu native MRTS target only"
+          "dependency": "go-ftw",
+          "env_var": "GO_FTW_BIN",
+          "hint": "Set GO_FTW_BIN to a local go-ftw binary.",
+          "scope": "native MRTS targets and mrts-ftw-style go-ftw execution"
         }
       ],
       "run_log": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
-      "status": "BLOCKED",
+      "status": "FAIL",
       "summary_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
       "target": "apache2_ubuntu"
     },
     "nginx-pr24": {
-      "duration_seconds": 6,
+      "duration_seconds": 5,
       "exit_code": 1,
       "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
       "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",

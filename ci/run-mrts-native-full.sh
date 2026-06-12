@@ -142,10 +142,10 @@ path = Path(sys.argv[1])
 modules_dir = sys.argv[2]
 apache_module = sys.argv[3]
 text = path.read_text(encoding="utf-8")
-text = re.sub(r"/usr/lib/apache2/modules/(mod_[^\\s\"']+\\.so)", modules_dir + r"/\1", text)
+text = re.sub(r"/usr/lib/apache2/modules/(mod_[^\s\"']+\.so)", modules_dir + r"/\1", text)
 if path.name == "security2.load" and apache_module:
     text = re.sub(
-        r"LoadModule\\s+security2_module\\s+\\S+",
+        r"LoadModule\s+security2_module\s+\S+",
         "LoadModule security3_module " + apache_module,
         text,
     )
@@ -167,6 +167,50 @@ new = sys.argv[3]
 text = path.read_text(encoding="utf-8")
 path.write_text(text.replace(old, new), encoding="utf-8")
 PY
+}
+
+write_apache_modsecurity_conf() {
+    conf_file=$1
+    modsecurity_conf=$2
+    mrts_load=$3
+    phase4_log=$4
+    cat > "$conf_file" <<EOF
+<IfModule security3_module>
+    modsecurity on
+    modsecurity_rules_file $modsecurity_conf
+    modsecurity_rules_file $mrts_load
+    modsecurity_phase4_mode safe
+    modsecurity_phase4_log $phase4_log
+    modsecurity_phase4_body_limit 1048576
+</IfModule>
+EOF
+}
+
+patch_modsecurity_v3_rules_config() {
+    rules_conf=$1
+    "$PYTHON" - "$rules_conf" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+lines = []
+for line in path.read_text(encoding="utf-8").splitlines():
+    if line.lstrip().startswith("SecRequestBodyInMemoryLimit "):
+        lines.append("# disabled in local native staging: unsupported by libmodsecurity v3")
+    else:
+        lines.append(line)
+path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+}
+
+write_native_apache_load_if_present() {
+    modules_dir=$1
+    load_dir=$2
+    module_name=$3
+    module_file=$4
+    if [ -f "$modules_dir/$module_file" ]; then
+        printf 'LoadModule %s_module %s/%s\n' "$module_name" "$modules_dir" "$module_file" > "$load_dir/native-$module_name.load"
+    fi
 }
 
 disable_nginx_system_module_file() {
@@ -245,6 +289,7 @@ stage_apache() {
     mkdir -p "$stage/infra/log" "$stage/infra/run" "$stage/infra/htdocs" "$stage/infra/run/modsecurity-data"
     : > "$stage/infra/htdocs/index.html"
     cp "$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load" "$stage/infra/mrts.load"
+    patch_modsecurity_v3_rules_config "$stage/infra/modsecurity/modsecurity.conf"
     sed -i "s#^Listen 80#Listen $MRTS_NATIVE_APACHE_PORT#" "$stage/infra/ports.conf"
     sed -i "s#<VirtualHost \\*:80>#<VirtualHost *:$MRTS_NATIVE_APACHE_PORT>#" "$stage/infra/sites-available/000-default.conf"
     sed -i "s#http://127.0.0.1:8000/#http://127.0.0.1:$MRTS_NATIVE_BACKEND_PORT/#g" "$stage/infra/sites-available/000-default.conf"
@@ -255,10 +300,16 @@ stage_apache() {
     Require all granted
 </Directory>
 EOF
-    replace_file_text "$stage/infra/mods-available/security2.conf" "security2_module" "security3_module"
-    replace_file_text "$stage/infra/mods-available/security2.conf" "SecDataDir /var/cache/modsecurity" "SecDataDir run/modsecurity-data"
-    replace_file_text "$stage/infra/mods-enabled/security2.conf" "security2_module" "security3_module"
-    replace_file_text "$stage/infra/mods-enabled/security2.conf" "SecDataDir /var/cache/modsecurity" "SecDataDir run/modsecurity-data"
+    write_apache_modsecurity_conf \
+        "$stage/infra/mods-available/security2.conf" \
+        "$stage/infra/modsecurity/modsecurity.conf" \
+        "$stage/infra/mrts.load" \
+        "$stage/infra/log/modsecurity-phase4.jsonl"
+    write_apache_modsecurity_conf \
+        "$stage/infra/mods-enabled/security2.conf" \
+        "$stage/infra/modsecurity/modsecurity.conf" \
+        "$stage/infra/mrts.load" \
+        "$stage/infra/log/modsecurity-phase4.jsonl"
     if [ -n "${HTTPD_PREFIX:-}" ]; then
         mime_types="$HTTPD_PREFIX/conf/mime.types"
         if [ ! -f "$mime_types" ]; then
@@ -273,6 +324,9 @@ EOF
             [ -f "$load_file" ] || continue
             replace_loadmodule_paths "$load_file" "$HTTPD_PREFIX/modules" "${APACHE_MRTS_MODULE:-${APACHE_MODULE:-}}"
         done
+        write_native_apache_load_if_present "$HTTPD_PREFIX/modules" "$stage/infra/mods-enabled" log_config mod_log_config.so
+        write_native_apache_load_if_present "$HTTPD_PREFIX/modules" "$stage/infra/mods-enabled" logio mod_logio.so
+        write_native_apache_load_if_present "$HTTPD_PREFIX/modules" "$stage/infra/mods-enabled" unixd mod_unixd.so
     fi
     if [ -n "${APACHECTL_BIN:-}" ]; then
         replace_file_text "$stage/start.py" "'apachectl'" "'$APACHECTL_BIN'"

@@ -73,30 +73,35 @@ Generated at: `2026-06-09T18:40:47Z`
 ## Runtime Components
 
 ### Apache httpd
-- Status: `blocked`
-- Blocker: `missing_crypt_library`
+- Status: `present`
+- Blocker: `-`
 - Cache path: `/src/ModSecurity-conector-cache/archives/apache`
-- Build path: `/tmp/modsec-native-local-tools/apache-build`
-- apachectl/APACHECTL_BIN: `/tmp/modsec-native-local-tools/mrts-native/apache2_ubuntu/bin/apachectl`
-- Module file: `/tmp/modsec-native-local-tools/apache-build/output/apache/mod_security3.so`
-- Missing file: `libcrypt.so development link target or explicit -lcrypt linkage`
-- Build component: `apache_httpd_source_build`
-- Env variable to set: `LIBS/LDFLAGS`
+- Build path: `/tmp/modsec-native-after-libcrypt/apache-build`
+- apachectl/APACHECTL_BIN: `/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apachectl-mrts`
+- Module file: `/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so`
+- Missing file: `-`
+- Build component: `-`
+- Env variable to set: `APACHECTL_BIN`
 - Expat source: `https://github.com/libexpat/libexpat`
 - Expat release tag: `R_2_8_1`
 - CPPFLAGS: `-I/src/ModSecurity-conector-cache/prefix/expat/include`
 - LDFLAGS: `-L/src/ModSecurity-conector-cache/prefix/expat/lib`
-- LIBS: `/usr/lib/x86_64-linux-gnu/libcrypt.so.1`
+- LIBS: `-lcrypt`
 - PKG_CONFIG_PATH: `/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig`
+- crypt.h status: `present`
+- crypt.h path: `/usr/include/crypt.h`
+- libcrypt status: `present`
+- libcrypt paths: `/usr/lib/x86_64-linux-gnu/libcrypt.so, /lib/x86_64-linux-gnu/libcrypt.so, /usr/lib/x86_64-linux-gnu/libcrypt.so.1, /lib/x86_64-linux-gnu/libcrypt.so.1`
+- crypt link mode: `compiler:-lcrypt`
 
 ### NGINX
 - Status: `present`
 - Blocker: `-`
 - Cache path: `/src/ModSecurity-conector-cache/archives/nginx`
-- Build path: `/tmp/modsec-native-local-tools/nginx-build`
-- MRTS_NATIVE_NGINX_BIN: `/tmp/modsec-native-local-tools/nginx-runtime/nginx/sbin/nginx`
-- MRTS_NATIVE_NGINX_MODULE_DIR: `/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules`
-- Module file: `/tmp/modsec-native-local-tools/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
+- Build path: `/tmp/modsec-native-after-libcrypt/nginx-build`
+- MRTS_NATIVE_NGINX_BIN: `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx`
+- MRTS_NATIVE_NGINX_MODULE_DIR: `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules`
+- Module file: `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
 - Missing file: `-`
 - Build component: `-`
 - Env variable to set: `MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR`
@@ -118,3 +123,54 @@ Generated at: `2026-06-09T18:40:47Z`
 | go-ftw | present | `/src/ModSecurity-conector-cache/bin/go-ftw` | `GO_FTW_BIN` | `https://github.com/coreruleset/go-ftw` | `v2.4.0` | `23db497e3a6133888fcd5e087b8cf456556df041` | `-` | prompt_expected_latest=v2.2.0; current_latest=v2.4.0 | - |
 | albedo | present | `/src/ModSecurity-conector-cache/bin/albedo` | `ALBEDO_BIN` | `https://github.com/coreruleset/albedo` | `v0.3.0` | `3f7d0238b32d1f98059f5c70e0ffcafad514952c` | `-` | - | - |
 <!-- runtime-components:end -->
+
+<!-- runtime-diagnostics:start -->
+## Native Runtime Diagnostics
+
+### Apache 100003-1
+- Status: `fail`
+- Target: `apache2_ubuntu`
+- Run counts: attempted `13`, passed `12`, failed cases `100003-1`
+- Diagnosis: Apache/httpd started and reached go-ftw; expected phase 4 rule id 100003 was not logged.
+- Generated YAML: `/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml`
+- Generated rule file: `/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf`
+- Request: `POST /?foo=attack HTTP/1.1` on port `19080`; body `none`
+- Expected status/result: `not specified in FTW YAML` / `log id 100003`
+- Actual status/result: `HTTP 200 observed in Apache access log` / `missing expected log id 100003`
+- Actual logged IDs: `10002, 100028, 100029, 100030, 100000, 100032, 100001, 100016, 100033, 100002, 100017, 100034`
+- Module loaded: `True` from `/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so`
+- mrts.load included: `True`
+- Request reached Apache/ModSecurity/Albedo: `True` / `True` / `True`
+- Audit/debug evidence: audit log `empty`, error log `/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/stage/infra/log/error.log`, go-ftw log `/tmp/modsec-native-after-libcrypt/mrts-native/apache2_ubuntu/run.log`
+- Action: No MRTS definition/result rewrite was made; investigate native phase 4 behavior separately.
+
+### NGINX 100003-1
+- Status: `fail`
+- Target: `nginx-pr24`
+- Run counts: attempted `13`, passed `12`, failed cases `100003-1`
+- Diagnosis: go-ftw expected phase 4 rule id 100003, but NGINX/ModSecurity logged only earlier phase matches for the request.
+- Generated YAML: `/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml`
+- Generated rule file: `/tmp/modsec-native-after-libcrypt/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf`
+- Request: `POST /?foo=attack HTTP/1.1` on port `19081`; body `none`
+- Expected status/result: `not specified in FTW YAML` / `log id 100003`
+- Actual status/result: `not printed by go-ftw; backend request was observed` / `missing expected log id 100003`
+- Actual logged IDs: `10002, 100028, 100029, 100030, 100000, 100032, 100001, 100016, 100033, 100002, 100017, 100034`
+- Module loaded: `True` from `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
+- mrts.load included: `True`
+- Request reached NGINX/ModSecurity/Albedo: `True` / `True` / `True`
+- Audit/debug evidence: audit log `empty`, error log `/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/stage/infra/log/error.log`, go-ftw log `/tmp/modsec-native-after-libcrypt/mrts-native/nginx-pr24/run.log`
+- Action: No MRTS definition/result rewrite was made; investigate NGINX/native phase 4 support separately.
+<!-- runtime-diagnostics:end -->
+
+<!-- post-libcrypt-native:start -->
+## Post-libcrypt Native Rerun
+- Scope: requested native rerun after external `libcrypt-dev` availability; the earlier full-matrix sections in this file remain historical evidence from their original generation time.
+- Command: `FRAMEWORK_ROOT=/root/git/ModSecurity-test-Framework BUILD_ROOT=/tmp/modsec-native-after-libcrypt MRTS_NATIVE_TARGETS="apache2_ubuntu nginx-pr24" CONNECTOR_COMPONENT_CACHE=/src/ModSecurity-conector-cache PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run`
+- BUILD_ROOT: `/tmp/modsec-native-after-libcrypt`
+- Apache wrapper: `/tmp/modsec-native-after-libcrypt/apache-runtime/httpd/bin/apachectl-mrts`
+- Apache module: `/tmp/modsec-native-after-libcrypt/apache-build/output/apache/mod_security3.so`
+- Apache native result: `FAIL`; attempted `13`, passed `12`, failed cases `100003-1`
+- NGINX binary: `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/sbin/nginx`
+- NGINX module: `/tmp/modsec-native-after-libcrypt/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
+- NGINX native result: `FAIL`; attempted `13`, passed `12`, failed cases `100003-1`
+<!-- post-libcrypt-native:end -->

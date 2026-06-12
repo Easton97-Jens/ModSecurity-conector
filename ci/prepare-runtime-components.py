@@ -896,11 +896,69 @@ def map_nginx_blocker(text: str, missing: list[str]) -> str:
     return "missing_local_nginx_build"
 
 
+def can_link_crypt(link_arg: str, env: dict[str, str] | None = None) -> bool:
+    check_env = env or os.environ
+    compiler = resolve_compiler(check_env)
+    if not compiler:
+        return False
+    source = "extern char *crypt(const char *, const char *); int main(void) { return crypt(\"x\", \"xx\") == 0; }\n"
+    proc = subprocess.run(
+        [compiler, "-x", "c", "-", link_arg, "-o", os.devnull],
+        input=source,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=check_env,
+    )
+    return proc.returncode == 0
+
+
+def crypt_diagnostics(env: dict[str, str]) -> dict[str, Any]:
+    header_path = Path("/usr/include/crypt.h")
+    candidates = [
+        Path("/usr/lib/x86_64-linux-gnu/libcrypt.so"),
+        Path("/lib/x86_64-linux-gnu/libcrypt.so"),
+        Path("/usr/lib64/libcrypt.so"),
+        Path("/lib64/libcrypt.so"),
+        Path("/usr/lib/x86_64-linux-gnu/libcrypt.so.1"),
+        Path("/lib/x86_64-linux-gnu/libcrypt.so.1"),
+        Path("/usr/lib64/libcrypt.so.1"),
+        Path("/lib64/libcrypt.so.1"),
+    ]
+    found = [str(path) for path in candidates if path.exists()]
+    configured = env.get("CRYPT_LIB", "").strip()
+    link_arg = ""
+    link_mode = ""
+    if configured:
+        link_arg = configured
+        link_mode = "env:CRYPT_LIB"
+    elif can_link_crypt("-lcrypt", env):
+        link_arg = "-lcrypt"
+        link_mode = "compiler:-lcrypt"
+    elif found:
+        link_arg = found[0]
+        link_mode = "direct-path"
+    return {
+        "crypt_h_path": str(header_path),
+        "crypt_h_status": "present" if header_path.is_file() else "missing",
+        "libcrypt_paths": found,
+        "libcrypt_status": "present" if found else "missing",
+        "crypt_link_arg": link_arg,
+        "crypt_link_mode": link_mode,
+    }
+
+
 def resolve_crypt_link_arg(env: dict[str, str]) -> str:
     configured = env.get("CRYPT_LIB", "").strip()
     if configured:
         return configured
+    if can_link_crypt("-lcrypt", env):
+        return "-lcrypt"
     for candidate in (
+        Path("/usr/lib/x86_64-linux-gnu/libcrypt.so"),
+        Path("/lib/x86_64-linux-gnu/libcrypt.so"),
+        Path("/usr/lib64/libcrypt.so"),
+        Path("/lib64/libcrypt.so"),
         Path("/usr/lib/x86_64-linux-gnu/libcrypt.so.1"),
         Path("/lib/x86_64-linux-gnu/libcrypt.so.1"),
         Path("/usr/lib64/libcrypt.so.1"),
@@ -1002,9 +1060,10 @@ def prepare_apache_httpd(
     expat_cppflags = f"-I{expat_prefix / 'include'}" if expat_prefix else ""
     expat_ldflags = f"-L{expat_lib_dir}" if expat_lib_dir else ""
     expat_pkg_config_path = str(expat_prefix / "lib/pkgconfig") if expat_prefix else ""
-    crypt_link_arg = resolve_crypt_link_arg(env)
+    crypt = crypt_diagnostics(env)
+    crypt_link_arg = str(crypt.get("crypt_link_arg", ""))
     apache_libs = " ".join(part for part in (env.get("LIBS", ""), crypt_link_arg) if part).strip()
-    wrapper_path = native_root / "apache2_ubuntu/bin/apachectl"
+    wrapper_path = httpd_prefix / "bin/apachectl-mrts"
     override_apachectl = env.get("APACHECTL_BIN", "")
     effective_apachectl = Path(override_apachectl).resolve() if override_apachectl else wrapper_path
     artifacts = {
@@ -1035,6 +1094,11 @@ def prepare_apache_httpd(
         "ldflags": " ".join(part for part in (expat_ldflags, env.get("LDFLAGS", "")) if part).strip(),
         "libs": apache_libs,
         "crypt_lib": crypt_link_arg,
+        "crypt_h_status": crypt.get("crypt_h_status", ""),
+        "crypt_h_path": crypt.get("crypt_h_path", ""),
+        "libcrypt_status": crypt.get("libcrypt_status", ""),
+        "libcrypt_paths": crypt.get("libcrypt_paths", []),
+        "crypt_link_mode": crypt.get("crypt_link_mode", ""),
         "crypt_config_cache": crypt_link_arg,
         "aprutil_libs": crypt_link_arg,
         "pkg_config_path": f"{expat_pkg_config_path}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
@@ -1465,6 +1529,11 @@ def markdown_report(payload: dict[str, Any]) -> str:
             f"- LDFLAGS: `{apache.get('ldflags') or '-'}`",
             f"- LIBS: `{apache.get('libs') or '-'}`",
             f"- PKG_CONFIG_PATH: `{apache.get('pkg_config_path') or '-'}`",
+            f"- crypt.h status: `{apache.get('crypt_h_status') or '-'}`",
+            f"- crypt.h path: `{apache.get('crypt_h_path') or '-'}`",
+            f"- libcrypt status: `{apache.get('libcrypt_status') or '-'}`",
+            f"- libcrypt paths: `{', '.join(apache.get('libcrypt_paths', [])) or '-'}`",
+            f"- crypt link mode: `{apache.get('crypt_link_mode') or '-'}`",
             "",
             "## NGINX",
             f"- Status: `{nginx.get('status', '-')}`",
