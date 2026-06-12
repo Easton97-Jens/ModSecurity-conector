@@ -278,6 +278,7 @@ run_job() {
             rc=$?
             ;;
         nginx)
+            nginx_harness_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ModSecurity-conector-full-matrix/$test_variant-$mrts_variant-nginx-$port"
             env $common_env \
                 NGINX_TEST_PORT="$port" \
                 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$SHARED_BUILD_ROOT/nginx-build}" \
@@ -285,9 +286,9 @@ run_job() {
                 NGINX_BINARY="${MRTS_NATIVE_NGINX_BIN:-}" \
                 NGINX_MODULE="${MRTS_NATIVE_NGINX_MODULE_FILE:-${MRTS_NATIVE_NGINX_MODULE_DIR:-}/ngx_http_modsecurity_module.so}" \
                 MODSECURITY_LIB_DIR="${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
-                NGINX_HARNESS_WORK_ROOT="$job_tmp_root/nginx-harness" \
-                NGINX_RUNTIME_BASE="$job_tmp_root/nginx-runtime" \
-                NGINX_RUNTIME_LOG_DIR="$job_log_root/nginx-runtime" \
+                NGINX_HARNESS_WORK_ROOT="$nginx_harness_root" \
+                NGINX_RUNTIME_BASE="$nginx_harness_root/runtime" \
+                NGINX_RUNTIME_LOG_DIR="$nginx_harness_root/logs" \
                 make -C "$CONNECTOR_ROOT" smoke-nginx >> "$run_log" 2>&1
             rc=$?
             ;;
