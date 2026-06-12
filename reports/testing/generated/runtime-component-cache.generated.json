@@ -3,14 +3,14 @@
     "actual_head": "3f7d0238b32d1f98059f5c70e0ffcafad514952c",
     "binary": "/src/ModSecurity-conector-cache/bin/albedo",
     "blocker_reason": "",
-    "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/albedo-build.log",
+    "build_log": "/tmp/modsec-full-run-after-nginx-fix/logs/runtime-components/albedo-build.log",
     "build_package": "github.com/coreruleset/albedo",
     "can_build_locally": true,
     "dependency": "albedo",
     "env_override": "ALBEDO_BIN",
     "expected_prompt_latest": "v0.3.0",
     "expected_ref": "v0.3.0",
-    "git_fsck": "SKIPPED_CACHED_PASS",
+    "git_fsck": "PASS",
     "go_version": "go version go1.26.0 linux/amd64",
     "known_ref": "v0.3.0",
     "known_source": "https://github.com/coreruleset/albedo",
@@ -163,7 +163,7 @@
       "url": "https://github.com/nginx/nginx/archive/refs/tags/release-1.31.1.tar.gz"
     }
   ],
-  "build_root": "/root/.local/state/ModSecurity-conector-build",
+  "build_root": "/tmp/modsec-full-run-after-nginx-fix",
   "cache_root": "/src/ModSecurity-conector-cache",
   "connector_root": "/root/git/ModSecurity-conector",
   "dependencies": [
@@ -234,13 +234,13 @@
   "expat": {
     "actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
     "blocker_reason": "",
-    "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/expat-build.log",
+    "build_log": "/tmp/modsec-full-run-after-nginx-fix/logs/runtime-components/expat-build.log",
     "build_path": "/src/ModSecurity-conector-cache/build/expat",
     "build_source_copy": "/src/ModSecurity-conector-cache/build/expat-source",
     "build_system": "autotools",
     "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
     "expected_ref": "R_2_8_1",
-    "git_fsck": "SKIPPED_CACHED_PASS",
+    "git_fsck": "PASS",
     "include": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
     "lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
     "libraries": [
@@ -263,14 +263,14 @@
     "url": "https://github.com/libexpat/libexpat"
   },
   "framework_root": "/root/git/ModSecurity-test-Framework",
-  "generated_at": "2026-06-12T17:35:18Z",
+  "generated_at": "2026-06-12T17:55:50Z",
   "git_components": [
     {
       "actual_head": "2fd49292d751fc383b8faf7da6a8d480904774d0",
       "blocker_reason": "",
       "checkout_ref": "v3/master",
       "expected_ref": "v3/master",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "name": "modsecurity-v3",
       "path": "/src/ModSecurity-conector-cache/sources/ModSecurity_V3",
       "recursive_submodules": true,
@@ -282,8 +282,8 @@
       "tree": {
         "exists": true,
         "file_count": 5921,
-        "sha256_manifest": "3fa24adae66b612a848503f34c48a2d391ce0f3e41b68dc6feac439348d84341",
-        "total_size": 678684759
+        "sha256_manifest": "a3e05a89eb16087aa3442d7d90785c4b29a76fb63024b62db74439bd3e8088c9",
+        "total_size": 678663600
       },
       "url": "https://github.com/owasp-modsecurity/ModSecurity.git"
     },
@@ -292,7 +292,7 @@
       "blocker_reason": "",
       "checkout_ref": "v4.26.0",
       "expected_ref": "v4.26.0",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "name": "coreruleset",
       "path": "/src/ModSecurity-conector-cache/sources/coreruleset",
       "recursive_submodules": true,
@@ -303,9 +303,9 @@
       "submodule_status_clean": true,
       "tree": {
         "exists": true,
-        "file_count": 703,
-        "sha256_manifest": "c2c42c3d9df63434184f0584dfcb9ff20f6217d1ab9e594bf5a2125b1b48df3b",
-        "total_size": 21310512
+        "file_count": 707,
+        "sha256_manifest": "3beb6cf9c076dfae5429acb84483e5cab30b644c339eb0062cf900c48b0adec2",
+        "total_size": 21315014
       },
       "url": "https://github.com/coreruleset/coreruleset.git"
     },
@@ -315,7 +315,7 @@
       "checkout_ref": "v2.4.0",
       "expected_prompt_latest": "v2.2.0",
       "expected_ref": "v2.4.0",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "name": "go-ftw",
       "path": "/src/ModSecurity-conector-cache/git/go-ftw",
       "recursive_submodules": true,
@@ -331,9 +331,9 @@
       "submodule_status_clean": true,
       "tree": {
         "exists": true,
-        "file_count": 172,
-        "sha256_manifest": "530bc9b9a7b3bce29d5ab575c48680b3d96c897d2543f32640871f7fb1428f58",
-        "total_size": 2407674
+        "file_count": 182,
+        "sha256_manifest": "0487bf3d1ded093ddd415dfbf3dd92f09252fb4cada27d3e3fbafa2d9cae48bf",
+        "total_size": 2426946
       },
       "url": "https://github.com/coreruleset/go-ftw"
     },
@@ -343,7 +343,7 @@
       "checkout_ref": "v0.3.0",
       "expected_prompt_latest": "v0.3.0",
       "expected_ref": "v0.3.0",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "name": "albedo",
       "path": "/src/ModSecurity-conector-cache/git/albedo",
       "recursive_submodules": true,
@@ -360,8 +360,8 @@
       "tree": {
         "exists": true,
         "file_count": 50,
-        "sha256_manifest": "8dc73c674476053c80da3a4780bc24baff54c14e514ea0a1734995e02c73fc22",
-        "total_size": 406058
+        "sha256_manifest": "bd68356482c6ef50266fd83c46481808a4079d8d32a7271588dca79a03656770",
+        "total_size": 403740
       },
       "url": "https://github.com/coreruleset/albedo"
     },
@@ -371,7 +371,7 @@
       "checkout_ref": "R_2_8_1",
       "expected_prompt_latest": "",
       "expected_ref": "R_2_8_1",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "name": "expat",
       "path": "/src/ModSecurity-conector-cache/git/libexpat",
       "recursive_submodules": true,
@@ -388,8 +388,8 @@
       "tree": {
         "exists": true,
         "file_count": 245,
-        "sha256_manifest": "522f912962886295dc55c82a0fb2085b724f645825884d265f2694528b77c2a4",
-        "total_size": 155488171
+        "sha256_manifest": "ea498348a0b872af2499d06ca5a606e75f3fee0b44f1bbab566f8100c14681a0",
+        "total_size": 155479651
       },
       "url": "https://github.com/libexpat/libexpat"
     }
@@ -398,14 +398,14 @@
     "actual_head": "23db497e3a6133888fcd5e087b8cf456556df041",
     "binary": "/src/ModSecurity-conector-cache/bin/go-ftw",
     "blocker_reason": "",
-    "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/go-ftw-build.log",
+    "build_log": "/tmp/modsec-full-run-after-nginx-fix/logs/runtime-components/go-ftw-build.log",
     "build_package": "github.com/coreruleset/go-ftw/v2",
     "can_build_locally": true,
     "dependency": "go-ftw",
     "env_override": "GO_FTW_BIN",
     "expected_prompt_latest": "v2.2.0",
     "expected_ref": "v2.4.0",
-    "git_fsck": "SKIPPED_CACHED_PASS",
+    "git_fsck": "PASS",
     "go_version": "go version go1.26.0 linux/amd64",
     "known_ref": "v2.4.0",
     "known_source": "https://github.com/coreruleset/go-ftw",
@@ -474,7 +474,7 @@
     },
     "component": "modsecurity",
     "dependency_hash": "8ef54119a5e6bdf71d774d1799c72bdb8de3094bd8d11ef67b65126995c3e57a",
-    "generated_at": "2026-06-12T17:35:16Z",
+    "generated_at": "2026-06-12T17:55:48Z",
     "include_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/include",
     "lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
     "lib_file": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so",
@@ -495,7 +495,7 @@
       "total_size": 180369331
     }
   },
-  "native_root": "/root/.local/state/ModSecurity-conector-build/mrts-native",
+  "native_root": "/tmp/modsec-full-run-after-nginx-fix/mrts-native",
   "nginx": {
     "blocker_reason": "",
     "build_path": "/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/build",
@@ -675,7 +675,7 @@
         }
       }
     ],
-    "generated_at": "2026-06-12T17:35:18Z",
+    "generated_at": "2026-06-12T17:55:50Z",
     "shared_modsecurity_build": {
       "actual_sha": "2fd49292d751fc383b8faf7da6a8d480904774d0",
       "blocker_reason": "",
@@ -690,7 +690,7 @@
       },
       "component": "modsecurity",
       "dependency_hash": "8ef54119a5e6bdf71d774d1799c72bdb8de3094bd8d11ef67b65126995c3e57a",
-      "generated_at": "2026-06-12T17:35:16Z",
+      "generated_at": "2026-06-12T17:55:48Z",
       "include_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/include",
       "lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
       "lib_file": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so",
@@ -717,14 +717,14 @@
       "actual_head": "3f7d0238b32d1f98059f5c70e0ffcafad514952c",
       "binary": "/src/ModSecurity-conector-cache/bin/albedo",
       "blocker_reason": "",
-      "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/albedo-build.log",
+      "build_log": "/tmp/modsec-full-run-after-nginx-fix/logs/runtime-components/albedo-build.log",
       "build_package": "github.com/coreruleset/albedo",
       "can_build_locally": true,
       "dependency": "albedo",
       "env_override": "ALBEDO_BIN",
       "expected_prompt_latest": "v0.3.0",
       "expected_ref": "v0.3.0",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "go_version": "go version go1.26.0 linux/amd64",
       "known_ref": "v0.3.0",
       "known_source": "https://github.com/coreruleset/albedo",
@@ -807,13 +807,13 @@
     "expat": {
       "actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
       "blocker_reason": "",
-      "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/expat-build.log",
+      "build_log": "/tmp/modsec-full-run-after-nginx-fix/logs/runtime-components/expat-build.log",
       "build_path": "/src/ModSecurity-conector-cache/build/expat",
       "build_source_copy": "/src/ModSecurity-conector-cache/build/expat-source",
       "build_system": "autotools",
       "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
       "expected_ref": "R_2_8_1",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "include": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
       "lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
       "libraries": [
@@ -839,14 +839,14 @@
       "actual_head": "23db497e3a6133888fcd5e087b8cf456556df041",
       "binary": "/src/ModSecurity-conector-cache/bin/go-ftw",
       "blocker_reason": "",
-      "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/go-ftw-build.log",
+      "build_log": "/tmp/modsec-full-run-after-nginx-fix/logs/runtime-components/go-ftw-build.log",
       "build_package": "github.com/coreruleset/go-ftw/v2",
       "can_build_locally": true,
       "dependency": "go-ftw",
       "env_override": "GO_FTW_BIN",
       "expected_prompt_latest": "v2.2.0",
       "expected_ref": "v2.4.0",
-      "git_fsck": "SKIPPED_CACHED_PASS",
+      "git_fsck": "PASS",
       "go_version": "go version go1.26.0 linux/amd64",
       "known_ref": "v2.4.0",
       "known_source": "https://github.com/coreruleset/go-ftw",
@@ -908,7 +908,7 @@
       },
       "component": "modsecurity",
       "dependency_hash": "8ef54119a5e6bdf71d774d1799c72bdb8de3094bd8d11ef67b65126995c3e57a",
-      "generated_at": "2026-06-12T17:35:16Z",
+      "generated_at": "2026-06-12T17:55:48Z",
       "include_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/include",
       "lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
       "lib_file": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so",
