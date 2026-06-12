@@ -8,13 +8,15 @@ from pathlib import Path
 from typing import Any
 
 
-COMPONENT_KEYS = ("apache_httpd", "nginx", "go_ftw", "albedo", "expat")
+COMPONENT_KEYS = ("modsecurity", "apache_httpd", "nginx", "haproxy", "go_ftw", "albedo", "expat")
 MARKER_START = "<!-- runtime-components:start -->"
 MARKER_END = "<!-- runtime-components:end -->"
 DIAG_MARKER_START = "<!-- runtime-diagnostics:start -->"
 DIAG_MARKER_END = "<!-- runtime-diagnostics:end -->"
 POST_LIBCRYPT_MARKER_START = "<!-- post-libcrypt-native:start -->"
 POST_LIBCRYPT_MARKER_END = "<!-- post-libcrypt-native:end -->"
+BUILD_CACHE_MARKER_START = "<!-- runtime-build-cache:start -->"
+BUILD_CACHE_MARKER_END = "<!-- runtime-build-cache:end -->"
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -32,6 +34,10 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
 def component_inventory(report_dir: Path) -> dict[str, Any]:
     cache_report = read_json(report_dir / "runtime-component-cache.generated.json")
     return {key: cache_report.get(key, {}) for key in COMPONENT_KEYS}
+
+
+def build_cache_inventory(report_dir: Path) -> dict[str, Any]:
+    return read_json(report_dir / "runtime-build-cache.generated.json")
 
 
 def replace_marked_section(text: str, section: str) -> str:
@@ -554,6 +560,35 @@ def post_libcrypt_native_markdown(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def runtime_build_cache_markdown(build_cache: dict[str, Any]) -> str:
+    modsecurity = build_cache.get("shared_modsecurity_build", {})
+    summary = build_cache.get("build_reuse_summary", {})
+    lines = [
+        BUILD_CACHE_MARKER_START,
+        "## Runtime Build Cache",
+        f"- Shared ModSecurity status: `{modsecurity.get('status', '-')}`",
+        f"- Shared ModSecurity source ref/SHA: `{modsecurity.get('source_ref', '-')}` / `{modsecurity.get('actual_sha', '-')}`",
+        f"- Shared ModSecurity build ID: `{modsecurity.get('build_id', '-')}`",
+        f"- Shared ModSecurity prefix: `{modsecurity.get('prefix', '-')}`",
+        f"- Build reuse summary: rebuilt `{summary.get('rebuilt_count', '-')}`, reused `{summary.get('reused_count', '-')}`, blocked `{summary.get('blocked_count', '-')}`, saved rebuilds estimate `{summary.get('saved_rebuilds_estimate', '-')}`",
+        "",
+        "| Connector | Status | Connector build ID | Uses ModSecurity build ID | Blocker |",
+        "|---|---|---|---|---|",
+    ]
+    for item in build_cache.get("connector_builds", []):
+        lines.append(
+            "| {connector} | {status} | `{connector_id}` | `{modsec_id}` | {blocker} |".format(
+                connector=item.get("connector", "-"),
+                status=item.get("status", "-"),
+                connector_id=item.get("connector_build_id", "-"),
+                modsec_id=item.get("modsecurity_build_id", "-"),
+                blocker=item.get("blocker_reason") or "-",
+            )
+        )
+    lines.append(BUILD_CACHE_MARKER_END)
+    return "\n".join(lines)
+
+
 def diagnostics_markdown(diagnostics: dict[str, Any]) -> str:
     lines = [DIAG_MARKER_START, "## Native Runtime Diagnostics"]
     if not diagnostics:
@@ -622,7 +657,7 @@ def diagnostics_markdown(diagnostics: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict[str, Any]) -> None:
+def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict[str, Any], build_cache: dict[str, Any]) -> None:
     if not path.is_file():
         return
     data = read_json(path)
@@ -630,6 +665,7 @@ def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict
         return
     data["runtime_components"] = components
     data["runtime_diagnostics"] = diagnostics
+    data["runtime_build_cache"] = build_cache
     if path.name == "full-run-evidence.generated.json":
         data["post_libcrypt_native_rerun"] = post_libcrypt_native_summary(components, diagnostics)
     for key, value in components.items():
@@ -637,7 +673,7 @@ def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict
     write_json(path, data)
 
 
-def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[str, Any]) -> None:
+def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[str, Any], build_cache: dict[str, Any]) -> None:
     if not path.is_file():
         return
     text = path.read_text(encoding="utf-8")
@@ -652,6 +688,7 @@ def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[s
         )
     section = runtime_components_markdown(components)
     text = replace_marked_section(text, section)
+    text = replace_named_section(text, runtime_build_cache_markdown(build_cache), BUILD_CACHE_MARKER_START, BUILD_CACHE_MARKER_END)
     text = replace_named_section(text, diagnostics_markdown(diagnostics), DIAG_MARKER_START, DIAG_MARKER_END)
     path.write_text(text, encoding="utf-8")
 
@@ -664,12 +701,13 @@ def main() -> int:
     connector_root = Path(args.connector_root).resolve()
     report_dir = connector_root / "reports/testing/generated"
     components = component_inventory(report_dir)
+    build_cache = build_cache_inventory(report_dir)
     diagnostics = collect_runtime_diagnostics(components)
-    update_report_json(report_dir / "runtime-component-cache.generated.json", components, diagnostics)
-    update_report_md(report_dir / "runtime-component-cache.generated.md", components, diagnostics)
+    update_report_json(report_dir / "runtime-component-cache.generated.json", components, diagnostics, build_cache)
+    update_report_md(report_dir / "runtime-component-cache.generated.md", components, diagnostics, build_cache)
     for stem in ("mrts-native-full.generated", "full-run-evidence.generated"):
-        update_report_json(report_dir / f"{stem}.json", components, diagnostics)
-        update_report_md(report_dir / f"{stem}.md", components, diagnostics)
+        update_report_json(report_dir / f"{stem}.json", components, diagnostics, build_cache)
+        update_report_md(report_dir / f"{stem}.md", components, diagnostics, build_cache)
     return 0
 
 

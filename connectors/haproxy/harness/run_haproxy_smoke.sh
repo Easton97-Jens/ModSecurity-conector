@@ -561,6 +561,9 @@ ensure_local_haproxy() {
     if [ -x "$HAPROXY_BIN" ]; then
         return 0
     fi
+    if [ "${RUNTIME_COMPONENTS_PREPARED_ONLY:-0}" = "1" ]; then
+        blocked "prepared HAProxy binary missing: $HAPROXY_BIN"
+    fi
     [ -x "$PREPARE_HAPROXY_RUNTIME" ] || blocked "prepare-haproxy-runtime helper missing"
     SOURCE_ROOT="$SOURCE_ROOT" \
         BUILD_ROOT="$BUILD_ROOT" \
@@ -579,6 +582,9 @@ ensure_spoa_runtime() {
         export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR
         [ -n "${MODSECURITY_LIB_DIR:-}" ] || blocked "ModSecurity library directory missing from paths.env"
         return 0
+    fi
+    if [ "${RUNTIME_COMPONENTS_PREPARED_ONLY:-0}" = "1" ]; then
+        blocked "prepared HAProxy ModSecurity binding/SPOA runtime missing: $SPOA_RUNTIME_BIN"
     fi
     BUILD_ROOT="$BUILD_ROOT" \
         TMP_ROOT="$TMP_ROOT" \

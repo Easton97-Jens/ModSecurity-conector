@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -115,6 +116,11 @@ def read_json(path: Path) -> dict[str, Any]:
 def write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def stable_hash(data: Any) -> str:
+    encoded = json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def is_within(path: Path, owner: Path) -> bool:
@@ -455,6 +461,63 @@ def build_env(base: dict[str, str], **overrides: str) -> dict[str, str]:
     return result
 
 
+def command_text(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> str:
+    proc = run_env(cmd, cwd=cwd, env=env)
+    text = (proc.stdout + proc.stderr).strip()
+    return text if proc.returncode == 0 else f"unavailable rc={proc.returncode}: {text}"
+
+
+def compiler_identity(env: dict[str, str]) -> dict[str, str]:
+    cc = resolve_compiler(env)
+    cxx_configured = env.get("CXX", "").strip()
+    cxx = cxx_configured.split()[0] if cxx_configured and shutil.which(cxx_configured.split()[0]) else (shutil.which("c++") or shutil.which("g++") or "")
+    return {
+        "cc": cc,
+        "cc_version": command_text([cc, "--version"], env=env).splitlines()[0] if cc else "",
+        "cxx": cxx,
+        "cxx_version": command_text([cxx, "--version"], env=env).splitlines()[0] if cxx else "",
+    }
+
+
+def hash_file_contents(path: Path, digest: Any) -> None:
+    try:
+        rel = path.as_posix()
+        data = path.read_bytes()
+    except OSError:
+        return
+    digest.update(rel.encode("utf-8", "surrogateescape"))
+    digest.update(b"\0")
+    digest.update(hashlib.sha256(data).hexdigest().encode("ascii"))
+    digest.update(b"\0")
+
+
+def hash_input_paths(paths: list[Path]) -> str:
+    digest = hashlib.sha256()
+    for root in paths:
+        if not root.exists():
+            digest.update(f"missing:{root}".encode("utf-8", "surrogateescape"))
+            digest.update(b"\0")
+            continue
+        if root.is_file():
+            hash_file_contents(root, digest)
+            continue
+        for item in sorted(root.rglob("*")):
+            if ".git" in item.parts or "__pycache__" in item.parts:
+                continue
+            if not item.is_file():
+                continue
+            if item.suffix in {".o", ".so", ".a", ".la", ".lo", ".log"}:
+                continue
+            try:
+                rel = item.relative_to(root)
+            except ValueError:
+                rel = item
+            digest.update(f"{root.as_posix()}:{rel.as_posix()}".encode("utf-8", "surrogateescape"))
+            digest.update(hashlib.sha256(item.read_bytes()).hexdigest().encode("ascii"))
+            digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def read_text_if_file(path: Path) -> str:
     if not path.is_file():
         return ""
@@ -758,6 +821,371 @@ def prepare_expat(
     return record
 
 
+def shared_modsecurity_paths(cache_root: Path, build_id: str) -> dict[str, Path]:
+    return {
+        "build_root": cache_root / "builds/modsecurity" / build_id,
+        "prefix": cache_root / "prefix/modsecurity" / build_id,
+        "manifest": cache_root / "builds/modsecurity" / build_id / "manifest.json",
+        "lock": cache_root / "locks" / f"modsecurity-{build_id}.lock",
+    }
+
+
+def modsecurity_lib_file(prefix: Path) -> Path:
+    return prefix / "lib/libmodsecurity.so"
+
+
+def modsecurity_ready(prefix: Path) -> bool:
+    return (prefix / "include/modsecurity/modsecurity.h").is_file() and modsecurity_lib_file(prefix).is_file()
+
+
+def modsecurity_build_inputs(env: dict[str, str], git_record: dict[str, Any], expat: dict[str, Any]) -> dict[str, Any]:
+    expat_prefix = str(expat.get("prefix", ""))
+    expat_lib_dir = str(expat.get("lib_dir", ""))
+    dependency_payload = {
+        "expat": {
+            "actual_head": expat.get("actual_head", ""),
+            "prefix": expat_prefix,
+            "tree": expat.get("tree", {}),
+        },
+        "pkg_config_path": env.get("PKG_CONFIG_PATH", ""),
+        "ld_library_path": env.get("LD_LIBRARY_PATH", ""),
+    }
+    build_flags = {
+        "configure_args": env.get("MODSECURITY_CONFIGURE_ARGS", ""),
+        "CPPFLAGS": " ".join(part for part in (f"-I{Path(expat_prefix) / 'include'}" if expat_prefix else "", env.get("CPPFLAGS", "")) if part).strip(),
+        "CFLAGS": env.get("CFLAGS", ""),
+        "CXXFLAGS": env.get("CXXFLAGS", ""),
+        "LDFLAGS": " ".join(part for part in (f"-L{expat_lib_dir}" if expat_lib_dir else "", env.get("LDFLAGS", "")) if part).strip(),
+        "LIBS": env.get("LIBS", ""),
+        "PKG_CONFIG_PATH": (
+            f"{expat_prefix}/lib/pkgconfig{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
+            if expat_prefix
+            else env.get("PKG_CONFIG_PATH", "")
+        ),
+    }
+    dependency_hash = stable_hash(dependency_payload)
+    inputs = {
+        "source_url": git_record.get("url", git_record.get("source", "")),
+        "source_ref": git_record.get("expected_ref", ""),
+        "actual_source_sha": git_record.get("actual_head", ""),
+        "recursive_submodule_status": git_record.get("submodule_status", ""),
+        "build_flags": build_flags,
+        "compiler": compiler_identity(env),
+        "dependency_hash": dependency_hash,
+        "dependency_prefixes": dependency_payload,
+    }
+    inputs["build_id"] = stable_hash(inputs)
+    inputs["build_flags_text"] = json.dumps(build_flags, sort_keys=True)
+    inputs["dependency_hash"] = dependency_hash
+    return inputs
+
+
+class BuildLock:
+    def __init__(self, lock_path: Path, timeout: int = 900) -> None:
+        self.lock_path = lock_path
+        self.timeout = timeout
+        self.handle: Any = None
+        self.mkdir_lock = lock_path.with_suffix(lock_path.suffix + ".dir")
+
+    def __enter__(self) -> "BuildLock":
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            import fcntl  # type: ignore
+
+            self.handle = self.lock_path.open("w", encoding="utf-8")
+            deadline = time.time() + self.timeout
+            while True:
+                try:
+                    fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    self.handle.write(f"pid={os.getpid()} acquired_at={utc_now()}\n")
+                    self.handle.flush()
+                    return self
+                except BlockingIOError:
+                    if time.time() > deadline:
+                        raise TimeoutError(f"lock_timeout: {self.lock_path}")
+                    time.sleep(1)
+        except ImportError:
+            deadline = time.time() + self.timeout
+            while True:
+                try:
+                    self.mkdir_lock.mkdir()
+                    (self.mkdir_lock / "owner").write_text(f"pid={os.getpid()} acquired_at={utc_now()}\n", encoding="utf-8")
+                    return self
+                except FileExistsError:
+                    if time.time() > deadline:
+                        raise TimeoutError(f"lock_timeout: {self.mkdir_lock}")
+                    time.sleep(1)
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        if self.handle is not None:
+            try:
+                import fcntl  # type: ignore
+
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+            finally:
+                self.handle.close()
+        if self.mkdir_lock.is_dir():
+            shutil.rmtree(self.mkdir_lock, ignore_errors=True)
+
+
+def copy_modsecurity_outputs(source_dir: Path, prefix: Path) -> None:
+    headers = source_dir / "headers"
+    libs = source_dir / "src/.libs"
+    if not (headers / "modsecurity/modsecurity.h").is_file():
+        raise RuntimeError("modsecurity_headers_missing_after_build")
+    if not (libs / "libmodsecurity.so").is_file():
+        raise RuntimeError("modsecurity_library_missing_after_build")
+    include_dir = prefix / "include"
+    lib_dir = prefix / "lib"
+    include_dir.mkdir(parents=True, exist_ok=True)
+    lib_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(headers, include_dir, dirs_exist_ok=True, symlinks=True)
+    for item in libs.glob("libmodsecurity.so*"):
+        dest = lib_dir / item.name
+        if dest.exists() or dest.is_symlink():
+            dest.unlink()
+        if item.is_symlink():
+            os.symlink(os.readlink(item), dest)
+        else:
+            shutil.copy2(item, dest)
+
+
+def prepare_shared_modsecurity(
+    env: dict[str, str],
+    cache_root: Path,
+    build_root: Path,
+    git_record: dict[str, Any],
+    expat: dict[str, Any],
+) -> dict[str, Any]:
+    inputs = modsecurity_build_inputs(env, git_record, expat)
+    build_id = inputs["build_id"]
+    paths = shared_modsecurity_paths(cache_root, build_id)
+    prefix = paths["prefix"]
+    manifest_path = paths["manifest"]
+    log_path = build_root / "logs/runtime-components" / f"modsecurity-{build_id[:16]}-build.log"
+    source_path = Path(str(git_record.get("path", ""))).resolve() if git_record.get("path") else Path()
+    record: dict[str, Any] = {
+        "component": "modsecurity",
+        "name": "modsecurity",
+        "source_url": inputs["source_url"],
+        "source_ref": inputs["source_ref"],
+        "actual_sha": inputs["actual_source_sha"],
+        "build_id": build_id,
+        "prefix": str(prefix),
+        "include_dir": str(prefix / "include"),
+        "lib_dir": str(prefix / "lib"),
+        "lib_file": str(modsecurity_lib_file(prefix)),
+        "pkg_config_path": str(prefix / "lib/pkgconfig"),
+        "submodules_recursive": True,
+        "submodule_status": inputs["recursive_submodule_status"],
+        "build_flags": inputs["build_flags_text"],
+        "dependency_hash": inputs["dependency_hash"],
+        "compiler": inputs["compiler"],
+        "build_root": str(paths["build_root"]),
+        "manifest": str(manifest_path),
+        "lock": str(paths["lock"]),
+        "status": "unknown",
+        "blocker_reason": "",
+    }
+    if git_record.get("status") != "present":
+        record.update(status="blocked", blocker_reason=git_record.get("blocker_reason") or "modsecurity_source_unavailable")
+        write_json(manifest_path, record)
+        return record
+    if not git_record.get("submodule_status_clean", False):
+        record.update(status="blocked", blocker_reason="modsecurity_submodule_missing")
+        write_json(manifest_path, record)
+        return record
+    for label, path in (("build_root", paths["build_root"]), ("prefix", prefix), ("lock", paths["lock"])):
+        if is_system_path(path) or not is_within(path, cache_root):
+            record.update(status="blocked", blocker_reason="system_path_write_forbidden", blocked_path=f"{label}:{path}")
+            write_json(manifest_path, record)
+            return record
+
+    def reuse_if_ready(status: str) -> bool:
+        if modsecurity_ready(prefix):
+            record.update(status=status, tree=tree_manifest(prefix), generated_at=utc_now())
+            write_json(manifest_path, record)
+            return True
+        return False
+
+    if reuse_if_ready("reused"):
+        return record
+
+    try:
+        with BuildLock(paths["lock"]):
+            if reuse_if_ready("reused"):
+                return record
+            missing = first_missing_tool([("make", "missing_make"), ("git", "missing_git")])
+            compiler = resolve_compiler(env)
+            if not compiler:
+                missing = "missing_compiler"
+            if missing:
+                record.update(status="blocked", blocker_reason="missing_modsecurity_dependency", missing_dependency=missing)
+                write_json(manifest_path, record)
+                return record
+            safe_remove_dir(paths["build_root"], cache_root)
+            safe_remove_dir(prefix, cache_root)
+            paths["build_root"].mkdir(parents=True, exist_ok=True)
+            prefix.mkdir(parents=True, exist_ok=True)
+            build_source = paths["build_root"] / "source"
+            shutil.copytree(
+                source_path,
+                build_source,
+                ignore=shutil.ignore_patterns(".git", ".github", "__pycache__", "autom4te.cache", "*.o", "*.lo", "*.la", "*.log"),
+            )
+            build_env_vars = dict(os.environ)
+            build_env_vars.update(env)
+            flag_payload = json.loads(inputs["build_flags_text"])
+            for key in ("CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS", "LIBS", "PKG_CONFIG_PATH"):
+                if flag_payload.get(key):
+                    build_env_vars[key] = str(flag_payload[key])
+            if expat.get("lib_dir"):
+                build_env_vars["LD_LIBRARY_PATH"] = f"{expat.get('lib_dir')}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
+            log_parts: list[str] = []
+            configure_cmd = ["./configure", f"--prefix={prefix}"]
+            configure_cmd.extend(env.get("MODSECURITY_CONFIGURE_ARGS", "").split())
+            commands: list[tuple[str, list[str]]] = [
+                ("modsecurity-build-sh", ["sh", "./build.sh"]),
+                ("modsecurity-configure", configure_cmd),
+                ("modsecurity-make", ["make", f"-j{env.get('MAKE_JOBS') or str(os.cpu_count() or 2)}"]),
+            ]
+            for label, cmd in commands:
+                proc = run_env(cmd, cwd=build_source, env=build_env_vars)
+                append_command_log(log_parts, label, proc)
+                if proc.returncode != 0:
+                    write_component_log(log_path, log_parts)
+                    record.update(status="blocked", blocker_reason="modsecurity_build_failed", build_exit_code=proc.returncode, build_log=str(log_path))
+                    write_json(manifest_path, record)
+                    return record
+            copy_modsecurity_outputs(build_source, prefix)
+            write_component_log(log_path, log_parts)
+            if not modsecurity_ready(prefix):
+                record.update(status="blocked", blocker_reason="modsecurity_build_failed", build_log=str(log_path))
+                write_json(manifest_path, record)
+                return record
+            record.update(status="built", build_log=str(log_path), tree=tree_manifest(prefix), generated_at=utc_now())
+            write_json(manifest_path, record)
+            return record
+    except Exception as exc:
+        write_component_log(log_path, [str(exc)])
+        record.update(status="blocked", blocker_reason="modsecurity_build_failed", details=str(exc), build_log=str(log_path))
+        write_json(manifest_path, record)
+        return record
+
+
+def connector_input_paths(connector_root: Path, framework_root: Path, connector: str) -> list[Path]:
+    common_paths = [connector_root / "common/include"]
+    if connector == "haproxy":
+        common_paths.append(connector_root / "common/src")
+    framework_script = {
+        "apache": framework_root / "ci/prepare-apache-build.sh",
+        "nginx": framework_root / "ci/prepare-nginx-build.sh",
+        "haproxy": framework_root / "ci/prepare-haproxy-runtime.sh",
+    }.get(connector)
+    paths = [connector_root / "connectors" / connector, *common_paths]
+    if framework_script:
+        paths.append(framework_script)
+    return paths
+
+
+def connector_plan(
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    env: dict[str, str],
+    connector: str,
+    modsecurity: dict[str, Any],
+    expat: dict[str, Any],
+) -> dict[str, Any]:
+    source_paths = connector_input_paths(connector_root, framework_root, connector)
+    source_hash = hash_input_paths(source_paths)
+    build_flags = {
+        key: env.get(key, "")
+        for key in (
+            "CPPFLAGS",
+            "CFLAGS",
+            "CXXFLAGS",
+            "LDFLAGS",
+            "LIBS",
+            "HTTPD_VERSION",
+            "NGINX_RELEASE_TAG",
+            "NGINX_SOURCE_GIT_REF",
+            "HAPROXY_VERSION",
+        )
+    }
+    payload = {
+        "connector": connector,
+        "source_hash": source_hash,
+        "build_flags": build_flags,
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
+        "dependency_prefixes": {
+            "modsecurity_prefix": modsecurity.get("prefix", ""),
+            "expat_prefix": expat.get("prefix", ""),
+        },
+    }
+    build_id = stable_hash(payload)
+    root = cache_root / "builds/connectors" / connector / build_id
+    plan = {
+        "connector": connector,
+        "connector_build_id": build_id,
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
+        "source_hash": source_hash,
+        "source_inputs": [str(path) for path in source_paths],
+        "build_flags": json.dumps(build_flags, sort_keys=True),
+        "root": str(root),
+        "manifest": str(root / "manifest.json"),
+        "status": "unknown",
+        "blocker_reason": "",
+    }
+    if connector == "apache":
+        plan["build_root"] = str(root / "build")
+        plan["httpd_prefix"] = str(root / "httpd")
+        plan["output_paths"] = {
+            "binary": str(root / "httpd/bin/httpd"),
+            "module": str(root / "build/output/apache/mod_security3.so"),
+            "config": str(root / "httpd/conf/httpd.conf"),
+        }
+    elif connector == "nginx":
+        plan["build_root"] = str(root / "build")
+        plan["nginx_prefix"] = str(root / "nginx")
+        plan["output_paths"] = {
+            "binary": str(root / "nginx/sbin/nginx"),
+            "module": str(root / "nginx/modules/ngx_http_modsecurity_module.so"),
+            "config": str(root / "nginx/conf/nginx.conf"),
+        }
+    elif connector == "haproxy":
+        plan["build_root"] = str(root)
+        plan["output_paths"] = {
+            "binary": str(root / "haproxy-runtime/haproxy/sbin/haproxy"),
+            "module": str(root / "haproxy-spoa-runtime/haproxy-modsecurity-spoa"),
+            "config": str(root / "haproxy-modsecurity-binding/paths.env"),
+        }
+    return plan
+
+
+def connector_manifest_ready(plan: dict[str, Any]) -> bool:
+    manifest = read_json(Path(str(plan.get("manifest", ""))))
+    return (
+        manifest.get("connector_build_id") == plan.get("connector_build_id")
+        and manifest.get("modsecurity_build_id") == plan.get("modsecurity_build_id")
+        and manifest.get("source_hash") == plan.get("source_hash")
+        and manifest.get("status") in {"built", "reused"}
+    )
+
+
+def write_connector_manifest(plan: dict[str, Any], record: dict[str, Any]) -> None:
+    manifest = dict(plan)
+    manifest.pop("root", None)
+    manifest.update(
+        status=record.get("status", "blocked"),
+        blocker_reason=record.get("blocker_reason", ""),
+        invalidation_reason=record.get("invalidation_reason", ""),
+        output_paths=record.get("output_paths", plan.get("output_paths", {})),
+        generated_at=utc_now(),
+    )
+    write_json(Path(str(plan["manifest"])), manifest)
+
+
 def go_main_packages(source_path: Path, env: dict[str, str], log_parts: list[str]) -> tuple[list[str], subprocess.CompletedProcess[str]]:
     proc = run_env(
         ["go", "list", "-mod=readonly", "-f", "{{if eq .Name \"main\"}}{{.ImportPath}}{{end}}", "./..."],
@@ -1043,14 +1471,18 @@ def prepare_apache_httpd(
     sources_root: Path,
     archives_root: Path,
     expat: dict[str, Any] | None = None,
+    modsecurity: dict[str, Any] | None = None,
+    plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    apache_build_root = Path(env.get("APACHE_BUILD_ROOT", str(build_root / "apache-build"))).resolve()
-    httpd_prefix = Path(env.get("HTTPD_PREFIX", str(build_root / "apache-runtime/httpd"))).resolve()
+    modsecurity = modsecurity or {}
+    plan = plan or {}
+    apache_build_root = Path(env.get("APACHE_BUILD_ROOT", str(plan.get("build_root") or build_root / "apache-build"))).resolve()
+    httpd_prefix = Path(env.get("HTTPD_PREFIX", str(plan.get("httpd_prefix") or build_root / "apache-runtime/httpd"))).resolve()
     httpd_bin = Path(env.get("APACHE_HTTPD") or env.get("APACHE") or str(httpd_prefix / "bin/httpd")).resolve()
     apxs_bin = Path(env.get("APXS") or env.get("APXS_BIN") or str(httpd_prefix / "bin/apxs")).resolve()
     apache_module = Path(env.get("APACHE_MODULE", str(apache_build_root / "output/apache/mod_security3.so"))).resolve()
     modsecurity_lib_dir = Path(
-        env.get("APACHE_MRTS_MODSECURITY_LIB_DIR", str(apache_build_root / "output/modsecurity/lib"))
+        env.get("APACHE_MRTS_MODSECURITY_LIB_DIR", str(modsecurity.get("lib_dir") or apache_build_root / "output/modsecurity/lib"))
     ).resolve()
     pcre2_prefix = Path(env.get("PCRE2_PREFIX", str(apache_build_root / "output/pcre2"))).resolve()
     pcre2_lib_dir = pcre2_prefix / "lib"
@@ -1075,10 +1507,14 @@ def prepare_apache_httpd(
     ready, missing = artifact_status(artifacts, {"httpd_bin", "apxs_bin"})
     record: dict[str, Any] = {
         "source": "connector-local-build",
+        "connector": "apache",
+        "connector_build_id": plan.get("connector_build_id", ""),
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
         "expected_ref": env.get("HTTPD_VERSION", ""),
         "cache_path": str(archives_root / "apache"),
         "build_path": str(apache_build_root),
         "httpd_prefix": str(httpd_prefix),
+        "pcre2_prefix": str(pcre2_prefix),
         "httpd_bin": str(httpd_bin),
         "apxs_bin": str(apxs_bin),
         "module_file": str(apache_module),
@@ -1108,9 +1544,23 @@ def prepare_apache_httpd(
         "blocker_reason": "",
         "searched_paths": [str(path) for path in artifacts.values()],
         "env_override": "APACHECTL_BIN",
+        "output_paths": {
+            "binary": str(httpd_bin),
+            "module": str(apache_module),
+            "config": str(httpd_prefix / "conf/httpd.conf"),
+        },
     }
+    if modsecurity.get("status") == "blocked":
+        record.update(status="blocked", blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed")
+        write_connector_manifest(plan, record) if plan else None
+        return record
     if override_apachectl and not executable(Path(override_apachectl)):
         record.update(status="blocked", blocker_reason="missing_local_httpd_build", missing_file=override_apachectl)
+        write_connector_manifest(plan, record) if plan else None
+        return record
+    if ready and plan and connector_manifest_ready(plan):
+        record.update(status="reused", tree=tree_manifest(apache_build_root), apachectl_bin=str(effective_apachectl))
+        write_connector_manifest(plan, record)
         return record
     if not ready:
         log_path = build_root / "logs/runtime-components/apache-build.log"
@@ -1129,9 +1579,11 @@ def prepare_apache_httpd(
                 TMP_ROOT=str(build_root / "tmp"),
                 LOG_ROOT=str(build_root / "logs"),
                 APACHE_BUILD_ROOT=str(apache_build_root),
-                APACHE_BUILD_OWNER_ROOT=str(build_root),
+                APACHE_BUILD_OWNER_ROOT=str(cache_root),
                 HTTPD_PREFIX=str(httpd_prefix),
                 APACHE_DOWNLOAD_DIR=str(archives_root / "apache"),
+                MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
+                MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
                 CPPFLAGS=" ".join(part for part in (expat_cppflags, env.get("CPPFLAGS", "")) if part).strip(),
                 LDFLAGS=" ".join(part for part in (expat_ldflags, env.get("LDFLAGS", "")) if part).strip(),
                 LIBS=apache_libs,
@@ -1198,6 +1650,7 @@ def prepare_apache_httpd(
                 missing_files=missing,
                 **blocker_details,
             )
+            write_connector_manifest(plan, record) if plan else None
             return record
     try:
         if not override_apachectl:
@@ -1206,12 +1659,15 @@ def prepare_apache_httpd(
             raise RuntimeError(f"APACHECTL_BIN is not executable: {override_apachectl}")
     except Exception as exc:
         record.update(status="blocked", blocker_reason="missing_local_httpd_build", details=str(exc))
+        write_connector_manifest(plan, record) if plan else None
         return record
     record.update(
-        status="present",
+        status="built" if plan else "present",
+        invalidation_reason="missing_or_stale_connector_build" if plan else "",
         tree=tree_manifest(apache_build_root),
         apachectl_bin=str(effective_apachectl),
     )
+    write_connector_manifest(plan, record) if plan else None
     return record
 
 
@@ -1223,15 +1679,19 @@ def prepare_nginx_runtime(
     build_root: Path,
     sources_root: Path,
     archives_root: Path,
+    modsecurity: dict[str, Any] | None = None,
+    plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    nginx_build_root = Path(env.get("NGINX_BUILD_DIR", str(build_root / "nginx-build"))).resolve()
-    nginx_prefix = Path(env.get("NGINX_PREFIX", str(build_root / "nginx-runtime/nginx"))).resolve()
+    modsecurity = modsecurity or {}
+    plan = plan or {}
+    nginx_build_root = Path(env.get("NGINX_BUILD_DIR", str(plan.get("build_root") or build_root / "nginx-build"))).resolve()
+    nginx_prefix = Path(env.get("NGINX_PREFIX", str(plan.get("nginx_prefix") or build_root / "nginx-runtime/nginx"))).resolve()
     local_nginx_bin = Path(env.get("NGINX_BINARY", str(nginx_prefix / "sbin/nginx"))).resolve()
     local_module = Path(
         env.get("NGINX_MODULE", str(nginx_prefix / "modules/ngx_http_modsecurity_module.so"))
     ).resolve()
     modsecurity_lib_dir = Path(
-        env.get("NGINX_MRTS_MODSECURITY_LIB_DIR", str(nginx_build_root / "output/modsecurity/lib"))
+        env.get("NGINX_MRTS_MODSECURITY_LIB_DIR", str(modsecurity.get("lib_dir") or nginx_build_root / "output/modsecurity/lib"))
     ).resolve()
     override_bin = env.get("MRTS_NATIVE_NGINX_BIN", "")
     override_module_dir = env.get("MRTS_NATIVE_NGINX_MODULE_DIR", "")
@@ -1254,6 +1714,9 @@ def prepare_nginx_runtime(
     effective_ready, effective_missing = artifact_status(effective_artifacts, {"nginx_bin"})
     record: dict[str, Any] = {
         "source": "connector-local-build",
+        "connector": "nginx",
+        "connector_build_id": plan.get("connector_build_id", ""),
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
         "expected_ref": env.get("NGINX_RELEASE_TAG") or env.get("NGINX_SOURCE_GIT_REF", ""),
         "cache_path": str(archives_root / "nginx"),
         "build_path": str(nginx_build_root),
@@ -1268,9 +1731,19 @@ def prepare_nginx_runtime(
         "blocker_reason": "",
         "searched_paths": [str(path) for path in local_artifacts.values()],
         "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
+        "output_paths": {
+            "binary": str(effective_bin),
+            "module": str(effective_module),
+            "config": str(nginx_prefix / "conf/nginx.conf"),
+        },
     }
+    if modsecurity.get("status") == "blocked":
+        record.update(status="blocked", blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed")
+        write_connector_manifest(plan, record) if plan else None
+        return record
     if override_bin and not executable(Path(override_bin)):
         record.update(status="blocked", blocker_reason="missing_local_nginx_build", missing_file=override_bin)
+        write_connector_manifest(plan, record) if plan else None
         return record
     if override_module_dir and not (Path(override_module_dir) / "ngx_http_modsecurity_module.so").is_file():
         record.update(
@@ -1278,6 +1751,17 @@ def prepare_nginx_runtime(
             blocker_reason="missing_nginx_modsecurity_module",
             missing_file=str(Path(override_module_dir) / "ngx_http_modsecurity_module.so"),
         )
+        write_connector_manifest(plan, record) if plan else None
+        return record
+    if effective_ready and local_ready and plan and connector_manifest_ready(plan):
+        record.update(
+            status="reused",
+            nginx_bin=str(effective_bin),
+            module_dir=str(effective_module.parent),
+            module_file=str(effective_module),
+            tree=tree_manifest(nginx_build_root),
+        )
+        write_connector_manifest(plan, record)
         return record
     if not effective_ready and not local_ready:
         log_path = build_root / "logs/runtime-components/nginx-build.log"
@@ -1292,7 +1776,7 @@ def prepare_nginx_runtime(
                 MODSECURITY_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
                 MODSECURITY_V3_SOURCE_DIR=str(sources_root / "ModSecurity_V3"),
                 MODSECURITY_V3_ROOT=str(sources_root / "ModSecurity_V3"),
-                BUILD_ROOT=str(build_root),
+                BUILD_ROOT=str(cache_root),
                 TMP_ROOT=str(build_root / "tmp"),
                 LOG_ROOT=str(build_root / "logs"),
                 NGINX_BUILD_DIR=str(nginx_build_root),
@@ -1300,6 +1784,8 @@ def prepare_nginx_runtime(
                 NGINX_BINARY=str(local_nginx_bin),
                 NGINX_MODULE=str(local_module),
                 NGINX_DOWNLOAD_DIR=str(archives_root / "nginx"),
+                MODSECURITY_SHARED_PREFIX=str(modsecurity.get("prefix", "")),
+                MODSECURITY_BUILD_ID=str(modsecurity.get("build_id", "")),
                 BUILD_NGINX_FROM_SOURCE="1",
                 AUTO_FETCH_SMOKE_SOURCES="0",
                 REFRESH="1",
@@ -1331,6 +1817,7 @@ def prepare_nginx_runtime(
                 missing_files=local_missing,
                 **blocker_details,
             )
+            write_connector_manifest(plan, record) if plan else None
             return record
     if not override_bin:
         effective_bin = local_nginx_bin
@@ -1349,14 +1836,128 @@ def prepare_nginx_runtime(
             build_component="nginx_native_runtime_inventory",
             env_variable_can_set="MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
         )
+        write_connector_manifest(plan, record) if plan else None
         return record
     record.update(
-        status="present",
+        status="built" if plan else "present",
+        invalidation_reason="missing_or_stale_connector_build" if plan else "",
         nginx_bin=str(effective_bin),
         module_dir=str(effective_module.parent),
         module_file=str(effective_module),
         tree=tree_manifest(nginx_build_root),
     )
+    write_connector_manifest(plan, record) if plan else None
+    return record
+
+
+def prepare_haproxy_runtime(
+    env: dict[str, str],
+    connector_root: Path,
+    framework_root: Path,
+    cache_root: Path,
+    build_root: Path,
+    sources_root: Path,
+    archives_root: Path,
+    modsecurity: dict[str, Any],
+    plan: dict[str, Any],
+) -> dict[str, Any]:
+    root = Path(str(plan.get("build_root"))).resolve()
+    haproxy_runtime_build_dir = root / "haproxy-runtime-build"
+    haproxy_runtime_dir = root / "haproxy-runtime/haproxy"
+    haproxy_bin = haproxy_runtime_dir / "sbin/haproxy"
+    binding_dir = root / "haproxy-modsecurity-binding"
+    spoa_dir = root / "haproxy-spoa-runtime"
+    spoa_bin = spoa_dir / "haproxy-modsecurity-spoa"
+    paths_env = binding_dir / "paths.env"
+    log_path = build_root / "logs/runtime-components/haproxy-build.log"
+    output_paths = {
+        "binary": str(haproxy_bin),
+        "module": str(spoa_bin),
+        "config": str(paths_env),
+    }
+    record: dict[str, Any] = {
+        "connector": "haproxy",
+        "connector_build_id": plan.get("connector_build_id", ""),
+        "modsecurity_build_id": modsecurity.get("build_id", ""),
+        "source_hash": plan.get("source_hash", ""),
+        "build_flags": plan.get("build_flags", ""),
+        "build_path": str(root),
+        "haproxy_runtime_build_dir": str(haproxy_runtime_build_dir),
+        "haproxy_runtime_dir": str(haproxy_runtime_dir),
+        "haproxy_bin": str(haproxy_bin),
+        "spoa_runtime_bin": str(spoa_bin),
+        "modsecurity_binding_dir": str(binding_dir),
+        "paths_env": str(paths_env),
+        "output_paths": output_paths,
+        "status": "unknown",
+        "blocker_reason": "",
+    }
+    if modsecurity.get("status") == "blocked":
+        record.update(status="blocked", blocker_reason=modsecurity.get("blocker_reason") or "modsecurity_build_failed")
+        write_connector_manifest(plan, record)
+        return record
+    for path in (root, haproxy_runtime_build_dir, haproxy_runtime_dir, binding_dir, spoa_dir):
+        if is_system_path(path) or not is_within(path, cache_root):
+            record.update(status="blocked", blocker_reason="system_path_write_forbidden", blocked_path=str(path))
+            write_connector_manifest(plan, record)
+            return record
+    if executable(haproxy_bin) and executable(spoa_bin) and paths_env.is_file() and connector_manifest_ready(plan):
+        record.update(status="reused", tree=tree_manifest(root))
+        write_connector_manifest(plan, record)
+        return record
+
+    root.mkdir(parents=True, exist_ok=True)
+    prep_env = build_env(
+        env,
+        FRAMEWORK_ROOT=str(framework_root),
+        CONNECTOR_ROOT=str(connector_root),
+        CONNECTOR_COMPONENT_CACHE=str(cache_root),
+        SOURCE_ROOT=str(sources_root),
+        BUILD_ROOT=str(root),
+        TMP_ROOT=str(root / "tmp"),
+        LOG_ROOT=str(build_root / "logs"),
+        HAPROXY_SOURCE_ROOT=str(sources_root / "haproxy"),
+        HAPROXY_DOWNLOAD_DIR=str(archives_root / "haproxy"),
+        HAPROXY_SOURCE_DIR=str(sources_root / "haproxy" / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"),
+        HAPROXY_RUNTIME_BUILD_DIR=str(haproxy_runtime_build_dir),
+        HAPROXY_RUNTIME_BUILD_WORKTREE=str(haproxy_runtime_build_dir / "worktree"),
+        HAPROXY_RUNTIME_DIR=str(haproxy_runtime_dir),
+        HAPROXY_BIN=str(haproxy_bin),
+        REFRESH="0",
+        SKIP_RUNTIME_COMPONENT_PREPARE="1",
+    )
+    prep = run_build(framework_root / "ci/prepare-haproxy-runtime.sh", prep_env, connector_root, log_path)
+    record["build_log"] = str(log_path)
+    record["haproxy_prepare_exit_code"] = prep.returncode
+    if prep.returncode != 0 or not executable(haproxy_bin):
+        record.update(status="blocked", blocker_reason="missing_haproxy_runtime_build")
+        write_connector_manifest(plan, record)
+        return record
+
+    make_env = build_env(
+        prep_env,
+        REPO_ROOT=str(connector_root),
+        HAPROXY_SPOA_RUNTIME_DIR=str(spoa_dir),
+        HAPROXY_MODSECURITY_BINDING_DIR=str(binding_dir),
+        MODSECURITY_INCLUDE_DIR=str(modsecurity.get("include_dir", "")),
+        MODSECURITY_LIB_DIR=str(modsecurity.get("lib_dir", "")),
+        MODSECURITY_INCLUDE_CANDIDATES=str(modsecurity.get("include_dir", "")),
+        MODSECURITY_LIB_CANDIDATES=str(modsecurity.get("lib_dir", "")),
+    )
+    proc = run_env(
+        ["make", "-C", str(connector_root / "connectors/haproxy"), "build-modsecurity-binding", "build-spoa-runtime"],
+        env=make_env,
+    )
+    with log_path.open("a", encoding="utf-8", errors="replace") as handle:
+        handle.write("\n[haproxy-modsecurity-binding]\n")
+        handle.write(proc.stdout)
+        handle.write(proc.stderr)
+    if proc.returncode != 0 or not (executable(spoa_bin) and paths_env.is_file()):
+        record.update(status="blocked", blocker_reason="haproxy_connector_build_failed", build_exit_code=proc.returncode)
+        write_connector_manifest(plan, record)
+        return record
+    record.update(status="built", invalidation_reason="missing_or_stale_connector_build", tree=tree_manifest(root))
+    write_connector_manifest(plan, record)
     return record
 
 
@@ -1440,12 +2041,14 @@ def inventory_tool(
 def dependency_inventory(
     apache_httpd: dict[str, Any],
     nginx: dict[str, Any],
+    haproxy: dict[str, Any],
     go_ftw: dict[str, Any],
     albedo: dict[str, Any],
     expat: dict[str, Any],
+    modsecurity: dict[str, Any],
 ) -> list[dict[str, Any]]:
     def available(component: dict[str, Any]) -> bool:
-        return component.get("status") in {"present", "built"}
+        return component.get("status") in {"present", "built", "reused"}
 
     return [
         {
@@ -1470,6 +2073,13 @@ def dependency_inventory(
             "access": "local-prefix/read-only",
         },
         {
+            "name": "libmodsecurity",
+            "env_var": "MODSECURITY_LIB_DIR",
+            "path": modsecurity.get("lib_file"),
+            "status": "present" if available(modsecurity) else "missing",
+            "access": "shared-local-prefix/read-only",
+        },
+        {
             "name": "apachectl",
             "env_var": "APACHECTL_BIN",
             "path": apache_httpd.get("apachectl_bin"),
@@ -1490,12 +2100,113 @@ def dependency_inventory(
             "status": "present" if available(nginx) else "missing",
             "access": "local-build/module-reference",
         },
+        {
+            "name": "haproxy",
+            "env_var": "HAPROXY_BIN",
+            "path": haproxy.get("haproxy_bin"),
+            "status": "present" if available(haproxy) else "missing",
+            "access": "local-build/read-only-executable",
+        },
+        {
+            "name": "haproxy-modsecurity-spoa",
+            "env_var": "SPOA_RUNTIME_BIN",
+            "path": haproxy.get("spoa_runtime_bin"),
+            "status": "present" if available(haproxy) else "missing",
+            "access": "local-build/read-only-executable",
+        },
     ]
+
+
+def runtime_build_cache_payload(modsecurity: dict[str, Any], connectors: list[dict[str, Any]]) -> dict[str, Any]:
+    rebuilt = sum(1 for item in connectors if item.get("status") == "built")
+    reused = sum(1 for item in connectors if item.get("status") == "reused")
+    blocked = sum(1 for item in connectors if item.get("status") == "blocked")
+    shared_id = modsecurity.get("build_id", "")
+    mismatches = [
+        item.get("connector", "")
+        for item in connectors
+        if item.get("status") != "blocked" and item.get("modsecurity_build_id") != shared_id
+    ]
+    return {
+        "generated_at": utc_now(),
+        "shared_modsecurity_build": modsecurity,
+        "connector_builds": connectors,
+        "build_reuse_summary": {
+            "rebuilt_count": rebuilt,
+            "reused_count": reused,
+            "blocked_count": blocked,
+            "saved_rebuilds_estimate": reused,
+            "modsecurity_build_status": modsecurity.get("status", ""),
+            "modsecurity_build_id_mismatches": mismatches,
+            "status": "blocked" if mismatches else "ok",
+            "blocker_reason": "modsecurity_build_id_mismatch" if mismatches else "",
+        },
+    }
+
+
+def runtime_build_cache_markdown(payload: dict[str, Any]) -> str:
+    modsecurity = payload.get("shared_modsecurity_build", {})
+    summary = payload.get("build_reuse_summary", {})
+    lines = [
+        "# Runtime Build Cache",
+        "",
+        f"Generated at: `{payload.get('generated_at', '-')}`",
+        "",
+        "## Shared ModSecurity Build",
+        f"- Status: `{modsecurity.get('status', '-')}`",
+        f"- Blocker: `{modsecurity.get('blocker_reason') or '-'}`",
+        f"- Source URL: `{modsecurity.get('source_url', '-')}`",
+        f"- Source ref: `{modsecurity.get('source_ref', '-')}`",
+        f"- Actual SHA: `{modsecurity.get('actual_sha', '-')}`",
+        f"- Build ID: `{modsecurity.get('build_id', '-')}`",
+        f"- Prefix: `{modsecurity.get('prefix', '-')}`",
+        f"- Include dir: `{modsecurity.get('include_dir', '-')}`",
+        f"- Lib dir: `{modsecurity.get('lib_dir', '-')}`",
+        f"- libmodsecurity: `{modsecurity.get('lib_file', '-')}`",
+        f"- pkg-config path: `{modsecurity.get('pkg_config_path', '-')}`",
+        f"- Dependency hash: `{modsecurity.get('dependency_hash', '-')}`",
+        f"- Submodules recursive: `{modsecurity.get('submodules_recursive', '-')}`",
+        f"- Submodule status: `{modsecurity.get('submodule_status') or '-'}`",
+        "",
+        "## Connector Builds",
+        "| Connector | Status | Connector build ID | ModSecurity build ID | Invalidation reason | Binary | Module | Config | Blocker |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for item in payload.get("connector_builds", []):
+        outputs = item.get("output_paths", {})
+        lines.append(
+            "| {connector} | {status} | `{connector_id}` | `{modsec_id}` | {reason} | `{binary}` | `{module}` | `{config}` | {blocker} |".format(
+                connector=item.get("connector", "-"),
+                status=item.get("status", "-"),
+                connector_id=item.get("connector_build_id", "-"),
+                modsec_id=item.get("modsecurity_build_id", "-"),
+                reason=item.get("invalidation_reason") or "-",
+                binary=outputs.get("binary", "-"),
+                module=outputs.get("module", "-"),
+                config=outputs.get("config", "-"),
+                blocker=item.get("blocker_reason") or "-",
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Build Reuse Summary",
+            f"- Rebuilt count: `{summary.get('rebuilt_count', '-')}`",
+            f"- Reused count: `{summary.get('reused_count', '-')}`",
+            f"- Blocked count: `{summary.get('blocked_count', '-')}`",
+            f"- Saved rebuilds estimate: `{summary.get('saved_rebuilds_estimate', '-')}`",
+            f"- Mismatch status: `{summary.get('status', '-')}`",
+            f"- Mismatch blocker: `{summary.get('blocker_reason') or '-'}`",
+        ]
+    )
+    return "\n".join(lines) + "\n"
 
 
 def markdown_report(payload: dict[str, Any]) -> str:
     apache = payload.get("apache_httpd", {})
     nginx = payload.get("nginx", {})
+    haproxy = payload.get("haproxy", {})
+    modsecurity = payload.get("modsecurity", {})
     go_ftw = payload.get("go_ftw", {})
     albedo = payload.get("albedo", {})
     expat = payload.get("expat", {})
@@ -1512,9 +2223,21 @@ def markdown_report(payload: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "## Shared ModSecurity",
+            f"- Status: `{modsecurity.get('status', '-')}`",
+            f"- Blocker: `{modsecurity.get('blocker_reason') or '-'}`",
+            f"- Source ref: `{modsecurity.get('source_ref') or '-'}`",
+            f"- Actual SHA: `{modsecurity.get('actual_sha') or '-'}`",
+            f"- Build ID: `{modsecurity.get('build_id') or '-'}`",
+            f"- Prefix: `{modsecurity.get('prefix') or '-'}`",
+            f"- Include dir: `{modsecurity.get('include_dir') or '-'}`",
+            f"- Lib dir: `{modsecurity.get('lib_dir') or '-'}`",
+            "",
             "## Apache httpd",
             f"- Status: `{apache.get('status', '-')}`",
             f"- Blocker: `{apache.get('blocker_reason') or '-'}`",
+            f"- Connector build ID: `{apache.get('connector_build_id') or '-'}`",
+            f"- Uses ModSecurity build ID: `{apache.get('modsecurity_build_id') or '-'}`",
             f"- Source: `{apache.get('source', '-')}`",
             f"- Expected ref/version: `{apache.get('expected_ref', '-')}`",
             f"- Cache path: `{apache.get('cache_path', '-')}`",
@@ -1538,6 +2261,8 @@ def markdown_report(payload: dict[str, Any]) -> str:
             "## NGINX",
             f"- Status: `{nginx.get('status', '-')}`",
             f"- Blocker: `{nginx.get('blocker_reason') or '-'}`",
+            f"- Connector build ID: `{nginx.get('connector_build_id') or '-'}`",
+            f"- Uses ModSecurity build ID: `{nginx.get('modsecurity_build_id') or '-'}`",
             f"- Source: `{nginx.get('source', '-')}`",
             f"- Expected ref/version: `{nginx.get('expected_ref', '-')}`",
             f"- Cache path: `{nginx.get('cache_path', '-')}`",
@@ -1548,6 +2273,15 @@ def markdown_report(payload: dict[str, Any]) -> str:
             f"- Missing file: `{nginx.get('missing_file') or '-'}`",
             f"- Build component: `{nginx.get('build_component') or '-'}`",
             f"- Env variable to set: `{nginx.get('env_variable_can_set') or nginx.get('env_override') or '-'}`",
+            "",
+            "## HAProxy",
+            f"- Status: `{haproxy.get('status', '-')}`",
+            f"- Blocker: `{haproxy.get('blocker_reason') or '-'}`",
+            f"- Connector build ID: `{haproxy.get('connector_build_id') or '-'}`",
+            f"- Uses ModSecurity build ID: `{haproxy.get('modsecurity_build_id') or '-'}`",
+            f"- HAPROXY_BIN: `{haproxy.get('haproxy_bin') or '-'}`",
+            f"- SPOA_RUNTIME_BIN: `{haproxy.get('spoa_runtime_bin') or '-'}`",
+            f"- MODSECURITY_BINDING_DIR: `{haproxy.get('modsecurity_binding_dir') or '-'}`",
             "",
             "## Expat",
             f"- Status: `{expat.get('status', '-')}`",
@@ -1686,8 +2420,8 @@ def main() -> int:
         "1. validate safe paths",
         "2. prepare git/source/archive cache recursively",
         "3. prepare/build expat local prefix",
-        "4. prepare/build local Apache/httpd using local expat if needed",
-        "5. prepare/build local NGINX + ngx_http_modsecurity_module.so",
+        "4. prepare/build shared ModSecurity v3 once per source/ref/build config",
+        "5. prepare/reuse connector builds keyed by connector inputs and ModSecurity build ID",
         "6. prepare/build go-ftw from latest release tag",
         "7. prepare/build albedo from latest release tag",
         "8. write manifests/reports",
@@ -1773,6 +2507,11 @@ def main() -> int:
 
     git_by_name = {str(item.get("name")): item for item in git_components if isinstance(item, dict)}
     expat = prepare_expat(env, cache_root, build_root, git_by_name.get("expat", {}))
+    modsecurity = prepare_shared_modsecurity(env, cache_root, build_root, git_by_name.get("modsecurity-v3", {}), expat)
+    connector_plans = {
+        name: connector_plan(connector_root, framework_root, cache_root, env, name, modsecurity, expat)
+        for name in ("apache", "nginx", "haproxy")
+    }
     apache_httpd = prepare_apache_httpd(
         env,
         connector_root,
@@ -1783,6 +2522,8 @@ def main() -> int:
         sources_root,
         archives_root,
         expat,
+        modsecurity,
+        connector_plans["apache"],
     )
     nginx = prepare_nginx_runtime(
         env,
@@ -1792,6 +2533,19 @@ def main() -> int:
         build_root,
         sources_root,
         archives_root,
+        modsecurity,
+        connector_plans["nginx"],
+    )
+    haproxy = prepare_haproxy_runtime(
+        env,
+        connector_root,
+        framework_root,
+        cache_root,
+        build_root,
+        sources_root,
+        archives_root,
+        modsecurity,
+        connector_plans["haproxy"],
     )
     go_ftw = prepare_go_tool("go-ftw", "GO_FTW_BIN", cache_root, build_root, git_by_name.get("go-ftw", {}))
     albedo = prepare_go_tool("albedo", "ALBEDO_BIN", cache_root, build_root, git_by_name.get("albedo", {}))
@@ -1809,6 +2563,22 @@ def main() -> int:
         "HAPROXY_DOWNLOAD_DIR": str(archives_root / "haproxy"),
         "HAPROXY_SOURCE_DIR": str(haproxy_source_root / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"),
     }
+    if modsecurity.get("status") in {"built", "reused", "present"}:
+        runtime_env.update(
+            {
+                "MODSECURITY_SOURCE_URL": str(modsecurity.get("source_url", "")),
+                "MODSECURITY_SOURCE_REF": str(modsecurity.get("source_ref", "")),
+                "MODSECURITY_SOURCE_SHA": str(modsecurity.get("actual_sha", "")),
+                "MODSECURITY_BUILD_FLAGS": str(modsecurity.get("build_flags", "")),
+                "MODSECURITY_DEPENDENCY_HASH": str(modsecurity.get("dependency_hash", "")),
+                "MODSECURITY_BUILD_ID": str(modsecurity.get("build_id", "")),
+                "MODSECURITY_PREFIX": str(modsecurity.get("prefix", "")),
+                "MODSECURITY_SHARED_PREFIX": str(modsecurity.get("prefix", "")),
+                "MODSECURITY_INCLUDE_DIR": str(modsecurity.get("include_dir", "")),
+                "MODSECURITY_LIB_DIR": str(modsecurity.get("lib_dir", "")),
+                "MODSECURITY_PKG_CONFIG_PATH": str(modsecurity.get("pkg_config_path", "")),
+            }
+        )
     if expat.get("status") in {"present", "built"}:
         runtime_env.update(
             {
@@ -1820,29 +2590,46 @@ def main() -> int:
                 "LD_LIBRARY_PATH": f"{expat.get('lib_dir')}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep),
             }
         )
-    if apache_httpd.get("status") == "present":
+    if apache_httpd.get("status") in {"present", "built", "reused"}:
         runtime_env.update(
             {
                 "APACHECTL_BIN": str(apache_httpd.get("apachectl_bin", "")),
+                "APACHE_BUILD_ROOT": str(apache_httpd.get("build_path", "")),
                 "APACHE_HTTPD": str(apache_httpd.get("httpd_bin", "")),
                 "APXS": str(apache_httpd.get("apxs_bin", "")),
                 "APXS_BIN": str(apache_httpd.get("apxs_bin", "")),
                 "HTTPD_PREFIX": str(apache_httpd.get("httpd_prefix", "")),
+                "PCRE2_PREFIX": str(apache_httpd.get("pcre2_prefix", "")),
                 "APACHE_MODULE": str(apache_httpd.get("module_file", "")),
                 "APACHE_MRTS_MODULE": str(apache_httpd.get("module_file", "")),
                 "APACHE_MRTS_MODSECURITY_LIB_DIR": str(apache_httpd.get("modsecurity_lib_dir", "")),
+                "APACHE_CONNECTOR_BUILD_ID": str(apache_httpd.get("connector_build_id", "")),
             }
         )
-    if nginx.get("status") == "present":
+    if nginx.get("status") in {"present", "built", "reused"}:
         runtime_env.update(
             {
                 "MRTS_NATIVE_NGINX_BIN": str(nginx.get("nginx_bin", "")),
                 "MRTS_NATIVE_NGINX_MODULE_DIR": str(nginx.get("module_dir", "")),
                 "MRTS_NATIVE_NGINX_MODULE_FILE": str(nginx.get("module_file", "")),
                 "MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR": str(nginx.get("modsecurity_lib_dir", "")),
+                "NGINX_BUILD_DIR": str(nginx.get("build_path", "")),
                 "NGINX_PREFIX": str(nginx.get("nginx_prefix", "")),
+                "NGINX_CONNECTOR_BUILD_ID": str(nginx.get("connector_build_id", "")),
             }
         )
+    if haproxy.get("status") in {"built", "reused", "present"}:
+        runtime_env.update(
+            {
+                "HAPROXY_BIN": str(haproxy.get("haproxy_bin", "")),
+                "HAPROXY_RUNTIME_BUILD_DIR": str(haproxy.get("haproxy_runtime_build_dir", "")),
+                "HAPROXY_RUNTIME_DIR": str(haproxy.get("haproxy_runtime_dir", "")),
+                "SPOA_RUNTIME_BIN": str(haproxy.get("spoa_runtime_bin", "")),
+                "MODSECURITY_BINDING_DIR": str(haproxy.get("modsecurity_binding_dir", "")),
+                "HAPROXY_CONNECTOR_BUILD_ID": str(haproxy.get("connector_build_id", "")),
+            }
+        )
+    runtime_env["RUNTIME_BUILD_CACHE_MANIFEST"] = str(report_dir / "runtime-build-cache.generated.json")
     if go_ftw.get("path"):
         runtime_env["GO_FTW_BIN"] = str(go_ftw["path"])
     if albedo.get("path"):
@@ -1852,6 +2639,8 @@ def main() -> int:
         "\n".join(f"export {key}={sh_quote(value)}" for key, value in sorted(runtime_env.items())) + "\n",
         encoding="utf-8",
     )
+    connector_builds = [apache_httpd, nginx, haproxy]
+    build_cache = runtime_build_cache_payload(modsecurity, connector_builds)
 
     payload = {
         "generated_at": utc_now(),
@@ -1865,12 +2654,15 @@ def main() -> int:
         "runtime_env": runtime_env,
         "git_components": git_components,
         "archives": archives,
+        "modsecurity": modsecurity,
         "apache_httpd": apache_httpd,
         "nginx": nginx,
+        "haproxy": haproxy,
         "go_ftw": go_ftw,
         "albedo": albedo,
         "expat": expat,
-        "dependencies": dependency_inventory(apache_httpd, nginx, go_ftw, albedo, expat),
+        "runtime_build_cache": build_cache,
+        "dependencies": dependency_inventory(apache_httpd, nginx, haproxy, go_ftw, albedo, expat, modsecurity),
         "guardrails": {
             "system_paths_read_only": True,
             "no_new_external_sources": True,
@@ -1881,8 +2673,11 @@ def main() -> int:
     }
     write_json(cache_root / "manifest.json", payload)
     write_json(cache_root / "git-components.json", {"generated_at": payload["generated_at"], "components": git_components})
+    write_json(cache_root / "runtime-build-cache.json", build_cache)
     write_json(report_dir / "runtime-component-cache.generated.json", payload)
+    write_json(report_dir / "runtime-build-cache.generated.json", build_cache)
     (report_dir / "runtime-component-cache.generated.md").write_text(markdown_report(payload), encoding="utf-8")
+    (report_dir / "runtime-build-cache.generated.md").write_text(runtime_build_cache_markdown(build_cache), encoding="utf-8")
     postprocess = connector_root / "ci/update-runtime-reports.py"
     if postprocess.is_file():
         run([sys.executable, str(postprocess), "--connector-root", str(connector_root)])
@@ -1894,9 +2689,16 @@ def main() -> int:
     ]
     nginx_blocked = [item for item in archives if item.get("name") == "nginx" and item.get("status") in {"blocked", "corrupt"}]
     blocked.extend(nginx_blocked)
-    for component_name, component in (("apache_httpd", apache_httpd), ("nginx", nginx)):
+    for component_name, component in (("modsecurity", modsecurity), ("apache_httpd", apache_httpd), ("nginx", nginx), ("haproxy", haproxy)):
         if component.get("status") in {"blocked", "corrupt"}:
             blocked.append({"name": component_name, **component})
+    if build_cache.get("build_reuse_summary", {}).get("status") == "blocked":
+        blocked.append(
+            {
+                "name": "runtime_build_cache",
+                "blocker_reason": build_cache.get("build_reuse_summary", {}).get("blocker_reason", "modsecurity_build_id_mismatch"),
+            }
+        )
     for component_name, component in (("expat", expat), ("go-ftw", go_ftw), ("albedo", albedo)):
         if component.get("status") in {"blocked", "corrupt"}:
             blocked.append({"name": component_name, **component})

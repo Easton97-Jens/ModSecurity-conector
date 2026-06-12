@@ -73,12 +73,12 @@ Generated at: `2026-06-09T18:40:47Z`
 ## Runtime Components
 
 ### Apache httpd
-- Status: `present`
+- Status: `reused`
 - Blocker: `-`
 - Cache path: `/src/ModSecurity-conector-cache/archives/apache`
-- Build path: `/tmp/modsec-native-100003-debug/apache-build`
-- apachectl/APACHECTL_BIN: `/tmp/modsec-native-100003-debug/apache-runtime/httpd/bin/apachectl-mrts`
-- Module file: `/tmp/modsec-native-100003-debug/apache-build/output/apache/mod_security3.so`
+- Build path: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/build`
+- apachectl/APACHECTL_BIN: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/httpd/bin/apachectl-mrts`
+- Module file: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/build/output/apache/mod_security3.so`
 - Missing file: `-`
 - Build component: `-`
 - Env variable to set: `APACHECTL_BIN`
@@ -95,13 +95,13 @@ Generated at: `2026-06-09T18:40:47Z`
 - crypt link mode: `compiler:-lcrypt`
 
 ### NGINX
-- Status: `present`
+- Status: `reused`
 - Blocker: `-`
 - Cache path: `/src/ModSecurity-conector-cache/archives/nginx`
-- Build path: `/tmp/modsec-native-100003-debug/nginx-build`
-- MRTS_NATIVE_NGINX_BIN: `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/sbin/nginx`
-- MRTS_NATIVE_NGINX_MODULE_DIR: `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/modules`
-- Module file: `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
+- Build path: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/build`
+- MRTS_NATIVE_NGINX_BIN: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/sbin/nginx`
+- MRTS_NATIVE_NGINX_MODULE_DIR: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/modules`
+- Module file: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/modules/ngx_http_modsecurity_module.so`
 - Missing file: `-`
 - Build component: `-`
 - Env variable to set: `MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR`
@@ -127,78 +127,33 @@ Generated at: `2026-06-09T18:40:47Z`
 <!-- runtime-diagnostics:start -->
 ## Native Runtime Diagnostics
 
-### Apache 100003-1
-- Status: `fail`
-- Target: `apache2_ubuntu`
-- Run counts: attempted `13`, passed `12`, failed cases `100003-1`
-- Diagnosis: Apache/httpd started and reached go-ftw; expected phase 4 rule id 100003 was not logged.
-- Classification: `native_modsecurity_semantics`; secondary `phase4_native_limitation`; unresolved `False`
-- Classification reason: Rule 100003 is loaded and its target/operator match the same POST query argument in phases 1-3, but no phase:4 ARGS/ARGS_GET rule is logged in either native target.
-- Generated YAML: `/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml`
-- Generated rule file: `/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf`
-- Source definition: `config_tests/CONF_002_TARGET_ARGS_A-GET.yaml`
-- Generated rule line: `SecRule ARGS "@contains attack" "id:100003, phase:4, deny, t:none, log"`
-- Rule 100003: variable `ARGS`, phase `4`, operator `@contains attack`, transform `t:none`
-- Request: `POST /?foo=attack HTTP/1.1` on port `19080`; body `none`
-- Generated test headers: `User-Agent: OWASP MRTS test agent, Host: localhost, Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5`
-- Log matching: marker header `X-MRTS-TEST`, target log `/tmp/modsec-native-100003-debug/mrts-native/apache2_ubuntu/stage/infra/log/error.log`
-- Expected status/result: `not specified in FTW YAML` / `log id 100003`
-- Actual status/result: `HTTP 200 observed in Apache access log` / `missing expected log id 100003`
-- Actual logged IDs: `10002, 100028, 100029, 100030, 100000, 100032, 100001, 100016, 100033, 100002, 100017, 100034`
-- Phase 4 evidence: match seen `False`, peer IDs in case window `-`, peer IDs anywhere `-`
-- Request collection evidence: POST query as ARGS `True`, as ARGS_GET `True`
-- Excluded causes: response-body target `False`, operator case/transform issue `False` / `False`, skip/ctl/chain interference `False`, go-ftw log matching issue `False`
-- Parse/phase warnings: `0`
-- Loaded MRTS includes checked: `Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_001_INIT.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_003_ARGS_COMBINED_SIZE.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_004_ARGS_GET.conf"`
-- Module loaded: `True` from `/tmp/modsec-native-100003-debug/apache-build/output/apache/mod_security3.so`
-- mrts.load included: `True`
-- Request reached Apache/ModSecurity/Albedo: `True` / `True` / `True`
-- Audit/debug evidence: audit log `empty`, error log `/tmp/modsec-native-100003-debug/mrts-native/apache2_ubuntu/stage/infra/log/error.log`, go-ftw log `/tmp/modsec-native-100003-debug/mrts-native/apache2_ubuntu/run.log`
-- Single-case rerun: attempted `1`, failed cases `100003-1`, exit `1`, log `/tmp/modsec-native-100003-debug/single-case/apache2_ubuntu-single.log`
-- Why not logged: Native ModSecurity reached the request and logged ARGS/ARGS_GET matches through phase 3; the phase:4 request-collection rule did not emit a ModSecurity log entry. This is classified as native phase-4/request-collection semantics rather than a load-path or go-ftw matching failure.
-- Action: No MRTS definition/result rewrite was made; keep 100003-1 as a native phase-4/request-collection limitation until native phase 4 semantics change.
-
-### NGINX 100003-1
-- Status: `fail`
-- Target: `nginx-pr24`
-- Run counts: attempted `13`, passed `12`, failed cases `100003-1`
-- Diagnosis: go-ftw expected phase 4 rule id 100003, but NGINX/ModSecurity logged only earlier phase matches for the request.
-- Classification: `native_modsecurity_semantics`; secondary `phase4_native_limitation`; unresolved `False`
-- Classification reason: Rule 100003 is loaded and its target/operator match the same POST query argument in phases 1-3, but no phase:4 ARGS/ARGS_GET rule is logged in either native target.
-- Generated YAML: `/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml`
-- Generated rule file: `/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf`
-- Source definition: `config_tests/CONF_002_TARGET_ARGS_A-GET.yaml`
-- Generated rule line: `SecRule ARGS "@contains attack" "id:100003, phase:4, deny, t:none, log"`
-- Rule 100003: variable `ARGS`, phase `4`, operator `@contains attack`, transform `t:none`
-- Request: `POST /?foo=attack HTTP/1.1` on port `19081`; body `none`
-- Generated test headers: `User-Agent: OWASP MRTS test agent, Host: localhost, Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5`
-- Log matching: marker header `X-MRTS-TEST`, target log `/tmp/modsec-native-100003-debug/mrts-native/nginx-pr24/stage/infra/log/error.log`
-- Expected status/result: `not specified in FTW YAML` / `log id 100003`
-- Actual status/result: `not printed by go-ftw; backend request was observed` / `missing expected log id 100003`
-- Actual logged IDs: `10002, 100028, 100029, 100030, 100000, 100032, 100001, 100016, 100033, 100002, 100017, 100034`
-- Phase 4 evidence: match seen `False`, peer IDs in case window `-`, peer IDs anywhere `-`
-- Request collection evidence: POST query as ARGS `True`, as ARGS_GET `True`
-- Excluded causes: response-body target `False`, operator case/transform issue `False` / `False`, skip/ctl/chain interference `False`, go-ftw log matching issue `False`
-- Parse/phase warnings: `0`
-- Loaded MRTS includes checked: `Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_001_INIT.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_003_ARGS_COMBINED_SIZE.conf", Include "/tmp/modsec-native-100003-debug/mrts/upstream-config-tests/rules/MRTS_004_ARGS_GET.conf"`
-- Module loaded: `True` from `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
-- mrts.load included: `True`
-- Request reached NGINX/ModSecurity/Albedo: `True` / `True` / `True`
-- Audit/debug evidence: audit log `empty`, error log `/tmp/modsec-native-100003-debug/mrts-native/nginx-pr24/stage/infra/log/error.log`, go-ftw log `/tmp/modsec-native-100003-debug/mrts-native/nginx-pr24/run.log`
-- Single-case rerun: attempted `1`, failed cases `100003-1`, exit `1`, log `/tmp/modsec-native-100003-debug/single-case/nginx-pr24-single.log`
-- Why not logged: Native ModSecurity reached the request and logged ARGS/ARGS_GET matches through phase 3; the phase:4 request-collection rule did not emit a ModSecurity log entry. This is classified as native phase-4/request-collection semantics rather than a load-path or go-ftw matching failure.
-- Action: No MRTS definition/result rewrite was made; keep 100003-1 as a native phase-4/request-collection limitation until native phase 4 semantics change.
+- No generated native runtime diagnostics were detected.
 <!-- runtime-diagnostics:end -->
 
 <!-- post-libcrypt-native:start -->
 ## Post-libcrypt Native Rerun
 - Scope: requested native rerun after external `libcrypt-dev` availability; the earlier full-matrix sections in this file remain historical evidence from their original generation time.
 - Command: `FRAMEWORK_ROOT=/root/git/ModSecurity-test-Framework BUILD_ROOT=/tmp/modsec-native-after-libcrypt MRTS_NATIVE_TARGETS="apache2_ubuntu nginx-pr24" CONNECTOR_COMPONENT_CACHE=/src/ModSecurity-conector-cache PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run`
-- BUILD_ROOT: `/tmp/modsec-native-100003-debug`
-- Apache wrapper: `/tmp/modsec-native-100003-debug/apache-runtime/httpd/bin/apachectl-mrts`
-- Apache module: `/tmp/modsec-native-100003-debug/apache-build/output/apache/mod_security3.so`
-- Apache native result: `FAIL`; attempted `13`, passed `12`, failed cases `100003-1`
-- NGINX binary: `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/sbin/nginx`
-- NGINX module: `/tmp/modsec-native-100003-debug/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
-- NGINX native result: `FAIL`; attempted `13`, passed `12`, failed cases `100003-1`
+- BUILD_ROOT: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72`
+- Apache wrapper: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/httpd/bin/apachectl-mrts`
+- Apache module: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/build/output/apache/mod_security3.so`
+- Apache native result: `-`; attempted `-`, passed `-`, failed cases `-`
+- NGINX binary: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/sbin/nginx`
+- NGINX module: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/modules/ngx_http_modsecurity_module.so`
+- NGINX native result: `-`; attempted `-`, passed `-`, failed cases `-`
 <!-- post-libcrypt-native:end -->
+
+<!-- runtime-build-cache:start -->
+## Runtime Build Cache
+- Shared ModSecurity status: `reused`
+- Shared ModSecurity source ref/SHA: `v3/master` / `2fd49292d751fc383b8faf7da6a8d480904774d0`
+- Shared ModSecurity build ID: `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c`
+- Shared ModSecurity prefix: `/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c`
+- Build reuse summary: rebuilt `0`, reused `3`, blocked `0`, saved rebuilds estimate `3`
+
+| Connector | Status | Connector build ID | Uses ModSecurity build ID | Blocker |
+|---|---|---|---|---|
+| apache | reused | `030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
+| nginx | reused | `24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
+| haproxy | reused | `8299ef128a35b1f67aa49b6cc75dec561f0c311caf3d7d03353ff3588fbe5939` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
+<!-- runtime-build-cache:end -->

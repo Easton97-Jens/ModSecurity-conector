@@ -111,19 +111,19 @@ shared_connector_ready() {
 
     case "$connector" in
         apache)
-            [ -x "$SHARED_BUILD_ROOT/apache-runtime/httpd/bin/httpd" ] &&
-                [ -f "$SHARED_BUILD_ROOT/apache-build/output/apache/mod_security3.so" ] &&
-                [ -f "$SHARED_BUILD_ROOT/apache-build/output/modsecurity/lib/libmodsecurity.so" ]
+            [ -x "${APACHE_HTTPD:-}" ] &&
+                [ -f "${APACHE_MODULE:-}" ] &&
+                [ -f "${APACHE_MRTS_MODSECURITY_LIB_DIR:-}/libmodsecurity.so" ]
             ;;
         nginx)
-            [ -x "$SHARED_BUILD_ROOT/nginx-runtime/nginx/sbin/nginx" ] &&
-                [ -f "$SHARED_BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so" ] &&
-                [ -f "$SHARED_BUILD_ROOT/nginx-build/output/modsecurity/lib/libmodsecurity.so" ]
+            [ -x "${MRTS_NATIVE_NGINX_BIN:-}" ] &&
+                [ -f "${MRTS_NATIVE_NGINX_MODULE_DIR:-}/ngx_http_modsecurity_module.so" ] &&
+                [ -f "${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}/libmodsecurity.so" ]
             ;;
         haproxy)
-            [ -x "$SHARED_BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy" ] &&
-                [ -x "$SHARED_BUILD_ROOT/haproxy-spoa-runtime/haproxy-modsecurity-spoa" ] &&
-                [ -f "$SHARED_BUILD_ROOT/haproxy-modsecurity-binding/paths.env" ]
+            [ -x "${HAPROXY_BIN:-}" ] &&
+                [ -x "${SPOA_RUNTIME_BIN:-}" ] &&
+                [ -f "${MODSECURITY_BINDING_DIR:-}/paths.env" ]
             ;;
         *) return 1 ;;
     esac
@@ -131,38 +131,39 @@ shared_connector_ready() {
 
 prepare_shared_connector() {
     connector=$1
-    if [ "$FULL_MATRIX_PREPARE_SHARED_BUILDS" != "1" ] || shared_connector_ready "$connector"; then
+    if shared_connector_ready "$connector"; then
         return 0
     fi
-    prep_root="$MATRIX_ROOT/_prepare/$connector"
-    assert_safe_runtime_path "$prep_root" "matrix prepare root" || return 77
-    mkdir -p "$prep_root"
-    echo "full-matrix-parallel: preparing shared $connector build artifacts"
-    set +e
-    env \
-        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
-        CONNECTOR_ROOT="$CONNECTOR_ROOT" \
-        SOURCE_ROOT="$SOURCE_ROOT" \
-        BUILD_ROOT="$SHARED_BUILD_ROOT" \
-        TMP_ROOT="$SHARED_BUILD_ROOT/tmp" \
-        LOG_ROOT="$SHARED_BUILD_ROOT/logs" \
-        RESULTS_DIR="$prep_root/results" \
-        REFRESH=1 \
-        SKIP_RUNTIME_COMPONENT_PREPARE=1 \
-        MODSECURITY_TEST_VARIANT="no-crs" \
-        MODSECURITY_MRTS_VARIANT="no-mrts" \
-        MODSECURITY_MRTS_PREPARED=0 \
-        SMOKE_CASES="$FULL_MATRIX_PREPARE_CASE" \
-        FORCE_ALL_CASES=0 \
-        PYTHONDONTWRITEBYTECODE="$PYTHONDONTWRITEBYTECODE" \
-        make -C "$CONNECTOR_ROOT" "smoke-$connector" > "$prep_root/run.log" 2>&1
-    rc=$?
-    set -eu
-    printf '%s\n' "$rc" > "$prep_root/exit.code"
-    if [ "$rc" -ne 0 ]; then
-        echo "full-matrix-parallel: shared $connector prepare exited $rc; runtime jobs will report blockers if artifacts are unavailable"
-    fi
+    echo "full-matrix-parallel: prepared $connector build artifacts missing; runtime job will block without building"
     return 0
+}
+
+write_job_build_manifest() {
+    manifest_path=$1
+    connector=$2
+    "$PYTHON" - "$manifest_path" "$connector" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+connector = sys.argv[2]
+connector_id_env = {
+    "apache": "APACHE_CONNECTOR_BUILD_ID",
+    "nginx": "NGINX_CONNECTOR_BUILD_ID",
+    "haproxy": "HAPROXY_CONNECTOR_BUILD_ID",
+}.get(connector, "")
+payload = {
+    "connector": connector,
+    "modsecurity_build_id": os.environ.get("MODSECURITY_BUILD_ID", ""),
+    "modsecurity_prefix": os.environ.get("MODSECURITY_PREFIX", ""),
+    "connector_build_id": os.environ.get(connector_id_env, ""),
+    "runtime_build_cache_manifest": os.environ.get("RUNTIME_BUILD_CACHE_MANIFEST", ""),
+    "prepared_only": os.environ.get("RUNTIME_COMPONENTS_PREPARED_ONLY", ""),
+}
+path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
 }
 
 prepare_shared_builds() {
@@ -228,6 +229,7 @@ run_job() {
     exit_code_file="$job_root/exit.code"
     summary_path_file="$job_root/summary.path"
     job_json="$job_root/job.json"
+    build_manifest="$job_root/build-manifest.json"
     summary_path=$(summary_path_for "$results_dir" "$connector")
 
     assert_safe_runtime_path "$job_root" "matrix job root" || exit 77
@@ -236,6 +238,7 @@ run_job() {
     assert_safe_runtime_path "$results_dir" "matrix job results root" || exit 77
     assert_not_system_path_for_write "$run_log" "matrix run log" || exit 77
     assert_not_system_path_for_write "$job_json" "matrix job json" || exit 77
+    assert_not_system_path_for_write "$build_manifest" "matrix build manifest" || exit 77
     safe_rm_rf "$job_root" "$MATRIX_ROOT" "matrix job root"
     mkdir -p "$job_build_root" "$job_tmp_root" "$job_log_root" "$results_dir"
     : > "$run_log"
@@ -253,19 +256,22 @@ run_job() {
     fi
 
     echo "full-matrix-parallel: job start connector=$connector variant=$test_variant/$mrts_variant port=$port" >> "$run_log"
+    RUNTIME_COMPONENTS_PREPARED_ONLY=1
+    export RUNTIME_COMPONENTS_PREPARED_ONLY
+    write_job_build_manifest "$build_manifest" "$connector"
 
-    common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=$job_refresh AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load SKIP_RUNTIME_COMPONENT_PREPARE=1"
+    common_env="FRAMEWORK_ROOT=$FRAMEWORK_ROOT CONNECTOR_ROOT=$CONNECTOR_ROOT SOURCE_ROOT=$SOURCE_ROOT BUILD_ROOT=$job_build_root MRTS_BUILD_ROOT=$MRTS_BUILD_ROOT TMP_ROOT=$job_tmp_root LOG_ROOT=$job_log_root RESULTS_DIR=$results_dir MODSECURITY_TEST_VARIANT=$test_variant MODSECURITY_MRTS_VARIANT=$mrts_variant MODSECURITY_MRTS_PREPARED=$prepared_flag FORCE_ALL_CASES=$FORCE_ALL_CASES PYTHONDONTWRITEBYTECODE=$PYTHONDONTWRITEBYTECODE PORT=$port PORT_SEARCH_LIMIT=$FULL_MATRIX_PORT_SPAN PORT_RETRY_LIMIT=1 REFRESH=$job_refresh AUTO_REFRESH_STALE_BUILD=0 CRS_RUNTIME_DIR=$job_build_root/crs MRTS_LOAD_FILE=$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load SKIP_RUNTIME_COMPONENT_PREPARE=1 RUNTIME_COMPONENTS_PREPARED_ONLY=1"
 
     set +e
     case "$connector" in
         apache)
             env $common_env \
                 APACHE_TEST_PORT="$port" \
-                APACHE_BUILD_ROOT="$SHARED_BUILD_ROOT/apache-build" \
+                APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$SHARED_BUILD_ROOT/apache-build}" \
                 APACHE_BUILD_OWNER_ROOT="$SHARED_BUILD_ROOT" \
-                HTTPD_PREFIX="$SHARED_BUILD_ROOT/apache-runtime/httpd" \
-                APACHE_MODULE="$SHARED_BUILD_ROOT/apache-build/output/apache/mod_security3.so" \
-                MODSECURITY_LIB_DIR="$SHARED_BUILD_ROOT/apache-build/output/modsecurity/lib" \
+                HTTPD_PREFIX="${HTTPD_PREFIX:-}" \
+                APACHE_MODULE="${APACHE_MODULE:-}" \
+                MODSECURITY_LIB_DIR="${APACHE_MRTS_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
                 APACHE_BUILD_LOG_DIR="$job_log_root/apache-build" \
                 APACHE_RUNTIME_LOG_DIR="$job_log_root/apache-runtime" \
                 make -C "$CONNECTOR_ROOT" smoke-apache >> "$run_log" 2>&1
@@ -274,11 +280,11 @@ run_job() {
         nginx)
             env $common_env \
                 NGINX_TEST_PORT="$port" \
-                NGINX_BUILD_DIR="$SHARED_BUILD_ROOT/nginx-build" \
-                NGINX_PREFIX="$SHARED_BUILD_ROOT/nginx-runtime/nginx" \
-                NGINX_BINARY="$SHARED_BUILD_ROOT/nginx-runtime/nginx/sbin/nginx" \
-                NGINX_MODULE="$SHARED_BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so" \
-                MODSECURITY_LIB_DIR="$SHARED_BUILD_ROOT/nginx-build/output/modsecurity/lib" \
+                NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$SHARED_BUILD_ROOT/nginx-build}" \
+                NGINX_PREFIX="${NGINX_PREFIX:-}" \
+                NGINX_BINARY="${MRTS_NATIVE_NGINX_BIN:-}" \
+                NGINX_MODULE="${MRTS_NATIVE_NGINX_MODULE_FILE:-${MRTS_NATIVE_NGINX_MODULE_DIR:-}/ngx_http_modsecurity_module.so}" \
+                MODSECURITY_LIB_DIR="${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
                 NGINX_HARNESS_WORK_ROOT="$job_tmp_root/nginx-harness" \
                 NGINX_RUNTIME_BASE="$job_tmp_root/nginx-runtime" \
                 NGINX_RUNTIME_LOG_DIR="$job_log_root/nginx-runtime" \
@@ -293,11 +299,11 @@ run_job() {
                 RESULTS_DIR="$results_dir" \
                 HAPROXY_TEST_PORT="$port" \
                 TEST_BACKEND_PORT=$((port + 500)) \
-                HAPROXY_RUNTIME_BUILD_DIR="$SHARED_BUILD_ROOT/haproxy-runtime-build" \
-                HAPROXY_RUNTIME_DIR="$SHARED_BUILD_ROOT/haproxy-runtime/haproxy" \
-                HAPROXY_BIN="$SHARED_BUILD_ROOT/haproxy-runtime/haproxy/sbin/haproxy" \
-                SPOA_RUNTIME_BIN="$SHARED_BUILD_ROOT/haproxy-spoa-runtime/haproxy-modsecurity-spoa" \
-                MODSECURITY_BINDING_DIR="$SHARED_BUILD_ROOT/haproxy-modsecurity-binding" \
+                HAPROXY_RUNTIME_BUILD_DIR="${HAPROXY_RUNTIME_BUILD_DIR:-$SHARED_BUILD_ROOT/haproxy-runtime-build}" \
+                HAPROXY_RUNTIME_DIR="${HAPROXY_RUNTIME_DIR:-$SHARED_BUILD_ROOT/haproxy-runtime/haproxy}" \
+                HAPROXY_BIN="${HAPROXY_BIN:-}" \
+                SPOA_RUNTIME_BIN="${SPOA_RUNTIME_BIN:-}" \
+                MODSECURITY_BINDING_DIR="${MODSECURITY_BINDING_DIR:-}" \
                 LOG_DIR="$job_log_root/haproxy-runtime" \
                 RUNTIME_BASE="$job_build_root/haproxy-runtime-cases" \
                 make -C "$CONNECTOR_ROOT" smoke-haproxy >> "$run_log" 2>&1
