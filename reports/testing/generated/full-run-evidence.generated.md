@@ -68,3 +68,36 @@ Generated at: `2026-06-09T18:40:47Z`
 - No generated MRTS rules, FTW YAML, or `mrts.load` committed.
 - No `/tmp`, `/src`, or BUILD_ROOT outputs committed.
 - Runtime PASS/FAIL values were not manually changed.
+
+<!-- runtime-components:start -->
+## Runtime Components
+
+### Apache httpd
+- Status: `blocked`
+- Blocker: `missing_expat_headers`
+- Cache path: `/src/ModSecurity-conector-cache/archives/apache`
+- Build path: `/tmp/modsec-native-local-build/apache-build`
+- apachectl/APACHECTL_BIN: `/tmp/modsec-native-local-build/mrts-native/apache2_ubuntu/bin/apachectl`
+- Module file: `/tmp/modsec-native-local-build/apache-build/output/apache/mod_security3.so`
+- Missing file: `expat.h`
+- Build component: `apache_httpd_source_build`
+- Env variable to set: `CPPFLAGS/LDFLAGS`
+
+### NGINX
+- Status: `present`
+- Blocker: `-`
+- Cache path: `/src/ModSecurity-conector-cache/archives/nginx`
+- Build path: `/tmp/modsec-native-local-build/nginx-build`
+- MRTS_NATIVE_NGINX_BIN: `/tmp/modsec-native-local-build/nginx-runtime/nginx/sbin/nginx`
+- MRTS_NATIVE_NGINX_MODULE_DIR: `/tmp/modsec-native-local-build/nginx-runtime/nginx/modules`
+- Module file: `/tmp/modsec-native-local-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so`
+- Missing file: `-`
+- Build component: `-`
+- Env variable to set: `MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR`
+
+### go-ftw / albedo
+| Dependency | Status | Searched paths | Env override | Known source | Known ref | Can build locally | Blocker |
+|---|---|---|---|---|---|---|---|
+| go-ftw | blocked | `go-ftw`<br>`/src/ModSecurity-conector-cache/bin/go-ftw`<br>`/src/ModSecurity-conector-cache/tools/go-ftw`<br>`/tmp/modsec-native-local-build/bin/go-ftw`<br>`/tmp/modsec-native-local-build/tools/go-ftw`<br>`/tmp/modsec-native-local-build/mrts-native/bin/go-ftw` | `GO_FTW_BIN` | `https://github.com/coreruleset/go-ftw` | `-` | no | missing_go_ftw_source_ref |
+| albedo | blocked | `albedo`<br>`/src/ModSecurity-conector-cache/bin/albedo`<br>`/src/ModSecurity-conector-cache/tools/albedo`<br>`/tmp/modsec-native-local-build/bin/albedo`<br>`/tmp/modsec-native-local-build/tools/albedo`<br>`/tmp/modsec-native-local-build/mrts-native/bin/albedo` | `ALBEDO_BIN` | `https://github.com/coreruleset/albedo` | `-` | no | missing_albedo_source_ref |
+<!-- runtime-components:end -->

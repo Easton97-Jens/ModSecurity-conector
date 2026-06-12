@@ -1,4 +1,58 @@
 {
+  "albedo": {
+    "blocker_reason": "missing_albedo_source_ref",
+    "can_build_locally": false,
+    "dependency": "albedo",
+    "env_override": "ALBEDO_BIN",
+    "known_ref": "",
+    "known_source": "https://github.com/coreruleset/albedo",
+    "known_source_url": "https://github.com/coreruleset/albedo",
+    "path": "",
+    "searched_paths": [
+      "albedo",
+      "/src/ModSecurity-conector-cache/bin/albedo",
+      "/src/ModSecurity-conector-cache/tools/albedo",
+      "/tmp/modsec-native-local-build/bin/albedo",
+      "/tmp/modsec-native-local-build/tools/albedo",
+      "/tmp/modsec-native-local-build/mrts-native/bin/albedo"
+    ],
+    "status": "blocked"
+  },
+  "apache_httpd": {
+    "apachectl_bin": "/tmp/modsec-native-local-build/mrts-native/apache2_ubuntu/bin/apachectl",
+    "apxs_bin": "/tmp/modsec-native-local-build/apache-runtime/httpd/bin/apxs",
+    "blocker_reason": "missing_expat_headers",
+    "build_component": "apache_httpd_source_build",
+    "build_exit_code": 77,
+    "build_log": "/tmp/modsec-native-local-build/logs/runtime-components/apache-build.log",
+    "build_path": "/tmp/modsec-native-local-build/apache-build",
+    "cache_path": "/src/ModSecurity-conector-cache/archives/apache",
+    "dependency_searched_paths": [
+      "<compiler default include paths>"
+    ],
+    "env_override": "APACHECTL_BIN",
+    "env_variable_can_set": "CPPFLAGS/LDFLAGS",
+    "expected_ref": "2.4.67",
+    "httpd_bin": "/tmp/modsec-native-local-build/apache-runtime/httpd/bin/httpd",
+    "httpd_prefix": "/tmp/modsec-native-local-build/apache-runtime/httpd",
+    "missing_file": "expat.h",
+    "missing_files": [
+      "httpd_bin:/tmp/modsec-native-local-build/apache-runtime/httpd/bin/httpd",
+      "apxs_bin:/tmp/modsec-native-local-build/apache-runtime/httpd/bin/apxs",
+      "module_file:/tmp/modsec-native-local-build/apache-build/output/apache/mod_security3.so",
+      "modsecurity_lib:/tmp/modsec-native-local-build/apache-build/output/modsecurity/lib/libmodsecurity.so"
+    ],
+    "modsecurity_lib_dir": "/tmp/modsec-native-local-build/apache-build/output/modsecurity/lib",
+    "module_file": "/tmp/modsec-native-local-build/apache-build/output/apache/mod_security3.so",
+    "searched_paths": [
+      "/tmp/modsec-native-local-build/apache-runtime/httpd/bin/httpd",
+      "/tmp/modsec-native-local-build/apache-runtime/httpd/bin/apxs",
+      "/tmp/modsec-native-local-build/apache-build/output/apache/mod_security3.so",
+      "/tmp/modsec-native-local-build/apache-build/output/modsecurity/lib/libmodsecurity.so"
+    ],
+    "source": "connector-local-build",
+    "status": "blocked"
+  },
   "fixes": [
     "Allowed connector runtime/log/result roots under the requested BUILD_ROOT for isolated /tmp full-matrix jobs while preserving SOURCE_ROOT guardrails.",
     "Switched pinned Apache source download default to archive.apache.org after downloads.apache.org returned 404 for the pinned httpd release.",
@@ -306,6 +360,25 @@
     }
   },
   "generated_at": "2026-06-09T18:40:47Z",
+  "go_ftw": {
+    "blocker_reason": "missing_go_ftw_source_ref",
+    "can_build_locally": false,
+    "dependency": "go-ftw",
+    "env_override": "GO_FTW_BIN",
+    "known_ref": "",
+    "known_source": "https://github.com/coreruleset/go-ftw",
+    "known_source_url": "https://github.com/coreruleset/go-ftw",
+    "path": "",
+    "searched_paths": [
+      "go-ftw",
+      "/src/ModSecurity-conector-cache/bin/go-ftw",
+      "/src/ModSecurity-conector-cache/tools/go-ftw",
+      "/tmp/modsec-native-local-build/bin/go-ftw",
+      "/tmp/modsec-native-local-build/tools/go-ftw",
+      "/tmp/modsec-native-local-build/mrts-native/bin/go-ftw"
+    ],
+    "status": "blocked"
+  },
   "guardrails": {
     "generated_mrts_artifacts_not_committed": true,
     "mrts_definitions_unchanged": true,
@@ -405,6 +478,35 @@
       }
     }
   },
+  "nginx": {
+    "blocker_reason": "",
+    "build_exit_code": 0,
+    "build_log": "/tmp/modsec-native-local-build/logs/runtime-components/nginx-build.log",
+    "build_path": "/tmp/modsec-native-local-build/nginx-build",
+    "cache_path": "/src/ModSecurity-conector-cache/archives/nginx",
+    "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
+    "expected_ref": "latest",
+    "local_module_file": "/tmp/modsec-native-local-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+    "local_nginx_bin": "/tmp/modsec-native-local-build/nginx-runtime/nginx/sbin/nginx",
+    "modsecurity_lib_dir": "/tmp/modsec-native-local-build/nginx-build/output/modsecurity/lib",
+    "module_dir": "/tmp/modsec-native-local-build/nginx-runtime/nginx/modules",
+    "module_file": "/tmp/modsec-native-local-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+    "nginx_bin": "/tmp/modsec-native-local-build/nginx-runtime/nginx/sbin/nginx",
+    "nginx_prefix": "/tmp/modsec-native-local-build/nginx-runtime/nginx",
+    "searched_paths": [
+      "/tmp/modsec-native-local-build/nginx-runtime/nginx/sbin/nginx",
+      "/tmp/modsec-native-local-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+      "/tmp/modsec-native-local-build/nginx-build/output/modsecurity/lib/libmodsecurity.so"
+    ],
+    "source": "connector-local-build",
+    "status": "present",
+    "tree": {
+      "exists": true,
+      "file_count": 7616,
+      "sha256_manifest": "83485a4b3f5eae59f4edc1ade0ee1a9474d4be981bd4b9e0f542d658c448fa1a",
+      "total_size": 1777991280
+    }
+  },
   "reports": [
     "reports/testing/generated/full-runtime-matrix.generated.json",
     "reports/testing/generated/full-runtime-matrix.generated.md",
@@ -417,6 +519,110 @@
     "reports/testing/generated/full-run-evidence.generated.json",
     "reports/testing/generated/full-run-evidence.generated.md"
   ],
+  "runtime_components": {
+    "albedo": {
+      "blocker_reason": "missing_albedo_source_ref",
+      "can_build_locally": false,
+      "dependency": "albedo",
+      "env_override": "ALBEDO_BIN",
+      "known_ref": "",
+      "known_source": "https://github.com/coreruleset/albedo",
+      "known_source_url": "https://github.com/coreruleset/albedo",
+      "path": "",
+      "searched_paths": [
+        "albedo",
+        "/src/ModSecurity-conector-cache/bin/albedo",
+        "/src/ModSecurity-conector-cache/tools/albedo",
+        "/tmp/modsec-native-local-build/bin/albedo",
+        "/tmp/modsec-native-local-build/tools/albedo",
+        "/tmp/modsec-native-local-build/mrts-native/bin/albedo"
+      ],
+      "status": "blocked"
+    },
+    "apache_httpd": {
+      "apachectl_bin": "/tmp/modsec-native-local-build/mrts-native/apache2_ubuntu/bin/apachectl",
+      "apxs_bin": "/tmp/modsec-native-local-build/apache-runtime/httpd/bin/apxs",
+      "blocker_reason": "missing_expat_headers",
+      "build_component": "apache_httpd_source_build",
+      "build_exit_code": 77,
+      "build_log": "/tmp/modsec-native-local-build/logs/runtime-components/apache-build.log",
+      "build_path": "/tmp/modsec-native-local-build/apache-build",
+      "cache_path": "/src/ModSecurity-conector-cache/archives/apache",
+      "dependency_searched_paths": [
+        "<compiler default include paths>"
+      ],
+      "env_override": "APACHECTL_BIN",
+      "env_variable_can_set": "CPPFLAGS/LDFLAGS",
+      "expected_ref": "2.4.67",
+      "httpd_bin": "/tmp/modsec-native-local-build/apache-runtime/httpd/bin/httpd",
+      "httpd_prefix": "/tmp/modsec-native-local-build/apache-runtime/httpd",
+      "missing_file": "expat.h",
+      "missing_files": [
+        "httpd_bin:/tmp/modsec-native-local-build/apache-runtime/httpd/bin/httpd",
+        "apxs_bin:/tmp/modsec-native-local-build/apache-runtime/httpd/bin/apxs",
+        "module_file:/tmp/modsec-native-local-build/apache-build/output/apache/mod_security3.so",
+        "modsecurity_lib:/tmp/modsec-native-local-build/apache-build/output/modsecurity/lib/libmodsecurity.so"
+      ],
+      "modsecurity_lib_dir": "/tmp/modsec-native-local-build/apache-build/output/modsecurity/lib",
+      "module_file": "/tmp/modsec-native-local-build/apache-build/output/apache/mod_security3.so",
+      "searched_paths": [
+        "/tmp/modsec-native-local-build/apache-runtime/httpd/bin/httpd",
+        "/tmp/modsec-native-local-build/apache-runtime/httpd/bin/apxs",
+        "/tmp/modsec-native-local-build/apache-build/output/apache/mod_security3.so",
+        "/tmp/modsec-native-local-build/apache-build/output/modsecurity/lib/libmodsecurity.so"
+      ],
+      "source": "connector-local-build",
+      "status": "blocked"
+    },
+    "go_ftw": {
+      "blocker_reason": "missing_go_ftw_source_ref",
+      "can_build_locally": false,
+      "dependency": "go-ftw",
+      "env_override": "GO_FTW_BIN",
+      "known_ref": "",
+      "known_source": "https://github.com/coreruleset/go-ftw",
+      "known_source_url": "https://github.com/coreruleset/go-ftw",
+      "path": "",
+      "searched_paths": [
+        "go-ftw",
+        "/src/ModSecurity-conector-cache/bin/go-ftw",
+        "/src/ModSecurity-conector-cache/tools/go-ftw",
+        "/tmp/modsec-native-local-build/bin/go-ftw",
+        "/tmp/modsec-native-local-build/tools/go-ftw",
+        "/tmp/modsec-native-local-build/mrts-native/bin/go-ftw"
+      ],
+      "status": "blocked"
+    },
+    "nginx": {
+      "blocker_reason": "",
+      "build_exit_code": 0,
+      "build_log": "/tmp/modsec-native-local-build/logs/runtime-components/nginx-build.log",
+      "build_path": "/tmp/modsec-native-local-build/nginx-build",
+      "cache_path": "/src/ModSecurity-conector-cache/archives/nginx",
+      "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
+      "expected_ref": "latest",
+      "local_module_file": "/tmp/modsec-native-local-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+      "local_nginx_bin": "/tmp/modsec-native-local-build/nginx-runtime/nginx/sbin/nginx",
+      "modsecurity_lib_dir": "/tmp/modsec-native-local-build/nginx-build/output/modsecurity/lib",
+      "module_dir": "/tmp/modsec-native-local-build/nginx-runtime/nginx/modules",
+      "module_file": "/tmp/modsec-native-local-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+      "nginx_bin": "/tmp/modsec-native-local-build/nginx-runtime/nginx/sbin/nginx",
+      "nginx_prefix": "/tmp/modsec-native-local-build/nginx-runtime/nginx",
+      "searched_paths": [
+        "/tmp/modsec-native-local-build/nginx-runtime/nginx/sbin/nginx",
+        "/tmp/modsec-native-local-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so",
+        "/tmp/modsec-native-local-build/nginx-build/output/modsecurity/lib/libmodsecurity.so"
+      ],
+      "source": "connector-local-build",
+      "status": "present",
+      "tree": {
+        "exists": true,
+        "file_count": 7616,
+        "sha256_manifest": "83485a4b3f5eae59f4edc1ade0ee1a9474d4be981bd4b9e0f542d658c448fa1a",
+        "total_size": 1777991280
+      }
+    }
+  },
   "source_state_at_report_generation": {
     "connector_framework_gitlink": "d467034cdf3fb28cea5329f90d97eedc22e630cc",
     "connector_recursive_submodules": [

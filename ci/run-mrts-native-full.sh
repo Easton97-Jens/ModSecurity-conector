@@ -116,6 +116,64 @@ append_missing_dep() {
     fi
 }
 
+replace_loadmodule_paths() {
+    load_file=$1
+    modules_dir=$2
+    apache_module=$3
+    "$PYTHON" - "$load_file" "$modules_dir" "$apache_module" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+modules_dir = sys.argv[2]
+apache_module = sys.argv[3]
+text = path.read_text(encoding="utf-8")
+text = re.sub(r"/usr/lib/apache2/modules/(mod_[^\\s\"']+\\.so)", modules_dir + r"/\1", text)
+if path.name == "security2.load" and apache_module:
+    text = re.sub(
+        r"LoadModule\\s+security2_module\\s+\\S+",
+        "LoadModule security3_module " + apache_module,
+        text,
+    )
+path.write_text(text, encoding="utf-8")
+PY
+}
+
+replace_file_text() {
+    file_path=$1
+    old_text=$2
+    new_text=$3
+    "$PYTHON" - "$file_path" "$old_text" "$new_text" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+old = sys.argv[2]
+new = sys.argv[3]
+text = path.read_text(encoding="utf-8")
+path.write_text(text.replace(old, new), encoding="utf-8")
+PY
+}
+
+disable_nginx_system_module_file() {
+    module_file=$1
+    "$PYTHON" - "$module_file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+lines = []
+for line in path.read_text(encoding="utf-8").splitlines():
+    stripped = line.lstrip()
+    if stripped.startswith("load_module ") or "load_module /usr/lib/nginx/" in stripped:
+        lines.append("# disabled in local native staging")
+    else:
+        lines.append(line)
+path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+}
+
 prepare_mrts_outputs() {
     "$MAKE" -C "$FRAMEWORK_ROOT" mrts-generate >/dev/null
     MRTS_RULES_OUT="$MRTS_BUILD_ROOT/upstream-config-tests/rules" \
@@ -141,11 +199,42 @@ stage_apache() {
     safe_remove_runtime_path "$stage" "$target_root" "Apache native stage" || return 77
     mkdir -p "$stage"
     cp -a "$source_root/." "$stage/"
-    mkdir -p "$stage/infra/log" "$stage/infra/run"
+    mkdir -p "$stage/infra/log" "$stage/infra/run" "$stage/infra/htdocs" "$stage/infra/run/modsecurity-data"
+    : > "$stage/infra/htdocs/index.html"
     cp "$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load" "$stage/infra/mrts.load"
     sed -i "s#^Listen 80#Listen $MRTS_NATIVE_APACHE_PORT#" "$stage/infra/ports.conf"
     sed -i "s#<VirtualHost \\*:80>#<VirtualHost *:$MRTS_NATIVE_APACHE_PORT>#" "$stage/infra/sites-available/000-default.conf"
     sed -i "s#http://127.0.0.1:8000/#http://127.0.0.1:$MRTS_NATIVE_BACKEND_PORT/#g" "$stage/infra/sites-available/000-default.conf"
+    replace_file_text "$stage/infra/sites-available/000-default.conf" "DocumentRoot /var/www/html" "DocumentRoot $stage/infra/htdocs"
+    cat >> "$stage/infra/sites-available/000-default.conf" <<EOF
+
+<Directory "$stage/infra/htdocs">
+    Require all granted
+</Directory>
+EOF
+    replace_file_text "$stage/infra/mods-available/security2.conf" "security2_module" "security3_module"
+    replace_file_text "$stage/infra/mods-available/security2.conf" "SecDataDir /var/cache/modsecurity" "SecDataDir run/modsecurity-data"
+    replace_file_text "$stage/infra/mods-enabled/security2.conf" "security2_module" "security3_module"
+    replace_file_text "$stage/infra/mods-enabled/security2.conf" "SecDataDir /var/cache/modsecurity" "SecDataDir run/modsecurity-data"
+    if [ -n "${HTTPD_PREFIX:-}" ]; then
+        mime_types="$HTTPD_PREFIX/conf/mime.types"
+        if [ ! -f "$mime_types" ]; then
+            mime_types="$stage/infra/mime.types"
+            : > "$mime_types"
+        fi
+        replace_file_text "$stage/infra/mods-enabled/mime.conf" "TypesConfig /etc/mime.types" "TypesConfig $mime_types"
+        replace_file_text "$stage/infra/mods-available/mime.conf" "TypesConfig /etc/mime.types" "TypesConfig $mime_types"
+    fi
+    if [ -n "${HTTPD_PREFIX:-}" ] && [ -d "$HTTPD_PREFIX/modules" ]; then
+        for load_file in "$stage/infra/mods-enabled/"*.load "$stage/infra/mods-available/"*.load; do
+            [ -f "$load_file" ] || continue
+            replace_loadmodule_paths "$load_file" "$HTTPD_PREFIX/modules" "${APACHE_MRTS_MODULE:-${APACHE_MODULE:-}}"
+        done
+    fi
+    if [ -n "${APACHECTL_BIN:-}" ]; then
+        replace_file_text "$stage/start.py" "'apachectl'" "'$APACHECTL_BIN'"
+        replace_file_text "$stage/stop.py" "'apachectl'" "'$APACHECTL_BIN'"
+    fi
     patch_common_ftw_config "$stage/ftw.mrts.config.yaml" "$stage/infra/log/error.log"
     printf '%s\n' "$stage"
 }
@@ -159,17 +248,30 @@ stage_nginx() {
     safe_remove_runtime_path "$stage" "$target_root" "NGINX native stage" || return 77
     mkdir -p "$stage"
     cp -a "$source_root/." "$stage/"
-    mkdir -p "$stage/infra/log" "$stage/infra/run"
+    mkdir -p "$stage/infra/log" "$stage/infra/run" "$stage/infra/html"
+    : > "$stage/infra/html/index.html"
     cp "$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load" "$stage/infra/mrts.load"
+    rm -f "$stage/infra/modules-enabled/"*
+    ln -s ../modules-available/mod-http-modsecurity.conf "$stage/infra/modules-enabled/mod-http-modsecurity.conf"
+    for module_file in "$stage/infra/modules-available/"*.conf; do
+        [ -f "$module_file" ] || continue
+        case "$(basename "$module_file")" in
+            mod-http-modsecurity.conf) ;;
+            *) disable_nginx_system_module_file "$module_file" ;;
+        esac
+    done
     sed -i "s#listen 80 default_server;#listen $MRTS_NATIVE_NGINX_PORT default_server;#g" "$stage/infra/sites-available/default"
     sed -i "s#listen \\[::\\]:80 default_server;#listen [::]:$MRTS_NATIVE_NGINX_PORT default_server;#g" "$stage/infra/sites-available/default"
     sed -i "s#http://127.0.0.1:8000/#http://127.0.0.1:$MRTS_NATIVE_BACKEND_PORT/#g" "$stage/infra/sites-available/default"
+    replace_file_text "$stage/infra/sites-available/default" "root /var/www/html;" "root $stage/infra/html;"
+    sed -i "/more_set_headers/d" "$stage/infra/sites-available/default"
     if [ -n "${MRTS_NATIVE_NGINX_MODULE_DIR:-}" ]; then
         module_path="$MRTS_NATIVE_NGINX_MODULE_DIR/ngx_http_modsecurity_module.so"
         sed -i "s#^load_module .*ngx_http_modsecurity_module.so;#load_module $module_path;#" "$stage/infra/modules-available/mod-http-modsecurity.conf"
     fi
     if [ -n "${MRTS_NATIVE_NGINX_BIN:-}" ]; then
-        sed -i "s#'nginx'#'$(printf '%s' "$MRTS_NATIVE_NGINX_BIN" | sed \"s#'#'\\\\''#g\")'#" "$stage/start.py" "$stage/stop.py"
+        replace_file_text "$stage/start.py" "'nginx'" "'$MRTS_NATIVE_NGINX_BIN'"
+        replace_file_text "$stage/stop.py" "'nginx'" "'$MRTS_NATIVE_NGINX_BIN'"
     fi
     patch_common_ftw_config "$stage/ftw.mrts.config.yaml" "$stage/infra/log/error.log"
     printf '%s\n' "$stage"
@@ -186,19 +288,31 @@ native_target_deps() {
     fi
     case "$target" in
         apache2_ubuntu)
-            apachectl_bin="${APACHECTL_BIN:-apachectl}"
+            apachectl_bin="${APACHECTL_BIN:-}"
             if ! command_available "$apachectl_bin"; then
                 common_missing=$(append_missing_dep "$common_missing" "apachectl" "APACHECTL_BIN")
             fi
+            apache_module="${APACHE_MRTS_MODULE:-${APACHE_MODULE:-}}"
+            if [ -z "$apache_module" ] || [ ! -f "$apache_module" ]; then
+                common_missing=$(append_missing_dep "$common_missing" "mod_security3.so" "APACHE_MRTS_MODULE")
+            fi
+            apache_lib_dir="${APACHE_MRTS_MODSECURITY_LIB_DIR:-}"
+            if [ -z "$apache_lib_dir" ] || [ ! -f "$apache_lib_dir/libmodsecurity.so" ]; then
+                common_missing=$(append_missing_dep "$common_missing" "libmodsecurity.so" "APACHE_MRTS_MODSECURITY_LIB_DIR")
+            fi
             ;;
         nginx-pr24)
-            nginx_bin="${MRTS_NATIVE_NGINX_BIN:-$(command -v nginx 2>/dev/null || true)}"
+            nginx_bin="${MRTS_NATIVE_NGINX_BIN:-}"
             if [ -z "$nginx_bin" ] || ! command_available "$nginx_bin"; then
                 common_missing=$(append_missing_dep "$common_missing" "nginx" "MRTS_NATIVE_NGINX_BIN")
             fi
-            module_path="${MRTS_NATIVE_NGINX_MODULE_DIR:-/usr/lib/nginx/modules}/ngx_http_modsecurity_module.so"
+            module_path="${MRTS_NATIVE_NGINX_MODULE_DIR:-}/ngx_http_modsecurity_module.so"
             if [ ! -f "$module_path" ]; then
                 common_missing=$(append_missing_dep "$common_missing" "ngx_http_modsecurity_module.so" "MRTS_NATIVE_NGINX_MODULE_DIR")
+            fi
+            nginx_lib_dir="${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-}"
+            if [ -n "$nginx_lib_dir" ] && [ ! -f "$nginx_lib_dir/libmodsecurity.so" ]; then
+                common_missing=$(append_missing_dep "$common_missing" "libmodsecurity.so" "MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR")
             fi
             ;;
     esac
@@ -279,6 +393,23 @@ run_native_target() {
     }
     trap cleanup EXIT INT TERM
 
+    case "$target" in
+        apache2_ubuntu)
+            apache_ld_path="${APACHE_MRTS_MODSECURITY_LIB_DIR:-}${HTTPD_PREFIX:+:$HTTPD_PREFIX/lib}"
+            if [ -n "$apache_ld_path" ]; then
+                LD_LIBRARY_PATH="$apache_ld_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+                export LD_LIBRARY_PATH
+            fi
+            ;;
+        nginx-pr24)
+            nginx_ld_path="${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-}${NGINX_PREFIX:+:$NGINX_PREFIX/lib}"
+            if [ -n "$nginx_ld_path" ]; then
+                LD_LIBRARY_PATH="$nginx_ld_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+                export LD_LIBRARY_PATH
+            fi
+            ;;
+    esac
+
     "$ALBEDO_BIN" -b 127.0.0.1 -p "$MRTS_NATIVE_BACKEND_PORT" >> "$run_log" 2>&1 &
     backend_pid=$!
     "$PYTHON" "$stage/start.py" >> "$run_log" 2>&1
@@ -332,6 +463,10 @@ done
     --native-root "$MRTS_NATIVE_ROOT" \
     --output-root "$CONNECTOR_ROOT"
 report_rc=$?
+
+if [ -f "$CONNECTOR_ROOT/ci/update-runtime-reports.py" ]; then
+    "$PYTHON" "$CONNECTOR_ROOT/ci/update-runtime-reports.py" --connector-root "$CONNECTOR_ROOT" || report_rc=$?
+fi
 
 echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native-full.generated.md"
 if [ "$report_rc" -ne 0 ] || [ "$has_fail" -ne 0 ]; then

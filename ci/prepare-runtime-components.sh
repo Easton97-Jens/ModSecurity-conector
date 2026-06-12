@@ -8,6 +8,7 @@ DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local
 BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
 TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}"
 LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
+MRTS_NATIVE_ROOT="${MRTS_NATIVE_ROOT:-$BUILD_ROOT/mrts-native}"
 
 if [ -z "${CONNECTOR_COMPONENT_CACHE:-}" ]; then
     if [ -d /src ] && [ -w /src ]; then
@@ -17,7 +18,7 @@ if [ -z "${CONNECTOR_COMPONENT_CACHE:-}" ]; then
     fi
 fi
 
-export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE
+export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT MRTS_NATIVE_ROOT CONNECTOR_COMPONENT_CACHE
 
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$FRAMEWORK_ROOT/ci/common.sh"
@@ -35,13 +36,16 @@ export HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256
 assert_safe_runtime_path "$BUILD_ROOT" BUILD_ROOT || exit 77
 assert_safe_runtime_path "$TMP_ROOT" TMP_ROOT || exit 77
 assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
+assert_safe_runtime_path "$MRTS_NATIVE_ROOT" MRTS_NATIVE_ROOT || exit 77
 assert_safe_runtime_path "$CONNECTOR_COMPONENT_CACHE" CONNECTOR_COMPONENT_CACHE || exit 77
 assert_not_system_path_for_write "$CONNECTOR_ROOT/reports/testing/generated" runtime_component_report_dir || exit 77
 
-mkdir -p "$CONNECTOR_COMPONENT_CACHE" "$CONNECTOR_ROOT/reports/testing/generated"
+mkdir -p "$CONNECTOR_COMPONENT_CACHE" "$MRTS_NATIVE_ROOT" "$CONNECTOR_ROOT/reports/testing/generated"
 
 "$PYTHON" "$CONNECTOR_ROOT/ci/prepare-runtime-components.py" \
     --connector-root "$CONNECTOR_ROOT" \
     --framework-root "$FRAMEWORK_ROOT" \
     --cache-root "$CONNECTOR_COMPONENT_CACHE" \
-    --output-root "$CONNECTOR_ROOT"
+    --output-root "$CONNECTOR_ROOT" \
+    --build-root "$BUILD_ROOT" \
+    --native-root "$MRTS_NATIVE_ROOT"
