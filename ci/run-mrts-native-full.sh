@@ -97,6 +97,19 @@ missing_tools() {
     return 0
 }
 
+join_library_path() {
+    result=""
+    for path in "$@"; do
+        [ -n "$path" ] || continue
+        if [ -n "$result" ]; then
+            result="$result:$path"
+        else
+            result="$path"
+        fi
+    done
+    printf '%s\n' "$result"
+}
+
 command_available() {
     cmd=$1
     case "$cmd" in
@@ -190,6 +203,36 @@ patch_common_ftw_config() {
     fi
 }
 
+patch_ftw_dest_ports() {
+    ftw_dir=$1
+    port=$2
+    "$PYTHON" - "$ftw_dir" "$port" <<'PY'
+import sys
+from pathlib import Path
+
+import yaml
+
+root = Path(sys.argv[1])
+port = int(sys.argv[2])
+
+def patch(value):
+    if isinstance(value, dict):
+        for key, item in list(value.items()):
+            if key == "port" and item == 80:
+                value[key] = port
+            else:
+                patch(item)
+    elif isinstance(value, list):
+        for item in value:
+            patch(item)
+
+for path in sorted(root.rglob("*.yaml")):
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    patch(data)
+    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+PY
+}
+
 stage_apache() {
     target_root=$1
     source_root="$MRTS_ROOT/config_infra/apache2_ubuntu"
@@ -265,6 +308,7 @@ stage_nginx() {
     sed -i "s#http://127.0.0.1:8000/#http://127.0.0.1:$MRTS_NATIVE_BACKEND_PORT/#g" "$stage/infra/sites-available/default"
     replace_file_text "$stage/infra/sites-available/default" "root /var/www/html;" "root $stage/infra/html;"
     sed -i "/more_set_headers/d" "$stage/infra/sites-available/default"
+    sed -i "/ssl_protocols/d;/ssl_prefer_server_ciphers/d" "$stage/infra/nginx.conf"
     if [ -n "${MRTS_NATIVE_NGINX_MODULE_DIR:-}" ]; then
         module_path="$MRTS_NATIVE_NGINX_MODULE_DIR/ngx_http_modsecurity_module.so"
         sed -i "s#^load_module .*ngx_http_modsecurity_module.so;#load_module $module_path;#" "$stage/infra/modules-available/mod-http-modsecurity.conf"
@@ -360,6 +404,14 @@ run_native_target() {
                 echo "mrts-native: target=$target BLOCKED: $reason"
                 return "$rc"
             fi
+            patch_ftw_dest_ports "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" "$MRTS_NATIVE_APACHE_PORT" >> "$run_log" 2>&1 || {
+                rc=77
+                reason="Apache native FTW port patch failed"
+                printf '%s\n' "$rc" > "$exit_code_file"
+                write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+                echo "mrts-native: target=$target BLOCKED: $reason"
+                return "$rc"
+            }
             ;;
         nginx-pr24)
             if ! stage=$(stage_nginx "$target_root" 2>>"$run_log"); then
@@ -370,6 +422,14 @@ run_native_target() {
                 echo "mrts-native: target=$target BLOCKED: $reason"
                 return "$rc"
             fi
+            patch_ftw_dest_ports "$MRTS_BUILD_ROOT/upstream-config-tests/ftw" "$MRTS_NATIVE_NGINX_PORT" >> "$run_log" 2>&1 || {
+                rc=77
+                reason="NGINX native FTW port patch failed"
+                printf '%s\n' "$rc" > "$exit_code_file"
+                write_job_json "$job_json" "$target" "BLOCKED" "$reason" "$rc" 0 "$run_log" "$summary_path"
+                echo "mrts-native: target=$target BLOCKED: $reason"
+                return "$rc"
+            }
             ;;
     esac
 
@@ -395,14 +455,14 @@ run_native_target() {
 
     case "$target" in
         apache2_ubuntu)
-            apache_ld_path="${APACHE_MRTS_MODSECURITY_LIB_DIR:-}${HTTPD_PREFIX:+:$HTTPD_PREFIX/lib}"
+            apache_ld_path=$(join_library_path "${APACHE_MRTS_MODSECURITY_LIB_DIR:-}" "${HTTPD_PREFIX:+$HTTPD_PREFIX/lib}" "${EXPAT_PREFIX:+$EXPAT_PREFIX/lib}")
             if [ -n "$apache_ld_path" ]; then
                 LD_LIBRARY_PATH="$apache_ld_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
                 export LD_LIBRARY_PATH
             fi
             ;;
         nginx-pr24)
-            nginx_ld_path="${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-}${NGINX_PREFIX:+:$NGINX_PREFIX/lib}"
+            nginx_ld_path=$(join_library_path "${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-}" "${NGINX_PREFIX:+$NGINX_PREFIX/lib}")
             if [ -n "$nginx_ld_path" ]; then
                 LD_LIBRARY_PATH="$nginx_ld_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
                 export LD_LIBRARY_PATH

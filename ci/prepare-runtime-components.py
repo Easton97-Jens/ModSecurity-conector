@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,12 @@ SYSTEM_PREFIXES = (
     "/run",
 )
 
+GO_FTW_SOURCE_URL = "https://github.com/coreruleset/go-ftw"
+GO_FTW_PROMPT_EXPECTED_LATEST = "v2.2.0"
+ALBEDO_SOURCE_URL = "https://github.com/coreruleset/albedo"
+ALBEDO_PROMPT_EXPECTED_LATEST = "v0.3.0"
+EXPAT_SOURCE_URL = "https://github.com/libexpat/libexpat"
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -44,6 +51,18 @@ def sh_quote(value: str) -> str:
 
 def run(cmd: list[str], cwd: Path | None = None, check: bool = False) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if check and proc.returncode != 0:
+        raise RuntimeError((proc.stdout + proc.stderr).strip() or f"command failed: {' '.join(cmd)}")
+    return proc
+
+
+def run_env(
+    cmd: list[str],
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+    check: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    proc = subprocess.run(cmd, cwd=cwd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if check and proc.returncode != 0:
         raise RuntimeError((proc.stdout + proc.stderr).strip() or f"command failed: {' '.join(cmd)}")
     return proc
@@ -96,6 +115,22 @@ def read_json(path: Path) -> dict[str, Any]:
 def write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def is_within(path: Path, owner: Path) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(owner.resolve(strict=False))
+        return True
+    except ValueError:
+        return False
+
+
+def safe_remove_dir(path: Path, owner: Path) -> None:
+    if not path.exists():
+        return
+    if is_system_path(path) or not is_within(path, owner):
+        raise RuntimeError(f"unsafe_remove_path_forbidden: {path}")
+    shutil.rmtree(path)
 
 
 def git_output(path: Path, *args: str) -> str:
@@ -163,14 +198,19 @@ def prepare_git_component(
         if remote_url and remote_url != url:
             record.update(status="blocked", blocker_reason=f"unexpected_origin:{remote_url}")
             return record
-        fetch = run(["git", "-C", str(path), "fetch", "--tags", "--prune", "origin", expected_ref])
+        fetch = run(["git", "-C", str(path), "fetch", "--tags", "--prune", "origin"])
         if fetch.returncode != 0:
             record.update(status="blocked", blocker_reason="git_fetch_failed", details=(fetch.stdout + fetch.stderr).strip())
             return record
-        checkout = run(["git", "-C", str(path), "checkout", "--detach", "FETCH_HEAD"])
+        checkout_ref = expected_ref
+        checkout = run(["git", "-C", str(path), "checkout", "--detach", expected_ref])
+        if checkout.returncode != 0 and not expected_ref.startswith("origin/"):
+            checkout_ref = f"origin/{expected_ref}"
+            checkout = run(["git", "-C", str(path), "checkout", "--detach", checkout_ref])
         if checkout.returncode != 0:
             record.update(status="blocked", blocker_reason="git_checkout_failed", details=(checkout.stdout + checkout.stderr).strip())
             return record
+        record["checkout_ref"] = checkout_ref
         for cmd in (
             ["git", "-C", str(path), "submodule", "sync", "--recursive"],
             ["git", "-C", str(path), "submodule", "update", "--init", "--recursive"],
@@ -208,6 +248,55 @@ def prepare_git_component(
     except Exception as exc:
         record.update(status="blocked", blocker_reason=str(exc))
         return record
+
+
+def resolve_latest_github_release_tag(source_url: str) -> tuple[str, str]:
+    repo = github_repo_path(source_url)
+    api_url = f"https://api.github.com/repos/{repo}/releases/latest"
+    with urllib.request.urlopen(api_url, timeout=60) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    tag = data.get("tag_name")
+    html_url = data.get("html_url") or f"https://github.com/{repo}/releases/tag/{tag or ''}"
+    if not isinstance(tag, str) or not tag:
+        raise RuntimeError(f"latest release for {source_url} did not include tag_name")
+    return tag, str(html_url)
+
+
+def prepare_release_git_component(
+    name: str,
+    source_url: str,
+    expected_prompt_latest: str,
+    path: Path,
+    previous_records: dict[str, dict[str, Any]],
+    strict: bool,
+) -> dict[str, Any]:
+    try:
+        release_tag, release_url = resolve_latest_github_release_tag(source_url)
+    except Exception as exc:
+        return {
+            "name": name,
+            "url": source_url,
+            "source": source_url,
+            "path": str(path),
+            "expected_ref": "",
+            "release_tag": "",
+            "status": "blocked",
+            "blocker_reason": f"latest_release_lookup_failed:{exc}",
+        }
+    record = prepare_git_component(name, source_url, release_tag, path, previous_records, strict)
+    record.update(
+        source=source_url,
+        release_tag=release_tag,
+        release_url=release_url,
+        expected_prompt_latest=expected_prompt_latest,
+        release_tag_deviation=bool(expected_prompt_latest and release_tag != expected_prompt_latest),
+        release_tag_deviation_note=(
+            f"prompt_expected_latest={expected_prompt_latest}; current_latest={release_tag}"
+            if expected_prompt_latest and release_tag != expected_prompt_latest
+            else ""
+        ),
+    )
+    return record
 
 
 def archive_can_list(path: Path) -> bool:
@@ -366,6 +455,12 @@ def build_env(base: dict[str, str], **overrides: str) -> dict[str, str]:
     return result
 
 
+def read_text_if_file(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
 def run_build(script: Path, env: dict[str, str], cwd: Path, log_path: Path) -> subprocess.CompletedProcess[str]:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     proc = subprocess.run(
@@ -380,8 +475,407 @@ def run_build(script: Path, env: dict[str, str], cwd: Path, log_path: Path) -> s
     return proc
 
 
+def append_command_log(log_parts: list[str], label: str, proc: subprocess.CompletedProcess[str]) -> None:
+    log_parts.extend(
+        [
+            f"[{label}]",
+            f"returncode={proc.returncode}",
+            "$ " + " ".join(sh_quote(str(part)) for part in proc.args) if isinstance(proc.args, list) else f"$ {proc.args}",
+            "",
+            proc.stdout,
+            proc.stderr,
+            "",
+        ]
+    )
+
+
+def write_component_log(log_path: Path, log_parts: list[str]) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("\n".join(log_parts), encoding="utf-8", errors="replace")
+
+
+def local_build_env(base: dict[str, str], cache_root: Path) -> dict[str, str]:
+    result = dict(base)
+    result["GOPATH"] = str(cache_root / "go")
+    result["GOMODCACHE"] = str(cache_root / "go/pkg/mod")
+    result["GOCACHE"] = str(cache_root / "go/cache")
+    result["XDG_CACHE_HOME"] = str(cache_root / "go/xdg-cache")
+    return result
+
+
+def resolve_compiler(env: dict[str, str]) -> str:
+    configured = env.get("CC", "").strip()
+    if configured:
+        return configured.split()[0] if shutil.which(configured.split()[0]) else ""
+    return shutil.which("cc") or shutil.which("gcc") or ""
+
+
+def first_missing_tool(tools: list[tuple[str, str]]) -> str:
+    for tool, reason in tools:
+        if not shutil.which(tool):
+            return reason
+    return ""
+
+
+def expat_libs(lib_dir: Path) -> list[Path]:
+    if not lib_dir.is_dir():
+        return []
+    return sorted(path for path in lib_dir.glob("libexpat.*") if path.is_file() or path.is_symlink())
+
+
+def expat_artifacts_ready(prefix: Path) -> bool:
+    return (prefix / "include/expat.h").is_file() and bool(expat_libs(prefix / "lib"))
+
+
+def expat_source_dir(repo_path: Path) -> Path:
+    for candidate in (repo_path / "expat", repo_path):
+        if (
+            (candidate / "buildconf.sh").is_file()
+            or (candidate / "configure").is_file()
+            or (candidate / "configure.ac").is_file()
+            or (candidate / "CMakeLists.txt").is_file()
+        ):
+            return candidate
+    return repo_path
+
+
+def map_expat_build_failure(text: str) -> str:
+    lowered = text.lower()
+    if "cmake" in lowered and "not found" in lowered:
+        return "missing_cmake"
+    if "autoconf" in lowered and ("not found" in lowered or "no such file" in lowered):
+        return "missing_autoconf"
+    if "automake" in lowered or "aclocal" in lowered:
+        return "missing_automake"
+    if "libtoolize" in lowered or "glibtoolize" in lowered or "libtool" in lowered:
+        return "missing_libtool"
+    if re.search(r"\bmake\b.*(not found|no such file)", lowered):
+        return "missing_make"
+    if "c compiler" in lowered or "compiler" in lowered and "not found" in lowered:
+        return "missing_compiler"
+    return "expat_build_failed"
+
+
+def prepare_expat(
+    env: dict[str, str],
+    cache_root: Path,
+    build_root: Path,
+    git_record: dict[str, Any],
+) -> dict[str, Any]:
+    prefix = Path(env.get("EXPAT_PREFIX", str(cache_root / "prefix/expat"))).resolve()
+    build_dir = Path(env.get("EXPAT_BUILD_DIR", str(cache_root / "build/expat"))).resolve()
+    build_source_copy = (cache_root / "build/expat-source").resolve()
+    expat_h = prefix / "include/expat.h"
+    lib_dir = prefix / "lib"
+    log_path = build_root / "logs/runtime-components/expat-build.log"
+    marker_path = prefix / "component-manifest.json"
+    source_path = Path(git_record.get("path", "")).resolve() if git_record.get("path") else Path()
+    record: dict[str, Any] = {
+        "name": "expat",
+        "source": git_record.get("source", git_record.get("url", EXPAT_SOURCE_URL)),
+        "url": git_record.get("url", git_record.get("source", EXPAT_SOURCE_URL)),
+        "expected_ref": git_record.get("expected_ref", ""),
+        "release_tag": git_record.get("release_tag", git_record.get("expected_ref", "")),
+        "actual_head": git_record.get("actual_head", ""),
+        "recursive_submodules": True,
+        "recursive_submodule_status": git_record.get("submodule_status", ""),
+        "submodule_status_clean": git_record.get("submodule_status_clean", False),
+        "git_fsck": git_record.get("git_fsck", ""),
+        "path": str(source_path) if str(source_path) != "." else "",
+        "prefix": str(prefix),
+        "expat_h": str(expat_h),
+        "include": str(expat_h),
+        "lib_dir": str(lib_dir),
+        "library": str(lib_dir),
+        "build_path": str(build_dir),
+        "build_source_copy": str(build_source_copy),
+        "build_log": str(log_path),
+        "status": "unknown",
+        "blocker_reason": "",
+    }
+    if git_record.get("status") != "present":
+        record.update(status="blocked", blocker_reason=git_record.get("blocker_reason") or "expat_source_unavailable")
+        return record
+    if is_system_path(prefix) or is_system_path(build_dir) or is_system_path(build_source_copy):
+        record.update(status="blocked", blocker_reason="system_path_write_forbidden")
+        return record
+    if not is_within(prefix, cache_root) or not is_within(build_dir, cache_root) or not is_within(build_source_copy, cache_root):
+        record.update(status="blocked", blocker_reason="expat_paths_must_be_under_connector_component_cache")
+        return record
+    previous = read_json(marker_path)
+    if expat_artifacts_ready(prefix) and previous.get("actual_head") == record["actual_head"]:
+        record.update(
+            status="present",
+            libraries=[str(path) for path in expat_libs(lib_dir)],
+            build_system=previous.get("build_system", ""),
+        )
+        return record
+
+    missing = first_missing_tool([("make", "missing_make")])
+    compiler = resolve_compiler(env)
+    if not compiler:
+        missing = "missing_compiler"
+    if missing:
+        record.update(status="blocked", blocker_reason=missing)
+        return record
+
+    git_source_dir = expat_source_dir(source_path)
+    record["git_source_dir"] = str(git_source_dir)
+    has_autotools = (
+        (git_source_dir / "buildconf.sh").is_file()
+        or (git_source_dir / "configure").is_file()
+        or (git_source_dir / "configure.ac").is_file()
+    )
+    has_cmake = (git_source_dir / "CMakeLists.txt").is_file()
+    if has_autotools:
+        if not (git_source_dir / "configure").is_file():
+            missing = first_missing_tool(
+                [
+                    ("autoconf", "missing_autoconf"),
+                    ("automake", "missing_automake"),
+                    ("aclocal", "missing_automake"),
+                    ("libtoolize", "missing_libtool"),
+                ]
+            )
+            if missing:
+                record.update(status="blocked", blocker_reason=missing)
+                return record
+        build_system = "autotools"
+    elif has_cmake:
+        if not shutil.which("cmake"):
+            record.update(status="blocked", blocker_reason="missing_cmake")
+            return record
+        build_system = "cmake"
+    else:
+        record.update(status="blocked", blocker_reason="missing_expat_build_system")
+        return record
+
+    log_parts: list[str] = []
+    build_env_vars = dict(os.environ)
+    build_env_vars.update(env)
+    build_env_vars["CC"] = env.get("CC", compiler)
+    build_env_vars["PKG_CONFIG_PATH"] = f"{prefix / 'lib/pkgconfig'}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
+    try:
+        safe_remove_dir(build_dir, cache_root)
+        safe_remove_dir(build_source_copy, cache_root)
+        safe_remove_dir(prefix, cache_root)
+        shutil.copytree(
+            git_source_dir,
+            build_source_copy,
+            ignore=shutil.ignore_patterns(".git", ".github", "autom4te.cache", "__pycache__"),
+        )
+        source_dir = build_source_copy
+        record["build_source_dir"] = str(source_dir)
+        build_dir.mkdir(parents=True, exist_ok=True)
+        prefix.parent.mkdir(parents=True, exist_ok=True)
+        if build_system == "autotools":
+            if (source_dir / "buildconf.sh").is_file():
+                proc = run_env(["sh", str(source_dir / "buildconf.sh")], cwd=source_dir, env=build_env_vars)
+                append_command_log(log_parts, "expat-buildconf", proc)
+                if proc.returncode != 0:
+                    write_component_log(log_path, log_parts)
+                    record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                    return record
+            elif not (source_dir / "configure").is_file():
+                proc = run_env(["autoreconf", "-fi"], cwd=source_dir, env=build_env_vars)
+                append_command_log(log_parts, "expat-autoreconf", proc)
+                if proc.returncode != 0:
+                    write_component_log(log_path, log_parts)
+                    record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                    return record
+            configure = source_dir / "configure"
+            proc = run_env([str(configure), f"--prefix={prefix}"], cwd=build_dir, env=build_env_vars)
+            append_command_log(log_parts, "expat-configure", proc)
+            if proc.returncode != 0:
+                write_component_log(log_path, log_parts)
+                record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                return record
+            jobs = env.get("MAKE_JOBS") or str(os.cpu_count() or 2)
+            for label, cmd in (
+                ("expat-make", ["make", f"-j{jobs}"]),
+                ("expat-make-install", ["make", "install"]),
+            ):
+                proc = run_env(cmd, cwd=build_dir, env=build_env_vars)
+                append_command_log(log_parts, label, proc)
+                if proc.returncode != 0:
+                    write_component_log(log_path, log_parts)
+                    record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                    return record
+        else:
+            proc = run_env(
+                [
+                    "cmake",
+                    "-S",
+                    str(source_dir),
+                    "-B",
+                    str(build_dir),
+                    f"-DCMAKE_INSTALL_PREFIX={prefix}",
+                    "-DEXPAT_BUILD_TESTS=OFF",
+                    "-DEXPAT_BUILD_EXAMPLES=OFF",
+                    "-DEXPAT_BUILD_TOOLS=OFF",
+                ],
+                env=build_env_vars,
+            )
+            append_command_log(log_parts, "expat-cmake-configure", proc)
+            if proc.returncode != 0:
+                write_component_log(log_path, log_parts)
+                record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                return record
+            for label, cmd in (
+                ("expat-cmake-build", ["cmake", "--build", str(build_dir), "--parallel", env.get("MAKE_JOBS") or str(os.cpu_count() or 2)]),
+                ("expat-cmake-install", ["cmake", "--install", str(build_dir)]),
+            ):
+                proc = run_env(cmd, env=build_env_vars)
+                append_command_log(log_parts, label, proc)
+                if proc.returncode != 0:
+                    write_component_log(log_path, log_parts)
+                    record.update(status="blocked", blocker_reason=map_expat_build_failure(proc.stdout + proc.stderr), build_exit_code=proc.returncode)
+                    return record
+        write_component_log(log_path, log_parts)
+    except Exception as exc:
+        write_component_log(log_path, log_parts + [str(exc)])
+        record.update(status="blocked", blocker_reason=str(exc))
+        return record
+
+    if not expat_artifacts_ready(prefix):
+        record.update(status="blocked", blocker_reason="expat_artifacts_missing")
+        return record
+    marker = {
+        "source": record["source"],
+        "release_tag": record["release_tag"],
+        "actual_head": record["actual_head"],
+        "prefix": str(prefix),
+        "build_system": build_system,
+        "generated_at": utc_now(),
+    }
+    write_json(marker_path, marker)
+    record.update(
+        status="built",
+        build_system=build_system,
+        libraries=[str(path) for path in expat_libs(lib_dir)],
+        tree=tree_manifest(prefix),
+    )
+    return record
+
+
+def go_main_packages(source_path: Path, env: dict[str, str], log_parts: list[str]) -> tuple[list[str], subprocess.CompletedProcess[str]]:
+    proc = run_env(
+        ["go", "list", "-mod=readonly", "-f", "{{if eq .Name \"main\"}}{{.ImportPath}}{{end}}", "./..."],
+        cwd=source_path,
+        env=env,
+    )
+    append_command_log(log_parts, "go-list-main-packages", proc)
+    packages = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return packages, proc
+
+
+def prepare_go_tool(
+    dependency: str,
+    env_var: str,
+    cache_root: Path,
+    build_root: Path,
+    git_record: dict[str, Any],
+) -> dict[str, Any]:
+    binary_path = (cache_root / f"bin/{dependency}").resolve()
+    marker_path = cache_root / "build-metadata" / f"{dependency}.json"
+    log_path = build_root / f"logs/runtime-components/{dependency}-build.log"
+    source_path = Path(git_record.get("path", "")).resolve() if git_record.get("path") else Path()
+    record: dict[str, Any] = {
+        "dependency": dependency,
+        "name": dependency,
+        "source": git_record.get("source", git_record.get("url", "")),
+        "known_source": git_record.get("source", git_record.get("url", "")),
+        "known_source_url": git_record.get("source", git_record.get("url", "")),
+        "expected_ref": git_record.get("expected_ref", ""),
+        "known_ref": git_record.get("expected_ref", ""),
+        "release_tag": git_record.get("release_tag", git_record.get("expected_ref", "")),
+        "release_url": git_record.get("release_url", ""),
+        "expected_prompt_latest": git_record.get("expected_prompt_latest", ""),
+        "release_tag_deviation": git_record.get("release_tag_deviation", False),
+        "release_tag_deviation_note": git_record.get("release_tag_deviation_note", ""),
+        "actual_head": git_record.get("actual_head", ""),
+        "recursive_submodules": True,
+        "recursive_submodule_status": git_record.get("submodule_status", ""),
+        "submodule_status_clean": git_record.get("submodule_status_clean", False),
+        "git_fsck": git_record.get("git_fsck", ""),
+        "path": str(binary_path),
+        "binary": str(binary_path),
+        "source_path": str(source_path) if str(source_path) != "." else "",
+        "searched_paths": [str(binary_path)],
+        "env_override": env_var,
+        "can_build_locally": True,
+        "build_log": str(log_path),
+        "status": "unknown",
+        "blocker_reason": "",
+    }
+    if git_record.get("status") != "present":
+        record.update(status="blocked", blocker_reason=git_record.get("blocker_reason") or f"{dependency}_source_unavailable")
+        return record
+    if is_system_path(binary_path) or not is_within(binary_path, cache_root):
+        record.update(status="blocked", blocker_reason="system_path_write_forbidden")
+        return record
+    go_bin = shutil.which("go")
+    if not go_bin:
+        record.update(status="blocked", blocker_reason="missing_go")
+        return record
+    previous = read_json(marker_path)
+    if executable(binary_path) and previous.get("actual_head") == record["actual_head"]:
+        record.update(status="present", build_package=previous.get("build_package", ""), go_version=previous.get("go_version", ""))
+        return record
+
+    build_env_vars = local_build_env(os.environ, cache_root)
+    build_env_vars["PATH"] = os.environ.get("PATH", "")
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    log_parts: list[str] = []
+    version_proc = run_env(["go", "version"], env=build_env_vars)
+    append_command_log(log_parts, "go-version", version_proc)
+    packages, list_proc = go_main_packages(source_path, build_env_vars, log_parts)
+    if list_proc.returncode != 0:
+        write_component_log(log_path, log_parts)
+        record.update(status="blocked", blocker_reason="go_list_failed", build_exit_code=list_proc.returncode)
+        return record
+    if not packages:
+        write_component_log(log_path, log_parts)
+        record.update(status="blocked", blocker_reason="go_main_package_not_found")
+        return record
+    if len(packages) > 1:
+        write_component_log(log_path, log_parts)
+        record.update(status="blocked", blocker_reason="go_multiple_main_packages", main_packages=packages)
+        return record
+    build_package = packages[0]
+    proc = run_env(["go", "build", "-trimpath", "-mod=readonly", "-o", str(binary_path), build_package], cwd=source_path, env=build_env_vars)
+    append_command_log(log_parts, "go-build", proc)
+    write_component_log(log_path, log_parts)
+    if proc.returncode != 0:
+        record.update(status="blocked", blocker_reason="go_build_failed", build_exit_code=proc.returncode)
+        return record
+    if not executable(binary_path):
+        record.update(status="blocked", blocker_reason="go_binary_missing_after_build")
+        return record
+    marker = {
+        "source": record["source"],
+        "release_tag": record["release_tag"],
+        "actual_head": record["actual_head"],
+        "binary": str(binary_path),
+        "build_package": build_package,
+        "go_version": version_proc.stdout.strip(),
+        "generated_at": utc_now(),
+    }
+    write_json(marker_path, marker)
+    record.update(
+        status="built",
+        build_package=build_package,
+        go_version=version_proc.stdout.strip(),
+        tree=tree_manifest(binary_path.parent),
+    )
+    return record
+
+
 def map_apache_blocker(text: str, missing: list[str]) -> str:
     lowered = text.lower()
+    if "undefined reference to `crypt" in lowered or "undefined reference to 'crypt" in lowered:
+        return "missing_crypt_library"
     if "expat.h" in lowered or "expat" in lowered and "header" in lowered:
         return "missing_expat_headers"
     if "missing required command" in lowered or "not found" in lowered:
@@ -402,12 +896,28 @@ def map_nginx_blocker(text: str, missing: list[str]) -> str:
     return "missing_local_nginx_build"
 
 
+def resolve_crypt_link_arg(env: dict[str, str]) -> str:
+    configured = env.get("CRYPT_LIB", "").strip()
+    if configured:
+        return configured
+    for candidate in (
+        Path("/usr/lib/x86_64-linux-gnu/libcrypt.so.1"),
+        Path("/lib/x86_64-linux-gnu/libcrypt.so.1"),
+        Path("/usr/lib64/libcrypt.so.1"),
+        Path("/lib64/libcrypt.so.1"),
+    ):
+        if candidate.is_file():
+            return str(candidate)
+    return ""
+
+
 def write_apachectl_wrapper(
     wrapper_path: Path,
     httpd_bin: Path,
     httpd_prefix: Path,
     modsecurity_lib_dir: Path,
     pcre2_lib_dir: Path,
+    expat_lib_dir: Path | None = None,
 ) -> None:
     if is_system_path(wrapper_path):
         raise RuntimeError(f"system_path_write_forbidden: {wrapper_path}")
@@ -419,6 +929,7 @@ HTTPD_BIN={sh_quote(str(httpd_bin))}
 HTTPD_PREFIX={sh_quote(str(httpd_prefix))}
 MODSECURITY_LIB_DIR={sh_quote(str(modsecurity_lib_dir))}
 PCRE2_LIB_DIR={sh_quote(str(pcre2_lib_dir))}
+EXPAT_LIB_DIR={sh_quote(str(expat_lib_dir or ""))}
 
 server_root=""
 previous=""
@@ -456,7 +967,7 @@ if [ -z "${{APACHE_RUN_GROUP:-}}" ]; then
     export APACHE_RUN_GROUP
 fi
 
-LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_LIB_DIR${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}"
+LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$HTTPD_PREFIX/lib:$PCRE2_LIB_DIR${{EXPAT_LIB_DIR:+:$EXPAT_LIB_DIR}}${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}"
 export LD_LIBRARY_PATH
 exec "$HTTPD_BIN" "$@"
 """
@@ -473,6 +984,7 @@ def prepare_apache_httpd(
     native_root: Path,
     sources_root: Path,
     archives_root: Path,
+    expat: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     apache_build_root = Path(env.get("APACHE_BUILD_ROOT", str(build_root / "apache-build"))).resolve()
     httpd_prefix = Path(env.get("HTTPD_PREFIX", str(build_root / "apache-runtime/httpd"))).resolve()
@@ -484,6 +996,14 @@ def prepare_apache_httpd(
     ).resolve()
     pcre2_prefix = Path(env.get("PCRE2_PREFIX", str(apache_build_root / "output/pcre2"))).resolve()
     pcre2_lib_dir = pcre2_prefix / "lib"
+    expat = expat or {}
+    expat_prefix = Path(str(expat.get("prefix", ""))).resolve() if expat.get("prefix") else None
+    expat_lib_dir = Path(str(expat.get("lib_dir", ""))).resolve() if expat.get("lib_dir") else None
+    expat_cppflags = f"-I{expat_prefix / 'include'}" if expat_prefix else ""
+    expat_ldflags = f"-L{expat_lib_dir}" if expat_lib_dir else ""
+    expat_pkg_config_path = str(expat_prefix / "lib/pkgconfig") if expat_prefix else ""
+    crypt_link_arg = resolve_crypt_link_arg(env)
+    apache_libs = " ".join(part for part in (env.get("LIBS", ""), crypt_link_arg) if part).strip()
     wrapper_path = native_root / "apache2_ubuntu/bin/apachectl"
     override_apachectl = env.get("APACHECTL_BIN", "")
     effective_apachectl = Path(override_apachectl).resolve() if override_apachectl else wrapper_path
@@ -505,6 +1025,21 @@ def prepare_apache_httpd(
         "module_file": str(apache_module),
         "modsecurity_lib_dir": str(modsecurity_lib_dir),
         "apachectl_bin": str(effective_apachectl),
+        "expat_source": expat.get("source", ""),
+        "expat_release_tag": expat.get("release_tag", expat.get("expected_ref", "")),
+        "expat_actual_head": expat.get("actual_head", ""),
+        "expat_prefix": str(expat_prefix) if expat_prefix else "",
+        "expat_h": str(expat.get("expat_h", "")),
+        "expat_lib_dir": str(expat_lib_dir) if expat_lib_dir else "",
+        "cppflags": " ".join(part for part in (expat_cppflags, env.get("CPPFLAGS", "")) if part).strip(),
+        "ldflags": " ".join(part for part in (expat_ldflags, env.get("LDFLAGS", "")) if part).strip(),
+        "libs": apache_libs,
+        "crypt_lib": crypt_link_arg,
+        "crypt_config_cache": crypt_link_arg,
+        "aprutil_libs": crypt_link_arg,
+        "pkg_config_path": f"{expat_pkg_config_path}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
+        if expat_pkg_config_path
+        else env.get("PKG_CONFIG_PATH", ""),
         "status": "unknown",
         "blocker_reason": "",
         "searched_paths": [str(path) for path in artifacts.values()],
@@ -533,6 +1068,22 @@ def prepare_apache_httpd(
                 APACHE_BUILD_OWNER_ROOT=str(build_root),
                 HTTPD_PREFIX=str(httpd_prefix),
                 APACHE_DOWNLOAD_DIR=str(archives_root / "apache"),
+                CPPFLAGS=" ".join(part for part in (expat_cppflags, env.get("CPPFLAGS", "")) if part).strip(),
+                LDFLAGS=" ".join(part for part in (expat_ldflags, env.get("LDFLAGS", "")) if part).strip(),
+                LIBS=apache_libs,
+                CRYPT_LIBS=crypt_link_arg if crypt_link_arg else None,
+                APRUTIL_LIBS=crypt_link_arg if crypt_link_arg else None,
+                ac_cv_search_crypt=crypt_link_arg if crypt_link_arg else None,
+                PKG_CONFIG_PATH=(
+                    f"{expat_pkg_config_path}{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep)
+                    if expat_pkg_config_path
+                    else env.get("PKG_CONFIG_PATH", "")
+                ),
+                LD_LIBRARY_PATH=(
+                    f"{expat_lib_dir}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
+                    if expat_lib_dir
+                    else env.get("LD_LIBRARY_PATH", "")
+                ),
                 BUILD_HTTPD_FROM_SOURCE="1",
                 BUILD_PCRE2_FROM_SOURCE="1",
                 AUTO_FETCH_SMOKE_SOURCES="0",
@@ -549,7 +1100,19 @@ def prepare_apache_httpd(
             record["artifacts"] = read_key_values(artifacts_file)
         ready, missing = artifact_status(artifacts, {"httpd_bin", "apxs_bin"})
         if proc.returncode != 0 or not ready:
-            blocker = map_apache_blocker(proc.stdout, missing)
+            apache_log_dir = build_root / "logs/apache"
+            diagnostic_text = "\n".join(
+                [
+                    proc.stdout,
+                    read_text_if_file(log_path),
+                    read_text_if_file(apache_log_dir / "check-expat.h.log"),
+                    read_text_if_file(apache_log_dir / "httpd-configure.log"),
+                    read_text_if_file(apache_log_dir / "httpd-make.log"),
+                    read_text_if_file(apache_log_dir / "apache-configure.log"),
+                    read_text_if_file(apache_log_dir / "apache-make.log"),
+                ]
+            )
+            blocker = map_apache_blocker(diagnostic_text, missing)
             blocker_details: dict[str, Any] = {}
             if blocker == "missing_expat_headers":
                 blocker_details = {
@@ -557,6 +1120,13 @@ def prepare_apache_httpd(
                     "build_component": "apache_httpd_source_build",
                     "env_variable_can_set": "CPPFLAGS/LDFLAGS",
                     "dependency_searched_paths": [env.get("CPPFLAGS") or "<compiler default include paths>"],
+                }
+            elif blocker == "missing_crypt_library":
+                blocker_details = {
+                    "missing_file": "libcrypt.so development link target or explicit -lcrypt linkage",
+                    "build_component": "apache_httpd_source_build",
+                    "env_variable_can_set": "LIBS/LDFLAGS",
+                    "dependency_searched_paths": [env.get("LIBS") or "<configure default libraries>"],
                 }
             record.update(
                 status="blocked",
@@ -567,7 +1137,7 @@ def prepare_apache_httpd(
             return record
     try:
         if not override_apachectl:
-            write_apachectl_wrapper(wrapper_path, httpd_bin, httpd_prefix, modsecurity_lib_dir, pcre2_lib_dir)
+            write_apachectl_wrapper(wrapper_path, httpd_bin, httpd_prefix, modsecurity_lib_dir, pcre2_lib_dir, expat_lib_dir)
         elif not executable(Path(override_apachectl)):
             raise RuntimeError(f"APACHECTL_BIN is not executable: {override_apachectl}")
     except Exception as exc:
@@ -808,41 +1378,52 @@ def dependency_inventory(
     nginx: dict[str, Any],
     go_ftw: dict[str, Any],
     albedo: dict[str, Any],
+    expat: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    def available(component: dict[str, Any]) -> bool:
+        return component.get("status") in {"present", "built"}
+
     return [
         {
             "name": "go-ftw",
             "env_var": "GO_FTW_BIN",
             "path": go_ftw.get("path"),
-            "status": "present" if go_ftw.get("status") == "present" else "missing",
+            "status": "present" if available(go_ftw) else "missing",
             "access": "read-only/executable",
         },
         {
             "name": "albedo",
             "env_var": "ALBEDO_BIN",
             "path": albedo.get("path"),
-            "status": "present" if albedo.get("status") == "present" else "missing",
+            "status": "present" if available(albedo) else "missing",
             "access": "read-only/executable",
+        },
+        {
+            "name": "expat",
+            "env_var": "EXPAT_PREFIX",
+            "path": expat.get("prefix"),
+            "status": "present" if available(expat) else "missing",
+            "access": "local-prefix/read-only",
         },
         {
             "name": "apachectl",
             "env_var": "APACHECTL_BIN",
             "path": apache_httpd.get("apachectl_bin"),
-            "status": "present" if apache_httpd.get("status") == "present" else "missing",
+            "status": "present" if available(apache_httpd) else "missing",
             "access": "local-wrapper/read-only-executable",
         },
         {
             "name": "nginx",
             "env_var": "MRTS_NATIVE_NGINX_BIN",
             "path": nginx.get("nginx_bin"),
-            "status": "present" if nginx.get("status") == "present" else "missing",
+            "status": "present" if available(nginx) else "missing",
             "access": "local-build/read-only-executable",
         },
         {
             "name": "ngx_http_modsecurity_module.so",
             "env_var": "MRTS_NATIVE_NGINX_MODULE_DIR",
             "path": nginx.get("module_file"),
-            "status": "present" if nginx.get("status") == "present" else "missing",
+            "status": "present" if available(nginx) else "missing",
             "access": "local-build/module-reference",
         },
     ]
@@ -853,6 +1434,7 @@ def markdown_report(payload: dict[str, Any]) -> str:
     nginx = payload.get("nginx", {})
     go_ftw = payload.get("go_ftw", {})
     albedo = payload.get("albedo", {})
+    expat = payload.get("expat", {})
     lines = [
         "# Runtime Component Cache",
         "",
@@ -877,6 +1459,12 @@ def markdown_report(payload: dict[str, Any]) -> str:
             f"- Missing file: `{apache.get('missing_file') or '-'}`",
             f"- Build component: `{apache.get('build_component') or '-'}`",
             f"- Env variable to set: `{apache.get('env_variable_can_set') or apache.get('env_override') or '-'}`",
+            f"- Expat source: `{apache.get('expat_source') or '-'}`",
+            f"- Expat release tag: `{apache.get('expat_release_tag') or '-'}`",
+            f"- CPPFLAGS: `{apache.get('cppflags') or '-'}`",
+            f"- LDFLAGS: `{apache.get('ldflags') or '-'}`",
+            f"- LIBS: `{apache.get('libs') or '-'}`",
+            f"- PKG_CONFIG_PATH: `{apache.get('pkg_config_path') or '-'}`",
             "",
             "## NGINX",
             f"- Status: `{nginx.get('status', '-')}`",
@@ -892,20 +1480,34 @@ def markdown_report(payload: dict[str, Any]) -> str:
             f"- Build component: `{nginx.get('build_component') or '-'}`",
             f"- Env variable to set: `{nginx.get('env_variable_can_set') or nginx.get('env_override') or '-'}`",
             "",
+            "## Expat",
+            f"- Status: `{expat.get('status', '-')}`",
+            f"- Blocker: `{expat.get('blocker_reason') or '-'}`",
+            f"- Source: `{expat.get('source', '-')}`",
+            f"- Release tag: `{expat.get('release_tag') or expat.get('expected_ref') or '-'}`",
+            f"- Actual head: `{expat.get('actual_head') or '-'}`",
+            f"- Prefix: `{expat.get('prefix') or '-'}`",
+            f"- expat.h: `{expat.get('expat_h') or '-'}`",
+            f"- lib dir: `{expat.get('lib_dir') or '-'}`",
+            f"- Recursive submodules: `{expat.get('recursive_submodule_status') or '-'}`",
+            "",
             "## go-ftw / albedo",
-            "| Dependency | Status | Env override | Known source | Known ref | Can build locally | Blocker |",
-            "|---|---|---|---|---|---|---|",
+            "| Dependency | Status | Env override | Source | Release tag | Head | Binary | Submodules | Release note | Blocker |",
+            "|---|---|---|---|---|---|---|---|---|---|",
         ]
     )
     for item in (go_ftw, albedo):
         lines.append(
-            "| {dep} | {status} | `{env}` | `{source}` | `{ref}` | {can_build} | {blocker} |".format(
+            "| {dep} | {status} | `{env}` | `{source}` | `{ref}` | `{head}` | `{binary}` | `{subs}` | {note} | {blocker} |".format(
                 dep=item.get("dependency", "-"),
                 status=item.get("status", "-"),
                 env=item.get("env_override", "-"),
                 source=item.get("known_source") or "-",
-                ref=item.get("known_ref") or "-",
-                can_build="yes" if item.get("can_build_locally") else "no",
+                ref=item.get("release_tag") or item.get("known_ref") or "-",
+                head=item.get("actual_head") or "-",
+                binary=item.get("binary") or item.get("path") or "-",
+                subs=item.get("recursive_submodule_status") or "-",
+                note=item.get("release_tag_deviation_note") or "-",
                 blocker=item.get("blocker_reason") or "-",
             )
         )
@@ -958,7 +1560,7 @@ def markdown_report(payload: dict[str, Any]) -> str:
             "- System paths are not used for runtime component writes.",
             "- Runtime writes are constrained to cache/build/runtime roots.",
             "- Native Apache and NGINX use local prepared components when env overrides are absent.",
-            "- go-ftw and albedo are inventoried only; no source/ref is guessed.",
+            "- go-ftw, albedo, and expat are prepared from explicit release-tag sources.",
             "- `RUNTIME_COMPONENT_STRICT_VERIFY=1` forces full git fsck.",
         ]
     )
@@ -1007,17 +1609,19 @@ def main() -> int:
 
     sources_root = cache_root / "sources"
     archives_root = cache_root / "archives"
+    git_root = cache_root / "git"
     modsec_path = sources_root / "ModSecurity_V3"
     crs_path = sources_root / "coreruleset"
     haproxy_source_root = sources_root / "haproxy"
     prepare_phases = [
         "1. validate safe paths",
         "2. prepare git/source/archive cache recursively",
-        "3. prepare/build local ModSecurity if required",
-        "4. prepare/build local Apache/httpd for Apache connector/native",
-        "5. prepare/build local NGINX + ngx_http_modsecurity_module.so for NGINX connector/native",
-        "6. inventory go-ftw/albedo",
-        "7. write manifests/reports",
+        "3. prepare/build expat local prefix",
+        "4. prepare/build local Apache/httpd using local expat if needed",
+        "5. prepare/build local NGINX + ngx_http_modsecurity_module.so",
+        "6. prepare/build go-ftw from latest release tag",
+        "7. prepare/build albedo from latest release tag",
+        "8. write manifests/reports",
     ]
 
     git_components = [
@@ -1034,6 +1638,30 @@ def main() -> int:
             env.get("CRS_REPO_URL", ""),
             env.get("CRS_GIT_REF", ""),
             crs_path,
+            previous_git,
+            strict,
+        ),
+        prepare_release_git_component(
+            "go-ftw",
+            GO_FTW_SOURCE_URL,
+            GO_FTW_PROMPT_EXPECTED_LATEST,
+            git_root / "go-ftw",
+            previous_git,
+            strict,
+        ),
+        prepare_release_git_component(
+            "albedo",
+            ALBEDO_SOURCE_URL,
+            ALBEDO_PROMPT_EXPECTED_LATEST,
+            git_root / "albedo",
+            previous_git,
+            strict,
+        ),
+        prepare_release_git_component(
+            "expat",
+            env.get("EXPAT_GIT_URL", EXPAT_SOURCE_URL) or EXPAT_SOURCE_URL,
+            env.get("EXPAT_PROMPT_EXPECTED_LATEST", ""),
+            git_root / "libexpat",
             previous_git,
             strict,
         ),
@@ -1074,6 +1702,8 @@ def main() -> int:
     except Exception as exc:
         archives.append({"name": "nginx", "status": "blocked", "blocker_reason": str(exc), "checksum_status": "unknown"})
 
+    git_by_name = {str(item.get("name")): item for item in git_components if isinstance(item, dict)}
+    expat = prepare_expat(env, cache_root, build_root, git_by_name.get("expat", {}))
     apache_httpd = prepare_apache_httpd(
         env,
         connector_root,
@@ -1083,6 +1713,7 @@ def main() -> int:
         native_root,
         sources_root,
         archives_root,
+        expat,
     )
     nginx = prepare_nginx_runtime(
         env,
@@ -1093,9 +1724,8 @@ def main() -> int:
         sources_root,
         archives_root,
     )
-    source_roots = [connector_root, framework_root]
-    go_ftw = inventory_tool("go-ftw", "GO_FTW_BIN", "go-ftw", env, cache_root, build_root, native_root, source_roots)
-    albedo = inventory_tool("albedo", "ALBEDO_BIN", "albedo", env, cache_root, build_root, native_root, source_roots)
+    go_ftw = prepare_go_tool("go-ftw", "GO_FTW_BIN", cache_root, build_root, git_by_name.get("go-ftw", {}))
+    albedo = prepare_go_tool("albedo", "ALBEDO_BIN", cache_root, build_root, git_by_name.get("albedo", {}))
 
     runtime_env = {
         "CONNECTOR_COMPONENT_CACHE": str(cache_root),
@@ -1110,6 +1740,17 @@ def main() -> int:
         "HAPROXY_DOWNLOAD_DIR": str(archives_root / "haproxy"),
         "HAPROXY_SOURCE_DIR": str(haproxy_source_root / f"haproxy-{env.get('HAPROXY_VERSION', '3.2.19')}"),
     }
+    if expat.get("status") in {"present", "built"}:
+        runtime_env.update(
+            {
+                "EXPAT_PREFIX": str(expat.get("prefix", "")),
+                "CPPFLAGS": " ".join(part for part in (f"-I{Path(str(expat.get('prefix'))) / 'include'}", env.get("CPPFLAGS", "")) if part).strip(),
+                "LDFLAGS": " ".join(part for part in (f"-L{expat.get('lib_dir')}", env.get("LDFLAGS", "")) if part).strip(),
+                "LIBS": " ".join(part for part in (env.get("LIBS", ""), resolve_crypt_link_arg(env)) if part).strip(),
+                "PKG_CONFIG_PATH": f"{expat.get('prefix')}/lib/pkgconfig{os.pathsep}{env.get('PKG_CONFIG_PATH', '')}".rstrip(os.pathsep),
+                "LD_LIBRARY_PATH": f"{expat.get('lib_dir')}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep),
+            }
+        )
     if apache_httpd.get("status") == "present":
         runtime_env.update(
             {
@@ -1159,7 +1800,8 @@ def main() -> int:
         "nginx": nginx,
         "go_ftw": go_ftw,
         "albedo": albedo,
-        "dependencies": dependency_inventory(apache_httpd, nginx, go_ftw, albedo),
+        "expat": expat,
+        "dependencies": dependency_inventory(apache_httpd, nginx, go_ftw, albedo, expat),
         "guardrails": {
             "system_paths_read_only": True,
             "no_new_external_sources": True,
@@ -1184,6 +1826,9 @@ def main() -> int:
     nginx_blocked = [item for item in archives if item.get("name") == "nginx" and item.get("status") in {"blocked", "corrupt"}]
     blocked.extend(nginx_blocked)
     for component_name, component in (("apache_httpd", apache_httpd), ("nginx", nginx)):
+        if component.get("status") in {"blocked", "corrupt"}:
+            blocked.append({"name": component_name, **component})
+    for component_name, component in (("expat", expat), ("go-ftw", go_ftw), ("albedo", albedo)):
         if component.get("status") in {"blocked", "corrupt"}:
             blocked.append({"name": component_name, **component})
     if blocked:

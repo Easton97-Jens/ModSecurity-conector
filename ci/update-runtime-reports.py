@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 
-COMPONENT_KEYS = ("apache_httpd", "nginx", "go_ftw", "albedo")
+COMPONENT_KEYS = ("apache_httpd", "nginx", "go_ftw", "albedo", "expat")
 MARKER_START = "<!-- runtime-components:start -->"
 MARKER_END = "<!-- runtime-components:end -->"
 
@@ -37,11 +38,40 @@ def replace_marked_section(text: str, section: str) -> str:
     return text.rstrip() + "\n\n" + section + "\n"
 
 
+def normalize_native_remediation(text: str, components: dict[str, Any]) -> str:
+    go_ftw = components.get("go_ftw", {})
+    albedo = components.get("albedo", {})
+    if go_ftw.get("status") in {"present", "built"}:
+        text = re.sub(
+            r"\n- nginx-pr24: `go-ftw` missing;[^\n]*",
+            "\n- nginx-pr24: go-ftw is present; native execution reached go-ftw and failed during test execution.",
+            text,
+        )
+        text = re.sub(
+            r"\n- apache2_ubuntu: `go-ftw` missing;[^\n]*",
+            "",
+            text,
+        )
+    if albedo.get("status") in {"present", "built"}:
+        text = re.sub(
+            r"\n- nginx-pr24: `albedo` missing;[^\n]*",
+            "",
+            text,
+        )
+        text = re.sub(
+            r"\n- apache2_ubuntu: `albedo` missing;[^\n]*",
+            "",
+            text,
+        )
+    return text
+
+
 def runtime_components_markdown(components: dict[str, Any]) -> str:
     apache = components.get("apache_httpd", {})
     nginx = components.get("nginx", {})
     go_ftw = components.get("go_ftw", {})
     albedo = components.get("albedo", {})
+    expat = components.get("expat", {})
     lines = [
         MARKER_START,
         "## Runtime Components",
@@ -56,6 +86,12 @@ def runtime_components_markdown(components: dict[str, Any]) -> str:
         f"- Missing file: `{apache.get('missing_file') or '-'}`",
         f"- Build component: `{apache.get('build_component') or '-'}`",
         f"- Env variable to set: `{apache.get('env_variable_can_set') or apache.get('env_override') or '-'}`",
+        f"- Expat source: `{apache.get('expat_source') or '-'}`",
+        f"- Expat release tag: `{apache.get('expat_release_tag') or '-'}`",
+        f"- CPPFLAGS: `{apache.get('cppflags') or '-'}`",
+        f"- LDFLAGS: `{apache.get('ldflags') or '-'}`",
+        f"- LIBS: `{apache.get('libs') or '-'}`",
+        f"- PKG_CONFIG_PATH: `{apache.get('pkg_config_path') or '-'}`",
         "",
         "### NGINX",
         f"- Status: `{nginx.get('status', '-')}`",
@@ -69,21 +105,33 @@ def runtime_components_markdown(components: dict[str, Any]) -> str:
         f"- Build component: `{nginx.get('build_component') or '-'}`",
         f"- Env variable to set: `{nginx.get('env_variable_can_set') or nginx.get('env_override') or '-'}`",
         "",
+        "### Expat",
+        f"- Status: `{expat.get('status', '-')}`",
+        f"- Blocker: `{expat.get('blocker_reason') or '-'}`",
+        f"- Source: `{expat.get('source', '-')}`",
+        f"- Release tag: `{expat.get('release_tag') or expat.get('expected_ref') or '-'}`",
+        f"- Actual head: `{expat.get('actual_head') or '-'}`",
+        f"- Prefix: `{expat.get('prefix') or '-'}`",
+        f"- expat.h: `{expat.get('expat_h') or '-'}`",
+        f"- lib dir: `{expat.get('lib_dir') or '-'}`",
+        f"- Recursive submodules: `{expat.get('recursive_submodule_status') or '-'}`",
+        "",
         "### go-ftw / albedo",
-        "| Dependency | Status | Searched paths | Env override | Known source | Known ref | Can build locally | Blocker |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Dependency | Status | Binary | Env override | Source | Release tag | Head | Submodules | Release note | Blocker |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for item in (go_ftw, albedo):
-        searched = "<br>".join(f"`{path}`" for path in item.get("searched_paths", [])) or "-"
         lines.append(
-            "| {dep} | {status} | {searched} | `{env}` | `{source}` | `{ref}` | {can_build} | {blocker} |".format(
+            "| {dep} | {status} | `{binary}` | `{env}` | `{source}` | `{ref}` | `{head}` | `{subs}` | {note} | {blocker} |".format(
                 dep=item.get("dependency", "-"),
                 status=item.get("status", "-"),
-                searched=searched,
+                binary=item.get("binary") or item.get("path") or "-",
                 env=item.get("env_override", "-"),
                 source=item.get("known_source") or "-",
-                ref=item.get("known_ref") or "-",
-                can_build="yes" if item.get("can_build_locally") else "no",
+                ref=item.get("release_tag") or item.get("known_ref") or "-",
+                head=item.get("actual_head") or "-",
+                subs=item.get("recursive_submodule_status") or "-",
+                note=item.get("release_tag_deviation_note") or "-",
                 blocker=item.get("blocker_reason") or "-",
             )
         )
@@ -107,6 +155,8 @@ def update_report_md(path: Path, components: dict[str, Any]) -> None:
     if not path.is_file():
         return
     text = path.read_text(encoding="utf-8")
+    if path.name == "mrts-native-full.generated.md":
+        text = normalize_native_remediation(text, components)
     section = runtime_components_markdown(components)
     path.write_text(replace_marked_section(text, section), encoding="utf-8")
 
