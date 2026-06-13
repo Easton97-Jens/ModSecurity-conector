@@ -640,21 +640,21 @@
       ]
     },
     {
-      "category": "audit_log_evidence",
+      "category": "nolog_expected_no_audit",
       "connectors": [
         "apache",
         "haproxy",
         "nginx"
       ],
       "count": 6,
-      "fixable": "fixable if audit-log assertion path is wrong; otherwise report/classification-only",
-      "recommended_next_step": "inspect `v3_action_nolog_pass_no_audit` audit expectation and report classification",
-      "risk": "low to medium",
+      "fixable": "classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated",
+      "recommended_next_step": "keep as classification-only evidence; do not add artificial audit logs",
+      "risk": "low; no runtime or expected-status change",
       "typical_examples": [
         {
           "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
-          "classification": "runtime-difference",
+          "classification": "nolog-expected-no-audit",
           "connector": "apache",
           "expected_status": 200,
           "failure_pattern": [
@@ -670,7 +670,7 @@
           "variable": "ARGS:foo",
           "variant": "with-crs/no-mrts",
           "work_direction": [
-            "audit_log_evidence"
+            "classification_only"
           ]
         }
       ]
@@ -790,6 +790,15 @@
       ]
     },
     {
+      "category": "audit_log_evidence",
+      "connectors": [],
+      "count": 0,
+      "fixable": "fixable if audit-log assertion path is wrong; otherwise report/classification-only",
+      "recommended_next_step": "inspect `v3_action_nolog_pass_no_audit` audit expectation and report classification",
+      "risk": "low to medium",
+      "typical_examples": []
+    },
+    {
       "category": "classification_only",
       "connectors": [],
       "count": 0,
@@ -889,7 +898,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-13T14:26:53Z",
+  "generated_at": "2026-06-13T14:43:52Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -949,20 +958,7 @@
   },
   "priority_plan": {
     "P0": [],
-    "P1": [
-      {
-        "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
-        "connector": "apache, nginx, haproxy",
-        "count": 6,
-        "likely_change": "verify whether audit-log expectation is correct for nolog and classify/report accordingly",
-        "risk": "low to medium",
-        "tests": [
-          "targeted smoke for v3_action_nolog_pass_no_audit",
-          "make lint quick-check"
-        ],
-        "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics"
-      }
-    ],
+    "P1": [],
     "P2": [
       {
         "cluster_name": "response_header_hook",
@@ -1042,10 +1038,14 @@
       {
         "cluster": "transformation_semantics",
         "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes"
+      },
+      {
+        "cluster": "nolog_expected_no_audit",
+        "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence"
       }
     ],
-    "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
-    "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
+    "reason": "large phase 3 cluster with clear response-header surface",
+    "recommended_next_fix_cluster": "response_header_hook"
   },
   "regression_checks": {
     "apache_expected_200_actual_404": {
@@ -1081,13 +1081,13 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-13T13:41:26Z",
+    "connector_work_queue": "2026-06-13T14:43:49Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
-    "full_runtime_matrix": "2026-06-13T13:41:22Z",
+    "full_runtime_matrix": "2026-06-13T14:43:46Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-13T13:41:26Z",
+    "phase_work_queue": "2026-06-13T14:43:51Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {

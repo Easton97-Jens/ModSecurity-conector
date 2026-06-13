@@ -1,6 +1,6 @@
 {
   "build_root": "/tmp/modsec-tfn-chain-full/full-matrix",
-  "generated_at": "2026-06-13T13:41:22Z",
+  "generated_at": "2026-06-13T14:43:46Z",
   "guardrails": {
     "feature_demo_runtime_cases": 0,
     "no_mrts_mrts_runtime_cases": 0

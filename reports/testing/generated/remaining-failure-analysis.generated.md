@@ -1,12 +1,12 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-13T14:26:53Z`
+Generated at: `2026-06-13T14:43:52Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
 - Native Apache/NGINX evidence is reported in the `mrts-native-*` reports and does not replace connector PASS/FAIL values.
 - Native `100003-1` remains classified as `native_modsecurity_semantics / phase4_native_limitation`.
-- This report is analysis-only; no connector/harness semantics were changed.
+- This report is analysis-only; runtime PASS/FAIL and expected statuses are not changed by classification metadata.
 
 ## Summary
 - Attempted/pass/fail/blocked/not executable: **3928 / 3040 / 816 / 0 / 72**
@@ -35,7 +35,7 @@ Generated at: `2026-06-13T14:26:53Z`
 | phase4_missing_abort_evidence | 64 | apache, nginx | fixable only through real strict abort/log evidence, not status-only changes | high if promoted without transport proof | add real Phase 4 intervention log plus connection-abort evidence before promotion |
 | xml_processor | 54 | apache, haproxy, nginx | possibly fixable, but high risk without XML processor parity checks | medium to high | verify XML processor enablement and malformed XML semantics |
 | phase4_connector_gap | 46 | apache, haproxy, nginx | connector capability gap unless a real abort mechanism is implemented and evidenced | high if faked; low if reported as gap | document connector gap unless implementation can prove a real hard abort |
-| audit_log_evidence | 6 | apache, haproxy, nginx | fixable if audit-log assertion path is wrong; otherwise report/classification-only | low to medium | inspect `v3_action_nolog_pass_no_audit` audit expectation and report classification |
+| nolog_expected_no_audit | 6 | apache, haproxy, nginx | classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated | low; no runtime or expected-status change | keep as classification-only evidence; do not add artificial audit logs |
 | phase4_log_only_no_abort | 6 | nginx | report-only unless the case is meant to exercise strict hard abort | low if reported honestly, high if promoted as hard abort | keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence |
 | rule_chain_semantics | 6 | apache, haproxy, nginx | small but semantic; requires focused rule-chain evidence | medium | single-case rule-chain triage with logs |
 
@@ -161,7 +161,8 @@ Generated at: `2026-06-13T14:26:53Z`
 | 2 | nginx_tx_scoring_iterative_block | nginx | no-crs/with-mrts, with-crs/with-mrts | intervention_blocking | {'403→200': 2} | 3201 | ARGS |
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `audit_log_evidence / v3_action_nolog_pass_no_audit`
-- Begründung: HTTP behavior passes; remaining failure is evidence/assertion semantics
+- Empfohlener nächster Fix-Cluster: `response_header_hook`
+- Begründung: large phase 3 cluster with clear response-header surface
 - Nicht als nächstes bearbeiten: `phase4_hard_abort_capability`, weil requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
+- Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.

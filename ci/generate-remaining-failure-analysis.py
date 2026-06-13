@@ -27,6 +27,7 @@ FAILURE_CATEGORIES = (
     "phase4_connector_gap",
     "phase4_native_semantics",
     "native_modsecurity_semantics",
+    "nolog_expected_no_audit",
     "audit_log_evidence",
     "request_body_processor",
     "xml_processor",
@@ -166,9 +167,20 @@ def failure_category(entry: dict[str, Any]) -> str:
     category = str(entry.get("category") or "")
     case_id = str(entry.get("case_id") or "")
     classification = str(entry.get("classification") or "")
+    evidence_classification = str(entry.get("evidence_classification") or "")
 
     if is_phase4_entry(entry):
         return phase4_detail_category(entry)
+    if (
+        classification == "nolog-expected-no-audit"
+        or evidence_classification == "nolog_expected_no_audit"
+        or (
+            case_id == "v3_action_nolog_pass_no_audit"
+            and "classification_only" in work_direction
+            and "audit_log" in functional_area
+        )
+    ):
+        return "nolog_expected_no_audit"
     if "audit_log_evidence" in work_direction:
         return "audit_log_evidence"
     if "harness_incompatibility" in work_direction or "expected_200_got_0" in failure_pattern:
@@ -451,6 +463,7 @@ def fixability(category: str) -> str:
         "phase4_missing_abort_evidence": "fixable only through real strict abort/log evidence, not status-only changes",
         "phase4_connector_gap": "connector capability gap unless a real abort mechanism is implemented and evidenced",
         "phase4_native_semantics": "native semantics evidence only; keep separate from connector Full-Matrix PASS/FAIL",
+        "nolog_expected_no_audit": "classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated",
         "audit_log_evidence": "fixable if audit-log assertion path is wrong; otherwise report/classification-only",
         "request_body_processor": "possibly fixable after processor-specific triage",
         "xml_processor": "possibly fixable, but high risk without XML processor parity checks",
@@ -480,6 +493,7 @@ def risk(category: str) -> str:
         "phase4_missing_abort_evidence": "high if promoted without transport proof",
         "phase4_connector_gap": "high if faked; low if reported as gap",
         "phase4_native_semantics": "low if kept separate",
+        "nolog_expected_no_audit": "low; no runtime or expected-status change",
         "rule_chain_semantics": "medium",
     }.get(category, "unknown")
 
@@ -502,6 +516,7 @@ def recommended_step(category: str) -> str:
         "phase4_missing_abort_evidence": "add real Phase 4 intervention log plus connection-abort evidence before promotion",
         "phase4_connector_gap": "document connector gap unless implementation can prove a real hard abort",
         "phase4_native_semantics": "keep native MRTS result separate from connector Full-Matrix work",
+        "nolog_expected_no_audit": "keep as classification-only evidence; do not add artificial audit logs",
         "rule_chain_semantics": "single-case rule-chain triage with logs",
     }.get(category, "manual review")
 
@@ -700,6 +715,10 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
                 "cluster": "transformation_semantics",
                 "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes",
             },
+            {
+                "cluster": "nolog_expected_no_audit",
+                "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence",
+            },
         ],
     }
     return analysis
@@ -759,7 +778,7 @@ def render_analysis_markdown(analysis: dict[str, Any]) -> str:
         "- Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.",
         "- Native Apache/NGINX evidence is reported in the `mrts-native-*` reports and does not replace connector PASS/FAIL values.",
         "- Native `100003-1` remains classified as `native_modsecurity_semantics / phase4_native_limitation`.",
-        "- This report is analysis-only; no connector/harness semantics were changed.",
+        "- This report is analysis-only; runtime PASS/FAIL and expected statuses are not changed by classification metadata.",
         "",
         "## Summary",
         f"- Attempted/pass/fail/blocked/not executable: **{summary['attempted']} / {summary['pass']} / {summary['fail']} / {summary['blocked']} / {summary['not_executable']}**",
@@ -873,6 +892,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
             "analysis": "reports/testing/generated/remaining-failure-analysis.generated.md",
             "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md",
             "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+            "nolog_audit_evidence": "reports/testing/generated/nolog-audit-evidence.generated.md",
         }
         reports = data.get("reports")
         if isinstance(reports, list):
@@ -883,6 +903,8 @@ def update_full_run_evidence(report_dir: Path) -> None:
                 "reports/testing/generated/next-fix-plan.generated.md",
                 "reports/testing/generated/phase4-hard-abort-capability.generated.json",
                 "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+                "reports/testing/generated/nolog-audit-evidence.generated.json",
+                "reports/testing/generated/nolog-audit-evidence.generated.md",
             ):
                 if report not in reports:
                     reports.append(report)
@@ -897,6 +919,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
             "- Remaining failure analysis: `reports/testing/generated/remaining-failure-analysis.generated.md`",
             "- Next fix plan: `reports/testing/generated/next-fix-plan.generated.md`",
             "- Phase 4 hard-abort capability: `reports/testing/generated/phase4-hard-abort-capability.generated.md`",
+            "- Nolog audit evidence: `reports/testing/generated/nolog-audit-evidence.generated.md`",
             "- These reports analyze connector Full-Matrix leftovers and keep Native MRTS evidence separate.",
         ]
         section = "\n".join(lines)

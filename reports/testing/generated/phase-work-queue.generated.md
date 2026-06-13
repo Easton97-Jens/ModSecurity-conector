@@ -3,7 +3,7 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-13T13:41:26Z`
+- Generated at: `2026-06-13T14:43:51Z`
 - Runtime evidence rows analyzed: **3928**
 - Queued work rows: **1628**
 - Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **816** / **0** / **72**
@@ -22,7 +22,7 @@ Generated file - do not edit manually.
 - Directions: intervention_blocking, request_header_mapping, request_uri_mapping, collection_mapping, audit_log_evidence
 - Goal: Stabilize Phase 1 first because it avoids body and multipart complexity.
 - Top failure patterns: expected_block_got_200(185), not_executable(12), expected_pass_but_evidence_missing(6)
-- Top work directions: intervention_blocking(185), request_uri_mapping(12), collection_mapping(6)
+- Top work directions: intervention_blocking(185), request_uri_mapping(12), classification_only(6)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P0 | apache | no-crs/with-mrts | action_deny_phase1 | INTERVENTION | FAIL | 403 | 200 | expected_block_got_200 | intervention_blocking | fail: expected HTTP 403, observed 200 | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/action_deny_phase1/result.json |
@@ -297,9 +297,9 @@ Generated file - do not edit manually.
 ## Per Connector Phase Summary
 | connector | phase 1 top problems | phase 2 top problems | phase 3 top problems | phase 4 non-promoted rows | next sensible fix |
 |---|---|---|---|---|---|
-| apache | intervention_blocking(61), request_uri_mapping(4), collection_mapping(2) | intervention_blocking(37), transformation_semantics(34), multipart_files(30) | response_header_hook(38) | 276 | Start with response_body_non_promoted. |
-| nginx | intervention_blocking(63), request_uri_mapping(4), collection_mapping(2) | intervention_blocking(41), transformation_semantics(34), multipart_files(30) | response_header_hook(38) | 292 | Start with response_body_non_promoted. |
-| haproxy | intervention_blocking(61), request_uri_mapping(4), collection_mapping(2) | intervention_blocking(37), transformation_semantics(34), multipart_files(30) | response_header_hook(30) | 276 | Start with response_body_non_promoted. |
+| apache | intervention_blocking(61), request_uri_mapping(4), classification_only(2) | intervention_blocking(37), transformation_semantics(34), multipart_files(30) | response_header_hook(38) | 276 | Start with response_body_non_promoted. |
+| nginx | intervention_blocking(63), request_uri_mapping(4), classification_only(2) | intervention_blocking(41), transformation_semantics(34), multipart_files(30) | response_header_hook(38) | 292 | Start with response_body_non_promoted. |
+| haproxy | intervention_blocking(61), request_uri_mapping(4), classification_only(2) | intervention_blocking(37), transformation_semantics(34), multipart_files(30) | response_header_hook(30) | 276 | Start with response_body_non_promoted. |
 
 ## Recommended Work Order
 1. Phase 1 - intervention/blocking
@@ -329,11 +329,3 @@ Generated file - do not edit manually.
 - RESPONSE_BODY / Phase 4 remains non-promoted.
 - Golden references and feature-demo report-only cases remain non-runtime inputs.
 - Missing phase metadata is reported as unknown and is not forced into phases 1-4.
-
-<!-- phase4-hard-abort:start -->
-## Phase 4 Hard Abort Capability
-- Report: `reports/testing/generated/phase4-hard-abort-capability.generated.md`
-- Hard-abort evidence rows: **2**
-- Full-delivery-without-abort rows: **842**
-- Phase 4 PASS promotion now requires intervention log evidence plus transport abort evidence, not HTTP status alone.
-<!-- phase4-hard-abort:end -->

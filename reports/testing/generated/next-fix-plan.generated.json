@@ -1,21 +1,8 @@
 {
-  "generated_at": "2026-06-13T14:26:53Z",
+  "generated_at": "2026-06-13T14:43:52Z",
   "priority_plan": {
     "P0": [],
-    "P1": [
-      {
-        "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
-        "connector": "apache, nginx, haproxy",
-        "count": 6,
-        "likely_change": "verify whether audit-log expectation is correct for nolog and classify/report accordingly",
-        "risk": "low to medium",
-        "tests": [
-          "targeted smoke for v3_action_nolog_pass_no_audit",
-          "make lint quick-check"
-        ],
-        "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics"
-      }
-    ],
+    "P1": [],
     "P2": [
       {
         "cluster_name": "response_header_hook",
@@ -95,10 +82,14 @@
       {
         "cluster": "transformation_semantics",
         "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes"
+      },
+      {
+        "cluster": "nolog_expected_no_audit",
+        "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence"
       }
     ],
-    "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
-    "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
+    "reason": "large phase 3 cluster with clear response-header surface",
+    "recommended_next_fix_cluster": "response_header_hook"
   },
   "report_kind": "next-fix-plan"
 }

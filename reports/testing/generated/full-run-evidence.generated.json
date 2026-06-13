@@ -694,6 +694,12 @@
       "total_size": 1778164186
     }
   },
+  "nolog_audit_evidence_report": {
+    "analysis": "reports/testing/generated/nolog-audit-evidence.generated.md",
+    "case_id": "v3_action_nolog_pass_no_audit",
+    "classification": "nolog_expected_no_audit",
+    "json": "reports/testing/generated/nolog-audit-evidence.generated.json"
+  },
   "phase4_hard_abort_capability": {
     "connector_summary": {
       "apache": {
@@ -750,6 +756,7 @@
   "remaining_failure_analysis_reports": {
     "analysis": "reports/testing/generated/remaining-failure-analysis.generated.md",
     "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md",
+    "nolog_audit_evidence": "reports/testing/generated/nolog-audit-evidence.generated.md",
     "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md"
   },
   "reports": [
@@ -774,7 +781,9 @@
     "reports/testing/generated/next-fix-plan.generated.json",
     "reports/testing/generated/next-fix-plan.generated.md",
     "reports/testing/generated/phase4-hard-abort-capability.generated.json",
-    "reports/testing/generated/phase4-hard-abort-capability.generated.md"
+    "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+    "reports/testing/generated/nolog-audit-evidence.generated.json",
+    "reports/testing/generated/nolog-audit-evidence.generated.md"
   ],
   "runtime_build_cache": {
     "build_reuse_summary": {

@@ -3,10 +3,10 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-13T13:41:26Z`
+- Generated at: `2026-06-13T14:43:49Z`
 - Total runtime cases analyzed: **3928**
 - Total failures: **816**
-- P0/P1/P2/P3: **672** / **28** / **0** / **188**
+- P0/P1/P2/P3: **672** / **22** / **0** / **194**
 - Source inventory split: framework-owned(141), MRTS imported(383), feature-demo report-only(16), golden-only(0)
 - Runtime source split: framework-owned(1630), MRTS imported(2298), feature-demo report-only(0), golden-only(0), runtime-job(0)
 
@@ -14,19 +14,19 @@ Generated file - do not edit manually.
 ### apache
 - Top failure patterns: expected_block_got_200(260), not_executable(24), expected_pass_but_evidence_missing(2)
 - Top functional areas: action_intervention(282), args(103), request_body_urlencoded(75), transformations(52), response_headers(38)
-- Top work directions: intervention_blocking(232), response_body_non_promoted(32), harness_incompatibility(20), audit_log_evidence(2)
+- Top work directions: intervention_blocking(232), response_body_non_promoted(32), harness_incompatibility(20), classification_only(2)
 - Recommended next work: intervention_blocking(232)
 
 ### nginx
 - Top failure patterns: expected_block_got_200(292), not_executable(24), expected_pass_but_evidence_missing(8)
 - Top functional areas: action_intervention(314), args(109), request_body_urlencoded(75), response_body(64), transformations(52)
-- Top work directions: intervention_blocking(238), response_body_non_promoted(64), harness_incompatibility(20), audit_log_evidence(2)
+- Top work directions: intervention_blocking(238), response_body_non_promoted(64), harness_incompatibility(20), classification_only(2)
 - Recommended next work: intervention_blocking(238)
 
 ### haproxy
 - Top failure patterns: expected_block_got_200(252), not_executable(24), expected_pass_but_evidence_missing(2)
 - Top functional areas: action_intervention(274), args(103), request_body_urlencoded(75), transformations(52), audit_log(38)
-- Top work directions: intervention_blocking(224), response_body_non_promoted(32), harness_incompatibility(20), audit_log_evidence(2)
+- Top work directions: intervention_blocking(224), response_body_non_promoted(32), harness_incompatibility(20), classification_only(2)
 - Recommended next work: intervention_blocking(224)
 
 ## Cross-Connector Comparison
@@ -39,7 +39,7 @@ Generated file - do not edit manually.
 ## Work Direction Summary
 | work_direction | apache | nginx | haproxy | total |
 |---|---|---|---|---|
-| audit_log_evidence | 2 | 2 | 2 | 6 |
+| classification_only | 2 | 2 | 2 | 6 |
 | harness_incompatibility | 20 | 20 | 20 | 60 |
 | intervention_blocking | 232 | 238 | 224 | 694 |
 | response_body_non_promoted | 32 | 64 | 32 | 128 |

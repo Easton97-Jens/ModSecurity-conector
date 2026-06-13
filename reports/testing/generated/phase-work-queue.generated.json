@@ -17,7 +17,7 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "collection_mapping": 2,
+            "classification_only": 2,
             "intervention_blocking": 61,
             "request_uri_mapping": 4
           }
@@ -88,7 +88,7 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "collection_mapping": 2,
+        "classification_only": 2,
         "intervention_blocking": 98,
         "json_processor": 16,
         "multipart_files": 30,
@@ -116,7 +116,7 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "collection_mapping": 2,
+            "classification_only": 2,
             "intervention_blocking": 61,
             "request_uri_mapping": 4
           }
@@ -187,7 +187,7 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "collection_mapping": 2,
+        "classification_only": 2,
         "intervention_blocking": 98,
         "json_processor": 16,
         "multipart_files": 30,
@@ -215,7 +215,7 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "collection_mapping": 2,
+            "classification_only": 2,
             "intervention_blocking": 63,
             "request_uri_mapping": 4
           }
@@ -287,7 +287,7 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "collection_mapping": 2,
+        "classification_only": 2,
         "intervention_blocking": 104,
         "json_processor": 16,
         "multipart_files": 30,
@@ -301,14 +301,13 @@
     }
   },
   "framework_root": "/root/git/ModSecurity-test-Framework",
-  "generated_at": "2026-06-13T13:41:26Z",
+  "generated_at": "2026-06-13T14:43:51Z",
   "guardrails": {
     "classification_is_explanatory_only": true,
     "feature_demo_runtime_cases": 0,
     "golden_runtime_cases": 0,
     "missing_phase_metadata_policy": "reported as unknown; never forced into phases 1-4",
     "no_mrts_mrts_runtime_cases": 0,
-    "phase4_hard_abort_requires_transport_evidence": true,
     "phase4_response_body_non_promoted": true,
     "runtime_status_source": "reports/testing/generated/connector-work-queue.generated.json"
   },
@@ -317,100 +316,12 @@
     "full_runtime_matrix": "/root/git/ModSecurity-conector/reports/testing/generated/full-runtime-matrix.generated.json",
     "phase_coverage": "/root/git/ModSecurity-conector/reports/testing/generated/phase-coverage.generated.md"
   },
-  "phase4_hard_abort_capability": {
-    "connector_summary": {
-      "apache": {
-        "capability_status": "implementation_path_present_no_runtime_hard_abort_evidence",
-        "classification_counts": {
-          "phase4_connector_gap": 12,
-          "phase4_hard_abort_supported": 228,
-          "phase4_missing_abort_evidence": 44
-        },
-        "finding": "Apache emits Phase 4 intervention logs and deny-status evidence before commit; current matrix does not prove a connection abort.",
-        "full_delivery_without_abort_rows": 260,
-        "hard_abort_evidence_rows": 0,
-        "log_evidence_rows": 24,
-        "recommended_next_step": "Add or run a strict after-commit Apache evidence case before setting phase4-hard-abort as supported.",
-        "rows": 284,
-        "runtime_status": {
-          "FAIL": 28,
-          "NOT_EXECUTABLE": 4,
-          "PASS": 252
-        },
-        "sensitive_log_leak_rows": 0
-      },
-      "haproxy": {
-        "capability_status": "connector_gap_no_hard_abort_evidence",
-        "classification_counts": {
-          "phase4_connector_gap": 56,
-          "phase4_hard_abort_supported": 228
-        },
-        "finding": "HAProxy response-body decisions are logged, but current SPOA evidence shows HTTP status decisions rather than transport aborts.",
-        "full_delivery_without_abort_rows": 284,
-        "hard_abort_evidence_rows": 0,
-        "log_evidence_rows": 280,
-        "recommended_next_step": "Do not promote to PASS on hard-abort semantics unless HAProxy can produce real close/abort evidence.",
-        "rows": 284,
-        "runtime_status": {
-          "FAIL": 28,
-          "NOT_EXECUTABLE": 4,
-          "PASS": 252
-        },
-        "sensitive_log_leak_rows": 0
-      },
-      "nginx": {
-        "capability_status": "partial_supported_with_strict_evidence",
-        "classification_counts": {
-          "phase4_connection_aborted": 2,
-          "phase4_connector_gap": 12,
-          "phase4_hard_abort_evidence": 2,
-          "phase4_hard_abort_supported": 228,
-          "phase4_log_only_no_abort": 10,
-          "phase4_missing_abort_evidence": 48
-        },
-        "finding": "Strict mode has runtime evidence for Phase 4 connection abort, but MRTS-enabled strict/log evidence still fails in the current matrix.",
-        "full_delivery_without_abort_rows": 298,
-        "hard_abort_evidence_rows": 2,
-        "log_evidence_rows": 32,
-        "recommended_next_step": "Keep default safe/log-only behavior separate; stabilize strict evidence when MRTS/CRS preambles are enabled.",
-        "rows": 300,
-        "runtime_status": {
-          "FAIL": 60,
-          "NOT_EXECUTABLE": 4,
-          "PASS": 236
-        },
-        "sensitive_log_leak_rows": 0
-      }
-    },
-    "json": "reports/testing/generated/phase4-hard-abort-capability.generated.json",
-    "report": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
-    "summary": {
-      "category_counts": {
-        "phase4_connection_aborted": 2,
-        "phase4_connector_gap": 80,
-        "phase4_hard_abort_evidence": 2,
-        "phase4_hard_abort_supported": 684,
-        "phase4_log_only_no_abort": 10,
-        "phase4_missing_abort_evidence": 92
-      },
-      "connection_aborted_rows": 2,
-      "full_delivery_without_abort_rows": 842,
-      "hard_abort_evidence_rows": 2,
-      "log_evidence_rows": 336,
-      "rows": 868,
-      "runtime_status": {
-        "FAIL": 116,
-        "NOT_EXECUTABLE": 12,
-        "PASS": 740
-      },
-      "sensitive_log_leak_rows": 0
-    }
-  },
   "phases": {
     "1": {
       "classification": {
+        "nolog-expected-no-audit": 6,
         "pending": 12,
-        "runtime-difference": 191
+        "runtime-difference": 185
       },
       "coverage": {
         "case_count": 36,
@@ -6600,7 +6511,7 @@
           "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
-          "classification": "runtime-difference",
+          "classification": "nolog-expected-no-audit",
           "connector": "apache",
           "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
           "expected_status": 200,
@@ -6616,7 +6527,7 @@
           "mrts_variant": "no-mrts",
           "phase": "1",
           "priority": "P3",
-          "reason": "fail: expected audit log to be absent or empty: /tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/audit.log",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "with-crs",
@@ -6626,14 +6537,14 @@
             "AUDIT_LOG"
           ],
           "work_direction": [
-            "collection_mapping"
+            "classification_only"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
-          "classification": "runtime-difference",
+          "classification": "nolog-expected-no-audit",
           "connector": "apache",
           "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
           "expected_status": 200,
@@ -6649,7 +6560,7 @@
           "mrts_variant": "with-mrts",
           "phase": "1",
           "priority": "P3",
-          "reason": "fail: expected audit log to be absent or empty: /tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/audit.log",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "with-crs",
@@ -6659,7 +6570,7 @@
             "AUDIT_LOG"
           ],
           "work_direction": [
-            "collection_mapping"
+            "classification_only"
           ]
         },
         {
@@ -6798,7 +6709,7 @@
           "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
-          "classification": "runtime-difference",
+          "classification": "nolog-expected-no-audit",
           "connector": "haproxy",
           "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
           "expected_status": 200,
@@ -6814,7 +6725,7 @@
           "mrts_variant": "no-mrts",
           "phase": "1",
           "priority": "P3",
-          "reason": "expected HTTP 200; observed HTTP 200",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "with-crs",
@@ -6824,14 +6735,14 @@
             "AUDIT_LOG"
           ],
           "work_direction": [
-            "collection_mapping"
+            "classification_only"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
-          "classification": "runtime-difference",
+          "classification": "nolog-expected-no-audit",
           "connector": "haproxy",
           "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
           "expected_status": 200,
@@ -6847,7 +6758,7 @@
           "mrts_variant": "with-mrts",
           "phase": "1",
           "priority": "P3",
-          "reason": "expected HTTP 200; observed HTTP 200",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "with-crs",
@@ -6857,7 +6768,7 @@
             "AUDIT_LOG"
           ],
           "work_direction": [
-            "collection_mapping"
+            "classification_only"
           ]
         },
         {
@@ -6996,7 +6907,7 @@
           "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
-          "classification": "runtime-difference",
+          "classification": "nolog-expected-no-audit",
           "connector": "nginx",
           "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/result.json",
           "expected_status": 200,
@@ -7012,7 +6923,7 @@
           "mrts_variant": "no-mrts",
           "phase": "1",
           "priority": "P3",
-          "reason": "fail: expected audit log to be absent or empty: /tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/audit.log",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "with-crs",
@@ -7022,14 +6933,14 @@
             "AUDIT_LOG"
           ],
           "work_direction": [
-            "collection_mapping"
+            "classification_only"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
-          "classification": "runtime-difference",
+          "classification": "nolog-expected-no-audit",
           "connector": "nginx",
           "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/result.json",
           "expected_status": 200,
@@ -7045,7 +6956,7 @@
           "mrts_variant": "with-mrts",
           "phase": "1",
           "priority": "P3",
-          "reason": "fail: expected audit log to be absent or empty: /tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/audit.log",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "with-crs",
@@ -7055,7 +6966,7 @@
             "AUDIT_LOG"
           ],
           "work_direction": [
-            "collection_mapping"
+            "classification_only"
           ]
         }
       ],
@@ -7072,7 +6983,7 @@
         "not_executable": 12
       },
       "top_work_directions": {
-        "collection_mapping": 6,
+        "classification_only": 6,
         "intervention_blocking": 185,
         "request_uri_mapping": 12
       },
@@ -54409,7 +54320,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54422,7 +54334,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54440,7 +54353,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54453,7 +54367,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54471,7 +54386,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54484,7 +54400,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54502,7 +54419,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54515,7 +54433,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54533,7 +54452,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54546,7 +54466,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54564,7 +54485,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54577,7 +54499,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54595,7 +54518,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54608,7 +54532,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54626,7 +54551,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54639,7 +54565,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54657,7 +54584,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54670,7 +54598,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54688,7 +54617,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54701,7 +54631,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54719,7 +54650,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54732,7 +54664,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54750,7 +54683,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54763,7 +54697,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54781,7 +54716,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54794,7 +54730,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54812,7 +54749,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54825,7 +54763,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54843,7 +54782,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54856,7 +54796,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -54874,7 +54815,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -54887,7 +54829,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63045,7 +62988,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63058,7 +63002,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63076,7 +63021,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63089,7 +63035,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63107,7 +63054,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63120,7 +63068,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63138,7 +63087,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63151,7 +63101,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63169,7 +63120,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63182,7 +63134,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63200,7 +63153,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63213,7 +63167,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63231,7 +63186,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63244,7 +63200,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63262,7 +63219,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63275,7 +63233,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63293,7 +63252,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63306,7 +63266,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63324,7 +63285,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63337,7 +63299,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63355,7 +63318,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63368,7 +63332,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63386,7 +63351,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63399,7 +63365,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63417,7 +63384,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63430,7 +63398,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63448,7 +63417,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63461,7 +63431,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63479,7 +63450,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63492,7 +63464,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -63510,7 +63483,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -63523,7 +63497,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71681,7 +71656,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71694,7 +71670,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71712,7 +71689,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71725,7 +71703,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71743,7 +71722,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71756,7 +71736,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71774,7 +71755,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71787,7 +71769,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71805,7 +71788,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71818,7 +71802,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71836,7 +71821,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71849,7 +71835,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71867,7 +71854,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71880,7 +71868,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71898,7 +71887,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71911,7 +71901,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71929,7 +71920,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71942,7 +71934,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71960,7 +71953,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -71973,7 +71967,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -71991,7 +71986,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -72004,7 +72000,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -72022,7 +72019,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -72035,7 +72033,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -72053,7 +72052,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -72066,7 +72066,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -72084,7 +72085,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -72097,7 +72099,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -72115,7 +72118,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -72128,7 +72132,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
@@ -72146,7 +72151,8 @@
           "functional_area": [
             "action_intervention",
             "args",
-            "operators"
+            "operators",
+            "request_body_urlencoded"
           ],
           "mrts_corpus": "upstream-config-tests",
           "mrts_variant": "with-mrts",
@@ -72159,7 +72165,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
-            "OPERATORS"
+            "OPERATORS",
+            "REQUEST_BODY"
           ],
           "work_direction": [
             "response_body_non_promoted"
