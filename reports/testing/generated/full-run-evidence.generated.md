@@ -48,6 +48,13 @@ These native MRTS reports are separate from connector full-matrix evidence.
 - apache: `expat.h` missing; Provide local CPPFLAGS/LDFLAGS for expat headers/libs or install the matching system development package outside this run.
 - haproxy: `crypt.h` missing; Provide local CPPFLAGS/LDFLAGS for crypt headers/libs or install the matching system development package outside this run.
 
+<!-- remaining-failure-analysis:start -->
+## Remaining Failure Analysis
+- Remaining failure analysis: `reports/testing/generated/remaining-failure-analysis.generated.md`
+- Next fix plan: `reports/testing/generated/next-fix-plan.generated.md`
+- These reports analyze connector Full-Matrix leftovers and keep Native MRTS evidence separate.
+<!-- remaining-failure-analysis:end -->
+
 ## Reports And Logs
 - Full matrix report: `reports/testing/generated/full-runtime-matrix.generated.md`
 - Connector work queue: `reports/testing/generated/connector-work-queue.generated.md`

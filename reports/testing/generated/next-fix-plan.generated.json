@@ -1,0 +1,116 @@
+{
+  "generated_at": "2026-06-13T11:44:02Z",
+  "priority_plan": {
+    "P0": [],
+    "P1": [
+      {
+        "cluster_name": "harness_evidence_issue / tfn_chain_lowercase_trim_pass_through",
+        "connector": "apache, nginx, haproxy",
+        "count": 12,
+        "likely_change": "inspect result creation/log matching for the transformation pass-through case; report-only or harness evidence fix if confirmed",
+        "risk": "low to medium",
+        "tests": [
+          "targeted smoke for the case on all connectors",
+          "make lint quick-check",
+          "make full-matrix-parallel if harness behavior changes"
+        ],
+        "why": "small, clear evidence-missing/actual_status 0 cluster; safest quick-win candidate"
+      },
+      {
+        "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
+        "connector": "apache, nginx, haproxy",
+        "count": 6,
+        "likely_change": "verify whether audit-log expectation is correct for nolog and classify/report accordingly",
+        "risk": "low to medium",
+        "tests": [
+          "targeted smoke for v3_action_nolog_pass_no_audit",
+          "make lint quick-check"
+        ],
+        "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics"
+      }
+    ],
+    "P2": [
+      {
+        "cluster_name": "response_header_hook",
+        "connector": "apache, nginx, haproxy",
+        "count": 94,
+        "likely_change": "trace response header visibility and blocking hooks per connector",
+        "risk": "medium",
+        "tests": [
+          "targeted response-header cases",
+          "make smoke-apache",
+          "make smoke-nginx",
+          "make smoke-haproxy"
+        ],
+        "why": "large phase 3 cluster with clear response-header surface"
+      },
+      {
+        "cluster_name": "request_body_processor / multipart_files / xml_processor",
+        "connector": "apache, nginx, haproxy",
+        "count": 189,
+        "likely_change": "split by body type first; avoid one broad fix",
+        "risk": "medium to high",
+        "tests": [
+          "targeted body processor cases",
+          "connector smoke for touched connector",
+          "full matrix if parser behavior changes"
+        ],
+        "why": "high combined volume, but likely multiple true processor gaps"
+      }
+    ],
+    "P3": [
+      {
+        "cluster_name": "phase4_response_body_non_promoted",
+        "connector": "apache, nginx, haproxy",
+        "count": 116,
+        "likely_change": "report/classification work or long-term promotion policy, not a quick connector fix",
+        "risk": "high if promoted prematurely",
+        "tests": [
+          "native report regeneration",
+          "response-body promotion guard"
+        ],
+        "why": "known non-promoted phase 4/RESPONSE_BODY surface; native 100003-1 remains separate native semantics evidence"
+      },
+      {
+        "cluster_name": "transformation_semantics",
+        "connector": "apache, nginx, haproxy",
+        "count": 144,
+        "likely_change": "deeper semantic evidence, not harness routing",
+        "risk": "high",
+        "tests": [
+          "targeted transformation cases",
+          "native comparison where available"
+        ],
+        "why": "largest semantic cluster; likely needs native/libmodsecurity comparison before any fix"
+      }
+    ],
+    "P4": [
+      {
+        "cluster_name": "rule_chain_semantics and small single-connector leftovers",
+        "connector": "mostly nginx for connector-only leftovers",
+        "count": 13,
+        "likely_change": "focused per-case triage",
+        "risk": "low to medium",
+        "tests": [
+          "targeted single-case smokes"
+        ],
+        "why": "smaller count; useful after high-signal evidence clusters"
+      }
+    ]
+  },
+  "recommendation": {
+    "not_next": [
+      {
+        "cluster": "phase4_response_body_non_promoted",
+        "reason": "known non-promoted/long-term surface; high risk to promote or force behavior prematurely"
+      },
+      {
+        "cluster": "transformation_semantics",
+        "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes"
+      }
+    ],
+    "reason": "It is small, cross-connector, and the only clear actual_status 0 evidence cluster; it can likely be resolved or reclassified with targeted evidence work before touching connector semantics.",
+    "recommended_next_fix_cluster": "harness_evidence_issue / tfn_chain_lowercase_trim_pass_through"
+  },
+  "report_kind": "next-fix-plan"
+}

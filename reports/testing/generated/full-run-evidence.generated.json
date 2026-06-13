@@ -705,6 +705,10 @@
     "nginx_module": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
     "nginx_result": "-"
   },
+  "remaining_failure_analysis_reports": {
+    "analysis": "reports/testing/generated/remaining-failure-analysis.generated.md",
+    "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md"
+  },
   "reports": [
     "reports/testing/generated/full-runtime-matrix.generated.json",
     "reports/testing/generated/full-runtime-matrix.generated.md",
@@ -721,7 +725,11 @@
     "reports/testing/generated/mrts-native-nginx.generated.json",
     "reports/testing/generated/mrts-native-nginx.generated.md",
     "reports/testing/generated/mrts-native-summary.generated.json",
-    "reports/testing/generated/mrts-native-summary.generated.md"
+    "reports/testing/generated/mrts-native-summary.generated.md",
+    "reports/testing/generated/remaining-failure-analysis.generated.json",
+    "reports/testing/generated/remaining-failure-analysis.generated.md",
+    "reports/testing/generated/next-fix-plan.generated.json",
+    "reports/testing/generated/next-fix-plan.generated.md"
   ],
   "runtime_build_cache": {
     "build_reuse_summary": {
