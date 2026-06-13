@@ -18,7 +18,14 @@ except Exception:  # pragma: no cover - the report still works without YAML meta
 REPORT_DIR = Path("reports/testing/generated")
 FAILURE_CATEGORIES = (
     "intervention_blocking",
-    "phase4_response_body_non_promoted",
+    "phase4_hard_abort_supported",
+    "phase4_hard_abort_evidence",
+    "phase4_connection_aborted",
+    "phase4_log_only_no_abort",
+    "phase4_truncated_not_accepted",
+    "phase4_missing_abort_evidence",
+    "phase4_connector_gap",
+    "phase4_native_semantics",
     "native_modsecurity_semantics",
     "audit_log_evidence",
     "request_body_processor",
@@ -33,6 +40,16 @@ FAILURE_CATEGORIES = (
     "classification_only",
     "unknown_requires_review",
 )
+PHASE4_HARD_ABORT_CATEGORIES = {
+    "phase4_hard_abort_supported",
+    "phase4_hard_abort_evidence",
+    "phase4_connection_aborted",
+    "phase4_log_only_no_abort",
+    "phase4_truncated_not_accepted",
+    "phase4_missing_abort_evidence",
+    "phase4_connector_gap",
+    "phase4_native_semantics",
+}
 OLD_CLUSTER_CHECKS = (
     ("blocked_any", "Unexpected BLOCKED entries"),
     ("apache_expected_200_actual_404", "Apache expected 200 -> actual 404"),
@@ -69,6 +86,14 @@ def normalize_list(value: Any) -> list[str]:
     return [str(value)]
 
 
+def first_value(*values: Any) -> str:
+    for value in values:
+        text = str(value or "")
+        if text and text not in {"-", "none", "None", "null"}:
+            return text
+    return "-"
+
+
 def status_pair(entry: dict[str, Any]) -> str:
     return f"{entry.get('expected_status', '-')}\u2192{entry.get('actual_status', '-')}"
 
@@ -76,6 +101,62 @@ def status_pair(entry: dict[str, Any]) -> str:
 def phase_value(entry: dict[str, Any]) -> str:
     value = entry.get("phase")
     return str(value) if value not in (None, "") else "unknown"
+
+
+def is_phase4_entry(entry: dict[str, Any]) -> bool:
+    work_direction = set(normalize_list(entry.get("work_direction")))
+    classification = str(entry.get("classification") or "")
+    return (
+        "response_body_non_promoted" in work_direction
+        or classification == "response-body-non-promoted"
+        or phase_value(entry) == "4"
+    )
+
+
+def phase4_detail_category(entry: dict[str, Any]) -> str:
+    evidence = read_json(Path(str(entry.get("evidence") or "")))
+    connector = str(entry.get("connector") or "")
+    case_id = str(entry.get("case_id") or "")
+    reason = str(entry.get("reason") or evidence.get("reason") or "")
+    classification = str(entry.get("classification") or "")
+    known_limitations = " ".join(normalize_list(evidence.get("known_limitations"))).lower()
+    phase4_log = read_text(Path(str(evidence.get("connector_phase4_log_path") or "")))
+    decision_log = read_text(Path(str(evidence.get("decision_log_path") or evidence.get("decision_log") or "")))
+    expected_action = str(evidence.get("expected_intervention") or "")
+    if not expected_action:
+        expected_action = "deny" if entry.get("expected_status") in (401, 403, 302) else "pass"
+    strict_abort = evidence.get("strict_abort") is True or '"strict_abort":true' in phase4_log.replace(" ", "")
+    hard_abort = (
+        strict_abort
+        or evidence.get("observed_transport_result") == "connection_aborted"
+        or '"actual_action":"connection_abort"' in phase4_log.replace(" ", "")
+    )
+    has_log_evidence = bool(phase4_log.strip() or decision_log.strip())
+    log_only = (
+        '"actual_action":"log_only"' in phase4_log.replace(" ", "")
+        or reason in {"mode_minimal", "mode_safe", "content_type_not_in_scope"}
+        or any(token in case_id for token in ("minimal_log_only", "safe_log_only", "content_type_out_of_scope"))
+    )
+    if hard_abort and has_log_evidence:
+        return "phase4_hard_abort_evidence"
+    if "native" in classification:
+        return "phase4_native_semantics"
+    if log_only:
+        return "phase4_log_only_no_abort"
+    if evidence.get("response_body_truncated") is True:
+        return "phase4_truncated_not_accepted"
+    if expected_action == "deny" and (
+        connector == "haproxy"
+        or "connector-gap" in classification
+        or "connector-gap" in known_limitations
+        or "connector_gap" in case_id
+    ):
+        return "phase4_connector_gap"
+    if expected_action == "deny":
+        return "phase4_missing_abort_evidence"
+    if not has_log_evidence and entry.get("runtime_status") == "FAIL":
+        return "phase4_missing_abort_evidence"
+    return "phase4_hard_abort_supported"
 
 
 def failure_category(entry: dict[str, Any]) -> str:
@@ -86,8 +167,8 @@ def failure_category(entry: dict[str, Any]) -> str:
     case_id = str(entry.get("case_id") or "")
     classification = str(entry.get("classification") or "")
 
-    if "response_body_non_promoted" in work_direction or classification == "response-body-non-promoted" or phase_value(entry) == "4":
-        return "phase4_response_body_non_promoted"
+    if is_phase4_entry(entry):
+        return phase4_detail_category(entry)
     if "audit_log_evidence" in work_direction:
         return "audit_log_evidence"
     if "harness_incompatibility" in work_direction or "expected_200_got_0" in failure_pattern:
@@ -123,7 +204,7 @@ def safe_read_evidence(entry: dict[str, Any]) -> dict[str, Any]:
 
 
 def first_rule_metadata(text: str) -> dict[str, str]:
-    rule_match = re.search(r"SecRule\s+([^\s\"]+)\s+\"[^\"]+\"\s+\"([^\"]+)\"", text)
+    rule_match = re.search(r"SecRule\s+([^\s\"]+)\s+\"[^\"]+\"\s+(?:\\\s*)?\"([^\"]+)\"", text, re.MULTILINE)
     action_text = rule_match.group(2) if rule_match else ""
     id_match = re.search(r"\bid:(\d+)", action_text)
     phase_match = re.search(r"\bphase:(\d+)", action_text)
@@ -165,6 +246,10 @@ def yaml_case_metadata(entry: dict[str, Any]) -> dict[str, Any]:
     rules = str(parsed.get("rules") or raw)
     rule = first_rule_metadata(rules)
     request = parsed.get("request") if isinstance(parsed.get("request"), dict) else {}
+    expect = parsed.get("expect") if isinstance(parsed.get("expect"), dict) else {}
+    source_metadata = parsed.get("metadata") if isinstance(parsed.get("metadata"), dict) else {}
+    variables = source_metadata.get("variables")
+    metadata_variable = ", ".join(str(item) for item in variables) if isinstance(variables, list) else str(variables or "-")
     request_path = str(request.get("path") or "-")
     query = "-"
     if "?" in request_path:
@@ -183,6 +268,11 @@ def yaml_case_metadata(entry: dict[str, Any]) -> dict[str, Any]:
             "runtime_verified": str(parsed.get("runtime_verified", metadata["runtime_verified"])).lower(),
         }
     )
+    metadata["rule_id"] = first_value(metadata["rule_id"], expect.get("rule_id"), source_metadata.get("mrts_rule_id"))
+    metadata["phase"] = str(source_metadata.get("phase") or metadata["phase"])
+    if metadata["variable"] == "-":
+        metadata["variable"] = metadata_variable
+        metadata["target"] = metadata_variable
     return metadata
 
 
@@ -353,7 +443,14 @@ def category_rollup(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def fixability(category: str) -> str:
     return {
         "intervention_blocking": "partly fixable; first split true connector gaps from future/native semantic cases",
-        "phase4_response_body_non_promoted": "not a quick connector fix; keep report-only until phase 4/RESPONSE_BODY promotion criteria are met",
+        "phase4_hard_abort_supported": "classification-only; this row does not require a hard abort",
+        "phase4_hard_abort_evidence": "evidence-backed; preserve strict hard-abort proof while stabilizing variants",
+        "phase4_connection_aborted": "evidence-backed transport outcome",
+        "phase4_log_only_no_abort": "report-only unless the case is meant to exercise strict hard abort",
+        "phase4_truncated_not_accepted": "not sufficient for PASS promotion without transport-abort proof",
+        "phase4_missing_abort_evidence": "fixable only through real strict abort/log evidence, not status-only changes",
+        "phase4_connector_gap": "connector capability gap unless a real abort mechanism is implemented and evidenced",
+        "phase4_native_semantics": "native semantics evidence only; keep separate from connector Full-Matrix PASS/FAIL",
         "audit_log_evidence": "fixable if audit-log assertion path is wrong; otherwise report/classification-only",
         "request_body_processor": "possibly fixable after processor-specific triage",
         "xml_processor": "possibly fixable, but high risk without XML processor parity checks",
@@ -375,7 +472,14 @@ def risk(category: str) -> str:
         "xml_processor": "medium to high",
         "intervention_blocking": "medium to high",
         "transformation_semantics": "high",
-        "phase4_response_body_non_promoted": "high for promotion, low for report-only",
+        "phase4_hard_abort_supported": "low",
+        "phase4_hard_abort_evidence": "medium; keep strict/test-only semantics scoped",
+        "phase4_connection_aborted": "medium; transport-level evidence is connector-specific",
+        "phase4_log_only_no_abort": "low if reported honestly, high if promoted as hard abort",
+        "phase4_truncated_not_accepted": "high if treated as hard abort",
+        "phase4_missing_abort_evidence": "high if promoted without transport proof",
+        "phase4_connector_gap": "high if faked; low if reported as gap",
+        "phase4_native_semantics": "low if kept separate",
         "rule_chain_semantics": "medium",
     }.get(category, "unknown")
 
@@ -390,7 +494,14 @@ def recommended_step(category: str) -> str:
         "xml_processor": "verify XML processor enablement and malformed XML semantics",
         "intervention_blocking": "sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation",
         "transformation_semantics": "compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes",
-        "phase4_response_body_non_promoted": "keep as non-promoted/report-only unless promotion policy changes",
+        "phase4_hard_abort_supported": "keep as context/control evidence",
+        "phase4_hard_abort_evidence": "preserve NGINX strict hard-abort proof and stabilize MRTS-enabled variants",
+        "phase4_connection_aborted": "preserve transport-abort evidence and do not replace it with status-only assertions",
+        "phase4_log_only_no_abort": "keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence",
+        "phase4_truncated_not_accepted": "collect transport-abort proof or keep as non-promoted",
+        "phase4_missing_abort_evidence": "add real Phase 4 intervention log plus connection-abort evidence before promotion",
+        "phase4_connector_gap": "document connector gap unless implementation can prove a real hard abort",
+        "phase4_native_semantics": "keep native MRTS result separate from connector Full-Matrix work",
         "rule_chain_semantics": "single-case rule-chain triage with logs",
     }.get(category, "manual review")
 
@@ -458,13 +569,13 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
     plan["P3"].extend(
         [
             {
-                "cluster_name": "phase4_response_body_non_promoted",
-                "count": next((item["count"] for item in categories if item["category"] == "phase4_response_body_non_promoted"), 0),
+                "cluster_name": "phase4_hard_abort_capability",
+                "count": sum(next((item["count"] for item in categories if item["category"] == category), 0) for category in PHASE4_HARD_ABORT_CATEGORIES),
                 "connector": "apache, nginx, haproxy",
-                "why": "known non-promoted phase 4/RESPONSE_BODY surface; native 100003-1 remains separate native semantics evidence",
-                "likely_change": "report/classification work or long-term promotion policy, not a quick connector fix",
-                "risk": "high if promoted prematurely",
-                "tests": ["native report regeneration", "response-body promotion guard"],
+                "why": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial",
+                "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
+                "risk": "high if promoted prematurely or faked",
+                "tests": ["phase4 hard-abort report regeneration", "targeted strict Phase 4 connector evidence", "native report regeneration"],
             },
             {
                 "cluster_name": "transformation_semantics",
@@ -525,7 +636,7 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
     by_connector = {connector: [entry for entry in failures if entry.get("connector") == connector] for connector in ("apache", "nginx", "haproxy")}
     mrt_failures = [entry for entry in failures if entry.get("mrts_corpus") not in (None, "", "none")]
     non_mrts_failures = [entry for entry in failures if entry.get("mrts_corpus") in (None, "", "none")]
-    phase4 = [entry for entry in failures if failure_category(entry) == "phase4_response_body_non_promoted"]
+    phase4 = [entry for entry in failures if failure_category(entry) in PHASE4_HARD_ABORT_CATEGORIES]
     intervention = [entry for entry in failures if entry.get("expected_status") == 403 and entry.get("actual_status") == 200]
     connector_only = top_case_groups(failures, cross_connector=False, limit=10)
     cross_connector = top_case_groups(failures, cross_connector=True, limit=10)
@@ -582,8 +693,8 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
         "reason": recommended.get("why") if recommended else "No remaining connector Full-Matrix failures are present in the generated reports.",
         "not_next": [
             {
-                "cluster": "phase4_response_body_non_promoted",
-                "reason": "known non-promoted/long-term surface; high risk to promote or force behavior prematurely",
+                "cluster": "phase4_hard_abort_capability",
+                "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes",
             },
             {
                 "cluster": "transformation_semantics",
@@ -761,6 +872,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
         data["remaining_failure_analysis_reports"] = {
             "analysis": "reports/testing/generated/remaining-failure-analysis.generated.md",
             "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md",
+            "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
         }
         reports = data.get("reports")
         if isinstance(reports, list):
@@ -769,6 +881,8 @@ def update_full_run_evidence(report_dir: Path) -> None:
                 "reports/testing/generated/remaining-failure-analysis.generated.md",
                 "reports/testing/generated/next-fix-plan.generated.json",
                 "reports/testing/generated/next-fix-plan.generated.md",
+                "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+                "reports/testing/generated/phase4-hard-abort-capability.generated.md",
             ):
                 if report not in reports:
                     reports.append(report)
@@ -782,6 +896,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
             "## Remaining Failure Analysis",
             "- Remaining failure analysis: `reports/testing/generated/remaining-failure-analysis.generated.md`",
             "- Next fix plan: `reports/testing/generated/next-fix-plan.generated.md`",
+            "- Phase 4 hard-abort capability: `reports/testing/generated/phase4-hard-abort-capability.generated.md`",
             "- These reports analyze connector Full-Matrix leftovers and keep Native MRTS evidence separate.",
         ]
         section = "\n".join(lines)

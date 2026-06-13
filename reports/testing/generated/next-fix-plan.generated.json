@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-13T13:49:37Z",
+  "generated_at": "2026-06-13T14:26:53Z",
   "priority_plan": {
     "P0": [],
     "P1": [
@@ -47,16 +47,17 @@
     ],
     "P3": [
       {
-        "cluster_name": "phase4_response_body_non_promoted",
+        "cluster_name": "phase4_hard_abort_capability",
         "connector": "apache, nginx, haproxy",
         "count": 116,
-        "likely_change": "report/classification work or long-term promotion policy, not a quick connector fix",
-        "risk": "high if promoted prematurely",
+        "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
+        "risk": "high if promoted prematurely or faked",
         "tests": [
-          "native report regeneration",
-          "response-body promotion guard"
+          "phase4 hard-abort report regeneration",
+          "targeted strict Phase 4 connector evidence",
+          "native report regeneration"
         ],
-        "why": "known non-promoted phase 4/RESPONSE_BODY surface; native 100003-1 remains separate native semantics evidence"
+        "why": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial"
       },
       {
         "cluster_name": "transformation_semantics",
@@ -88,8 +89,8 @@
   "recommendation": {
     "not_next": [
       {
-        "cluster": "phase4_response_body_non_promoted",
-        "reason": "known non-promoted/long-term surface; high risk to promote or force behavior prematurely"
+        "cluster": "phase4_hard_abort_capability",
+        "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes"
       },
       {
         "cluster": "transformation_semantics",

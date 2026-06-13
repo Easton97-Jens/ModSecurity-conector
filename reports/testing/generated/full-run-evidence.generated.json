@@ -694,6 +694,48 @@
       "total_size": 1778164186
     }
   },
+  "phase4_hard_abort_capability": {
+    "connector_summary": {
+      "apache": {
+        "capability_status": "implementation_path_present_no_runtime_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 260,
+        "hard_abort_evidence_rows": 0
+      },
+      "haproxy": {
+        "capability_status": "connector_gap_no_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 284,
+        "hard_abort_evidence_rows": 0
+      },
+      "nginx": {
+        "capability_status": "partial_supported_with_strict_evidence",
+        "full_delivery_without_abort_rows": 298,
+        "hard_abort_evidence_rows": 2
+      }
+    },
+    "json": "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+    "report": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+    "summary": {
+      "category_counts": {
+        "phase4_connection_aborted": 2,
+        "phase4_connector_gap": 80,
+        "phase4_hard_abort_evidence": 2,
+        "phase4_hard_abort_supported": 684,
+        "phase4_log_only_no_abort": 10,
+        "phase4_missing_abort_evidence": 92
+      },
+      "connection_aborted_rows": 2,
+      "full_delivery_without_abort_rows": 842,
+      "hard_abort_evidence_rows": 2,
+      "log_evidence_rows": 336,
+      "rows": 868,
+      "runtime_status": {
+        "FAIL": 116,
+        "NOT_EXECUTABLE": 12,
+        "PASS": 740
+      },
+      "sensitive_log_leak_rows": 0
+    }
+  },
   "post_libcrypt_native_rerun": {
     "apache_counts": {},
     "apache_module": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so",
@@ -707,7 +749,8 @@
   },
   "remaining_failure_analysis_reports": {
     "analysis": "reports/testing/generated/remaining-failure-analysis.generated.md",
-    "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md"
+    "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md",
+    "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md"
   },
   "reports": [
     "reports/testing/generated/full-runtime-matrix.generated.json",
@@ -729,7 +772,9 @@
     "reports/testing/generated/remaining-failure-analysis.generated.json",
     "reports/testing/generated/remaining-failure-analysis.generated.md",
     "reports/testing/generated/next-fix-plan.generated.json",
-    "reports/testing/generated/next-fix-plan.generated.md"
+    "reports/testing/generated/next-fix-plan.generated.md",
+    "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+    "reports/testing/generated/phase4-hard-abort-capability.generated.md"
   ],
   "runtime_build_cache": {
     "build_reuse_summary": {

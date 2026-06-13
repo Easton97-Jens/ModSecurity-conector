@@ -52,8 +52,17 @@ These native MRTS reports are separate from connector full-matrix evidence.
 ## Remaining Failure Analysis
 - Remaining failure analysis: `reports/testing/generated/remaining-failure-analysis.generated.md`
 - Next fix plan: `reports/testing/generated/next-fix-plan.generated.md`
+- Phase 4 hard-abort capability: `reports/testing/generated/phase4-hard-abort-capability.generated.md`
 - These reports analyze connector Full-Matrix leftovers and keep Native MRTS evidence separate.
 <!-- remaining-failure-analysis:end -->
+
+<!-- phase4-hard-abort-capability:start -->
+## Phase 4 Hard Abort Capability
+- Report: `reports/testing/generated/phase4-hard-abort-capability.generated.md`
+- Hard-abort evidence rows: **2**
+- Full-delivery-without-abort rows: **842**
+- The report keeps Expected status and runtime PASS/FAIL unchanged while adding hard-abort classifications.
+<!-- phase4-hard-abort-capability:end -->
 
 ## Reports And Logs
 - Full matrix report: `reports/testing/generated/full-runtime-matrix.generated.md`

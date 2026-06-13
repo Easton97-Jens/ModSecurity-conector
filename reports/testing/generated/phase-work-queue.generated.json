@@ -308,6 +308,7 @@
     "golden_runtime_cases": 0,
     "missing_phase_metadata_policy": "reported as unknown; never forced into phases 1-4",
     "no_mrts_mrts_runtime_cases": 0,
+    "phase4_hard_abort_requires_transport_evidence": true,
     "phase4_response_body_non_promoted": true,
     "runtime_status_source": "reports/testing/generated/connector-work-queue.generated.json"
   },
@@ -315,6 +316,95 @@
     "connector_work_queue": "/root/git/ModSecurity-conector/reports/testing/generated/connector-work-queue.generated.json",
     "full_runtime_matrix": "/root/git/ModSecurity-conector/reports/testing/generated/full-runtime-matrix.generated.json",
     "phase_coverage": "/root/git/ModSecurity-conector/reports/testing/generated/phase-coverage.generated.md"
+  },
+  "phase4_hard_abort_capability": {
+    "connector_summary": {
+      "apache": {
+        "capability_status": "implementation_path_present_no_runtime_hard_abort_evidence",
+        "classification_counts": {
+          "phase4_connector_gap": 12,
+          "phase4_hard_abort_supported": 228,
+          "phase4_missing_abort_evidence": 44
+        },
+        "finding": "Apache emits Phase 4 intervention logs and deny-status evidence before commit; current matrix does not prove a connection abort.",
+        "full_delivery_without_abort_rows": 260,
+        "hard_abort_evidence_rows": 0,
+        "log_evidence_rows": 24,
+        "recommended_next_step": "Add or run a strict after-commit Apache evidence case before setting phase4-hard-abort as supported.",
+        "rows": 284,
+        "runtime_status": {
+          "FAIL": 28,
+          "NOT_EXECUTABLE": 4,
+          "PASS": 252
+        },
+        "sensitive_log_leak_rows": 0
+      },
+      "haproxy": {
+        "capability_status": "connector_gap_no_hard_abort_evidence",
+        "classification_counts": {
+          "phase4_connector_gap": 56,
+          "phase4_hard_abort_supported": 228
+        },
+        "finding": "HAProxy response-body decisions are logged, but current SPOA evidence shows HTTP status decisions rather than transport aborts.",
+        "full_delivery_without_abort_rows": 284,
+        "hard_abort_evidence_rows": 0,
+        "log_evidence_rows": 280,
+        "recommended_next_step": "Do not promote to PASS on hard-abort semantics unless HAProxy can produce real close/abort evidence.",
+        "rows": 284,
+        "runtime_status": {
+          "FAIL": 28,
+          "NOT_EXECUTABLE": 4,
+          "PASS": 252
+        },
+        "sensitive_log_leak_rows": 0
+      },
+      "nginx": {
+        "capability_status": "partial_supported_with_strict_evidence",
+        "classification_counts": {
+          "phase4_connection_aborted": 2,
+          "phase4_connector_gap": 12,
+          "phase4_hard_abort_evidence": 2,
+          "phase4_hard_abort_supported": 228,
+          "phase4_log_only_no_abort": 10,
+          "phase4_missing_abort_evidence": 48
+        },
+        "finding": "Strict mode has runtime evidence for Phase 4 connection abort, but MRTS-enabled strict/log evidence still fails in the current matrix.",
+        "full_delivery_without_abort_rows": 298,
+        "hard_abort_evidence_rows": 2,
+        "log_evidence_rows": 32,
+        "recommended_next_step": "Keep default safe/log-only behavior separate; stabilize strict evidence when MRTS/CRS preambles are enabled.",
+        "rows": 300,
+        "runtime_status": {
+          "FAIL": 60,
+          "NOT_EXECUTABLE": 4,
+          "PASS": 236
+        },
+        "sensitive_log_leak_rows": 0
+      }
+    },
+    "json": "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+    "report": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+    "summary": {
+      "category_counts": {
+        "phase4_connection_aborted": 2,
+        "phase4_connector_gap": 80,
+        "phase4_hard_abort_evidence": 2,
+        "phase4_hard_abort_supported": 684,
+        "phase4_log_only_no_abort": 10,
+        "phase4_missing_abort_evidence": 92
+      },
+      "connection_aborted_rows": 2,
+      "full_delivery_without_abort_rows": 842,
+      "hard_abort_evidence_rows": 2,
+      "log_evidence_rows": 336,
+      "rows": 868,
+      "runtime_status": {
+        "FAIL": 116,
+        "NOT_EXECUTABLE": 12,
+        "PASS": 740
+      },
+      "sensitive_log_leak_rows": 0
+    }
   },
   "phases": {
     "1": {

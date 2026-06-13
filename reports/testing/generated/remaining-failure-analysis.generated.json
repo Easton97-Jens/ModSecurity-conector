@@ -161,86 +161,6 @@
       ]
     },
     {
-      "category": "phase4_response_body_non_promoted",
-      "connectors": [
-        "apache",
-        "haproxy",
-        "nginx"
-      ],
-      "count": 116,
-      "fixable": "not a quick connector fix; keep report-only until phase 4/RESPONSE_BODY promotion criteria are met",
-      "recommended_next_step": "keep as non-promoted/report-only unless promotion policy changes",
-      "risk": "high for promotion, low for report-only",
-      "typical_examples": [
-        {
-          "actual_status": 200,
-          "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-          "classification": "response-body-non-promoted",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": true,
-          "phase": "4",
-          "query": "-",
-          "rule_id": "4910",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "response_body_non_promoted"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase4_auditlog_outbound_escaped_value_gap",
-          "classification": "response-body-non-promoted",
-          "connector": "nginx",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": true,
-          "phase": "4",
-          "query": "-",
-          "rule_id": "-",
-          "runtime_verified": "false",
-          "variable": "-",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "response_body_non_promoted"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase4_auditlog_outbound_matched_var_future",
-          "classification": "response-body-non-promoted",
-          "connector": "nginx",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": true,
-          "phase": "4",
-          "query": "-",
-          "rule_id": "4908",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "response_body_non_promoted"
-          ]
-        }
-      ]
-    },
-    {
       "category": "response_header_hook",
       "connectors": [
         "apache",
@@ -470,12 +390,91 @@
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "-",
+          "rule_id": "2601",
           "runtime_verified": "false",
-          "variable": "-",
+          "variable": "ARGS:name",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "intervention_blocking"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "phase4_missing_abort_evidence",
+      "connectors": [
+        "apache",
+        "nginx"
+      ],
+      "count": 64,
+      "fixable": "fixable only through real strict abort/log evidence, not status-only changes",
+      "recommended_next_step": "add real Phase 4 intervention log plus connection-abort evidence before promotion",
+      "risk": "high if promoted without transport proof",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "phase4_auditlog_outbound_multiline_section_gap",
+          "classification": "response-body-non-promoted",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "4910",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_BODY",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase4_auditlog_outbound_matched_var_future",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "4908",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_BODY",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase4_auditlog_outbound_rule_id_runtime_difference",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "4811",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_BODY",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
           ]
         }
       ]
@@ -561,6 +560,86 @@
       ]
     },
     {
+      "category": "phase4_connector_gap",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 46,
+      "fixable": "connector capability gap unless a real abort mechanism is implemented and evidenced",
+      "recommended_next_step": "document connector gap unless implementation can prove a real hard abort",
+      "risk": "high if faked; low if reported as gap",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "phase4_auditlog_outbound_escaped_value_gap",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "-",
+          "runtime_verified": "false",
+          "variable": "-",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase4_auditlog_outbound_message_connector_gap",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "4812",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_BODY",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase4_response_body_chunk_assumption_connector_gap",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "4808",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_BODY",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        }
+      ]
+    },
+    {
       "category": "audit_log_evidence",
       "connectors": [
         "apache",
@@ -586,12 +665,90 @@
           "pending_or_non_promoted": false,
           "phase": "1",
           "query": "foo=bar&a=xxx",
-          "rule_id": "-",
+          "rule_id": "3326",
           "runtime_verified": "false",
-          "variable": "-",
+          "variable": "ARGS:foo",
           "variant": "with-crs/no-mrts",
           "work_direction": [
             "audit_log_evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "phase4_log_only_no_abort",
+      "connectors": [
+        "nginx"
+      ],
+      "count": 6,
+      "fixable": "report-only unless the case is meant to exercise strict hard abort",
+      "recommended_next_step": "keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence",
+      "risk": "low if reported honestly, high if promoted as hard abort",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "nginx_phase4_content_type_out_of_scope",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "920002",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_BODY",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "nginx_phase4_minimal_log_only",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "910001",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_BODY",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "nginx_phase4_safe_log_only",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "910002",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_BODY",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
           ]
         }
       ]
@@ -669,6 +826,51 @@
       "typical_examples": []
     },
     {
+      "category": "phase4_connection_aborted",
+      "connectors": [],
+      "count": 0,
+      "fixable": "evidence-backed transport outcome",
+      "recommended_next_step": "preserve transport-abort evidence and do not replace it with status-only assertions",
+      "risk": "medium; transport-level evidence is connector-specific",
+      "typical_examples": []
+    },
+    {
+      "category": "phase4_hard_abort_evidence",
+      "connectors": [],
+      "count": 0,
+      "fixable": "evidence-backed; preserve strict hard-abort proof while stabilizing variants",
+      "recommended_next_step": "preserve NGINX strict hard-abort proof and stabilize MRTS-enabled variants",
+      "risk": "medium; keep strict/test-only semantics scoped",
+      "typical_examples": []
+    },
+    {
+      "category": "phase4_hard_abort_supported",
+      "connectors": [],
+      "count": 0,
+      "fixable": "classification-only; this row does not require a hard abort",
+      "recommended_next_step": "keep as context/control evidence",
+      "risk": "low",
+      "typical_examples": []
+    },
+    {
+      "category": "phase4_native_semantics",
+      "connectors": [],
+      "count": 0,
+      "fixable": "native semantics evidence only; keep separate from connector Full-Matrix PASS/FAIL",
+      "recommended_next_step": "keep native MRTS result separate from connector Full-Matrix work",
+      "risk": "low if kept separate",
+      "typical_examples": []
+    },
+    {
+      "category": "phase4_truncated_not_accepted",
+      "connectors": [],
+      "count": 0,
+      "fixable": "not sufficient for PASS promotion without transport-abort proof",
+      "recommended_next_step": "collect transport-abort proof or keep as non-promoted",
+      "risk": "high if treated as hard abort",
+      "typical_examples": []
+    },
+    {
       "category": "request_routing",
       "connectors": [],
       "count": 0,
@@ -687,7 +889,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-13T13:49:37Z",
+  "generated_at": "2026-06-13T14:26:53Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -792,16 +994,17 @@
     ],
     "P3": [
       {
-        "cluster_name": "phase4_response_body_non_promoted",
+        "cluster_name": "phase4_hard_abort_capability",
         "connector": "apache, nginx, haproxy",
         "count": 116,
-        "likely_change": "report/classification work or long-term promotion policy, not a quick connector fix",
-        "risk": "high if promoted prematurely",
+        "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
+        "risk": "high if promoted prematurely or faked",
         "tests": [
-          "native report regeneration",
-          "response-body promotion guard"
+          "phase4 hard-abort report regeneration",
+          "targeted strict Phase 4 connector evidence",
+          "native report regeneration"
         ],
-        "why": "known non-promoted phase 4/RESPONSE_BODY surface; native 100003-1 remains separate native semantics evidence"
+        "why": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial"
       },
       {
         "cluster_name": "transformation_semantics",
@@ -833,8 +1036,8 @@
   "recommendation": {
     "not_next": [
       {
-        "cluster": "phase4_response_body_non_promoted",
-        "reason": "known non-promoted/long-term surface; high risk to promote or force behavior prematurely"
+        "cluster": "phase4_hard_abort_capability",
+        "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes"
       },
       {
         "cluster": "transformation_semantics",
@@ -1183,53 +1386,6 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "apache / phase4_response_body_non_promoted / audit-log / phase:4 / 403\u2192200",
-        "connectors": [
-          "apache"
-        ],
-        "corpus": "none",
-        "count": 14,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-            "classification": "response-body-non-promoted",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4910",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
         "category": "transformation_semantics",
         "classification": "runtime-difference",
         "cluster_name": "apache / transformation_semantics / transformations / phase:1 / 403\u2192200",
@@ -1277,14 +1433,104 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "apache / phase4_response_body_non_promoted / response-body / phase:4 / 403\u2192200",
+        "category": "intervention_blocking",
+        "classification": "runtime-difference",
+        "cluster_name": "apache / intervention_blocking / operators / phase:2 / 403\u2192200",
         "connectors": [
           "apache"
         ],
         "corpus": "none",
         "count": 14,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "v2_operator_begins_with_block",
+            "classification": "runtime-difference",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "2",
+            "query": "probe=abcdefghi",
+            "rule_id": "3220",
+            "runtime_verified": "false",
+            "variable": "ARGS:probe",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "intervention_blocking"
+            ]
+          }
+        ],
+        "phase": "2",
+        "source_category": "operators",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "intervention_blocking"
+        ]
+      },
+      {
+        "category": "intervention_blocking",
+        "classification": "runtime-difference",
+        "cluster_name": "apache / intervention_blocking / audit-log / phase:1 / 403\u2192200",
+        "connectors": [
+          "apache"
+        ],
+        "corpus": "none",
+        "count": 12,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "audit_log_empty_sections_future_target",
+            "classification": "runtime-difference",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "a=block",
+            "rule_id": "4605",
+            "runtime_verified": "false",
+            "variable": "ARGS:a",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "intervention_blocking"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "audit-log",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "intervention_blocking"
+        ]
+      },
+      {
+        "category": "phase4_missing_abort_evidence",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "apache / phase4_missing_abort_evidence / response-body / phase:4 / 403\u2192200",
+        "connectors": [
+          "apache"
+        ],
+        "corpus": "none",
+        "count": 12,
         "examples": [
           {
             "actual_status": 200,
@@ -1320,57 +1566,12 @@
         "work_direction": [
           "response_body_non_promoted"
         ]
-      },
-      {
-        "category": "intervention_blocking",
-        "classification": "runtime-difference",
-        "cluster_name": "apache / intervention_blocking / operators / phase:2 / 403\u2192200",
-        "connectors": [
-          "apache"
-        ],
-        "corpus": "none",
-        "count": 14,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "v2_operator_begins_with_block",
-            "classification": "runtime-difference",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "2",
-            "query": "probe=abcdefghi",
-            "rule_id": "-",
-            "runtime_verified": "false",
-            "variable": "-",
-            "variant": "no-crs/with-mrts",
-            "work_direction": [
-              "intervention_blocking"
-            ]
-          }
-        ],
-        "phase": "2",
-        "source_category": "operators",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/with-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "intervention_blocking"
-        ]
       }
     ],
     "connector_only_failures": [
       {
         "case_id": "nginx_phase4_content_type_out_of_scope",
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_log_only_no_abort",
         "connectors": [
           "nginx"
         ],
@@ -1389,9 +1590,9 @@
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "-",
+          "rule_id": "920002",
           "runtime_verified": "false",
-          "variable": "-",
+          "variable": "RESPONSE_BODY",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -1407,7 +1608,7 @@
       },
       {
         "case_id": "nginx_phase4_minimal_log_only",
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_log_only_no_abort",
         "connectors": [
           "nginx"
         ],
@@ -1426,9 +1627,9 @@
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "-",
+          "rule_id": "910001",
           "runtime_verified": "false",
-          "variable": "-",
+          "variable": "RESPONSE_BODY",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -1444,7 +1645,7 @@
       },
       {
         "case_id": "nginx_phase4_safe_log_only",
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_log_only_no_abort",
         "connectors": [
           "nginx"
         ],
@@ -1463,9 +1664,9 @@
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "-",
+          "rule_id": "910002",
           "runtime_verified": "false",
-          "variable": "-",
+          "variable": "RESPONSE_BODY",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -1481,7 +1682,7 @@
       },
       {
         "case_id": "nginx_phase4_strict_connection_abort",
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_missing_abort_evidence",
         "connectors": [
           "nginx"
         ],
@@ -1500,9 +1701,9 @@
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "-",
+          "rule_id": "910003",
           "runtime_verified": "false",
-          "variable": "-",
+          "variable": "RESPONSE_BODY",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -1537,9 +1738,9 @@
           "pending_or_non_promoted": false,
           "phase": "1",
           "query": "what=redirect302",
-          "rule_id": "-",
+          "rule_id": "3302",
           "runtime_verified": "false",
-          "variable": "-",
+          "variable": "ARGS",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "intervention_blocking"
@@ -1959,7 +2160,7 @@
       },
       {
         "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_missing_abort_evidence",
         "connectors": [
           "apache",
           "haproxy",
@@ -2324,9 +2525,9 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_connector_gap",
         "classification": "response-body-non-promoted",
-        "cluster_name": "haproxy / phase4_response_body_non_promoted / audit-log / phase:4 / 403\u2192200",
+        "cluster_name": "haproxy / phase4_connector_gap / audit-log / phase:4 / 403\u2192200",
         "connectors": [
           "haproxy"
         ],
@@ -2418,9 +2619,9 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_connector_gap",
         "classification": "response-body-non-promoted",
-        "cluster_name": "haproxy / phase4_response_body_non_promoted / response-body / phase:4 / 403\u2192200",
+        "cluster_name": "haproxy / phase4_connector_gap / response-body / phase:4 / 403\u2192200",
         "connectors": [
           "haproxy"
         ],
@@ -2486,9 +2687,9 @@
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "probe=abcdefghi",
-            "rule_id": "-",
+            "rule_id": "3220",
             "runtime_verified": "false",
-            "variable": "-",
+            "variable": "ARGS:probe",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "intervention_blocking"
@@ -2706,55 +2907,6 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / response-body / phase:4 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 58,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_response_body_buffering_order_future_target",
-            "classification": "response-body-non-promoted",
-            "connector": "nginx",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4906",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "response-body",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
         "category": "intervention_blocking",
         "classification": "runtime-difference",
         "cluster_name": "intervention_blocking / collections / phase:2 / 403\u2192200",
@@ -2853,55 +3005,6 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / audit-log / phase:4 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 52,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-            "classification": "response-body-non-promoted",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4910",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
         "category": "transformation_semantics",
         "classification": "runtime-difference",
         "cluster_name": "transformation_semantics / transformations / phase:1 / 403\u2192200",
@@ -2976,9 +3079,9 @@
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "probe=abcdefghi",
-            "rule_id": "-",
+            "rule_id": "3220",
             "runtime_verified": "false",
-            "variable": "-",
+            "variable": "ARGS:probe",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "intervention_blocking"
@@ -2987,6 +3090,101 @@
         ],
         "phase": "2",
         "source_category": "operators",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "intervention_blocking"
+        ]
+      },
+      {
+        "category": "phase4_missing_abort_evidence",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "phase4_missing_abort_evidence / response-body / phase:4 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 38,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase4_response_body_buffering_order_future_target",
+            "classification": "response-body-non-promoted",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": true,
+            "phase": "4",
+            "query": "-",
+            "rule_id": "4906",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_BODY",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_body_non_promoted"
+            ]
+          }
+        ],
+        "phase": "4",
+        "source_category": "response-body",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_body_non_promoted"
+        ]
+      },
+      {
+        "category": "intervention_blocking",
+        "classification": "runtime-difference",
+        "cluster_name": "intervention_blocking / audit-log / phase:1 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 36,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "audit_log_empty_sections_future_target",
+            "classification": "runtime-difference",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "a=block",
+            "rule_id": "4605",
+            "runtime_verified": "false",
+            "variable": "ARGS:a",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "intervention_blocking"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "audit-log",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -3095,14 +3293,14 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_missing_abort_evidence",
         "classification": "response-body-non-promoted",
-        "cluster_name": "nginx / phase4_response_body_non_promoted / response-body / phase:4 / 403\u2192200",
+        "cluster_name": "nginx / phase4_missing_abort_evidence / response-body / phase:4 / 403\u2192200",
         "connectors": [
           "nginx"
         ],
         "corpus": "none",
-        "count": 30,
+        "count": 26,
         "examples": [
           {
             "actual_status": 200,
@@ -3129,53 +3327,6 @@
         ],
         "phase": "4",
         "source_category": "response-body",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "nginx / phase4_response_body_non_promoted / audit-log / phase:4 / 403\u2192200",
-        "connectors": [
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 24,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_escaped_value_gap",
-            "classification": "response-body-non-promoted",
-            "connector": "nginx",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "-",
-            "runtime_verified": "false",
-            "variable": "-",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "audit-log",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -3377,6 +3528,53 @@
         ]
       },
       {
+        "category": "phase4_missing_abort_evidence",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "nginx / phase4_missing_abort_evidence / audit-log / phase:4 / 403\u2192200",
+        "connectors": [
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 16,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase4_auditlog_outbound_matched_var_future",
+            "classification": "response-body-non-promoted",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": true,
+            "phase": "4",
+            "query": "-",
+            "rule_id": "4908",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_BODY",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_body_non_promoted"
+            ]
+          }
+        ],
+        "phase": "4",
+        "source_category": "audit-log",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_body_non_promoted"
+        ]
+      },
+      {
         "category": "transformation_semantics",
         "classification": "runtime-difference",
         "cluster_name": "nginx / transformation_semantics / transformations / phase:1 / 403\u2192200",
@@ -3447,9 +3645,9 @@
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "probe=abcdefghi",
-            "rule_id": "-",
+            "rule_id": "3220",
             "runtime_verified": "false",
-            "variable": "-",
+            "variable": "ARGS:probe",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "intervention_blocking"
@@ -3667,55 +3865,6 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / response-body / phase:4 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 58,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_response_body_buffering_order_future_target",
-            "classification": "response-body-non-promoted",
-            "connector": "nginx",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4906",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "response-body",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
         "category": "intervention_blocking",
         "classification": "runtime-difference",
         "cluster_name": "intervention_blocking / collections / phase:2 / 403\u2192200",
@@ -3814,55 +3963,6 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / audit-log / phase:4 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 52,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-            "classification": "response-body-non-promoted",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4910",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
         "category": "transformation_semantics",
         "classification": "runtime-difference",
         "cluster_name": "transformation_semantics / transformations / phase:1 / 403\u2192200",
@@ -3937,9 +4037,9 @@
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "probe=abcdefghi",
-            "rule_id": "-",
+            "rule_id": "3220",
             "runtime_verified": "false",
-            "variable": "-",
+            "variable": "ARGS:probe",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "intervention_blocking"
@@ -3948,6 +4048,101 @@
         ],
         "phase": "2",
         "source_category": "operators",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "intervention_blocking"
+        ]
+      },
+      {
+        "category": "phase4_missing_abort_evidence",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "phase4_missing_abort_evidence / response-body / phase:4 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 38,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase4_response_body_buffering_order_future_target",
+            "classification": "response-body-non-promoted",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": true,
+            "phase": "4",
+            "query": "-",
+            "rule_id": "4906",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_BODY",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_body_non_promoted"
+            ]
+          }
+        ],
+        "phase": "4",
+        "source_category": "response-body",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_body_non_promoted"
+        ]
+      },
+      {
+        "category": "intervention_blocking",
+        "classification": "runtime-difference",
+        "cluster_name": "intervention_blocking / audit-log / phase:1 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 36,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "audit_log_empty_sections_future_target",
+            "classification": "runtime-difference",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "a=block",
+            "rule_id": "4605",
+            "runtime_verified": "false",
+            "variable": "ARGS:a",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "intervention_blocking"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "audit-log",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -4157,55 +4352,6 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / response-body / phase:4 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 58,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_response_body_buffering_order_future_target",
-            "classification": "response-body-non-promoted",
-            "connector": "nginx",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4906",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "response-body",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
         "category": "intervention_blocking",
         "classification": "runtime-difference",
         "cluster_name": "intervention_blocking / collections / phase:2 / 403\u2192200",
@@ -4304,55 +4450,6 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / audit-log / phase:4 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 52,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-            "classification": "response-body-non-promoted",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4910",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
         "category": "transformation_semantics",
         "classification": "runtime-difference",
         "cluster_name": "transformation_semantics / transformations / phase:1 / 403\u2192200",
@@ -4427,9 +4524,9 @@
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "probe=abcdefghi",
-            "rule_id": "-",
+            "rule_id": "3220",
             "runtime_verified": "false",
-            "variable": "-",
+            "variable": "ARGS:probe",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "intervention_blocking"
@@ -4447,20 +4544,17 @@
         "work_direction": [
           "intervention_blocking"
         ]
-      }
-    ],
-    "phase4_response_body_failures": [
+      },
       {
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_missing_abort_evidence",
         "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / response-body / phase:4 / 403\u2192200",
+        "cluster_name": "phase4_missing_abort_evidence / response-body / phase:4 / 403\u2192200",
         "connectors": [
           "apache",
-          "haproxy",
           "nginx"
         ],
         "corpus": "none",
-        "count": 58,
+        "count": 38,
         "examples": [
           {
             "actual_status": 200,
@@ -4500,16 +4594,112 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / audit-log / phase:4 / 403\u2192200",
+        "category": "intervention_blocking",
+        "classification": "runtime-difference",
+        "cluster_name": "intervention_blocking / audit-log / phase:1 / 403\u2192200",
         "connectors": [
           "apache",
           "haproxy",
           "nginx"
         ],
         "corpus": "none",
-        "count": 52,
+        "count": 36,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "audit_log_empty_sections_future_target",
+            "classification": "runtime-difference",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "a=block",
+            "rule_id": "4605",
+            "runtime_verified": "false",
+            "variable": "ARGS:a",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "intervention_blocking"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "audit-log",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "intervention_blocking"
+        ]
+      }
+    ],
+    "phase4_response_body_failures": [
+      {
+        "category": "phase4_missing_abort_evidence",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "phase4_missing_abort_evidence / response-body / phase:4 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 38,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase4_response_body_buffering_order_future_target",
+            "classification": "response-body-non-promoted",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": true,
+            "phase": "4",
+            "query": "-",
+            "rule_id": "4906",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_BODY",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_body_non_promoted"
+            ]
+          }
+        ],
+        "phase": "4",
+        "source_category": "response-body",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_body_non_promoted"
+        ]
+      },
+      {
+        "category": "phase4_missing_abort_evidence",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "phase4_missing_abort_evidence / audit-log / phase:4 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 26,
         "examples": [
           {
             "actual_status": 200,
@@ -4549,9 +4739,107 @@
         ]
       },
       {
-        "category": "phase4_response_body_non_promoted",
+        "category": "phase4_connector_gap",
         "classification": "response-body-non-promoted",
-        "cluster_name": "phase4_response_body_non_promoted / response-body / phase:4 / 200\u2192200",
+        "cluster_name": "phase4_connector_gap / audit-log / phase:4 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 26,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase4_auditlog_outbound_escaped_value_gap",
+            "classification": "response-body-non-promoted",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": true,
+            "phase": "4",
+            "query": "-",
+            "rule_id": "-",
+            "runtime_verified": "false",
+            "variable": "-",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_body_non_promoted"
+            ]
+          }
+        ],
+        "phase": "4",
+        "source_category": "audit-log",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_body_non_promoted"
+        ]
+      },
+      {
+        "category": "phase4_connector_gap",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "phase4_connector_gap / response-body / phase:4 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 20,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase4_response_body_chunk_assumption_connector_gap",
+            "classification": "response-body-non-promoted",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": true,
+            "phase": "4",
+            "query": "-",
+            "rule_id": "4808",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_BODY",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_body_non_promoted"
+            ]
+          }
+        ],
+        "phase": "4",
+        "source_category": "response-body",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_body_non_promoted"
+        ]
+      },
+      {
+        "category": "phase4_log_only_no_abort",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "phase4_log_only_no_abort / response-body / phase:4 / 200\u2192200",
         "connectors": [
           "nginx"
         ],
@@ -4572,9 +4860,9 @@
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "-",
+            "rule_id": "920002",
             "runtime_verified": "false",
-            "variable": "-",
+            "variable": "RESPONSE_BODY",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_body_non_promoted"
