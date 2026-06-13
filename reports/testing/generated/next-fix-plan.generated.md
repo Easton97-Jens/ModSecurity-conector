@@ -1,6 +1,6 @@
 # Next Fix Plan
 
-Generated at: `2026-06-13T14:43:52Z`
+Generated at: `2026-06-13T15:03:34Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -13,7 +13,8 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 ## P2
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |
 |---|---|---|---|---|---|---|
-| response_header_hook | 94 | apache, nginx, haproxy | large phase 3 cluster with clear response-header surface | trace response header visibility and blocking hooks per connector | medium | targeted response-header cases, make smoke-apache, make smoke-nginx, make smoke-haproxy |
+| response_header_backend_setup | 56 | apache, nginx | specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged | add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path | low to medium | targeted response-header cases, make smoke-apache, make smoke-nginx |
+| response_header_multi_value_gap | 12 | haproxy | HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches | trace SPOE response-header argument population for repeated Set-Cookie values | medium | targeted HAProxy Set-Cookie response-header cases, make smoke-haproxy |
 | request_body_processor / multipart_files / xml_processor | 189 | apache, nginx, haproxy | high combined volume, but likely multiple true processor gaps | split by body type first; avoid one broad fix | medium to high | targeted body processor cases, connector smoke for touched connector, full matrix if parser behavior changes |
 
 ## P3

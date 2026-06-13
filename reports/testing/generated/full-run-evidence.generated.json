@@ -757,7 +757,8 @@
     "analysis": "reports/testing/generated/remaining-failure-analysis.generated.md",
     "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md",
     "nolog_audit_evidence": "reports/testing/generated/nolog-audit-evidence.generated.md",
-    "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md"
+    "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+    "response_header_hook_analysis": "reports/testing/generated/response-header-hook-analysis.generated.md"
   },
   "reports": [
     "reports/testing/generated/full-runtime-matrix.generated.json",
@@ -783,8 +784,15 @@
     "reports/testing/generated/phase4-hard-abort-capability.generated.json",
     "reports/testing/generated/phase4-hard-abort-capability.generated.md",
     "reports/testing/generated/nolog-audit-evidence.generated.json",
-    "reports/testing/generated/nolog-audit-evidence.generated.md"
+    "reports/testing/generated/nolog-audit-evidence.generated.md",
+    "reports/testing/generated/response-header-hook-analysis.generated.json",
+    "reports/testing/generated/response-header-hook-analysis.generated.md"
   ],
+  "response_header_hook_analysis_report": {
+    "analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",
+    "classification": "response_header_hook_split",
+    "json": "reports/testing/generated/response-header-hook-analysis.generated.json"
+  },
   "runtime_build_cache": {
     "build_reuse_summary": {
       "blocked_count": 0,

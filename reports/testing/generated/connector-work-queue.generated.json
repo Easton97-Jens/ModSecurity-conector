@@ -1314,13 +1314,15 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -1332,27 +1334,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -1364,27 +1368,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -1396,27 +1402,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -1428,14 +1436,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -1495,12 +1503,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -1512,14 +1522,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -1554,12 +1564,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -1571,14 +1583,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -2279,12 +2291,14 @@
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -2296,14 +2310,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -5301,13 +5315,15 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -5319,27 +5335,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -5351,27 +5369,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -5383,27 +5403,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -5415,14 +5437,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -5482,12 +5504,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -5499,14 +5523,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -5541,12 +5565,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -5558,14 +5584,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -6326,12 +6352,14 @@
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -6343,14 +6371,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -9323,12 +9351,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -9340,14 +9370,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -9382,12 +9412,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -9399,14 +9431,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -10107,12 +10139,14 @@
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -10124,14 +10158,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -23904,12 +23938,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -23921,26 +23957,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -23952,26 +23990,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -23983,26 +24023,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -24014,14 +24056,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -24054,12 +24096,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_mixed_case_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -24071,26 +24115,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -24102,14 +24148,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -24144,12 +24190,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -24161,14 +24209,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -24641,12 +24689,14 @@
       "actual_status": 200,
       "case_id": "pr70_phase3_audit_response_header",
       "category": "audit-log",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/pr70_phase3_audit_response_header/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -24659,14 +24709,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
@@ -24922,12 +24972,14 @@
       "actual_status": 200,
       "case_id": "response_header_basic",
       "category": "unknown",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/response_header_basic/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -24939,26 +24991,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -24970,14 +25024,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -39080,12 +39134,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -39097,26 +39153,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -39128,26 +39186,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -39159,26 +39219,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -39190,14 +39252,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -39230,12 +39292,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_mixed_case_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_mixed_case_connector_gap/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -39247,26 +39311,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -39278,14 +39344,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -39320,12 +39386,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -39337,14 +39405,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -39817,12 +39885,14 @@
       "actual_status": 200,
       "case_id": "pr70_phase3_audit_response_header",
       "category": "audit-log",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/pr70_phase3_audit_response_header/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -39835,14 +39905,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
@@ -40098,12 +40168,14 @@
       "actual_status": 200,
       "case_id": "response_header_basic",
       "category": "unknown",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/response_header_basic/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -40115,26 +40187,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -40146,14 +40220,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -54042,12 +54116,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -54059,26 +54135,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -54090,26 +54168,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -54121,26 +54201,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -54152,14 +54234,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
@@ -54192,12 +54274,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_mixed_case_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -54209,26 +54293,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -54240,14 +54326,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -54282,12 +54368,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -54299,14 +54387,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -54779,12 +54867,14 @@
       "actual_status": 200,
       "case_id": "pr70_phase3_audit_response_header",
       "category": "audit-log",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/pr70_phase3_audit_response_header/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -54797,14 +54887,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
@@ -55060,12 +55150,14 @@
       "actual_status": 200,
       "case_id": "response_header_basic",
       "category": "unknown",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/response_header_basic/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -55077,26 +55169,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -55108,14 +55202,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "no-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -58066,13 +58160,15 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -58084,27 +58180,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -58116,27 +58214,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -58148,27 +58248,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -58180,14 +58282,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -58247,12 +58349,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -58264,14 +58368,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -58306,12 +58410,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -58323,14 +58429,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -59031,12 +59137,14 @@
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -59048,14 +59156,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -62082,13 +62190,15 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -62100,27 +62210,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -62132,27 +62244,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -62164,27 +62278,29 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "apache_nginx_fail",
         "different_actual_statuses"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -62196,14 +62312,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P1",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -62263,12 +62379,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -62280,14 +62398,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -62322,12 +62440,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -62339,14 +62459,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -63107,12 +63227,14 @@
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -63124,14 +63246,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -66133,12 +66255,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -66150,14 +66274,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -66192,12 +66316,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -66209,14 +66335,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -66917,12 +67043,14 @@
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -66934,14 +67062,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "no-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -80751,12 +80879,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -80768,26 +80898,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -80799,26 +80931,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -80830,26 +80964,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -80861,14 +80997,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -80901,12 +81037,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_mixed_case_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -80918,26 +81056,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -80949,14 +81089,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -80991,12 +81131,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -81008,14 +81150,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -81488,12 +81630,14 @@
       "actual_status": 200,
       "case_id": "pr70_phase3_audit_response_header",
       "category": "audit-log",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/pr70_phase3_audit_response_header/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -81506,14 +81650,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
@@ -81769,12 +81913,14 @@
       "actual_status": 200,
       "case_id": "response_header_basic",
       "category": "unknown",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/response_header_basic/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -81786,26 +81932,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "apache",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -81817,14 +81965,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -95964,12 +96112,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -95981,26 +96131,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -96012,26 +96164,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -96043,26 +96197,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -96074,14 +96230,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -96114,12 +96270,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_mixed_case_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_mixed_case_connector_gap/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -96131,26 +96289,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -96162,14 +96322,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -96204,12 +96364,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -96221,14 +96383,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -96701,12 +96863,14 @@
       "actual_status": 200,
       "case_id": "pr70_phase3_audit_response_header",
       "category": "audit-log",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/pr70_phase3_audit_response_header/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -96719,14 +96883,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
@@ -96982,12 +97146,14 @@
       "actual_status": 200,
       "case_id": "response_header_basic",
       "category": "unknown",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/response_header_basic/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -96999,26 +97165,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-backend-setup",
+      "classification_detail": "backend/harness response does not provide the target response header value observed by the rule",
       "connector": "nginx",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_backend_setup",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -97030,14 +97198,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "fail: expected HTTP 403, observed 200",
+      "priority": "P2",
+      "reason": "classification-only: backend/harness response does not provide the target response header value observed by the rule",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_backend_setup"
       ]
     },
     {
@@ -110963,12 +111131,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -110980,26 +111150,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -111011,26 +111183,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_encoded_value_future_target",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -111042,26 +111216,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -111073,14 +111249,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
@@ -111113,12 +111289,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_mixed_case_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -111130,26 +111308,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -111161,14 +111341,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -111203,12 +111383,14 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -111220,14 +111402,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -111700,12 +111882,14 @@
       "actual_status": 200,
       "case_id": "pr70_phase3_audit_response_header",
       "category": "audit-log",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/pr70_phase3_audit_response_header/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -111718,14 +111902,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
@@ -111981,12 +112165,14 @@
       "actual_status": 200,
       "case_id": "response_header_basic",
       "category": "unknown",
-      "classification": "runtime-difference",
+      "classification": "response-header-mrts-detection-only",
+      "classification_detail": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/response_header_basic/result.json",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -111998,26 +112184,28 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_mrts_detection_only"
       ]
     },
     {
       "actual_status": 200,
       "case_id": "response_headers_multi_value_runtime_gap",
       "category": "response-headers",
-      "classification": "runtime-difference",
+      "classification": "response-header-multi-value-gap",
+      "classification_detail": "HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "connector": "haproxy",
       "connector_pattern": [
         "all_connectors_fail"
       ],
       "evidence": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json",
+      "evidence_classification": "response_header_multi_value_gap",
       "expected_status": 403,
       "failure_pattern": [
         "expected_block_got_200"
@@ -112029,14 +112217,14 @@
       "mrts_corpus": "none",
       "mrts_variant": "with-mrts",
       "phase": "3",
-      "priority": "P0",
-      "reason": "expected HTTP 403; observed HTTP 200",
+      "priority": "P2",
+      "reason": "classification-only: HAProxy response header hook is active, but Set-Cookie multi-value cases do not expose the expected value to ModSecurity",
       "runtime_status": "FAIL",
       "source_kind": "framework-owned",
       "summary_path": "/tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "test_variant": "with-crs",
       "work_direction": [
-        "intervention_blocking"
+        "response_header_multi_value_gap"
       ]
     },
     {
@@ -113659,7 +113847,7 @@
     }
   ],
   "framework_root": "/root/git/ModSecurity-test-Framework",
-  "generated_at": "2026-06-13T14:43:49Z",
+  "generated_at": "2026-06-13T15:03:29Z",
   "guardrails": {
     "feature_demo_runtime_cases": 0,
     "golden_runtime_cases": 0,

@@ -1,22 +1,33 @@
 {
-  "generated_at": "2026-06-13T14:43:52Z",
+  "generated_at": "2026-06-13T15:03:34Z",
   "priority_plan": {
     "P0": [],
     "P1": [],
     "P2": [
       {
-        "cluster_name": "response_header_hook",
-        "connector": "apache, nginx, haproxy",
-        "count": 94,
-        "likely_change": "trace response header visibility and blocking hooks per connector",
-        "risk": "medium",
+        "cluster_name": "response_header_backend_setup",
+        "connector": "apache, nginx",
+        "count": 56,
+        "likely_change": "add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path",
+        "risk": "low to medium",
         "tests": [
           "targeted response-header cases",
           "make smoke-apache",
-          "make smoke-nginx",
+          "make smoke-nginx"
+        ],
+        "why": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged"
+      },
+      {
+        "cluster_name": "response_header_multi_value_gap",
+        "connector": "haproxy",
+        "count": 12,
+        "likely_change": "trace SPOE response-header argument population for repeated Set-Cookie values",
+        "risk": "medium",
+        "tests": [
+          "targeted HAProxy Set-Cookie response-header cases",
           "make smoke-haproxy"
         ],
-        "why": "large phase 3 cluster with clear response-header surface"
+        "why": "HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches"
       },
       {
         "cluster_name": "request_body_processor / multipart_files / xml_processor",
@@ -86,10 +97,14 @@
       {
         "cluster": "nolog_expected_no_audit",
         "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence"
+      },
+      {
+        "cluster": "response_header_mrts_detection_only",
+        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action"
       }
     ],
-    "reason": "large phase 3 cluster with clear response-header surface",
-    "recommended_next_fix_cluster": "response_header_hook"
+    "reason": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged",
+    "recommended_next_fix_cluster": "response_header_backend_setup"
   },
   "report_kind": "next-fix-plan"
 }

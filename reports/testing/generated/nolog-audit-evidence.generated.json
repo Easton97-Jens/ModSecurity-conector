@@ -32,7 +32,7 @@
     "root_cause": "with-crs variants contain unrelated CRS audit entries while the nolog/pass rule is absent from audit, error, and decision logs",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-13T14:43:51Z",
+  "generated_at": "2026-06-13T15:03:30Z",
   "report_kind": "nolog-audit-evidence-analysis",
   "rows": [
     {

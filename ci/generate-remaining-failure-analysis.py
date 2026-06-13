@@ -34,6 +34,9 @@ FAILURE_CATEGORIES = (
     "multipart_files",
     "transformation_semantics",
     "rule_chain_semantics",
+    "response_header_backend_setup",
+    "response_header_multi_value_gap",
+    "response_header_mrts_detection_only",
     "response_header_hook",
     "request_routing",
     "harness_evidence_issue",
@@ -187,6 +190,12 @@ def failure_category(entry: dict[str, Any]) -> str:
         return "harness_evidence_issue"
     if category == "transformations" or "transformations" in functional_area:
         return "transformation_semantics"
+    if evidence_classification in {
+        "response_header_backend_setup",
+        "response_header_multi_value_gap",
+        "response_header_mrts_detection_only",
+    }:
+        return evidence_classification
     if category == "response-headers" or "response_headers" in functional_area:
         return "response_header_hook"
     if category == "multipart" or "multipart_files" in functional_area:
@@ -470,6 +479,9 @@ def fixability(category: str) -> str:
         "multipart_files": "possibly fixable; likely connector/body parser evidence work",
         "transformation_semantics": "not a harness quick win; needs semantic comparison against libmodsecurity expectations",
         "rule_chain_semantics": "small but semantic; requires focused rule-chain evidence",
+        "response_header_backend_setup": "likely harness/backend fix; add deterministic target response headers before judging connector parity",
+        "response_header_multi_value_gap": "connector/hook gap; HAProxy Set-Cookie multi-value exposure needs focused evidence or implementation work",
+        "response_header_mrts_detection_only": "classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action",
         "response_header_hook": "possible connector/hook work; start with response-header capture evidence",
         "harness_evidence_issue": "likely quick win if evidence files/log matching are missing",
     }.get(category, "unknown; review required")
@@ -479,6 +491,9 @@ def risk(category: str) -> str:
     return {
         "harness_evidence_issue": "low to medium",
         "audit_log_evidence": "low to medium",
+        "response_header_backend_setup": "low to medium",
+        "response_header_multi_value_gap": "medium",
+        "response_header_mrts_detection_only": "low; report-only if kept separate from PASS promotion",
         "response_header_hook": "medium",
         "request_body_processor": "medium",
         "multipart_files": "medium",
@@ -502,6 +517,9 @@ def recommended_step(category: str) -> str:
     return {
         "harness_evidence_issue": "inspect `tfn_chain_lowercase_trim_pass_through` evidence generation; verify whether actual_status 0 means missing result or real transport failure",
         "audit_log_evidence": "inspect `v3_action_nolog_pass_no_audit` audit expectation and report classification",
+        "response_header_backend_setup": "add deterministic response headers to the Apache/NGINX harness/backend probes, then rerun targeted Phase 3 response-header cases",
+        "response_header_multi_value_gap": "triage HAProxy Set-Cookie multi-value exposure through SPOE response-header evidence",
+        "response_header_mrts_detection_only": "keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence",
         "response_header_hook": "triage response-header phase 3 capture on Apache/NGINX first, then HAProxy",
         "request_body_processor": "split JSON, URL-encoded, and XML body processor cases before code changes",
         "multipart_files": "compare multipart variable population across connectors with one representative request",
@@ -562,13 +580,22 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
     plan["P2"].extend(
         [
             {
-                "cluster_name": "response_header_hook",
-                "count": next((item["count"] for item in categories if item["category"] == "response_header_hook"), 0),
-                "connector": "apache, nginx, haproxy",
-                "why": "large phase 3 cluster with clear response-header surface",
-                "likely_change": "trace response header visibility and blocking hooks per connector",
+                "cluster_name": "response_header_backend_setup",
+                "count": next((item["count"] for item in categories if item["category"] == "response_header_backend_setup"), 0),
+                "connector": "apache, nginx",
+                "why": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged",
+                "likely_change": "add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path",
+                "risk": "low to medium",
+                "tests": ["targeted response-header cases", "make smoke-apache", "make smoke-nginx"],
+            },
+            {
+                "cluster_name": "response_header_multi_value_gap",
+                "count": next((item["count"] for item in categories if item["category"] == "response_header_multi_value_gap"), 0),
+                "connector": "haproxy",
+                "why": "HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches",
+                "likely_change": "trace SPOE response-header argument population for repeated Set-Cookie values",
                 "risk": "medium",
-                "tests": ["targeted response-header cases", "make smoke-apache", "make smoke-nginx", "make smoke-haproxy"],
+                "tests": ["targeted HAProxy Set-Cookie response-header cases", "make smoke-haproxy"],
             },
             {
                 "cluster_name": "request_body_processor / multipart_files / xml_processor",
@@ -718,6 +745,10 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
             {
                 "cluster": "nolog_expected_no_audit",
                 "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence",
+            },
+            {
+                "cluster": "response_header_mrts_detection_only",
+                "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action",
             },
         ],
     }
@@ -893,6 +924,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
             "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md",
             "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
             "nolog_audit_evidence": "reports/testing/generated/nolog-audit-evidence.generated.md",
+            "response_header_hook_analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",
         }
         reports = data.get("reports")
         if isinstance(reports, list):
@@ -905,6 +937,8 @@ def update_full_run_evidence(report_dir: Path) -> None:
                 "reports/testing/generated/phase4-hard-abort-capability.generated.md",
                 "reports/testing/generated/nolog-audit-evidence.generated.json",
                 "reports/testing/generated/nolog-audit-evidence.generated.md",
+                "reports/testing/generated/response-header-hook-analysis.generated.json",
+                "reports/testing/generated/response-header-hook-analysis.generated.md",
             ):
                 if report not in reports:
                     reports.append(report)
@@ -920,6 +954,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
             "- Next fix plan: `reports/testing/generated/next-fix-plan.generated.md`",
             "- Phase 4 hard-abort capability: `reports/testing/generated/phase4-hard-abort-capability.generated.md`",
             "- Nolog audit evidence: `reports/testing/generated/nolog-audit-evidence.generated.md`",
+            "- Response header hook analysis: `reports/testing/generated/response-header-hook-analysis.generated.md`",
             "- These reports analyze connector Full-Matrix leftovers and keep Native MRTS evidence separate.",
         ]
         section = "\n".join(lines)

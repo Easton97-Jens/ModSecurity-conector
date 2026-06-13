@@ -161,86 +161,6 @@
       ]
     },
     {
-      "category": "response_header_hook",
-      "connectors": [
-        "apache",
-        "haproxy",
-        "nginx"
-      ],
-      "count": 94,
-      "fixable": "possible connector/hook work; start with response-header capture evidence",
-      "recommended_next_step": "triage response-header phase 3 capture on Apache/NGINX first, then HAProxy",
-      "risk": "medium",
-      "typical_examples": [
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_content_type_charset_gap",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "3",
-          "query": "-",
-          "rule_id": "4902",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Content-Type",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "intervention_blocking"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "3",
-          "query": "-",
-          "rule_id": "4803",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Set-Cookie",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "intervention_blocking"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_encoded_value_future_target",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "3",
-          "query": "-",
-          "rule_id": "4804",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Location",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "intervention_blocking"
-          ]
-        }
-      ]
-    },
-    {
       "category": "request_body_processor",
       "connectors": [
         "apache",
@@ -480,6 +400,85 @@
       ]
     },
     {
+      "category": "response_header_backend_setup",
+      "connectors": [
+        "apache",
+        "nginx"
+      ],
+      "count": 56,
+      "fixable": "likely harness/backend fix; add deterministic target response headers before judging connector parity",
+      "recommended_next_step": "add deterministic response headers to the Apache/NGINX harness/backend probes, then rerun targeted Phase 3 response-header cases",
+      "risk": "low to medium",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_content_type_charset_gap",
+          "classification": "response-header-backend-setup",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "-",
+          "rule_id": "4902",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:Content-Type",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_header_backend_setup"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+          "classification": "response-header-backend-setup",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "-",
+          "rule_id": "4803",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:Set-Cookie",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_header_backend_setup"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_encoded_value_future_target",
+          "classification": "response-header-backend-setup",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "-",
+          "rule_id": "4804",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:Location",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_header_backend_setup"
+          ]
+        }
+      ]
+    },
+    {
       "category": "xml_processor",
       "connectors": [
         "apache",
@@ -635,6 +634,164 @@
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "response_body_non_promoted"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "response_header_mrts_detection_only",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 26,
+      "fixable": "classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action",
+      "recommended_next_step": "keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence",
+      "risk": "low; report-only if kept separate from PASS promotion",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_mixed_case_connector_gap",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "-",
+          "rule_id": "4802",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:content-type",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "pr70_phase3_audit_response_header",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "pr70=phase3",
+          "rule_id": "5703",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:Last-Modified",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_header_basic",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "-",
+          "rule_id": "1301",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:Last-Modified",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "response_header_multi_value_gap",
+      "connectors": [
+        "haproxy"
+      ],
+      "count": 12,
+      "fixable": "connector/hook gap; HAProxy Set-Cookie multi-value exposure needs focused evidence or implementation work",
+      "recommended_next_step": "triage HAProxy Set-Cookie multi-value exposure through SPOE response-header evidence",
+      "risk": "medium",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_multi_value_connector_gap",
+          "classification": "response-header-multi-value-gap",
+          "connector": "haproxy",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "-",
+          "rule_id": "4805",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:Set-Cookie",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_header_multi_value_gap"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_set_cookie_multi_gap",
+          "classification": "response-header-multi-value-gap",
+          "connector": "haproxy",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "-",
+          "rule_id": "4904",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:Set-Cookie",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_header_multi_value_gap"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_headers_multi_value_runtime_gap",
+          "classification": "response-header-multi-value-gap",
+          "connector": "haproxy",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "3",
+          "query": "-",
+          "rule_id": "4410",
+          "runtime_verified": "false",
+          "variable": "RESPONSE_HEADERS:Set-Cookie",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_header_multi_value_gap"
           ]
         }
       ]
@@ -889,6 +1046,15 @@
       "typical_examples": []
     },
     {
+      "category": "response_header_hook",
+      "connectors": [],
+      "count": 0,
+      "fixable": "possible connector/hook work; start with response-header capture evidence",
+      "recommended_next_step": "triage response-header phase 3 capture on Apache/NGINX first, then HAProxy",
+      "risk": "medium",
+      "typical_examples": []
+    },
+    {
       "category": "unknown_requires_review",
       "connectors": [],
       "count": 0,
@@ -898,7 +1064,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-13T14:43:52Z",
+  "generated_at": "2026-06-13T15:03:34Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -961,18 +1127,29 @@
     "P1": [],
     "P2": [
       {
-        "cluster_name": "response_header_hook",
-        "connector": "apache, nginx, haproxy",
-        "count": 94,
-        "likely_change": "trace response header visibility and blocking hooks per connector",
-        "risk": "medium",
+        "cluster_name": "response_header_backend_setup",
+        "connector": "apache, nginx",
+        "count": 56,
+        "likely_change": "add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path",
+        "risk": "low to medium",
         "tests": [
           "targeted response-header cases",
           "make smoke-apache",
-          "make smoke-nginx",
+          "make smoke-nginx"
+        ],
+        "why": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged"
+      },
+      {
+        "cluster_name": "response_header_multi_value_gap",
+        "connector": "haproxy",
+        "count": 12,
+        "likely_change": "trace SPOE response-header argument population for repeated Set-Cookie values",
+        "risk": "medium",
+        "tests": [
+          "targeted HAProxy Set-Cookie response-header cases",
           "make smoke-haproxy"
         ],
-        "why": "large phase 3 cluster with clear response-header surface"
+        "why": "HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches"
       },
       {
         "cluster_name": "request_body_processor / multipart_files / xml_processor",
@@ -1042,10 +1219,14 @@
       {
         "cluster": "nolog_expected_no_audit",
         "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence"
+      },
+      {
+        "cluster": "response_header_mrts_detection_only",
+        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action"
       }
     ],
-    "reason": "large phase 3 cluster with clear response-header surface",
-    "recommended_next_fix_cluster": "response_header_hook"
+    "reason": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged",
+    "recommended_next_fix_cluster": "response_header_backend_setup"
   },
   "regression_checks": {
     "apache_expected_200_actual_404": {
@@ -1081,13 +1262,13 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-13T14:43:49Z",
+    "connector_work_queue": "2026-06-13T15:03:29Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
-    "full_runtime_matrix": "2026-06-13T14:43:46Z",
+    "full_runtime_matrix": "2026-06-13T15:03:22Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-13T14:43:51Z",
+    "phase_work_queue": "2026-06-13T15:03:32Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {
@@ -1151,19 +1332,19 @@
         ]
       },
       {
-        "category": "response_header_hook",
-        "classification": "runtime-difference",
-        "cluster_name": "apache / response_header_hook / response-headers / phase:3 / 403\u2192200",
+        "category": "response_header_backend_setup",
+        "classification": "response-header-backend-setup",
+        "cluster_name": "apache / response_header_backend_setup / response-headers / phase:3 / 403\u2192200",
         "connectors": [
           "apache"
         ],
         "corpus": "none",
-        "count": 30,
+        "count": 28,
         "examples": [
           {
             "actual_status": 200,
             "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "runtime-difference",
+            "classification": "response-header-backend-setup",
             "connector": "apache",
             "expected_status": 403,
             "failure_pattern": [
@@ -1179,7 +1360,7 @@
             "variable": "RESPONSE_HEADERS:Content-Type",
             "variant": "no-crs/no-mrts",
             "work_direction": [
-              "intervention_blocking"
+              "response_header_backend_setup"
             ]
           }
         ],
@@ -1194,7 +1375,7 @@
           "with-crs/with-mrts"
         ],
         "work_direction": [
-          "intervention_blocking"
+          "response_header_backend_setup"
         ]
       },
       {
@@ -2078,7 +2259,7 @@
       },
       {
         "case_id": "phase3_response_headers_multi_value_connector_gap",
-        "category": "response_header_hook",
+        "category": "response_header_backend_setup",
         "connectors": [
           "apache",
           "haproxy",
@@ -2088,7 +2269,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "phase3_response_headers_multi_value_connector_gap",
-          "classification": "runtime-difference",
+          "classification": "response-header-backend-setup",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2104,7 +2285,7 @@
           "variable": "RESPONSE_HEADERS:Set-Cookie",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "response_header_backend_setup"
           ]
         },
         "status_pairs": {
@@ -2119,7 +2300,7 @@
       },
       {
         "case_id": "phase3_response_headers_set_cookie_multi_gap",
-        "category": "response_header_hook",
+        "category": "response_header_backend_setup",
         "connectors": [
           "apache",
           "haproxy",
@@ -2129,7 +2310,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "phase3_response_headers_set_cookie_multi_gap",
-          "classification": "runtime-difference",
+          "classification": "response-header-backend-setup",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2145,7 +2326,7 @@
           "variable": "RESPONSE_HEADERS:Set-Cookie",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "response_header_backend_setup"
           ]
         },
         "status_pairs": {
@@ -2201,7 +2382,7 @@
       },
       {
         "case_id": "response_headers_multi_value_runtime_gap",
-        "category": "response_header_hook",
+        "category": "response_header_backend_setup",
         "connectors": [
           "apache",
           "haproxy",
@@ -2211,7 +2392,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "response_headers_multi_value_runtime_gap",
-          "classification": "runtime-difference",
+          "classification": "response-header-backend-setup",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2227,7 +2408,7 @@
           "variable": "RESPONSE_HEADERS:Set-Cookie",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "response_header_backend_setup"
           ]
         },
         "status_pairs": {
@@ -2371,53 +2552,6 @@
         ],
         "phase": "2",
         "source_category": "multipart",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "intervention_blocking"
-        ]
-      },
-      {
-        "category": "response_header_hook",
-        "classification": "runtime-difference",
-        "cluster_name": "haproxy / response_header_hook / response-headers / phase:3 / 403\u2192200",
-        "connectors": [
-          "haproxy"
-        ],
-        "corpus": "none",
-        "count": 22,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase3_response_headers_multi_value_connector_gap",
-            "classification": "runtime-difference",
-            "connector": "haproxy",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "3",
-            "query": "-",
-            "rule_id": "4805",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Set-Cookie",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "intervention_blocking"
-            ]
-          }
-        ],
-        "phase": "3",
-        "source_category": "response-headers",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -2707,6 +2841,53 @@
         "work_direction": [
           "intervention_blocking"
         ]
+      },
+      {
+        "category": "response_header_multi_value_gap",
+        "classification": "response-header-multi-value-gap",
+        "cluster_name": "haproxy / response_header_multi_value_gap / response-headers / phase:3 / 403\u2192200",
+        "connectors": [
+          "haproxy"
+        ],
+        "corpus": "none",
+        "count": 12,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase3_response_headers_multi_value_connector_gap",
+            "classification": "response-header-multi-value-gap",
+            "connector": "haproxy",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "3",
+            "query": "-",
+            "rule_id": "4805",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_HEADERS:Set-Cookie",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_header_multi_value_gap"
+            ]
+          }
+        ],
+        "phase": "3",
+        "source_category": "response-headers",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_header_multi_value_gap"
+        ]
       }
     ],
     "intervention_blocking_failures": [
@@ -2747,55 +2928,6 @@
         ],
         "phase": "2",
         "source_category": "transformations",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "intervention_blocking"
-        ]
-      },
-      {
-        "category": "response_header_hook",
-        "classification": "runtime-difference",
-        "cluster_name": "response_header_hook / response-headers / phase:3 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 82,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "runtime-difference",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "3",
-            "query": "-",
-            "rule_id": "4902",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "intervention_blocking"
-            ]
-          }
-        ],
-        "phase": "3",
-        "source_category": "response-headers",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -2904,6 +3036,54 @@
         ],
         "work_direction": [
           "intervention_blocking"
+        ]
+      },
+      {
+        "category": "response_header_backend_setup",
+        "classification": "response-header-backend-setup",
+        "cluster_name": "response_header_backend_setup / response-headers / phase:3 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 56,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase3_response_headers_content_type_charset_gap",
+            "classification": "response-header-backend-setup",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "3",
+            "query": "-",
+            "rule_id": "4902",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_header_backend_setup"
+            ]
+          }
+        ],
+        "phase": "3",
+        "source_category": "response-headers",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_header_backend_setup"
         ]
       },
       {
@@ -3246,19 +3426,19 @@
         ]
       },
       {
-        "category": "response_header_hook",
-        "classification": "runtime-difference",
-        "cluster_name": "nginx / response_header_hook / response-headers / phase:3 / 403\u2192200",
+        "category": "response_header_backend_setup",
+        "classification": "response-header-backend-setup",
+        "cluster_name": "nginx / response_header_backend_setup / response-headers / phase:3 / 403\u2192200",
         "connectors": [
           "nginx"
         ],
         "corpus": "none",
-        "count": 30,
+        "count": 28,
         "examples": [
           {
             "actual_status": 200,
             "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "runtime-difference",
+            "classification": "response-header-backend-setup",
             "connector": "nginx",
             "expected_status": 403,
             "failure_pattern": [
@@ -3274,7 +3454,7 @@
             "variable": "RESPONSE_HEADERS:Content-Type",
             "variant": "no-crs/no-mrts",
             "work_direction": [
-              "intervention_blocking"
+              "response_header_backend_setup"
             ]
           }
         ],
@@ -3289,7 +3469,7 @@
           "with-crs/with-mrts"
         ],
         "work_direction": [
-          "intervention_blocking"
+          "response_header_backend_setup"
         ]
       },
       {
@@ -3718,55 +3898,6 @@
         ]
       },
       {
-        "category": "response_header_hook",
-        "classification": "runtime-difference",
-        "cluster_name": "response_header_hook / response-headers / phase:3 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 82,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "runtime-difference",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "3",
-            "query": "-",
-            "rule_id": "4902",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "intervention_blocking"
-            ]
-          }
-        ],
-        "phase": "3",
-        "source_category": "response-headers",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "intervention_blocking"
-        ]
-      },
-      {
         "category": "intervention_blocking",
         "classification": "runtime-difference",
         "cluster_name": "intervention_blocking / collections / phase:1 / 403\u2192200",
@@ -3862,6 +3993,54 @@
         ],
         "work_direction": [
           "intervention_blocking"
+        ]
+      },
+      {
+        "category": "response_header_backend_setup",
+        "classification": "response-header-backend-setup",
+        "cluster_name": "response_header_backend_setup / response-headers / phase:3 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 56,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase3_response_headers_content_type_charset_gap",
+            "classification": "response-header-backend-setup",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "3",
+            "query": "-",
+            "rule_id": "4902",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_header_backend_setup"
+            ]
+          }
+        ],
+        "phase": "3",
+        "source_category": "response-headers",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_header_backend_setup"
         ]
       },
       {
@@ -4205,55 +4384,6 @@
         ]
       },
       {
-        "category": "response_header_hook",
-        "classification": "runtime-difference",
-        "cluster_name": "response_header_hook / response-headers / phase:3 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 82,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "runtime-difference",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "3",
-            "query": "-",
-            "rule_id": "4902",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "intervention_blocking"
-            ]
-          }
-        ],
-        "phase": "3",
-        "source_category": "response-headers",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "intervention_blocking"
-        ]
-      },
-      {
         "category": "intervention_blocking",
         "classification": "runtime-difference",
         "cluster_name": "intervention_blocking / collections / phase:1 / 403\u2192200",
@@ -4349,6 +4479,54 @@
         ],
         "work_direction": [
           "intervention_blocking"
+        ]
+      },
+      {
+        "category": "response_header_backend_setup",
+        "classification": "response-header-backend-setup",
+        "cluster_name": "response_header_backend_setup / response-headers / phase:3 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 56,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase3_response_headers_content_type_charset_gap",
+            "classification": "response-header-backend-setup",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "3",
+            "query": "-",
+            "rule_id": "4902",
+            "runtime_verified": "false",
+            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_header_backend_setup"
+            ]
+          }
+        ],
+        "phase": "3",
+        "source_category": "response-headers",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_header_backend_setup"
         ]
       },
       {
