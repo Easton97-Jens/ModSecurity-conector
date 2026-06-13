@@ -1,21 +1,9 @@
 {
-  "generated_at": "2026-06-13T17:29:56Z",
+  "generated_at": "2026-06-13T20:04:23Z",
   "priority_plan": {
     "P0": [],
     "P1": [],
     "P2": [
-      {
-        "cluster_name": "response_header_multi_value_gap",
-        "connector": "haproxy",
-        "count": 12,
-        "likely_change": "trace SPOE response-header argument population for repeated Set-Cookie values",
-        "risk": "medium",
-        "tests": [
-          "targeted HAProxy Set-Cookie response-header cases",
-          "make smoke-haproxy"
-        ],
-        "why": "HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches"
-      },
       {
         "cluster_name": "request_body_processor / multipart_files / xml_processor",
         "connector": "apache, nginx, haproxy",
@@ -90,8 +78,8 @@
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action"
       }
     ],
-    "reason": "HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches",
-    "recommended_next_fix_cluster": "response_header_multi_value_gap"
+    "reason": "high combined volume, but likely multiple true processor gaps",
+    "recommended_next_fix_cluster": "request_body_processor / multipart_files / xml_processor"
   },
   "report_kind": "next-fix-plan"
 }

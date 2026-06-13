@@ -528,8 +528,8 @@ def render_markdown(analysis: dict[str, Any]) -> str:
         f"- MRTS DetectionOnly overlay: **{summary['classification_counts'].get('response_header_mrts_detection_only', 0)}**",
         "",
         "## Root Cause",
-        "- Apache and NGINX only prove basic `Last-Modified` response-header blocking in current no-MRTS evidence; the specialized Content-Type, Location, and Set-Cookie probes do not have deterministic backend header setup there.",
-        "- HAProxy response-header processing is live-evidenced, but `Set-Cookie` multi-value probes do not expose every expected value through the current SPOE response-header argument path.",
+        "- Apache, NGINX, and HAProxy now have no-MRTS PASS controls for deterministic response-header blocking, including specialized Content-Type, Location, and Set-Cookie probes.",
+        "- HAProxy preserves repeated `Set-Cookie` response headers through the binary SPOE response-header argument path; the text/scalar fallback remains secondary evidence only.",
         "- `with-mrts` rows that otherwise pass in no-MRTS are suppressed by the MRTS init rule's transaction-level DetectionOnly control; this is classification-only and not a connector PASS promotion.",
         "",
         "## PASS Controls",
@@ -640,7 +640,7 @@ def build_analysis(connector_root: Path, framework_root: Path) -> dict[str, Any]
             "expected_status_changed": False,
             "request_or_rule_changed": False,
             "connector_core_changed": False,
-            "root_cause": "monolithic response_header_hook cluster splits into backend header setup, HAProxy Set-Cookie multi-value exposure, and MRTS DetectionOnly overlay",
+            "root_cause": "monolithic response_header_hook cluster is reduced to MRTS DetectionOnly overlay after backend setup and HAProxy Set-Cookie multi-value evidence are stabilized",
         },
     }
 

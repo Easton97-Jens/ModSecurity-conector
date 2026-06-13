@@ -32,7 +32,7 @@
     "root_cause": "with-crs variants contain unrelated CRS audit entries while the nolog/pass rule is absent from audit, error, and decision logs",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-13T15:03:30Z",
+  "generated_at": "2026-06-13T20:00:56Z",
   "report_kind": "nolog-audit-evidence-analysis",
   "rows": [
     {
@@ -546,7 +546,7 @@
       "actual_evidence": "audit log contains unrelated rule(s): 920350",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "audit_log_size": 1002,
+      "audit_log_size": 1000,
       "audit_rule_ids": [
         "920350"
       ],

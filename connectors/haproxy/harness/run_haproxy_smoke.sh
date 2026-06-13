@@ -716,9 +716,9 @@ write_haproxy_config() {
             echo
             echo "spoe-message check-response"
             if [ "${HAPROXY_ENABLE_RESPONSE_BODY:-0}" = "1" ]; then
-                echo "    args request_id=unique-id response_status=txn.status response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server) response_body=res.body response_body_len=res.body_len"
+                echo "    args request_id=unique-id response_status=txn.status response_headers_bin=res.hdrs_bin response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server) response_body=res.body response_body_len=res.body_len"
             else
-                echo "    args request_id=unique-id response_status=txn.status response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server)"
+                echo "    args request_id=unique-id response_status=txn.status response_headers_bin=res.hdrs_bin response_headers=res.hdrs response_header_last_modified=res.hdr(Last-Modified) response_header_content_type=res.hdr(Content-Type) response_header_location=res.hdr(Location) response_header_set_cookie=res.hdr(Set-Cookie) response_header_server=res.hdr(Server)"
             fi
         fi
     } > "$SPOE_CFG"

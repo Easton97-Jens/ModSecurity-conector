@@ -67,6 +67,7 @@ documented as runtime evidence only.
 | `request_id` | SPOE message arg | Yes | `unique-id` | `spoe-modsecurity.conf` | Correlates requests in decision and audit logs. | reload HAProxy | `unique-id-header` exposes the same value upstream. |
 | `headers_bin` | SPOE message arg | Request checks | `req.hdrs_bin` | `spoe-modsecurity.conf` | Sends request headers in binary form. | reload HAProxy | Used by request phases. |
 | `body` | SPOE message arg | Request checks | `req.body` | `spoe-modsecurity.conf` | Sends bounded request body bytes. | reload HAProxy | Requires `option http-buffer-request`. |
+| `response_headers_bin` | SPOE message arg | Response checks | `res.hdrs_bin` | `spoe-modsecurity.conf` | Sends response headers in binary form, preserving repeated values such as `Set-Cookie`. | reload HAProxy | Preferred for phase 3 response-header evidence. |
 | `response_headers` | SPOE message arg | Response checks | `res.hdrs` | `spoe-modsecurity.conf` | Sends response headers for phase 3. | reload HAProxy | Supported by response-header evidence. |
 | `response_body` | SPOE message arg | Phase 4 only | `res.body` | `spoe-modsecurity.conf` | Sends bounded response body bytes. | reload HAProxy | Non-promoted runtime evidence only. |
 | `listen` | agent config key | Yes | `127.0.0.1:12345` | `modsecurity-agent.conf` | Address where `haproxy-modsecurity-spoa` listens. | restart SPOA | Must match HAProxy SPOP backend. |

@@ -1,6 +1,6 @@
 # Next Fix Plan
 
-Generated at: `2026-06-13T17:29:56Z`
+Generated at: `2026-06-13T20:04:23Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -13,7 +13,6 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 ## P2
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |
 |---|---|---|---|---|---|---|
-| response_header_multi_value_gap | 12 | haproxy | HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches | trace SPOE response-header argument population for repeated Set-Cookie values | medium | targeted HAProxy Set-Cookie response-header cases, make smoke-haproxy |
 | request_body_processor / multipart_files / xml_processor | 189 | apache, nginx, haproxy | high combined volume, but likely multiple true processor gaps | split by body type first; avoid one broad fix | medium to high | targeted body processor cases, connector smoke for touched connector, full matrix if parser behavior changes |
 
 ## P3

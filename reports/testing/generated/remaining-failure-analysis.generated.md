@@ -1,6 +1,6 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-13T17:29:56Z`
+Generated at: `2026-06-13T20:04:23Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -9,11 +9,11 @@ Generated at: `2026-06-13T17:29:56Z`
 - This report is analysis-only; runtime PASS/FAIL and expected statuses are not changed by classification metadata.
 
 ## Summary
-- Attempted/pass/fail/blocked/not executable: **3928 / 3068 / 788 / 0 / 72**
+- Attempted/pass/fail/blocked/not executable: **3928 / 3074 / 782 / 0 / 72**
 - Pending metadata rows observed: **2298**
 - Unique remaining failure cases: **113**
 - MRTS imported connector failures: **0**
-- Non-MRTS framework failures: **788**
+- Non-MRTS framework failures: **782**
 
 ## Regression Checks
 | Check | Status | Count | Cases |
@@ -32,10 +32,9 @@ Generated at: `2026-06-13T17:29:56Z`
 | request_body_processor | 69 | apache, haproxy, nginx | possibly fixable after processor-specific triage | medium | split JSON, URL-encoded, and XML body processor cases before code changes |
 | multipart_files | 66 | apache, haproxy, nginx | possibly fixable; likely connector/body parser evidence work | medium | compare multipart variable population across connectors with one representative request |
 | phase4_missing_abort_evidence | 64 | apache, nginx | fixable only through real strict abort/log evidence, not status-only changes | high if promoted without transport proof | add real Phase 4 intervention log plus connection-abort evidence before promotion |
-| response_header_mrts_detection_only | 54 | apache, haproxy, nginx | classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action | low; report-only if kept separate from PASS promotion | keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence |
+| response_header_mrts_detection_only | 60 | apache, haproxy, nginx | classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action | low; report-only if kept separate from PASS promotion | keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence |
 | xml_processor | 54 | apache, haproxy, nginx | possibly fixable, but high risk without XML processor parity checks | medium to high | verify XML processor enablement and malformed XML semantics |
 | phase4_connector_gap | 46 | apache, haproxy, nginx | connector capability gap unless a real abort mechanism is implemented and evidenced | high if faked; low if reported as gap | document connector gap unless implementation can prove a real hard abort |
-| response_header_multi_value_gap | 12 | haproxy | connector/hook gap; HAProxy Set-Cookie multi-value exposure needs focused evidence or implementation work | medium | triage HAProxy Set-Cookie multi-value exposure through SPOE response-header evidence |
 | nolog_expected_no_audit | 6 | apache, haproxy, nginx | classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated | low; no runtime or expected-status change | keep as classification-only evidence; do not add artificial audit logs |
 | phase4_log_only_no_abort | 6 | nginx | report-only unless the case is meant to exercise strict hard abort | low if reported honestly, high if promoted as hard abort | keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence |
 | rule_chain_semantics | 6 | apache, haproxy, nginx | small but semantic; requires focused rule-chain evidence | medium | single-case rule-chain triage with logs |
@@ -48,8 +47,8 @@ Generated at: `2026-06-13T17:29:56Z`
 | 66 | multipart_files / multipart / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | files_names_mixed_case_filename_gap | 4705 | FILES_NAMES |
 | 54 | intervention_blocking / collections / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | duplicate_args_encoded_separator_edge | 4608 | ARGS_NAMES |
 | 54 | xml_processor / body-processors / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | parser_xml_partial_body_future_target | 4610 | XML |
+| 48 | response_header_mrts_detection_only / response-headers / phase:3 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | response-header-mrts-detection-only | response_header_mrts_detection_only | phase3_response_headers_content_type_charset_gap | 4902 | RESPONSE_HEADERS:Content-Type |
 | 42 | transformation_semantics / transformations / phase:1 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | unicode_double_encoded_uri_runtime_difference | 4707 | REQUEST_URI |
-| 42 | response_header_mrts_detection_only / response-headers / phase:3 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | response-header-mrts-detection-only | response_header_mrts_detection_only | phase3_response_headers_content_type_charset_gap | 4902 | RESPONSE_HEADERS:Content-Type |
 | 42 | intervention_blocking / operators / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | v2_operator_begins_with_block | 3220 | ARGS:probe |
 | 38 | phase4_missing_abort_evidence / response-body / phase:4 / 403→200 | apache, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | response-body-non-promoted | response_body_non_promoted | phase4_response_body_buffering_order_future_target | 4906 | RESPONSE_BODY |
 | 36 | intervention_blocking / audit-log / phase:1 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | audit_log_empty_sections_future_target | 4605 | ARGS:a |
@@ -90,11 +89,11 @@ Generated at: `2026-06-13T17:29:56Z`
 | 22 | haproxy / multipart_files / multipart / phase:2 / 403→200 | haproxy | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | files_names_mixed_case_filename_gap | 4705 | FILES_NAMES |
 | 18 | haproxy / intervention_blocking / collections / phase:2 / 403→200 | haproxy | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | duplicate_args_encoded_separator_edge | 4608 | ARGS_NAMES |
 | 18 | haproxy / xml_processor / body-processors / phase:2 / 403→200 | haproxy | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | parser_xml_partial_body_future_target | 4610 | XML |
+| 16 | haproxy / response_header_mrts_detection_only / response-headers / phase:3 / 403→200 | haproxy | no-crs/with-mrts, with-crs/with-mrts | response-header-mrts-detection-only | response_header_mrts_detection_only | phase3_response_headers_content_type_charset_gap | 4902 | RESPONSE_HEADERS:Content-Type |
 | 14 | haproxy / phase4_connector_gap / audit-log / phase:4 / 403→200 | haproxy | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | response-body-non-promoted | response_body_non_promoted | phase4_auditlog_outbound_multiline_section_gap | 4910 | RESPONSE_BODY |
 | 14 | haproxy / transformation_semantics / transformations / phase:1 / 403→200 | haproxy | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | unicode_double_encoded_uri_runtime_difference | 4707 | REQUEST_URI |
 | 14 | haproxy / phase4_connector_gap / response-body / phase:4 / 403→200 | haproxy | no-crs/with-mrts, with-crs/with-mrts | response-body-non-promoted | response_body_non_promoted | phase4_response_body_buffering_order_future_target | 4906 | RESPONSE_BODY |
 | 14 | haproxy / intervention_blocking / operators / phase:2 / 403→200 | haproxy | no-crs/with-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | v2_operator_begins_with_block | 3220 | ARGS:probe |
-| 12 | haproxy / response_header_multi_value_gap / response-headers / phase:3 / 403→200 | haproxy | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | response-header-multi-value-gap | response_header_multi_value_gap | phase3_response_headers_multi_value_connector_gap | 4805 | RESPONSE_HEADERS:Set-Cookie |
 
 ## Top MRTS Imported Failures
 - None.
@@ -107,8 +106,8 @@ Generated at: `2026-06-13T17:29:56Z`
 | 66 | multipart_files / multipart / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | files_names_mixed_case_filename_gap | 4705 | FILES_NAMES |
 | 54 | intervention_blocking / collections / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | duplicate_args_encoded_separator_edge | 4608 | ARGS_NAMES |
 | 54 | xml_processor / body-processors / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | parser_xml_partial_body_future_target | 4610 | XML |
+| 48 | response_header_mrts_detection_only / response-headers / phase:3 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | response-header-mrts-detection-only | response_header_mrts_detection_only | phase3_response_headers_content_type_charset_gap | 4902 | RESPONSE_HEADERS:Content-Type |
 | 42 | transformation_semantics / transformations / phase:1 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | unicode_double_encoded_uri_runtime_difference | 4707 | REQUEST_URI |
-| 42 | response_header_mrts_detection_only / response-headers / phase:3 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | response-header-mrts-detection-only | response_header_mrts_detection_only | phase3_response_headers_content_type_charset_gap | 4902 | RESPONSE_HEADERS:Content-Type |
 | 42 | intervention_blocking / operators / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | v2_operator_begins_with_block | 3220 | ARGS:probe |
 | 38 | phase4_missing_abort_evidence / response-body / phase:4 / 403→200 | apache, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | response-body-non-promoted | response_body_non_promoted | phase4_response_body_buffering_order_future_target | 4906 | RESPONSE_BODY |
 | 36 | intervention_blocking / audit-log / phase:1 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | audit_log_empty_sections_future_target | 4605 | ARGS:a |
@@ -130,8 +129,8 @@ Generated at: `2026-06-13T17:29:56Z`
 | 66 | multipart_files / multipart / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | files_names_mixed_case_filename_gap | 4705 | FILES_NAMES |
 | 54 | intervention_blocking / collections / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | duplicate_args_encoded_separator_edge | 4608 | ARGS_NAMES |
 | 54 | xml_processor / body-processors / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | parser_xml_partial_body_future_target | 4610 | XML |
+| 48 | response_header_mrts_detection_only / response-headers / phase:3 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | response-header-mrts-detection-only | response_header_mrts_detection_only | phase3_response_headers_content_type_charset_gap | 4902 | RESPONSE_HEADERS:Content-Type |
 | 42 | transformation_semantics / transformations / phase:1 / 403→200 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | unicode_double_encoded_uri_runtime_difference | 4707 | REQUEST_URI |
-| 42 | response_header_mrts_detection_only / response-headers / phase:3 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | response-header-mrts-detection-only | response_header_mrts_detection_only | phase3_response_headers_content_type_charset_gap | 4902 | RESPONSE_HEADERS:Content-Type |
 | 42 | intervention_blocking / operators / phase:2 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | v2_operator_begins_with_block | 3220 | ARGS:probe |
 | 38 | phase4_missing_abort_evidence / response-body / phase:4 / 403→200 | apache, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | response-body-non-promoted | response_body_non_promoted | phase4_response_body_buffering_order_future_target | 4906 | RESPONSE_BODY |
 | 36 | intervention_blocking / audit-log / phase:1 / 403→200 | apache, haproxy, nginx | no-crs/with-mrts, with-crs/with-mrts | runtime-difference | intervention_blocking | audit_log_empty_sections_future_target | 4605 | ARGS:a |
@@ -162,8 +161,8 @@ Generated at: `2026-06-13T17:29:56Z`
 | 2 | nginx_tx_scoring_iterative_block | nginx | no-crs/with-mrts, with-crs/with-mrts | intervention_blocking | {'403→200': 2} | 3201 | ARGS |
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `response_header_multi_value_gap`
-- Begründung: HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches
+- Empfohlener nächster Fix-Cluster: `request_body_processor / multipart_files / xml_processor`
+- Begründung: high combined volume, but likely multiple true processor gaps
 - Nicht als nächstes bearbeiten: `phase4_hard_abort_capability`, weil requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.
