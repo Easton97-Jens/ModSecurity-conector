@@ -488,7 +488,18 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
             "tests": ["targeted single-case smokes"],
         }
     )
-    return plan
+    return {
+        priority: [item for item in items if int(item.get("count") or 0) > 0]
+        for priority, items in plan.items()
+    }
+
+
+def first_priority_item(plan: dict[str, list[dict[str, Any]]]) -> dict[str, Any] | None:
+    for priority in ("P0", "P1", "P2", "P3", "P4"):
+        items = plan.get(priority, [])
+        if items:
+            return items[0]
+    return None
 
 
 def load_reports(root: Path) -> dict[str, dict[str, Any]]:
@@ -565,9 +576,10 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
         "category_rollup": categories,
     }
     analysis["priority_plan"] = priority_plan(failures, categories)
+    recommended = first_priority_item(analysis["priority_plan"])
     analysis["recommendation"] = {
-        "recommended_next_fix_cluster": "harness_evidence_issue / tfn_chain_lowercase_trim_pass_through",
-        "reason": "It is small, cross-connector, and the only clear actual_status 0 evidence cluster; it can likely be resolved or reclassified with targeted evidence work before touching connector semantics.",
+        "recommended_next_fix_cluster": recommended.get("cluster_name") if recommended else "none",
+        "reason": recommended.get("why") if recommended else "No remaining connector Full-Matrix failures are present in the generated reports.",
         "not_next": [
             {
                 "cluster": "phase4_response_body_non_promoted",

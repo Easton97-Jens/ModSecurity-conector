@@ -1,21 +1,8 @@
 {
-  "generated_at": "2026-06-13T11:44:02Z",
+  "generated_at": "2026-06-13T13:49:37Z",
   "priority_plan": {
     "P0": [],
     "P1": [
-      {
-        "cluster_name": "harness_evidence_issue / tfn_chain_lowercase_trim_pass_through",
-        "connector": "apache, nginx, haproxy",
-        "count": 12,
-        "likely_change": "inspect result creation/log matching for the transformation pass-through case; report-only or harness evidence fix if confirmed",
-        "risk": "low to medium",
-        "tests": [
-          "targeted smoke for the case on all connectors",
-          "make lint quick-check",
-          "make full-matrix-parallel if harness behavior changes"
-        ],
-        "why": "small, clear evidence-missing/actual_status 0 cluster; safest quick-win candidate"
-      },
       {
         "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
         "connector": "apache, nginx, haproxy",
@@ -109,8 +96,8 @@
         "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes"
       }
     ],
-    "reason": "It is small, cross-connector, and the only clear actual_status 0 evidence cluster; it can likely be resolved or reclassified with targeted evidence work before touching connector semantics.",
-    "recommended_next_fix_cluster": "harness_evidence_issue / tfn_chain_lowercase_trim_pass_through"
+    "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
+    "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
   },
   "report_kind": "next-fix-plan"
 }

@@ -530,8 +530,18 @@ send_case_request() {
     if [ "${REQUEST_HAS_BODY:-0}" = "1" ]; then
         set -- "$@" --data-binary "@$REQUEST_BODY_FILE"
     fi
-    set -- "$@" "http://127.0.0.1:$PORT$REQUEST_PATH"
+    request_url_path=$(quote_request_path "$REQUEST_PATH")
+    set -- "$@" "http://127.0.0.1:$PORT$request_url_path"
     "$@" 2>"$LOG_DIR/curl-attack.err"
+}
+
+quote_request_path() {
+    "$PYTHON_BIN" - "$1" <<'PY'
+import sys
+from urllib.parse import quote
+
+print(quote(sys.argv[1], safe="/:?&=%+$,;@[]!'()*"))
+PY
 }
 
 require_crs_preamble_if_needed() {

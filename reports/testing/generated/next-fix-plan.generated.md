@@ -1,6 +1,6 @@
 # Next Fix Plan
 
-Generated at: `2026-06-13T11:44:02Z`
+Generated at: `2026-06-13T13:49:37Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -10,7 +10,6 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 ## P1
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |
 |---|---|---|---|---|---|---|
-| harness_evidence_issue / tfn_chain_lowercase_trim_pass_through | 12 | apache, nginx, haproxy | small, clear evidence-missing/actual_status 0 cluster; safest quick-win candidate | inspect result creation/log matching for the transformation pass-through case; report-only or harness evidence fix if confirmed | low to medium | targeted smoke for the case on all connectors, make lint quick-check, make full-matrix-parallel if harness behavior changes |
 | audit_log_evidence / v3_action_nolog_pass_no_audit | 6 | apache, nginx, haproxy | HTTP behavior passes; remaining failure is evidence/assertion semantics | verify whether audit-log expectation is correct for nolog and classify/report accordingly | low to medium | targeted smoke for v3_action_nolog_pass_no_audit, make lint quick-check |
 
 ## P2

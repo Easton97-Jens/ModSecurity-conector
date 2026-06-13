@@ -561,42 +561,6 @@
       ]
     },
     {
-      "category": "harness_evidence_issue",
-      "connectors": [
-        "apache",
-        "haproxy",
-        "nginx"
-      ],
-      "count": 12,
-      "fixable": "likely quick win if evidence files/log matching are missing",
-      "recommended_next_step": "inspect `tfn_chain_lowercase_trim_pass_through` evidence generation; verify whether actual_status 0 means missing result or real transport failure",
-      "risk": "low to medium",
-      "typical_examples": [
-        {
-          "actual_status": 0,
-          "case_id": "tfn_chain_lowercase_trim_pass_through",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_200_got_0"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "q=  Safe  ",
-          "rule_id": "4611",
-          "runtime_verified": "false",
-          "variable": "ARGS:q",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "harness_incompatibility"
-          ]
-        }
-      ]
-    },
-    {
       "category": "audit_log_evidence",
       "connectors": [
         "apache",
@@ -687,6 +651,15 @@
       "typical_examples": []
     },
     {
+      "category": "harness_evidence_issue",
+      "connectors": [],
+      "count": 0,
+      "fixable": "likely quick win if evidence files/log matching are missing",
+      "recommended_next_step": "inspect `tfn_chain_lowercase_trim_pass_through` evidence generation; verify whether actual_status 0 means missing result or real transport failure",
+      "risk": "low to medium",
+      "typical_examples": []
+    },
+    {
       "category": "native_modsecurity_semantics",
       "connectors": [],
       "count": 0,
@@ -714,7 +687,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-13T11:44:02Z",
+  "generated_at": "2026-06-13T13:49:37Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -775,19 +748,6 @@
   "priority_plan": {
     "P0": [],
     "P1": [
-      {
-        "cluster_name": "harness_evidence_issue / tfn_chain_lowercase_trim_pass_through",
-        "connector": "apache, nginx, haproxy",
-        "count": 12,
-        "likely_change": "inspect result creation/log matching for the transformation pass-through case; report-only or harness evidence fix if confirmed",
-        "risk": "low to medium",
-        "tests": [
-          "targeted smoke for the case on all connectors",
-          "make lint quick-check",
-          "make full-matrix-parallel if harness behavior changes"
-        ],
-        "why": "small, clear evidence-missing/actual_status 0 cluster; safest quick-win candidate"
-      },
       {
         "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
         "connector": "apache, nginx, haproxy",
@@ -881,8 +841,8 @@
         "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes"
       }
     ],
-    "reason": "It is small, cross-connector, and the only clear actual_status 0 evidence cluster; it can likely be resolved or reclassified with targeted evidence work before touching connector semantics.",
-    "recommended_next_fix_cluster": "harness_evidence_issue / tfn_chain_lowercase_trim_pass_through"
+    "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
+    "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
   },
   "regression_checks": {
     "apache_expected_200_actual_404": {
@@ -918,25 +878,25 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-13T10:10:29Z",
+    "connector_work_queue": "2026-06-13T13:41:26Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
-    "full_runtime_matrix": "2026-06-13T11:27:39Z",
+    "full_runtime_matrix": "2026-06-13T13:41:22Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-13T10:10:29Z",
+    "phase_work_queue": "2026-06-13T13:41:26Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {
     "attempted": 3928,
     "blocked": 0,
-    "fail": 828,
+    "fail": 816,
     "mrt_imported_failures": 0,
-    "non_mrts_framework_failures": 828,
+    "non_mrts_framework_failures": 816,
     "not_executable": 72,
-    "pass": 3028,
-    "pending": 552,
-    "unique_failure_cases": 114
+    "pass": 3040,
+    "pending": 2298,
+    "unique_failure_cases": 113
   },
   "top_clusters": {
     "apache": [

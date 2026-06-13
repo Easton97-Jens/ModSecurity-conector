@@ -1,6 +1,6 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-13T11:44:02Z`
+Generated at: `2026-06-13T13:49:37Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -9,11 +9,11 @@ Generated at: `2026-06-13T11:44:02Z`
 - This report is analysis-only; no connector/harness semantics were changed.
 
 ## Summary
-- Attempted/pass/fail/blocked/not executable: **3928 / 3028 / 828 / 0 / 72**
-- Pending metadata rows observed: **552**
-- Unique remaining failure cases: **114**
+- Attempted/pass/fail/blocked/not executable: **3928 / 3040 / 816 / 0 / 72**
+- Pending metadata rows observed: **2298**
+- Unique remaining failure cases: **113**
 - MRTS imported connector failures: **0**
-- Non-MRTS framework failures: **828**
+- Non-MRTS framework failures: **816**
 
 ## Regression Checks
 | Check | Status | Count | Cases |
@@ -34,7 +34,6 @@ Generated at: `2026-06-13T11:44:02Z`
 | request_body_processor | 69 | apache, haproxy, nginx | possibly fixable after processor-specific triage | medium | split JSON, URL-encoded, and XML body processor cases before code changes |
 | multipart_files | 66 | apache, haproxy, nginx | possibly fixable; likely connector/body parser evidence work | medium | compare multipart variable population across connectors with one representative request |
 | xml_processor | 54 | apache, haproxy, nginx | possibly fixable, but high risk without XML processor parity checks | medium to high | verify XML processor enablement and malformed XML semantics |
-| harness_evidence_issue | 12 | apache, haproxy, nginx | likely quick win if evidence files/log matching are missing | low to medium | inspect `tfn_chain_lowercase_trim_pass_through` evidence generation; verify whether actual_status 0 means missing result or real transport failure |
 | audit_log_evidence | 6 | apache, haproxy, nginx | fixable if audit-log assertion path is wrong; otherwise report/classification-only | low to medium | inspect `v3_action_nolog_pass_no_audit` audit expectation and report classification |
 | rule_chain_semantics | 6 | apache, haproxy, nginx | small but semantic; requires focused rule-chain evidence | medium | single-case rule-chain triage with logs |
 
@@ -158,7 +157,7 @@ Generated at: `2026-06-13T11:44:02Z`
 | 2 | nginx_tx_scoring_iterative_block | nginx | no-crs/with-mrts, with-crs/with-mrts | intervention_blocking | {'403→200': 2} | 3201 | ARGS |
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `harness_evidence_issue / tfn_chain_lowercase_trim_pass_through`
-- Begründung: It is small, cross-connector, and the only clear actual_status 0 evidence cluster; it can likely be resolved or reclassified with targeted evidence work before touching connector semantics.
+- Empfohlener nächster Fix-Cluster: `audit_log_evidence / v3_action_nolog_pass_no_audit`
+- Begründung: HTTP behavior passes; remaining failure is evidence/assertion semantics
 - Nicht als nächstes bearbeiten: `phase4_response_body_non_promoted`, weil known non-promoted/long-term surface; high risk to promote or force behavior prematurely.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
