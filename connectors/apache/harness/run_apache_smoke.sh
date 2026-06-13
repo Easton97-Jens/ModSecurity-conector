@@ -375,6 +375,7 @@ render_config() {
         -e "s|@@MODULES_FILE@@|$(escape_sed "$MODULES_FILE")|g" \
         -e "s|@@APACHE_MODULE@@|$(escape_sed "$APACHE_MODULE")|g" \
         -e "s|@@DOCROOT@@|$(escape_sed "$DOCROOT")|g" \
+        -e "s|@@APACHE_BACKEND_PROXY_FILE@@|$(escape_sed "$APACHE_BACKEND_PROXY_FILE")|g" \
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@APACHE_PHASE4_LOG@@|$(escape_sed "$APACHE_PHASE4_LOG_FILE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
@@ -384,6 +385,10 @@ cleanup() {
     if [ -n "${HTTPD_PID:-}" ] && kill -0 "$HTTPD_PID" >/dev/null 2>&1; then
         kill "$HTTPD_PID" >/dev/null 2>&1 || true
         wait "$HTTPD_PID" >/dev/null 2>&1 || true
+    fi
+    if [ -n "${RESPONSE_HEADER_BACKEND_PID:-}" ] && kill -0 "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1; then
+        kill "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
+        wait "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
     fi
     if [ -n "${RUNTIME_PID_FILE:-}" ]; then
         rm -f "$RUNTIME_PID_FILE"
@@ -405,6 +410,37 @@ except OSError:
 finally:
     sock.close()
 PY
+}
+
+port_accepts_tcp() {
+    port_to_probe=$1
+    "$PYTHON_BIN" - "$port_to_probe" <<'PY'
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(0.2)
+try:
+    sock.connect(("127.0.0.1", port))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+}
+
+wait_tcp_port() {
+    port_to_probe=$1
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if port_accepts_tcp "$port_to_probe"; then
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    return 1
 }
 
 select_free_port() {
@@ -544,6 +580,39 @@ print(quote(sys.argv[1], safe="/:?&=%+$,;@[]!'()*"))
 PY
 }
 
+response_header_backend_needed() {
+    grep -Eq "RESPONSE_HEADERS:([Cc]ontent-[Tt]ype|[Ll]ocation|[Ss]et-[Cc]ookie)" "$RULES_FILE"
+}
+
+start_response_header_backend() {
+    response_header_backend_needed || return 0
+    RESPONSE_HEADER_BACKEND_PORT=$(select_free_port $((PORT + 1000)) "$PORT_SEARCH_LIMIT") || \
+        blocked "no free response-header backend port found"
+    "$PYTHON_BIN" "$REPO_ROOT/ci/response-header-test-backend.py" \
+        --port "$RESPONSE_HEADER_BACKEND_PORT" \
+        --body-file "$DOCROOT/index.html" \
+        >"$LOG_DIR/response-header-backend.stdout.log" \
+        2>"$LOG_DIR/response-header-backend.stderr.log" &
+    RESPONSE_HEADER_BACKEND_PID=$!
+    wait_tcp_port "$RESPONSE_HEADER_BACKEND_PORT" || blocked "response-header backend failed to start"
+}
+
+write_backend_proxy_directives() {
+    output=$1
+    : > "$output"
+    response_header_backend_needed || return 0
+    {
+        echo "# Generated proxy route for response-header smoke cases."
+        echo "<IfModule proxy_module>"
+        echo "<IfModule proxy_http_module>"
+        echo "ProxyPass \"/__modsec_smoke_ready\" \"!\""
+        echo "ProxyPass \"/\" \"http://127.0.0.1:$RESPONSE_HEADER_BACKEND_PORT/\""
+        echo "ProxyPassReverse \"/\" \"http://127.0.0.1:$RESPONSE_HEADER_BACKEND_PORT/\""
+        echo "$IFMODULE_END"
+        echo "$IFMODULE_END"
+    } > "$output"
+}
+
 require_crs_preamble_if_needed() {
     if [ "$MODSECURITY_TEST_VARIANT" = "with-crs" ] && [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
         blocked "MODSECURITY_RULE_PREAMBLE_FILE is required for MODSECURITY_TEST_VARIANT=with-crs; run make test-with-crs or make prepare-crs"
@@ -625,6 +694,7 @@ CONFIG_FILE="$RUNTIME_ROOT/conf/httpd.conf"
 RULES_FILE="$RUNTIME_ROOT/conf/modsecurity-smoke.conf"
 MIME_TYPES_FILE="$RUNTIME_ROOT/conf/mime.types"
 DOCROOT="$RUNTIME_ROOT/htdocs"
+APACHE_BACKEND_PROXY_FILE="$RUNTIME_ROOT/conf/backend-proxy.conf"
 RESPONSE_BODY="$LOG_DIR/response-body.txt"
 CASE_ENV_FILE="$RUNTIME_ROOT/conf/case.env"
 REQUEST_HEADERS_FILE="$RUNTIME_ROOT/conf/request-headers.txt"
@@ -651,6 +721,8 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
 . "$CASE_ENV_FILE"
+start_response_header_backend
+write_backend_proxy_directives "$APACHE_BACKEND_PROXY_FILE"
 
 : > "$MODULES_FILE"
 if modules_dir=$(apache_modules_dir); then
@@ -660,6 +732,8 @@ if modules_dir=$(apache_modules_dir); then
     append_load_if_exists "unixd_module" "mod_unixd.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "dir_module" "mod_dir.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "mime_module" "mod_mime.so" "$modules_dir" "$MODULES_FILE"
+    append_load_if_exists "proxy_module" "mod_proxy.so" "$modules_dir" "$MODULES_FILE"
+    append_load_if_exists "proxy_http_module" "mod_proxy_http.so" "$modules_dir" "$MODULES_FILE"
     append_load_if_exists "log_config_module" "mod_log_config.so" "$modules_dir" "$MODULES_FILE"
 fi
 

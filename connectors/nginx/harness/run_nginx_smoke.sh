@@ -13,7 +13,23 @@ if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
     else
         NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}}"
     fi
-    install -d -m 700 "$NGINX_HARNESS_PARENT"
+    if [ "$CURRENT_UID" = "0" ]; then
+        parent_perms=$(stat -c '%A' "$NGINX_HARNESS_PARENT" 2>/dev/null || printf '')
+        case "$parent_perms" in
+            ?????????[xt]) ;;
+            *)
+                fallback_parent="/var/tmp"
+                fallback_perms=$(stat -c '%A' "$fallback_parent" 2>/dev/null || printf '')
+                case "$fallback_perms" in
+                    ?????????[xt]) NGINX_HARNESS_PARENT="$fallback_parent" ;;
+                    *) ;;
+                esac
+                ;;
+        esac
+    fi
+    if [ ! -d "$NGINX_HARNESS_PARENT" ]; then
+        install -d -m 700 "$NGINX_HARNESS_PARENT"
+    fi
     NGINX_HARNESS_WORK_ROOT=$(mktemp -d "$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID-XXXXXX")
 fi
 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
@@ -392,6 +408,7 @@ render_config() {
         -e "s|@@RULES_FILE@@|$(escape_sed "$RULES_FILE")|g" \
         -e "s|@@NGINX_PHASE4_LOG@@|$(escape_sed "$NGINX_PHASE4_LOG_FILE")|g" \
         -e "s|@@NGINX_LOCATION_DIRECTIVES@@|$(escape_sed "$NGINX_LOCATION_DIRECTIVES_FILE")|g" \
+        -e "s|@@NGINX_LOCATION_HANDLER_DIRECTIVES@@|$(escape_sed "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE")|g" \
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
@@ -399,6 +416,10 @@ cleanup() {
     if [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" >/dev/null 2>&1; then
         kill "$NGINX_PID" >/dev/null 2>&1 || true
         wait "$NGINX_PID" >/dev/null 2>&1 || true
+    fi
+    if [ -n "${RESPONSE_HEADER_BACKEND_PID:-}" ] && kill -0 "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1; then
+        kill "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
+        wait "$RESPONSE_HEADER_BACKEND_PID" >/dev/null 2>&1 || true
     fi
     if [ -n "${RUNTIME_PID_FILE:-}" ]; then
         rm -f "$RUNTIME_PID_FILE"
@@ -420,6 +441,37 @@ except OSError:
 finally:
     sock.close()
 PY
+}
+
+port_accepts_tcp() {
+    port_to_probe=$1
+    "$PYTHON_BIN" - "$port_to_probe" <<'PY'
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(0.2)
+try:
+    sock.connect(("127.0.0.1", port))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+}
+
+wait_tcp_port() {
+    port_to_probe=$1
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if port_accepts_tcp "$port_to_probe"; then
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    return 1
 }
 
 select_free_port() {
@@ -558,6 +610,40 @@ print(quote(sys.argv[1], safe="/:?&=%+$,;@[]!'()*"))
 PY
 }
 
+response_header_backend_needed() {
+    grep -Eq "RESPONSE_HEADERS:([Cc]ontent-[Tt]ype|[Ll]ocation|[Ss]et-[Cc]ookie)" "$RULES_FILE"
+}
+
+start_response_header_backend() {
+    response_header_backend_needed || return 0
+    RESPONSE_HEADER_BACKEND_PORT=$(select_free_port $((PORT + 1000)) "$PORT_SEARCH_LIMIT") || \
+        blocked "no free response-header backend port found"
+    "$PYTHON_BIN" "$REPO_ROOT/ci/response-header-test-backend.py" \
+        --port "$RESPONSE_HEADER_BACKEND_PORT" \
+        --body-file "$DOCROOT/index.html" \
+        >"$LOG_DIR/response-header-backend.stdout.log" \
+        2>"$LOG_DIR/response-header-backend.stderr.log" &
+    RESPONSE_HEADER_BACKEND_PID=$!
+    wait_tcp_port "$RESPONSE_HEADER_BACKEND_PORT" || blocked "response-header backend failed to start"
+}
+
+write_location_handler_directives() {
+    output=$1
+    : > "$output"
+    if response_header_backend_needed; then
+        {
+            echo "# Generated proxy route for response-header smoke cases."
+            echo "proxy_pass http://127.0.0.1:$RESPONSE_HEADER_BACKEND_PORT;"
+            echo "proxy_set_header Host \$host;"
+        } > "$output"
+        return 0
+    fi
+    {
+        echo "error_page 405 =200 /index.html;"
+        echo "try_files \$uri \$uri/ /index.html;"
+    } > "$output"
+}
+
 require_crs_preamble_if_needed() {
     if [ "$MODSECURITY_TEST_VARIANT" = "with-crs" ] && [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
         blocked "MODSECURITY_RULE_PREAMBLE_FILE is required for MODSECURITY_TEST_VARIANT=with-crs; run make test-with-crs or make prepare-crs"
@@ -638,6 +724,7 @@ REQUEST_BODY_FILE="$RUNTIME_ROOT/conf/request-body.bin"
 AUDIT_LOG_FILE="$LOG_DIR/audit.log"
 AUDIT_LOG_DIR="$LOG_DIR/audit"
 NGINX_LOCATION_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-directives.conf"
+NGINX_LOCATION_HANDLER_DIRECTIVES_FILE="$RUNTIME_ROOT/conf/nginx-location-handler-directives.conf"
 NGINX_PHASE4_LOG_FILE="$LOG_DIR/phase4.log"
 
 ensure_worker_runtime_permissions
@@ -656,8 +743,10 @@ if ! "$PYTHON_BIN" "$CASE_CLI" materialize \
 	    --nginx-phase4-log-file "$NGINX_PHASE4_LOG_FILE" > "$LOG_DIR/case-materialize.log" 2>&1; then
     not_executable "failed to materialize shared case; see $LOG_DIR/case-materialize.log"
 fi
-ensure_worker_runtime_permissions
 . "$CASE_ENV_FILE"
+start_response_header_backend
+write_location_handler_directives "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE"
+ensure_worker_runtime_permissions
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH

@@ -6,57 +6,36 @@
     "root_cause": "monolithic response_header_hook cluster splits into backend header setup, HAProxy Set-Cookie multi-value exposure, and MRTS DetectionOnly overlay",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-13T15:03:32Z",
+  "generated_at": "2026-06-13T17:29:54Z",
   "groups": {
     "by_case": [
       {
         "case_id": "phase3_response_headers_content_type_charset_gap",
-        "count": 8,
-        "evidence_classification": "response_header_backend_setup",
+        "count": 6,
+        "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_content_type_charset_gap",
         "header_name": "Content-Type"
       },
       {
         "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-        "count": 8,
-        "evidence_classification": "response_header_backend_setup",
+        "count": 6,
+        "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
         "header_name": "Set-Cookie"
       },
       {
         "case_id": "phase3_response_headers_encoded_value_future_target",
-        "count": 8,
-        "evidence_classification": "response_header_backend_setup",
+        "count": 6,
+        "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_encoded_value_future_target",
         "header_name": "Location"
       },
       {
         "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-        "count": 8,
-        "evidence_classification": "response_header_backend_setup",
+        "count": 6,
+        "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_location_encoded_runtime_diff",
         "header_name": "Location"
-      },
-      {
-        "case_id": "phase3_response_headers_multi_value_connector_gap",
-        "count": 8,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_multi_value_connector_gap",
-        "header_name": "Set-Cookie"
-      },
-      {
-        "case_id": "phase3_response_headers_set_cookie_multi_gap",
-        "count": 8,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_set_cookie_multi_gap",
-        "header_name": "Set-Cookie"
-      },
-      {
-        "case_id": "response_headers_multi_value_runtime_gap",
-        "count": 8,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "response_headers_multi_value_runtime_gap",
-        "header_name": "Set-Cookie"
       },
       {
         "case_id": "phase3_response_headers_mixed_case_connector_gap",
@@ -82,8 +61,22 @@
       {
         "case_id": "phase3_response_headers_multi_value_connector_gap",
         "count": 4,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_multi_value_connector_gap",
+        "header_name": "Set-Cookie"
+      },
+      {
+        "case_id": "phase3_response_headers_multi_value_connector_gap",
+        "count": 4,
         "evidence_classification": "response_header_multi_value_gap",
         "example_case": "phase3_response_headers_multi_value_connector_gap",
+        "header_name": "Set-Cookie"
+      },
+      {
+        "case_id": "phase3_response_headers_set_cookie_multi_gap",
+        "count": 4,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_set_cookie_multi_gap",
         "header_name": "Set-Cookie"
       },
       {
@@ -96,60 +89,19 @@
       {
         "case_id": "response_headers_multi_value_runtime_gap",
         "count": 4,
-        "evidence_classification": "response_header_multi_value_gap",
+        "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "response_headers_multi_value_runtime_gap",
         "header_name": "Set-Cookie"
       },
       {
-        "case_id": "phase3_response_headers_content_type_charset_gap",
-        "count": 2,
-        "evidence_classification": "response_header_mrts_detection_only",
-        "example_case": "phase3_response_headers_content_type_charset_gap",
-        "header_name": "Content-Type"
-      },
-      {
-        "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-        "count": 2,
-        "evidence_classification": "response_header_mrts_detection_only",
-        "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
+        "case_id": "response_headers_multi_value_runtime_gap",
+        "count": 4,
+        "evidence_classification": "response_header_multi_value_gap",
+        "example_case": "response_headers_multi_value_runtime_gap",
         "header_name": "Set-Cookie"
-      },
-      {
-        "case_id": "phase3_response_headers_encoded_value_future_target",
-        "count": 2,
-        "evidence_classification": "response_header_mrts_detection_only",
-        "example_case": "phase3_response_headers_encoded_value_future_target",
-        "header_name": "Location"
-      },
-      {
-        "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-        "count": 2,
-        "evidence_classification": "response_header_mrts_detection_only",
-        "example_case": "phase3_response_headers_location_encoded_runtime_diff",
-        "header_name": "Location"
       }
     ],
     "by_connector_header_classification": [
-      {
-        "actual_status": 200,
-        "connector": "apache",
-        "count": 16,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
-        "expected_status": 403,
-        "header_name": "Set-Cookie",
-        "phase": "3"
-      },
-      {
-        "actual_status": 200,
-        "connector": "nginx",
-        "count": 16,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
-        "expected_status": 403,
-        "header_name": "Set-Cookie",
-        "phase": "3"
-      },
       {
         "actual_status": 200,
         "connector": "haproxy",
@@ -164,30 +116,20 @@
         "actual_status": 200,
         "connector": "apache",
         "count": 8,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_encoded_value_future_target",
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
         "expected_status": 403,
-        "header_name": "Location",
+        "header_name": "Set-Cookie",
         "phase": "3"
       },
       {
         "actual_status": 200,
         "connector": "nginx",
         "count": 8,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_encoded_value_future_target",
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
         "expected_status": 403,
-        "header_name": "Location",
-        "phase": "3"
-      },
-      {
-        "actual_status": 200,
-        "connector": "apache",
-        "count": 4,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_content_type_charset_gap",
-        "expected_status": 403,
-        "header_name": "Content-Type",
+        "header_name": "Set-Cookie",
         "phase": "3"
       },
       {
@@ -198,6 +140,16 @@
         "example_case": "pr70_phase3_audit_response_header",
         "expected_status": 403,
         "header_name": "Last-Modified",
+        "phase": "3"
+      },
+      {
+        "actual_status": 200,
+        "connector": "apache",
+        "count": 4,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_encoded_value_future_target",
+        "expected_status": 403,
+        "header_name": "Location",
         "phase": "3"
       },
       {
@@ -224,10 +176,10 @@
         "actual_status": 200,
         "connector": "nginx",
         "count": 4,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_content_type_charset_gap",
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "pr70_phase3_audit_response_header",
         "expected_status": 403,
-        "header_name": "Content-Type",
+        "header_name": "Last-Modified",
         "phase": "3"
       },
       {
@@ -235,9 +187,19 @@
         "connector": "nginx",
         "count": 4,
         "evidence_classification": "response_header_mrts_detection_only",
-        "example_case": "pr70_phase3_audit_response_header",
+        "example_case": "phase3_response_headers_encoded_value_future_target",
         "expected_status": 403,
-        "header_name": "Last-Modified",
+        "header_name": "Location",
+        "phase": "3"
+      },
+      {
+        "actual_status": 200,
+        "connector": "apache",
+        "count": 2,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_content_type_charset_gap",
+        "expected_status": 403,
+        "header_name": "Content-Type",
         "phase": "3"
       },
       {
@@ -278,6 +240,16 @@
         "example_case": "phase3_response_headers_mixed_case_connector_gap",
         "expected_status": 403,
         "header_name": "content-type",
+        "phase": "3"
+      },
+      {
+        "actual_status": 200,
+        "connector": "nginx",
+        "count": 2,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_content_type_charset_gap",
+        "expected_status": 403,
+        "header_name": "Content-Type",
         "phase": "3"
       },
       {
@@ -293,15 +265,9 @@
     ],
     "by_source": [
       {
-        "count": 56,
-        "evidence_classification": "response_header_backend_setup",
-        "example_case": "phase3_response_headers_content_type_charset_gap",
-        "source_corpus": "framework-owned/none"
-      },
-      {
-        "count": 26,
+        "count": 54,
         "evidence_classification": "response_header_mrts_detection_only",
-        "example_case": "phase3_response_headers_mixed_case_connector_gap",
+        "example_case": "phase3_response_headers_content_type_charset_gap",
         "source_corpus": "framework-owned/none"
       },
       {
@@ -314,6 +280,42 @@
   },
   "pass_controls": [
     {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_content_type_charset_gap",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Content-Type",
+      "rule_id": "4902",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4803",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_encoded_value_future_target",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4804",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4903",
+      "variant": "no-crs/no-mrts"
+    },
+    {
       "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "apache",
@@ -329,6 +331,24 @@
       "expected_status": 403,
       "header_name": "content-type",
       "rule_id": "4802",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_multi_value_connector_gap",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4805",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_set_cookie_multi_gap",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4904",
       "variant": "no-crs/no-mrts"
     },
     {
@@ -350,6 +370,51 @@
       "variant": "no-crs/no-mrts"
     },
     {
+      "actual_status": 403,
+      "case_id": "response_headers_multi_value_runtime_gap",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4410",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_content_type_charset_gap",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Content-Type",
+      "rule_id": "4902",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4803",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_encoded_value_future_target",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4804",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4903",
+      "variant": "no-crs/no-mrts"
+    },
+    {
       "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "nginx",
@@ -369,6 +434,24 @@
     },
     {
       "actual_status": 403,
+      "case_id": "phase3_response_headers_multi_value_connector_gap",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4805",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_set_cookie_multi_gap",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4904",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
       "case_id": "pr70_phase3_audit_response_header",
       "connector": "nginx",
       "expected_status": 403,
@@ -383,6 +466,15 @@
       "expected_status": 403,
       "header_name": "Last-Modified",
       "rule_id": "1301",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "response_headers_multi_value_runtime_gap",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4410",
       "variant": "no-crs/no-mrts"
     },
     {
@@ -485,6 +577,42 @@
       "variant": "no-crs/with-mrts"
     },
     {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_content_type_charset_gap",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Content-Type",
+      "rule_id": "4902",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4803",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_encoded_value_future_target",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4804",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4903",
+      "variant": "with-crs/no-mrts"
+    },
+    {
       "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "apache",
@@ -500,6 +628,24 @@
       "expected_status": 403,
       "header_name": "content-type",
       "rule_id": "4802",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_multi_value_connector_gap",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4805",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_set_cookie_multi_gap",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4904",
       "variant": "with-crs/no-mrts"
     },
     {
@@ -521,6 +667,51 @@
       "variant": "with-crs/no-mrts"
     },
     {
+      "actual_status": 403,
+      "case_id": "response_headers_multi_value_runtime_gap",
+      "connector": "apache",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4410",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_content_type_charset_gap",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Content-Type",
+      "rule_id": "4902",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4803",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_encoded_value_future_target",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4804",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4903",
+      "variant": "with-crs/no-mrts"
+    },
+    {
       "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "nginx",
@@ -540,6 +731,24 @@
     },
     {
       "actual_status": 403,
+      "case_id": "phase3_response_headers_multi_value_connector_gap",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4805",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_set_cookie_multi_gap",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4904",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
       "case_id": "pr70_phase3_audit_response_header",
       "connector": "nginx",
       "expected_status": 403,
@@ -554,6 +763,15 @@
       "expected_status": 403,
       "header_name": "Last-Modified",
       "rule_id": "1301",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "response_headers_multi_value_runtime_gap",
+      "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4410",
       "variant": "with-crs/no-mrts"
     },
     {
@@ -660,608 +878,6 @@
   "rows": [
     {
       "action_list": [
-        "id:4902",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 content-type charset gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_content_type_charset_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
-      "expected_log_evidence": "rule 4902 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Content-Type",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains charset",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4902",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Content-Type",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4803",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 duplicate response header runtime diff'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
-      "expected_log_evidence": "rule 4803 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains a=b",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4803",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4804",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 encoded response header future target'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_encoded_value_future_target",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
-      "expected_log_evidence": "rule 4804 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Location",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains %2F",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4804",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Location",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4903",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 location encoded runtime diff'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
-      "expected_log_evidence": "rule 4903 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Location",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains %2F",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4903",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Location",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4805",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 multi value header gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_multi_value_connector_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
-      "expected_log_evidence": "rule 4805 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains session",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4805",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4904",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 set-cookie multi gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_set_cookie_multi_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
-      "expected_log_evidence": "rule 4904 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains token",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4904",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4410",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL response headers multi-value gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "response_headers_multi_value_runtime_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
-      "expected_log_evidence": "rule 4410 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains session",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4410",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4902",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 content-type charset gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_content_type_charset_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
-      "expected_log_evidence": "rule 4902 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Content-Type",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains charset",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4902",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Content-Type",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4803",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 duplicate response header runtime diff'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
-      "expected_log_evidence": "rule 4803 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains a=b",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4803",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4804",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 encoded response header future target'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_encoded_value_future_target",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
-      "expected_log_evidence": "rule 4804 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Location",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains %2F",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4804",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Location",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4903",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 location encoded runtime diff'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
-      "expected_log_evidence": "rule 4903 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Location",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains %2F",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4903",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Location",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4805",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 multi value header gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_multi_value_connector_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
-      "expected_log_evidence": "rule 4805 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains session",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4805",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4904",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 set-cookie multi gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_set_cookie_multi_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
-      "expected_log_evidence": "rule 4904 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains token",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4904",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4410",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL response headers multi-value gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "response_headers_multi_value_runtime_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
-      "expected_log_evidence": "rule 4410 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains session",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4410",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "no-crs",
-      "variant": "no-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
         "id:4805",
         "phase:3",
         "deny",
@@ -1397,24 +1013,24 @@
         "status:403",
         "msg:'phase3 content-type charset gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_content_type_charset_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
       "expected_log_evidence": "rule 4902 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Content-Type",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains charset",
       "path": "/",
@@ -1426,7 +1042,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1440,24 +1056,24 @@
         "status:403",
         "msg:'phase3 duplicate response header runtime diff'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
       "expected_log_evidence": "rule 4803 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains a=b",
       "path": "/",
@@ -1469,7 +1085,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1483,24 +1099,24 @@
         "status:403",
         "msg:'phase3 encoded response header future target'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_encoded_value_future_target",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
       "expected_log_evidence": "rule 4804 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Location",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains %2F",
       "path": "/",
@@ -1512,7 +1128,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1526,24 +1142,24 @@
         "status:403",
         "msg:'phase3 location encoded runtime diff'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
       "expected_log_evidence": "rule 4903 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Location",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains %2F",
       "path": "/",
@@ -1555,7 +1171,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1612,24 +1228,24 @@
         "status:403",
         "msg:'phase3 multi value header gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
       "expected_log_evidence": "rule 4805 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains session",
       "path": "/",
@@ -1641,7 +1257,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1655,24 +1271,24 @@
         "status:403",
         "msg:'phase3 set-cookie multi gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
       "expected_log_evidence": "rule 4904 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains token",
       "path": "/",
@@ -1684,7 +1300,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1784,24 +1400,24 @@
         "status:403",
         "msg:'former XFAIL response headers multi-value gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "response_headers_multi_value_runtime_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
       "expected_log_evidence": "rule 4410 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains session",
       "path": "/",
@@ -1813,7 +1429,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1827,24 +1443,24 @@
         "status:403",
         "msg:'phase3 content-type charset gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_content_type_charset_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
       "expected_log_evidence": "rule 4902 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Content-Type",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains charset",
       "path": "/",
@@ -1856,7 +1472,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1870,24 +1486,24 @@
         "status:403",
         "msg:'phase3 duplicate response header runtime diff'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
       "expected_log_evidence": "rule 4803 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains a=b",
       "path": "/",
@@ -1899,7 +1515,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1913,24 +1529,24 @@
         "status:403",
         "msg:'phase3 encoded response header future target'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_encoded_value_future_target",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
       "expected_log_evidence": "rule 4804 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Location",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains %2F",
       "path": "/",
@@ -1942,7 +1558,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -1956,24 +1572,24 @@
         "status:403",
         "msg:'phase3 location encoded runtime diff'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
       "expected_log_evidence": "rule 4903 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Location",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains %2F",
       "path": "/",
@@ -1985,7 +1601,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -2042,24 +1658,24 @@
         "status:403",
         "msg:'phase3 multi value header gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
       "expected_log_evidence": "rule 4805 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains session",
       "path": "/",
@@ -2071,7 +1687,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -2085,24 +1701,24 @@
         "status:403",
         "msg:'phase3 set-cookie multi gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
       "expected_log_evidence": "rule 4904 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains token",
       "path": "/",
@@ -2114,7 +1730,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -2214,24 +1830,24 @@
         "status:403",
         "msg:'former XFAIL response headers multi-value gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "response_headers_multi_value_runtime_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
       "expected_log_evidence": "rule 4410 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains session",
       "path": "/",
@@ -2243,7 +1859,7 @@
       "test_variant": "no-crs",
       "variant": "no-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -2681,608 +2297,6 @@
     },
     {
       "action_list": [
-        "id:4902",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 content-type charset gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_content_type_charset_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
-      "expected_log_evidence": "rule 4902 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Content-Type",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains charset",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4902",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Content-Type",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4803",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 duplicate response header runtime diff'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
-      "expected_log_evidence": "rule 4803 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains a=b",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4803",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4804",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 encoded response header future target'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_encoded_value_future_target",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
-      "expected_log_evidence": "rule 4804 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Location",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains %2F",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4804",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Location",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4903",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 location encoded runtime diff'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
-      "expected_log_evidence": "rule 4903 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Location",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains %2F",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4903",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Location",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4805",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 multi value header gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_multi_value_connector_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
-      "expected_log_evidence": "rule 4805 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains session",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4805",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4904",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 set-cookie multi gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_set_cookie_multi_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
-      "expected_log_evidence": "rule 4904 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains token",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4904",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4410",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL response headers multi-value gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "response_headers_multi_value_runtime_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "apache",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
-      "expected_log_evidence": "rule 4410 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains session",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4410",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4902",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 content-type charset gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_content_type_charset_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
-      "expected_log_evidence": "rule 4902 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Content-Type",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains charset",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4902",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Content-Type",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4803",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 duplicate response header runtime diff'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
-      "expected_log_evidence": "rule 4803 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains a=b",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4803",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4804",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 encoded response header future target'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_encoded_value_future_target",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
-      "expected_log_evidence": "rule 4804 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Location",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains %2F",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4804",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Location",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4903",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 location encoded runtime diff'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
-      "expected_log_evidence": "rule 4903 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Location",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains %2F",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4903",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Location",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4805",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 multi value header gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_multi_value_connector_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
-      "expected_log_evidence": "rule 4805 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains session",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4805",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4904",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'phase3 set-cookie multi gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "phase3_response_headers_set_cookie_multi_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
-      "expected_log_evidence": "rule 4904 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains token",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4904",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
-        "id:4410",
-        "phase:3",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL response headers multi-value gap'"
-      ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
-      "actual_status": 200,
-      "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
-      "case_id": "response_headers_multi_value_runtime_gap",
-      "classification_after": "response-header-backend-setup",
-      "classification_before": "runtime-difference",
-      "connector": "nginx",
-      "decision_log_path": "-",
-      "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
-      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
-      "expected_log_evidence": "rule 4410 should deny in phase 3",
-      "expected_status": 403,
-      "header_name": "Set-Cookie",
-      "method": "GET",
-      "modsecurity_sees_header": false,
-      "mrts_variant": "no-mrts",
-      "operator": "@contains session",
-      "path": "/",
-      "phase": "3",
-      "rule_id": "4410",
-      "source_corpus": "framework-owned/none",
-      "target": "RESPONSE_HEADERS:Set-Cookie",
-      "target_rule_disruptive": false,
-      "test_variant": "with-crs",
-      "variant": "with-crs/no-mrts",
-      "work_direction_after": [
-        "response_header_backend_setup"
-      ],
-      "work_direction_before": [
-        "intervention_blocking"
-      ]
-    },
-    {
-      "action_list": [
         "id:4805",
         "phase:3",
         "deny",
@@ -3418,24 +2432,24 @@
         "status:403",
         "msg:'phase3 content-type charset gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_content_type_charset_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
       "expected_log_evidence": "rule 4902 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Content-Type",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains charset",
       "path": "/",
@@ -3447,7 +2461,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3461,24 +2475,24 @@
         "status:403",
         "msg:'phase3 duplicate response header runtime diff'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
       "expected_log_evidence": "rule 4803 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains a=b",
       "path": "/",
@@ -3490,7 +2504,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3504,24 +2518,24 @@
         "status:403",
         "msg:'phase3 encoded response header future target'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_encoded_value_future_target",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
       "expected_log_evidence": "rule 4804 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Location",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains %2F",
       "path": "/",
@@ -3533,7 +2547,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3547,24 +2561,24 @@
         "status:403",
         "msg:'phase3 location encoded runtime diff'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
       "expected_log_evidence": "rule 4903 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Location",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains %2F",
       "path": "/",
@@ -3576,7 +2590,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3633,24 +2647,24 @@
         "status:403",
         "msg:'phase3 multi value header gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
       "expected_log_evidence": "rule 4805 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains session",
       "path": "/",
@@ -3662,7 +2676,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3676,24 +2690,24 @@
         "status:403",
         "msg:'phase3 set-cookie multi gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
       "expected_log_evidence": "rule 4904 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains token",
       "path": "/",
@@ -3705,7 +2719,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3805,24 +2819,24 @@
         "status:403",
         "msg:'former XFAIL response headers multi-value gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "response_headers_multi_value_runtime_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
       "expected_log_evidence": "rule 4410 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains session",
       "path": "/",
@@ -3834,7 +2848,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3848,24 +2862,24 @@
         "status:403",
         "msg:'phase3 content-type charset gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_content_type_charset_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
       "expected_log_evidence": "rule 4902 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Content-Type",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains charset",
       "path": "/",
@@ -3877,7 +2891,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3891,24 +2905,24 @@
         "status:403",
         "msg:'phase3 duplicate response header runtime diff'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
       "expected_log_evidence": "rule 4803 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains a=b",
       "path": "/",
@@ -3920,7 +2934,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3934,24 +2948,24 @@
         "status:403",
         "msg:'phase3 encoded response header future target'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_encoded_value_future_target",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
       "expected_log_evidence": "rule 4804 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Location",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains %2F",
       "path": "/",
@@ -3963,7 +2977,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -3977,24 +2991,24 @@
         "status:403",
         "msg:'phase3 location encoded runtime diff'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
       "expected_log_evidence": "rule 4903 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Location",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains %2F",
       "path": "/",
@@ -4006,7 +3020,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -4063,24 +3077,24 @@
         "status:403",
         "msg:'phase3 multi value header gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_multi_value_connector_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
       "expected_log_evidence": "rule 4805 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains session",
       "path": "/",
@@ -4092,7 +3106,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -4106,24 +3120,24 @@
         "status:403",
         "msg:'phase3 set-cookie multi gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
       "expected_log_evidence": "rule 4904 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains token",
       "path": "/",
@@ -4135,7 +3149,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -4235,24 +3249,24 @@
         "status:403",
         "msg:'former XFAIL response headers multi-value gap'"
       ],
-      "actual_header_evidence": "target rule missing from logs",
-      "actual_log_evidence": "backend/harness response does not provide the target response header value observed by the rule",
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "backend_header_set": false,
+      "backend_header_set": true,
       "case_id": "response_headers_multi_value_runtime_gap",
-      "classification_after": "response-header-backend-setup",
+      "classification_after": "response-header-mrts-detection-only",
       "classification_before": "runtime-difference",
       "connector": "nginx",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
-      "evidence_classification": "response_header_backend_setup",
+      "evidence_classification": "response_header_mrts_detection_only",
       "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
       "expected_log_evidence": "rule 4410 should deny in phase 3",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "method": "GET",
-      "modsecurity_sees_header": false,
+      "modsecurity_sees_header": true,
       "mrts_variant": "with-mrts",
       "operator": "@contains session",
       "path": "/",
@@ -4264,7 +3278,7 @@
       "test_variant": "with-crs",
       "variant": "with-crs/with-mrts",
       "work_direction_after": [
-        "response_header_backend_setup"
+        "response_header_mrts_detection_only"
       ],
       "work_direction_before": [
         "intervention_blocking"
@@ -4703,8 +3717,7 @@
   ],
   "summary": {
     "classification_counts": {
-      "response_header_backend_setup": 56,
-      "response_header_mrts_detection_only": 26,
+      "response_header_mrts_detection_only": 54,
       "response_header_multi_value_gap": 12
     },
     "connectors": [
@@ -4712,16 +3725,16 @@
       "haproxy",
       "nginx"
     ],
-    "failure_rows": 94,
-    "pass_control_rows": 38,
+    "failure_rows": 66,
+    "pass_control_rows": 66,
     "phases": [
       "3"
     ],
-    "response_header_custom_after": 94,
+    "response_header_custom_after": 66,
     "response_header_custom_before": 0,
     "response_header_hook_after": 0,
-    "response_header_hook_before": 94,
-    "rows_reclassified": 94,
+    "response_header_hook_before": 66,
+    "rows_reclassified": 66,
     "variants": [
       "no-crs/no-mrts",
       "no-crs/with-mrts",

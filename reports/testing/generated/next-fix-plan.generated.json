@@ -1,22 +1,9 @@
 {
-  "generated_at": "2026-06-13T15:03:34Z",
+  "generated_at": "2026-06-13T17:29:56Z",
   "priority_plan": {
     "P0": [],
     "P1": [],
     "P2": [
-      {
-        "cluster_name": "response_header_backend_setup",
-        "connector": "apache, nginx",
-        "count": 56,
-        "likely_change": "add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path",
-        "risk": "low to medium",
-        "tests": [
-          "targeted response-header cases",
-          "make smoke-apache",
-          "make smoke-nginx"
-        ],
-        "why": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged"
-      },
       {
         "cluster_name": "response_header_multi_value_gap",
         "connector": "haproxy",
@@ -103,8 +90,8 @@
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action"
       }
     ],
-    "reason": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged",
-    "recommended_next_fix_cluster": "response_header_backend_setup"
+    "reason": "HAProxy proves response-header visibility for single-value controls but still misses Set-Cookie multi-value matches",
+    "recommended_next_fix_cluster": "response_header_multi_value_gap"
   },
   "report_kind": "next-fix-plan"
 }

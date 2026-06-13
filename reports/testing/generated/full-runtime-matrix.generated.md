@@ -2,27 +2,27 @@
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-13T15:03:22Z`
+- Generated at: `2026-06-13T17:29:47Z`
 - Variant runs: **12**
 - Total attempted: **3928**
-- Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **3040** / **816** / **0** / **72**
+- Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **3068** / **788** / **0** / **72**
 - Pending metadata rows observed in runtime summaries: **2298**
 
 ## Variant Results
 | Connector | Test variant | MRTS variant | Outcome | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending | Duration seconds | Summary | Log |
 |---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| apache | no-crs | no-mrts | FAIL | 133 | 101 | 26 | 0 | 6 | 0 | 321 | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/apache/run.log |
-| nginx | no-crs | no-mrts | FAIL | 140 | 96 | 38 | 0 | 6 | 0 | 430 | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/nginx/run.log |
-| haproxy | no-crs | no-mrts | FAIL | 133 | 105 | 22 | 0 | 6 | 0 | 302 | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/no-mrts/haproxy/run.log |
-| apache | no-crs | with-mrts | FAIL | 516 | 406 | 104 | 0 | 6 | 383 | 1266 | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/apache/run.log |
-| nginx | no-crs | with-mrts | FAIL | 523 | 406 | 111 | 0 | 6 | 383 | 2381 | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/nginx/run.log |
-| haproxy | no-crs | with-mrts | FAIL | 516 | 406 | 104 | 0 | 6 | 383 | 1090 | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/no-crs/with-mrts/haproxy/run.log |
-| apache | with-crs | no-mrts | FAIL | 134 | 102 | 26 | 0 | 6 | 0 | 346 | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/apache/run.log |
-| nginx | with-crs | no-mrts | FAIL | 141 | 97 | 38 | 0 | 6 | 0 | 487 | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/nginx/run.log |
-| haproxy | with-crs | no-mrts | FAIL | 134 | 106 | 22 | 0 | 6 | 0 | 334 | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/no-mrts/haproxy/run.log |
-| apache | with-crs | with-mrts | FAIL | 517 | 405 | 106 | 0 | 6 | 383 | 1369 | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/apache/run.log |
-| nginx | with-crs | with-mrts | FAIL | 524 | 405 | 113 | 0 | 6 | 383 | 2606 | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/nginx/run.log |
-| haproxy | with-crs | with-mrts | FAIL | 517 | 405 | 106 | 0 | 6 | 383 | 1226 | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json | /tmp/modsec-tfn-chain-full/full-matrix/with-crs/with-mrts/haproxy/run.log |
+| apache | no-crs | no-mrts | FAIL | 133 | 108 | 19 | 0 | 6 | 0 | 330 | /tmp/modsec-response-header-backend/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json | /tmp/modsec-response-header-backend/full-matrix/no-crs/no-mrts/apache/run.log |
+| nginx | no-crs | no-mrts | FAIL | 140 | 103 | 31 | 0 | 6 | 0 | 417 | /tmp/modsec-response-header-backend/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /tmp/modsec-response-header-backend/full-matrix/no-crs/no-mrts/nginx/run.log |
+| haproxy | no-crs | no-mrts | FAIL | 133 | 105 | 22 | 0 | 6 | 0 | 302 | /tmp/modsec-response-header-backend/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json | /tmp/modsec-response-header-backend/full-matrix/no-crs/no-mrts/haproxy/run.log |
+| apache | no-crs | with-mrts | FAIL | 516 | 406 | 104 | 0 | 6 | 383 | 1283 | /tmp/modsec-response-header-backend/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json | /tmp/modsec-response-header-backend/full-matrix/no-crs/with-mrts/apache/run.log |
+| nginx | no-crs | with-mrts | FAIL | 523 | 406 | 111 | 0 | 6 | 383 | 2121 | /tmp/modsec-response-header-backend/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /tmp/modsec-response-header-backend/full-matrix/no-crs/with-mrts/nginx/run.log |
+| haproxy | no-crs | with-mrts | FAIL | 516 | 406 | 104 | 0 | 6 | 383 | 1092 | /tmp/modsec-response-header-backend/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json | /tmp/modsec-response-header-backend/full-matrix/no-crs/with-mrts/haproxy/run.log |
+| apache | with-crs | no-mrts | FAIL | 134 | 109 | 19 | 0 | 6 | 0 | 363 | /tmp/modsec-response-header-backend/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json | /tmp/modsec-response-header-backend/full-matrix/with-crs/no-mrts/apache/run.log |
+| nginx | with-crs | no-mrts | FAIL | 141 | 104 | 31 | 0 | 6 | 0 | 475 | /tmp/modsec-response-header-backend/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /tmp/modsec-response-header-backend/full-matrix/with-crs/no-mrts/nginx/run.log |
+| haproxy | with-crs | no-mrts | FAIL | 134 | 106 | 22 | 0 | 6 | 0 | 335 | /tmp/modsec-response-header-backend/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json | /tmp/modsec-response-header-backend/full-matrix/with-crs/no-mrts/haproxy/run.log |
+| apache | with-crs | with-mrts | FAIL | 517 | 405 | 106 | 0 | 6 | 383 | 1402 | /tmp/modsec-response-header-backend/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json | /tmp/modsec-response-header-backend/full-matrix/with-crs/with-mrts/apache/run.log |
+| nginx | with-crs | with-mrts | FAIL | 524 | 405 | 113 | 0 | 6 | 383 | 2357 | /tmp/modsec-response-header-backend/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /tmp/modsec-response-header-backend/full-matrix/with-crs/with-mrts/nginx/run.log |
+| haproxy | with-crs | with-mrts | FAIL | 517 | 405 | 106 | 0 | 6 | 383 | 1232 | /tmp/modsec-response-header-backend/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json | /tmp/modsec-response-header-backend/full-matrix/with-crs/with-mrts/haproxy/run.log |
 
 ## MRTS Upstream Config Tests
 | Connector | Variant | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending |

@@ -278,7 +278,8 @@ run_job() {
             rc=$?
             ;;
         nginx)
-            nginx_harness_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ModSecurity-conector-full-matrix/$test_variant-$mrts_variant-nginx-$port"
+            nginx_harness_parent="${RUNNER_TEMP:-${TMPDIR:-${CONNECTOR_COMPONENT_CACHE:-/src/ModSecurity-conector-cache}/nginx-harness}}"
+            nginx_harness_root="$nginx_harness_parent/ModSecurity-conector-full-matrix/$test_variant-$mrts_variant-nginx-$port"
             env $common_env \
                 NGINX_TEST_PORT="$port" \
                 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$SHARED_BUILD_ROOT/nginx-build}" \
