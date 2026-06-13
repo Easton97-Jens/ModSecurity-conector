@@ -9,7 +9,7 @@
     ],
     "body": "",
     "case_id": "v3_action_nolog_pass_no_audit",
-    "case_path": "framework:tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml",
+    "case_path": "<runtime-artifact>/v3_action_nolog_pass_no_audit.yaml",
     "category": "actions",
     "content_type": "-",
     "expected_rule_id": "none",
@@ -32,7 +32,7 @@
     "root_cause": "with-crs variants contain unrelated CRS audit entries while the nolog/pass rule is absent from audit, error, and decision logs",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-13T20:00:56Z",
+  "generated_at": "2026-06-13T20:27:18Z",
   "report_kind": "nolog-audit-evidence-analysis",
   "rows": [
     {

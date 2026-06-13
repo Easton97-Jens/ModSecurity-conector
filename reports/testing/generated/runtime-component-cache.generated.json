@@ -495,6 +495,12 @@
       "total_size": 180369331
     }
   },
+  "mrts_native_reports": {
+    "apache": "reports/testing/generated/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native-summary.generated.md"
+  },
   "native_root": "/tmp/modsec-full-run-after-nginx-fix/mrts-native",
   "nginx": {
     "blocker_reason": "",

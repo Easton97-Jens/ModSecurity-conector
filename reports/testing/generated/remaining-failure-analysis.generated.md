@@ -1,6 +1,6 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-13T20:04:23Z`
+Generated at: `2026-06-13T20:27:27Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.

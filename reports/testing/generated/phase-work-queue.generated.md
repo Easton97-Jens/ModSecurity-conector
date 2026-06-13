@@ -3,7 +3,7 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-13T20:04:21Z`
+- Generated at: `2026-06-13T20:27:19Z`
 - Runtime evidence rows analyzed: **3928**
 - Queued work rows: **1594**
 - Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **782** / **0** / **72**
@@ -329,3 +329,11 @@ Generated file - do not edit manually.
 - RESPONSE_BODY / Phase 4 remains non-promoted.
 - Golden references and feature-demo report-only cases remain non-runtime inputs.
 - Missing phase metadata is reported as unknown and is not forced into phases 1-4.
+
+<!-- phase4-hard-abort:start -->
+## Phase 4 Hard Abort Capability
+- Report: `reports/testing/generated/phase4-hard-abort-capability.generated.md`
+- Hard-abort evidence rows: **2**
+- Full-delivery-without-abort rows: **842**
+- Phase 4 PASS promotion now requires intervention log evidence plus transport abort evidence, not HTTP status alone.
+<!-- phase4-hard-abort:end -->

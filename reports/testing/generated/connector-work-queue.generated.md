@@ -3,7 +3,7 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-13T20:00:55Z`
+- Generated at: `2026-06-13T20:27:16Z`
 - Total runtime cases analyzed: **3928**
 - Total failures: **782**
 - P0/P1/P2/P3: **594** / **6** / **60** / **194**

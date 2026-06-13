@@ -127,7 +127,18 @@ export SKIP_RUNTIME_COMPONENT_PREPARE
 export RUNTIME_COMPONENT_STRICT_VERIFY
 export KEEP_RUNTIME_ARTIFACTS
 
-.PHONY: check-framework prepare-runtime-components smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-mrts-runtime-matrix full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-remaining-failure-analysis mrts-native-full-run mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: check-framework prepare-runtime-components refresh-connector-reports refresh-all-reports smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-remaining-failure-analysis mrts-native-full-run mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+
+define RUN_WITH_REFRESH_ALL
+	@set +e; \
+	$(1); \
+	runtime_rc=$$?; \
+	set -e; \
+	refresh_rc=0; \
+	$(MAKE) refresh-all-reports || refresh_rc=$$?; \
+	if [ "$$runtime_rc" -ne 0 ]; then exit "$$runtime_rc"; fi; \
+	exit "$$refresh_rc"
+endef
 
 check-framework:
 	@test -d "$(FRAMEWORK_ROOT)" || { \
@@ -142,6 +153,17 @@ prepare-runtime-components: check-framework
 	else \
 		PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/prepare-runtime-components.sh; \
 	fi
+
+refresh-connector-reports: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --native-root "$(MRTS_NATIVE_ROOT)"
+
+refresh-all-reports: check-framework
+	@framework_rc=0; \
+	$(MAKE) -C "$(FRAMEWORK_ROOT)" PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" OUTPUT_ROOT="$(FRAMEWORK_ROOT)" refresh-framework-reports || framework_rc=$$?; \
+	connector_rc=0; \
+	"$(FRAMEWORK_PYTHON)" ci/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --native-root "$(MRTS_NATIVE_ROOT)" --strict-inputs || connector_rc=$$?; \
+	if [ "$$framework_rc" -ne 0 ]; then exit "$$framework_rc"; fi; \
+	exit "$$connector_rc"
 
 smoke-common: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=common sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
@@ -197,15 +219,15 @@ smoke-new-connectors: check-framework prepare-runtime-components
 	exit 0'
 
 smoke-all: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh")
 
 test: test-no-crs test-with-crs
 
 test-no-crs: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"'
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"')
 
 test-with-crs: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; sh "$(FRAMEWORK_ROOT)/ci/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"'
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. "$(FRAMEWORK_ROOT)/ci/common.sh"; sh "$(FRAMEWORK_ROOT)/ci/fetch-crs.sh"; sh "$(FRAMEWORK_ROOT)/ci/prepare-crs.sh"; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"')
 
 mrts-generate: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-generate
@@ -217,16 +239,16 @@ mrts-import: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-import
 
 test-no-mrts: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-no-mrts
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-no-mrts)
 
 test-with-mrts: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts)
 
 test-with-mrts-feature-demo: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts-feature-demo
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-with-mrts-feature-demo)
 
 test-mrts-matrix: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-mrts-matrix
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" test-mrts-matrix)
 
 mrts-ftw: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" mrts-ftw
@@ -235,16 +257,20 @@ runtime-matrix: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
 
 runtime-matrix-all: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh")
 
 runtime-matrix-haproxy: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=all sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
 
 full-mrts-runtime-matrix: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-mrts-runtime-matrix.sh
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-mrts-runtime-matrix.sh)
+
+mrts-only-full-run: full-mrts-runtime-matrix
+
+full-runtime-matrix: full-matrix-parallel
 
 full-matrix-parallel: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-matrix-parallel.sh
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-matrix-parallel.sh)
 
 generate-full-runtime-matrix: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-full-runtime-matrix.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --log-root "$(LOG_ROOT)"
@@ -268,11 +294,14 @@ generate-nolog-audit-evidence-analysis: check-framework
 generate-response-header-hook-analysis: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-response-header-hook-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 
+generate-phase4-hard-abort-capability: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/generate-phase4-hard-abort-capability.py --connector-root "$(CURDIR)"
+
 generate-remaining-failure-analysis: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-remaining-failure-analysis.py --connector-root "$(CURDIR)"
 
 mrts-native-full-run: check-framework prepare-runtime-components
-	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
+	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh)
 
 mrts-native-apache-full: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env MRTS_NATIVE_TARGETS=apache2_ubuntu PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
@@ -380,7 +409,7 @@ cloud-quick-check: setup-dev lint generate-test-matrix check-test-matrix quick-c
 	@echo "INFO: Cloud check is framework/generator only and not runtime compatibility evidence."
 
 generate-test-matrix: check-framework
-	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" OUTPUT_ROOT="$(CURDIR)" $(MAKE) -C "$(FRAMEWORK_ROOT)" generate-test-matrix
+	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" OUTPUT_ROOT="$(CURDIR)" SKIP_ROOT_SUMMARY=1 $(MAKE) -C "$(FRAMEWORK_ROOT)" generate-test-matrix
 
 check-test-matrix: generate-test-matrix
 	@test ! -f TEST-COVERAGE-SUMMARY.md || { \

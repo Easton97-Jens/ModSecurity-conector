@@ -925,7 +925,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-13T20:04:23Z",
+  "generated_at": "2026-06-13T20:27:27Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -1098,13 +1098,13 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-13T20:00:55Z",
+    "connector_work_queue": "2026-06-13T20:27:16Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
-    "full_runtime_matrix": "2026-06-13T20:00:51Z",
+    "full_runtime_matrix": "2026-06-13T20:27:13Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-13T20:04:21Z",
+    "phase_work_queue": "2026-06-13T20:27:19Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {

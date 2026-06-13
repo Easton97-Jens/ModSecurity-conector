@@ -1,0 +1,296 @@
+{
+  "connector_sha": "950bfbc06a88a89d0862a526432d0d8c76fa52ed",
+  "framework_sha": "b2575df2af629dcc42f64e24b746ccc8b2c17217",
+  "framework_submodule_sha": "b2575df2af629dcc42f64e24b746ccc8b2c17217",
+  "generated_at": "2026-06-13T20:27:29Z",
+  "inputs": {
+    "build_cache": "047eb3758de4dcced26b3ddf0504f9d2580b171d8f3c9116a6afd1a42dbfb7e6",
+    "component_cache": "b08761c80e144f379d77396a40b6b0fdd23f58c6565754b51fad923eb196d3b2",
+    "full_runtime_matrix": "22ef9cc56a7bfe2c307f97ba5d4d5e4a75c68b46b38c8bf096c63e998a3f11f5",
+    "native_mrts": "e76859e6673c48a4aea523f8c02561a61132518381b0701baca344adf5fe6513"
+  },
+  "mrts_sha": "13aa91291adea12d5c607fdd165d010fcfb1da78",
+  "reports": [
+    {
+      "generator": "framework:ci/generate-case-matrix.py",
+      "input_files": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "input_fingerprint": "d18e3dbfcf05f3e238b884c6eff0332e2bdb8dee2cde569695f88858c8652e30",
+      "make_target": "generate-test-matrix",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/test-coverage-overview.md",
+        "reports/testing/generated/apache-runtime-results.generated.md",
+        "reports/testing/generated/case-matrix.generated.md",
+        "reports/testing/generated/connector-gap-summary.generated.md",
+        "reports/testing/generated/coverage-summary.generated.md",
+        "reports/testing/generated/haproxy-runtime-results.generated.md",
+        "reports/testing/generated/nginx-runtime-results.generated.md",
+        "reports/testing/generated/phase-coverage.generated.md",
+        "reports/testing/generated/runtime-matrix.generated.md",
+        "reports/testing/generated/xfail-summary.generated.md"
+      ],
+      "output_fingerprint": "91c91a6932c40003e940e9035b444aa5fd0ad0be25147e82dd6c6b84767fcd81",
+      "owner": "connector",
+      "path": "reports/testing/test-coverage-overview.md, reports/testing/generated/apache-runtime-results.generated.md, reports/testing/generated/case-matrix.generated.md, reports/testing/generated/connector-gap-summary.generated.md, reports/testing/generated/coverage-summary.generated.md, reports/testing/generated/haproxy-runtime-results.generated.md, reports/testing/generated/nginx-runtime-results.generated.md, reports/testing/generated/phase-coverage.generated.md, reports/testing/generated/runtime-matrix.generated.md, reports/testing/generated/xfail-summary.generated.md",
+      "report_name": "connector_coverage_reports",
+      "requires_full_matrix": false,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    },
+    {
+      "generator": "ci/generate-full-runtime-matrix.py",
+      "input_files": [
+        "<local>/full-runtime-matrix-runs.jsonl"
+      ],
+      "input_fingerprint": "0f79e5eb91cc3117bc28c283ece80cb625b3fd8cb2cd70d097cde612d595528d",
+      "make_target": "generate-full-runtime-matrix",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/generated/full-runtime-matrix.generated.json",
+        "reports/testing/generated/full-runtime-matrix.generated.md"
+      ],
+      "output_fingerprint": "2cdde21ddded545b2da1c84c58189c5471db513a569241ab335a9181098140fa",
+      "owner": "connector",
+      "path": "reports/testing/generated/full-runtime-matrix.generated.json, reports/testing/generated/full-runtime-matrix.generated.md",
+      "report_name": "full_runtime_matrix",
+      "requires_full_matrix": true,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    },
+    {
+      "generator": "framework:ci/generate-connector-work-queue.py",
+      "input_files": [
+        "reports/testing/generated/full-runtime-matrix.generated.json"
+      ],
+      "input_fingerprint": "22ef9cc56a7bfe2c307f97ba5d4d5e4a75c68b46b38c8bf096c63e998a3f11f5",
+      "make_target": "generate-work-queue",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/generated/connector-work-queue.generated.json",
+        "reports/testing/generated/connector-work-queue.generated.md"
+      ],
+      "output_fingerprint": "3f15fd4688f92e8f26793b16382a450f32ba18007dd6413c7844300ca6e98f3c",
+      "owner": "connector",
+      "path": "reports/testing/generated/connector-work-queue.generated.json, reports/testing/generated/connector-work-queue.generated.md",
+      "report_name": "connector_work_queue",
+      "requires_full_matrix": true,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    },
+    {
+      "generator": "framework:ci/generate-phase-work-queue.py",
+      "input_files": [
+        "reports/testing/generated/connector-work-queue.generated.json",
+        "reports/testing/generated/phase-coverage.generated.md",
+        "reports/testing/generated/full-runtime-matrix.generated.json"
+      ],
+      "input_fingerprint": "368be162ae6b6c66dd05e0a70bb3af39ef73389e7246ba33a6813820bd94c78b",
+      "make_target": "generate-phase-work-queue",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/generated/phase-work-queue.generated.json",
+        "reports/testing/generated/phase-work-queue.generated.md"
+      ],
+      "output_fingerprint": "4528b44b8af3165d00257f2b7aba3b498d300fec290b94def62619cded175249",
+      "owner": "connector",
+      "path": "reports/testing/generated/phase-work-queue.generated.json, reports/testing/generated/phase-work-queue.generated.md",
+      "report_name": "phase_work_queue",
+      "requires_full_matrix": true,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    },
+    {
+      "generator": "framework:ci/generate-mrts-native-report.py",
+      "input_files": [
+        "BUILD_ROOT:mrts-native/apache2_ubuntu/job.json",
+        "BUILD_ROOT:mrts-native/nginx-pr24/job.json"
+      ],
+      "input_fingerprint": "missing",
+      "make_target": "mrts-native-full-run",
+      "missing_inputs": [
+        "BUILD_ROOT:mrts-native/apache2_ubuntu/job.json",
+        "BUILD_ROOT:mrts-native/nginx-pr24/job.json"
+      ],
+      "optional": true,
+      "output_files": [
+        "reports/testing/generated/mrts-native-full.generated.json",
+        "reports/testing/generated/mrts-native-full.generated.md",
+        "reports/testing/generated/mrts-native-apache.generated.json",
+        "reports/testing/generated/mrts-native-apache.generated.md",
+        "reports/testing/generated/mrts-native-nginx.generated.json",
+        "reports/testing/generated/mrts-native-nginx.generated.md",
+        "reports/testing/generated/mrts-native-summary.generated.json",
+        "reports/testing/generated/mrts-native-summary.generated.md"
+      ],
+      "output_fingerprint": "57eb53fced15df68eea4c5172182431b4b40a85fff8f2d55ba93d49aee0063af",
+      "owner": "connector",
+      "path": "reports/testing/generated/mrts-native-full.generated.json, reports/testing/generated/mrts-native-full.generated.md, reports/testing/generated/mrts-native-apache.generated.json, reports/testing/generated/mrts-native-apache.generated.md, reports/testing/generated/mrts-native-nginx.generated.json, reports/testing/generated/mrts-native-nginx.generated.md, reports/testing/generated/mrts-native-summary.generated.json, reports/testing/generated/mrts-native-summary.generated.md",
+      "report_name": "native_mrts_reports",
+      "requires_full_matrix": false,
+      "requires_native_mrts": true,
+      "requires_runtime": false,
+      "status": "skipped_missing_input"
+    },
+    {
+      "generator": "ci/generate-nolog-audit-evidence-analysis.py",
+      "input_files": [
+        "reports/testing/generated/connector-work-queue.generated.json",
+        "reports/testing/generated/full-runtime-matrix.generated.json",
+        "reports/testing/generated/phase-coverage.generated.md"
+      ],
+      "input_fingerprint": "717430528e86786e56608f9ead611a8497af4df48f34c490159b985a1fc097ab",
+      "make_target": "generate-nolog-audit-evidence-analysis",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/generated/nolog-audit-evidence.generated.json",
+        "reports/testing/generated/nolog-audit-evidence.generated.md",
+        "reports/testing/generated/phase-work-queue.generated.json",
+        "reports/testing/generated/phase-work-queue.generated.md",
+        "reports/testing/generated/full-run-evidence.generated.json",
+        "reports/testing/generated/full-run-evidence.generated.md"
+      ],
+      "output_fingerprint": "035a5dd7020ee3368f7cefdb8aaa31d2df5ed489cac26735a2c36b6be873d976",
+      "owner": "connector",
+      "path": "reports/testing/generated/nolog-audit-evidence.generated.json, reports/testing/generated/nolog-audit-evidence.generated.md, reports/testing/generated/phase-work-queue.generated.json, reports/testing/generated/phase-work-queue.generated.md, reports/testing/generated/full-run-evidence.generated.json, reports/testing/generated/full-run-evidence.generated.md",
+      "report_name": "nolog_audit_evidence",
+      "requires_full_matrix": true,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    },
+    {
+      "generator": "ci/generate-response-header-hook-analysis.py",
+      "input_files": [
+        "reports/testing/generated/connector-work-queue.generated.json",
+        "reports/testing/generated/full-runtime-matrix.generated.json",
+        "reports/testing/generated/phase-coverage.generated.md"
+      ],
+      "input_fingerprint": "21f61f6f0f655bfac5e5bcc6c591e15822c573cd2905a9957779f21878ae4b57",
+      "make_target": "generate-response-header-hook-analysis",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/generated/response-header-hook-analysis.generated.json",
+        "reports/testing/generated/response-header-hook-analysis.generated.md",
+        "reports/testing/generated/phase-work-queue.generated.json",
+        "reports/testing/generated/phase-work-queue.generated.md",
+        "reports/testing/generated/full-run-evidence.generated.json",
+        "reports/testing/generated/full-run-evidence.generated.md"
+      ],
+      "output_fingerprint": "782f306fa6e3667d80b73c950872cebc166875f48f33d944c2988712211bd3cb",
+      "owner": "connector",
+      "path": "reports/testing/generated/response-header-hook-analysis.generated.json, reports/testing/generated/response-header-hook-analysis.generated.md, reports/testing/generated/phase-work-queue.generated.json, reports/testing/generated/phase-work-queue.generated.md, reports/testing/generated/full-run-evidence.generated.json, reports/testing/generated/full-run-evidence.generated.md",
+      "report_name": "response_header_hook_analysis",
+      "requires_full_matrix": true,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    },
+    {
+      "generator": "ci/generate-phase4-hard-abort-capability.py",
+      "input_files": [
+        "reports/testing/generated/connector-work-queue.generated.json",
+        "reports/testing/generated/full-runtime-matrix.generated.json",
+        "reports/testing/generated/mrts-native-apache.generated.json",
+        "reports/testing/generated/mrts-native-nginx.generated.json"
+      ],
+      "input_fingerprint": "a830a04adcedb136203ea7c74b9d9e3a929c3861eb5b9f1f1a5212d409370989",
+      "make_target": "generate-phase4-hard-abort-capability",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+        "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+        "reports/testing/generated/phase-work-queue.generated.json",
+        "reports/testing/generated/phase-work-queue.generated.md",
+        "reports/testing/generated/full-run-evidence.generated.json",
+        "reports/testing/generated/full-run-evidence.generated.md"
+      ],
+      "output_fingerprint": "57442581bc014510de4cec8ac79ef610135c8dc4ae9b1052532fd7accd772086",
+      "owner": "connector",
+      "path": "reports/testing/generated/phase4-hard-abort-capability.generated.json, reports/testing/generated/phase4-hard-abort-capability.generated.md, reports/testing/generated/phase-work-queue.generated.json, reports/testing/generated/phase-work-queue.generated.md, reports/testing/generated/full-run-evidence.generated.json, reports/testing/generated/full-run-evidence.generated.md",
+      "report_name": "phase4_hard_abort_capability",
+      "requires_full_matrix": true,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    },
+    {
+      "generator": "ci/generate-remaining-failure-analysis.py",
+      "input_files": [
+        "reports/testing/generated/full-runtime-matrix.generated.json",
+        "reports/testing/generated/connector-work-queue.generated.json",
+        "reports/testing/generated/phase-work-queue.generated.json",
+        "reports/testing/generated/mrts-native-summary.generated.json"
+      ],
+      "input_fingerprint": "0b6fc44fff29b38d797b12fdffe3406db9bc5c3c1cebf30f5a07a2b6ee099ced",
+      "make_target": "generate-remaining-failure-analysis",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/generated/remaining-failure-analysis.generated.json",
+        "reports/testing/generated/remaining-failure-analysis.generated.md",
+        "reports/testing/generated/next-fix-plan.generated.json",
+        "reports/testing/generated/next-fix-plan.generated.md",
+        "reports/testing/generated/full-run-evidence.generated.json",
+        "reports/testing/generated/full-run-evidence.generated.md"
+      ],
+      "output_fingerprint": "4ee889187b8e9d2578c3cc27402ff5d1a01315f5898e72647e85e12b833870b9",
+      "owner": "connector",
+      "path": "reports/testing/generated/remaining-failure-analysis.generated.json, reports/testing/generated/remaining-failure-analysis.generated.md, reports/testing/generated/next-fix-plan.generated.json, reports/testing/generated/next-fix-plan.generated.md, reports/testing/generated/full-run-evidence.generated.json, reports/testing/generated/full-run-evidence.generated.md",
+      "report_name": "remaining_failure_analysis",
+      "requires_full_matrix": true,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    },
+    {
+      "generator": "ci/update-runtime-reports.py",
+      "input_files": [
+        "reports/testing/generated/runtime-component-cache.generated.json",
+        "reports/testing/generated/runtime-build-cache.generated.json"
+      ],
+      "input_fingerprint": "50a12936b639a19f9008307a644916f5425bc0c12cc83c0b544281c01f1e447c",
+      "make_target": "prepare-runtime-components",
+      "missing_inputs": [],
+      "optional": false,
+      "output_files": [
+        "reports/testing/generated/runtime-component-cache.generated.json",
+        "reports/testing/generated/runtime-component-cache.generated.md",
+        "reports/testing/generated/runtime-build-cache.generated.json",
+        "reports/testing/generated/runtime-build-cache.generated.md",
+        "reports/testing/generated/full-run-evidence.generated.json",
+        "reports/testing/generated/full-run-evidence.generated.md"
+      ],
+      "output_fingerprint": "06aed4302e399acbae90ce1414c3a9cef458cfe17ba61d4071a9c017e8bfb8d7",
+      "owner": "connector",
+      "path": "reports/testing/generated/runtime-component-cache.generated.json, reports/testing/generated/runtime-component-cache.generated.md, reports/testing/generated/runtime-build-cache.generated.json, reports/testing/generated/runtime-build-cache.generated.md, reports/testing/generated/full-run-evidence.generated.json, reports/testing/generated/full-run-evidence.generated.md",
+      "report_name": "runtime_cache_reports",
+      "requires_full_matrix": false,
+      "requires_native_mrts": false,
+      "requires_runtime": true,
+      "return_code": 0,
+      "status": "generated"
+    }
+  ]
+}
