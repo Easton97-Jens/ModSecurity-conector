@@ -257,10 +257,18 @@ make mrts-native-nginx-pr24-full
 make mrts-native-full-run
 ```
 
-Native outputs are staged under `$MRTS_NATIVE_ROOT` and reported under
-`reports/testing/generated/mrts-native-full.generated.*`. Missing local
-dependencies such as `go-ftw`, `albedo`, `apachectl`, `nginx`, or the NGINX
-ModSecurity module are reported as `BLOCKED`; nothing is installed globally.
+Native outputs are staged under `$MRTS_NATIVE_ROOT` and reported as separate
+native infrastructure evidence:
+
+- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`
+- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`
+- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`
+- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`
+
+These native MRTS reports are separate from connector full-matrix evidence.
+Missing local dependencies such as `go-ftw`, `albedo`, `apachectl`, `nginx`, or
+the NGINX ModSecurity module are reported as `BLOCKED`; nothing is installed
+globally.
 
 MRTS/CRS result paths are separated by variant:
 

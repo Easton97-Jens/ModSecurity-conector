@@ -19,6 +19,12 @@ DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_STATE_HOME / 
 MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(DEFAULT_BUILD_ROOT / "mrts"))).resolve()
 MRTS_UPSTREAM_CASE_MARKER = "/upstream-config-tests/framework-cases/"
 MRTS_FEATURE_DEMO_CASE_MARKER = "/feature-demo/framework-cases/"
+NATIVE_EVIDENCE_REPORTS = {
+    "apache": "reports/testing/generated/mrts-native-apache.generated.md",
+    "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native-summary.generated.md",
+    "combined": "reports/testing/generated/mrts-native-full.generated.md",
+}
 
 
 @dataclass
@@ -327,6 +333,14 @@ def markdown(records: list[RunRecord], totals: Counter[str], generated_at: str) 
     lines.append("- MRTS golden outputs under the submodule are golden/reference/drift input only and are not runtime case roots.")
     lines.append("- `no-mrts` variants should have zero MRTS runtime cases.")
     lines.append("- Runtime PASS/FAIL/BLOCKED values come from connector summary JSON, not classification overlays.")
+    lines.append("")
+    lines.append("## MRTS Native Infrastructure Evidence")
+    lines.append(f"- Apache native: `{NATIVE_EVIDENCE_REPORTS['apache']}`")
+    lines.append(f"- NGINX PR24 native: `{NATIVE_EVIDENCE_REPORTS['nginx']}`")
+    lines.append(f"- Native summary: `{NATIVE_EVIDENCE_REPORTS['summary']}`")
+    lines.append(f"- Combined native report: `{NATIVE_EVIDENCE_REPORTS['combined']}`")
+    lines.append("")
+    lines.append("These native MRTS reports are separate from connector full-matrix evidence.")
     return "\n".join(lines) + "\n"
 
 
@@ -368,6 +382,7 @@ def main() -> int:
         "log_root": str(log_root),
         "totals": dict(totals),
         "runs": [record_to_json(record) for record in records],
+        "native_evidence_reports": NATIVE_EVIDENCE_REPORTS,
         "guardrails": {
             "feature_demo_runtime_cases": sum(record.feature_demo_cases for record in records),
             "no_mrts_mrts_runtime_cases": sum(record.mrts_upstream["attempted"] for record in records if record.mrts_variant == "no-mrts"),

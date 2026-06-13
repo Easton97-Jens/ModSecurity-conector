@@ -81,6 +81,14 @@ Generated file — do not edit manually.
 - Details: `reports/testing/generated/runtime-matrix.generated.md`
 - HAProxy per-case results: `reports/testing/generated/haproxy-runtime-results.generated.md`
 
+## MRTS Native Infrastructure Evidence
+- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`
+- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`
+- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`
+- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`
+
+These native MRTS reports are separate from connector full-matrix evidence.
+
 ## Framework Check Status
 | Command | Status | Details |
 |---|---|---|

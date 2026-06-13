@@ -2,7 +2,7 @@
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-13T10:10:25Z`
+- Generated at: `2026-06-13T11:27:39Z`
 - Variant runs: **12**
 - Total attempted: **3928**
 - Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **3028** / **828** / **0** / **72**
@@ -39,3 +39,11 @@ Generated file - do not edit manually.
 - MRTS golden outputs under the submodule are golden/reference/drift input only and are not runtime case roots.
 - `no-mrts` variants should have zero MRTS runtime cases.
 - Runtime PASS/FAIL/BLOCKED values come from connector summary JSON, not classification overlays.
+
+## MRTS Native Infrastructure Evidence
+- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`
+- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`
+- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`
+- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`
+
+These native MRTS reports are separate from connector full-matrix evidence.

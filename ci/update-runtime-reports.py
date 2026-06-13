@@ -17,6 +17,18 @@ POST_LIBCRYPT_MARKER_START = "<!-- post-libcrypt-native:start -->"
 POST_LIBCRYPT_MARKER_END = "<!-- post-libcrypt-native:end -->"
 BUILD_CACHE_MARKER_START = "<!-- runtime-build-cache:start -->"
 BUILD_CACHE_MARKER_END = "<!-- runtime-build-cache:end -->"
+NATIVE_EVIDENCE_MARKER_START = "<!-- mrts-native-infrastructure-evidence:start -->"
+NATIVE_EVIDENCE_MARKER_END = "<!-- mrts-native-infrastructure-evidence:end -->"
+NATIVE_REPORT_FILES = [
+    "reports/testing/generated/mrts-native-apache.generated.json",
+    "reports/testing/generated/mrts-native-apache.generated.md",
+    "reports/testing/generated/mrts-native-nginx.generated.json",
+    "reports/testing/generated/mrts-native-nginx.generated.md",
+    "reports/testing/generated/mrts-native-summary.generated.json",
+    "reports/testing/generated/mrts-native-summary.generated.md",
+    "reports/testing/generated/mrts-native-full.generated.json",
+    "reports/testing/generated/mrts-native-full.generated.md",
+]
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -54,6 +66,25 @@ def replace_named_section(text: str, section: str, start_marker: str, end_marker
         suffix = text.split(end_marker, 1)[1].lstrip()
         return f"{prefix}\n\n{section}\n\n{suffix}".rstrip() + "\n"
     return text.rstrip() + "\n\n" + section + "\n"
+
+
+def insert_named_section_before_heading(text: str, section: str, start_marker: str, end_marker: str, heading: str) -> str:
+    if start_marker in text and end_marker in text:
+        return replace_named_section(text, section, start_marker, end_marker)
+    if heading in text:
+        prefix, suffix = text.split(heading, 1)
+        return f"{prefix.rstrip()}\n\n{section}\n\n{heading}{suffix}".rstrip() + "\n"
+    return text.rstrip() + "\n\n" + section + "\n"
+
+
+def replace_heading_section(text: str, heading: str, section: str, next_heading: str) -> str:
+    if heading not in text:
+        return text.rstrip() + "\n\n" + section + "\n"
+    prefix, rest = text.split(heading, 1)
+    if next_heading in rest:
+        _, suffix = rest.split(next_heading, 1)
+        return f"{prefix.rstrip()}\n\n{section}\n\n{next_heading}{suffix}".rstrip() + "\n"
+    return f"{prefix.rstrip()}\n\n{section}\n"
 
 
 def read_text_if_file(path: Path) -> str:
@@ -540,6 +571,74 @@ def runtime_components_markdown(components: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def native_evidence_links_markdown() -> str:
+    lines = [
+        NATIVE_EVIDENCE_MARKER_START,
+        "## MRTS Native Infrastructure Evidence",
+        "",
+        "- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`",
+        "- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`",
+        "- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`",
+        "- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`",
+        "",
+        "These native MRTS reports are separate from connector full-matrix evidence.",
+        NATIVE_EVIDENCE_MARKER_END,
+    ]
+    return "\n".join(lines)
+
+
+def native_summary_markdown(report_dir: Path) -> str:
+    native = read_json(report_dir / "mrts-native-full.generated.json")
+    targets = native.get("targets") if isinstance(native.get("targets"), dict) else {}
+    lines = [
+        "## MRTS Native Summary",
+        f"- Report generated at: `{native.get('generated_at', '-')}`",
+        "- Native MRTS evidence is separate from connector runtime matrix evidence.",
+        "",
+        "| Target | Status | Exit code | Attempted | PASS | FAIL | BLOCKED | Reason | Run log | Summary |",
+        "|---|---|---:|---:|---:|---:|---:|---|---|---|",
+    ]
+    for target in ("apache2_ubuntu", "nginx-pr24"):
+        job = targets.get(target, {}) if isinstance(targets.get(target), dict) else {}
+        counts = job.get("counts") if isinstance(job.get("counts"), dict) else {}
+        lines.append(
+            "| {target} | {status} | {exit_code} | {attempted} | {passed} | {failed} | {blocked} | {reason} | `{run_log}` | `{summary}` |".format(
+                target=target,
+                status=job.get("status", "NOT_RUN"),
+                exit_code=job.get("exit_code", "-"),
+                attempted=counts.get("attempted", 0),
+                passed=counts.get("pass", 0),
+                failed=counts.get("fail", 0),
+                blocked=counts.get("blocked", 0),
+                reason=str(job.get("reason") or "-").replace("|", "\\|"),
+                run_log=job.get("run_log", "-"),
+                summary=job.get("summary_path", job.get("job_json", "-")),
+            )
+        )
+    return "\n".join(lines)
+
+
+def native_target_script_exit_code(summary: dict[str, Any]) -> int:
+    if int(summary.get("FAIL", 0) or 0) > 0:
+        return 2
+    if int(summary.get("BLOCKED", 0) or 0) > 0:
+        return 77
+    return 0
+
+
+def remove_stale_native_blockers(text: str, report_dir: Path) -> str:
+    native = read_json(report_dir / "mrts-native-full.generated.json")
+    summary = native.get("summary") if isinstance(native.get("summary"), dict) else {}
+    if int(summary.get("BLOCKED", 0) or 0) > 0:
+        return text
+    lines = []
+    for line in text.splitlines():
+        if line.startswith("- apache2_ubuntu:") or line.startswith("- nginx-pr24:"):
+            continue
+        lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
 def post_libcrypt_native_markdown(summary: dict[str, Any]) -> str:
     apache_counts = summary.get("apache_counts", {})
     nginx_counts = summary.get("nginx_counts", {})
@@ -663,11 +762,40 @@ def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict
     data = read_json(path)
     if not data:
         return
+    data["mrts_native_reports"] = {
+        "apache": "reports/testing/generated/mrts-native-apache.generated.md",
+        "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
+        "summary": "reports/testing/generated/mrts-native-summary.generated.md",
+        "combined": "reports/testing/generated/mrts-native-full.generated.md",
+    }
+    if path.name == "full-run-evidence.generated.json":
+        reports = data.get("reports")
+        if not isinstance(reports, list):
+            reports = []
+        for report_file in NATIVE_REPORT_FILES:
+            if report_file not in reports:
+                reports.append(report_file)
+        data["reports"] = reports
+        native_full = read_json(path.parent / "mrts-native-full.generated.json")
+        if native_full:
+            mrts_native = data.get("mrts_native") if isinstance(data.get("mrts_native"), dict) else {}
+            mrts_native.update(
+                {
+                    "generated_at": native_full.get("generated_at"),
+                    "report_json": "reports/testing/generated/mrts-native-full.generated.json",
+                    "report_md": "reports/testing/generated/mrts-native-full.generated.md",
+                    "reports": native_full.get("reports", data["mrts_native_reports"]),
+                    "summary": native_full.get("summary", {}),
+                    "target_script_exit_code": native_target_script_exit_code(native_full.get("summary", {})),
+                    "targets": native_full.get("targets", {}),
+                }
+            )
+            data["mrts_native"] = mrts_native
+        write_json(path, data)
+        return
     data["runtime_components"] = components
     data["runtime_diagnostics"] = diagnostics
     data["runtime_build_cache"] = build_cache
-    if path.name == "full-run-evidence.generated.json":
-        data["post_libcrypt_native_rerun"] = post_libcrypt_native_summary(components, diagnostics)
     for key, value in components.items():
         data[key] = value
     write_json(path, data)
@@ -680,12 +808,22 @@ def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[s
     if path.name == "mrts-native-full.generated.md":
         text = normalize_native_remediation(text, components)
     if path.name == "full-run-evidence.generated.md":
-        text = replace_named_section(
+        text = remove_stale_native_blockers(text, path.parent)
+        text = replace_heading_section(
             text,
-            post_libcrypt_native_markdown(post_libcrypt_native_summary(components, diagnostics)),
-            POST_LIBCRYPT_MARKER_START,
-            POST_LIBCRYPT_MARKER_END,
+            "## MRTS Native Summary",
+            native_summary_markdown(path.parent),
+            "## External Blockers",
         )
+        text = insert_named_section_before_heading(
+            text,
+            native_evidence_links_markdown(),
+            NATIVE_EVIDENCE_MARKER_START,
+            NATIVE_EVIDENCE_MARKER_END,
+            "## External Blockers",
+        )
+        path.write_text(text, encoding="utf-8")
+        return
     section = runtime_components_markdown(components)
     text = replace_marked_section(text, section)
     text = replace_named_section(text, runtime_build_cache_markdown(build_cache), BUILD_CACHE_MARKER_START, BUILD_CACHE_MARKER_END)
@@ -705,7 +843,7 @@ def main() -> int:
     diagnostics = collect_runtime_diagnostics(components)
     update_report_json(report_dir / "runtime-component-cache.generated.json", components, diagnostics, build_cache)
     update_report_md(report_dir / "runtime-component-cache.generated.md", components, diagnostics, build_cache)
-    for stem in ("mrts-native-full.generated", "full-run-evidence.generated"):
+    for stem in ("full-run-evidence.generated",):
         update_report_json(report_dir / f"{stem}.json", components, diagnostics, build_cache)
         update_report_md(report_dir / f"{stem}.md", components, diagnostics, build_cache)
     return 0

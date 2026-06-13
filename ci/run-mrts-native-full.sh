@@ -583,6 +583,9 @@ if [ -f "$CONNECTOR_ROOT/ci/update-runtime-reports.py" ]; then
 fi
 
 echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native-full.generated.md"
+echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native-apache.generated.md"
+echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native-nginx.generated.md"
+echo "mrts-native: report=$CONNECTOR_ROOT/reports/testing/generated/mrts-native-summary.generated.md"
 if [ "$report_rc" -ne 0 ] || [ "$has_fail" -ne 0 ]; then
     exit 2
 fi

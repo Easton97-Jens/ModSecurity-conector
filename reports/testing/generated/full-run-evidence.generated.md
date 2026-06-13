@@ -25,26 +25,28 @@ Generated at: `2026-06-09T18:40:47Z`
 | nginx | 4 | `{'FAIL': 4}` | 1328 | 1000 | 304 | 0 | 24 | 766 |
 
 ## MRTS Native Summary
-- Make exit code: `2`; target script exit code: `77`
-- BUILD_ROOT: `/tmp/modsec-native-full-run`
-- MRTS_BUILD_ROOT: `/tmp/modsec-native-full-run/mrts`
-- MRTS_NATIVE_ROOT: `/tmp/modsec-native-full-run/mrts-native`
+- Report generated at: `2026-06-13T11:32:41Z`
+- Native MRTS evidence is separate from connector runtime matrix evidence.
 
-| Target | Status | Exit code | Reason | Run log | Summary |
-|---|---|---:|---|---|---|
-| apache2_ubuntu | BLOCKED | 77 | missing native dependencies: go-ftw (set GO_FTW_BIN), albedo (set ALBEDO_BIN), apachectl (set APACHECTL_BIN) | `$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log` | `$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json` |
-| nginx-pr24 | BLOCKED | 77 | missing native dependencies: go-ftw (set GO_FTW_BIN), albedo (set ALBEDO_BIN), nginx (set MRTS_NATIVE_NGINX_BIN), ngx_http_modsecurity_module.so (set MRTS_NATIVE_NGINX_MODULE_DIR) | `$MRTS_NATIVE_ROOT/nginx-pr24/run.log` | `$MRTS_NATIVE_ROOT/nginx-pr24/job.json` |
+| Target | Status | Exit code | Attempted | PASS | FAIL | BLOCKED | Reason | Run log | Summary |
+|---|---|---:|---:|---:|---:|---:|---|---|---|
+| apache2_ubuntu | FAIL | 1 | 13 | 12 | 1 | 0 | native MRTS go-ftw run failed | `$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log` | `$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json` |
+| nginx-pr24 | FAIL | 1 | 13 | 12 | 1 | 0 | native MRTS go-ftw run failed | `$MRTS_NATIVE_ROOT/nginx-pr24/run.log` | `$MRTS_NATIVE_ROOT/nginx-pr24/job.json` |
+
+<!-- mrts-native-infrastructure-evidence:start -->
+## MRTS Native Infrastructure Evidence
+
+- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`
+- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`
+- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`
+- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`
+
+These native MRTS reports are separate from connector full-matrix evidence.
+<!-- mrts-native-infrastructure-evidence:end -->
 
 ## External Blockers
 - apache: `expat.h` missing; Provide local CPPFLAGS/LDFLAGS for expat headers/libs or install the matching system development package outside this run.
 - haproxy: `crypt.h` missing; Provide local CPPFLAGS/LDFLAGS for crypt headers/libs or install the matching system development package outside this run.
-- apache2_ubuntu: `go-ftw` missing; set `GO_FTW_BIN`. Scope: native MRTS targets and mrts-ftw-style go-ftw execution.
-- apache2_ubuntu: `albedo` missing; set `ALBEDO_BIN`. Scope: native MRTS targets only.
-- apache2_ubuntu: `apachectl` missing; set `APACHECTL_BIN`. Scope: apache2_ubuntu native MRTS target only.
-- nginx-pr24: `go-ftw` missing; set `GO_FTW_BIN`. Scope: native MRTS targets and mrts-ftw-style go-ftw execution.
-- nginx-pr24: `albedo` missing; set `ALBEDO_BIN`. Scope: native MRTS targets only.
-- nginx-pr24: `nginx` missing; set `MRTS_NATIVE_NGINX_BIN`. Scope: nginx-pr24 native MRTS target only.
-- nginx-pr24: `ngx_http_modsecurity_module.so` missing; set `MRTS_NATIVE_NGINX_MODULE_DIR`. Scope: nginx-pr24 native MRTS target only.
 
 ## Reports And Logs
 - Full matrix report: `reports/testing/generated/full-runtime-matrix.generated.md`

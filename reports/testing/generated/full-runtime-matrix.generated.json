@@ -1,12 +1,18 @@
 {
   "build_root": "/root/.local/state/ModSecurity-conector-full-matrix",
-  "generated_at": "2026-06-13T10:10:25Z",
+  "generated_at": "2026-06-13T11:27:39Z",
   "guardrails": {
     "feature_demo_runtime_cases": 0,
     "no_mrts_mrts_runtime_cases": 0
   },
   "log_root": "/root/.local/state/ModSecurity-conector-full-matrix",
   "manifest": "/root/.local/state/ModSecurity-conector-full-matrix/full-runtime-matrix-runs.jsonl",
+  "native_evidence_reports": {
+    "apache": "reports/testing/generated/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native-summary.generated.md"
+  },
   "runs": [
     {
       "attempted": 133,
