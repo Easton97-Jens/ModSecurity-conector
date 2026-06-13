@@ -176,6 +176,11 @@ PHASE4_OUTPUTS = (
     "reports/testing/generated/phase4-hard-abort-capability.generated.md",
 )
 
+INTERVENTION_BLOCKING_OUTPUTS = (
+    "reports/testing/generated/intervention-blocking-analysis.generated.json",
+    "reports/testing/generated/intervention-blocking-analysis.generated.md",
+)
+
 REMAINING_OUTPUTS = (
     "reports/testing/generated/remaining-failure-analysis.generated.json",
     "reports/testing/generated/remaining-failure-analysis.generated.md",
@@ -399,6 +404,32 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
                 "ci/generate-phase4-hard-abort-capability.py",
                 "--connector-root",
                 str(connector_root),
+                "--output-dir",
+                str(report_dir),
+            ),
+            requires_runtime=True,
+            requires_full_matrix=True,
+        ),
+        ReportSpec(
+            name="intervention_blocking_analysis",
+            owner="connector",
+            generator="ci/generate-intervention-blocking-analysis.py",
+            make_target="generate-intervention-blocking-analysis",
+            inputs=(
+                "reports/testing/generated/connector-work-queue.generated.json",
+                "reports/testing/generated/full-runtime-matrix.generated.json",
+                "reports/testing/generated/remaining-failure-analysis.generated.json",
+                "reports/testing/generated/phase-work-queue.generated.json",
+                "reports/testing/generated/next-fix-plan.generated.json",
+            ),
+            outputs=INTERVENTION_BLOCKING_OUTPUTS,
+            command=(
+                python,
+                "ci/generate-intervention-blocking-analysis.py",
+                "--connector-root",
+                str(connector_root),
+                "--framework-root",
+                str(framework_root),
                 "--output-dir",
                 str(report_dir),
             ),
