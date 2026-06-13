@@ -32,6 +32,8 @@ BASE_PORT="${PORT:-18082}"
 PORT="$BASE_PORT"
 PORT_SEARCH_LIMIT="${PORT_SEARCH_LIMIT:-100}"
 PORT_RETRY_LIMIT="${PORT_RETRY_LIMIT:-1}"
+HAPROXY_SPOA_PORT_OFFSET="${HAPROXY_SPOA_PORT_OFFSET:-12000}"
+HAPROXY_BACKEND_PORT_OFFSET="${HAPROXY_BACKEND_PORT_OFFSET:-24000}"
 TEST_CASE="${TEST_CASE:-}"
 SMOKE_CASES="${SMOKE_CASES:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
@@ -506,6 +508,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 PY
 }
 
+select_offset_port() {
+    base_port=$1
+    offset=$2
+    search_limit=$3
+    start_port=$((base_port + offset))
+    if [ "$start_port" -gt 65000 ]; then
+        pick_tcp_port
+        return
+    fi
+    select_free_port "$start_port" "$search_limit"
+}
+
 port_is_free() {
     port_to_probe=$1
     "$PYTHON_BIN" - "$port_to_probe" <<'PY'
@@ -734,6 +748,19 @@ class Handler(BaseHTTPRequestHandler):
         self._send_headers()
         self.wfile.write(BODY)
 
+    def do_POST(self):
+        self._discard_request_body()
+        self._send_headers()
+        self.wfile.write(BODY)
+
+    def _discard_request_body(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError:
+            length = 0
+        if length > 0:
+            self.rfile.read(length)
+
     def _send_headers(self):
         self.send_response(200)
         self.send_header("Last-Modified", "Wed, 21 Oct 2015 07:28:00 GMT")
@@ -918,8 +945,8 @@ if [ -n "${HAPROXY_NOT_EXECUTABLE_REASON:-}" ]; then
 fi
 
 PORT=$(select_free_port "$PORT" "$PORT_SEARCH_LIMIT") || blocked "no free localhost port found from $PORT within $PORT_SEARCH_LIMIT attempts"
-SPOA_PORT=$(pick_tcp_port)
-BACKEND_PORT=$(pick_tcp_port)
+SPOA_PORT=$(select_offset_port "$PORT" "$HAPROXY_SPOA_PORT_OFFSET" "$PORT_SEARCH_LIMIT") || blocked "no free local SPOA port found from $((PORT + HAPROXY_SPOA_PORT_OFFSET)) within $PORT_SEARCH_LIMIT attempts"
+BACKEND_PORT=$(select_offset_port "$PORT" "$HAPROXY_BACKEND_PORT_OFFSET" "$PORT_SEARCH_LIMIT") || blocked "no free local backend port found from $((PORT + HAPROXY_BACKEND_PORT_OFFSET)) within $PORT_SEARCH_LIMIT attempts"
 trap cleanup EXIT INT TERM
 start_backend
 start_agent

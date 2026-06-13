@@ -294,7 +294,6 @@ run_job() {
             ;;
         haproxy)
             env $common_env \
-                BUILD_ROOT="$SHARED_BUILD_ROOT" \
                 TMP_ROOT="$job_tmp_root" \
                 LOG_ROOT="$job_log_root" \
                 RESULTS_DIR="$results_dir" \

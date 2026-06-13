@@ -76,9 +76,9 @@ Generated at: `2026-06-09T18:40:47Z`
 - Status: `reused`
 - Blocker: `-`
 - Cache path: `/src/ModSecurity-conector-cache/archives/apache`
-- Build path: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/build`
-- apachectl/APACHECTL_BIN: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/httpd/bin/apachectl-mrts`
-- Module file: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/build/output/apache/mod_security3.so`
+- Build path: `/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build`
+- apachectl/APACHECTL_BIN: `/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apachectl-mrts`
+- Module file: `/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so`
 - Missing file: `-`
 - Build component: `-`
 - Env variable to set: `APACHECTL_BIN`
@@ -98,10 +98,10 @@ Generated at: `2026-06-09T18:40:47Z`
 - Status: `reused`
 - Blocker: `-`
 - Cache path: `/src/ModSecurity-conector-cache/archives/nginx`
-- Build path: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/build`
-- MRTS_NATIVE_NGINX_BIN: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/sbin/nginx`
-- MRTS_NATIVE_NGINX_MODULE_DIR: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/modules`
-- Module file: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/modules/ngx_http_modsecurity_module.so`
+- Build path: `/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/build`
+- MRTS_NATIVE_NGINX_BIN: `/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx`
+- MRTS_NATIVE_NGINX_MODULE_DIR: `/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules`
+- Module file: `/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so`
 - Missing file: `-`
 - Build component: `-`
 - Env variable to set: `MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR`
@@ -134,12 +134,12 @@ Generated at: `2026-06-09T18:40:47Z`
 ## Post-libcrypt Native Rerun
 - Scope: requested native rerun after external `libcrypt-dev` availability; the earlier full-matrix sections in this file remain historical evidence from their original generation time.
 - Command: `FRAMEWORK_ROOT=/root/git/ModSecurity-test-Framework BUILD_ROOT=/tmp/modsec-native-after-libcrypt MRTS_NATIVE_TARGETS="apache2_ubuntu nginx-pr24" CONNECTOR_COMPONENT_CACHE=/src/ModSecurity-conector-cache PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run`
-- BUILD_ROOT: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72`
-- Apache wrapper: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/httpd/bin/apachectl-mrts`
-- Apache module: `/src/ModSecurity-conector-cache/builds/connectors/apache/030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72/build/output/apache/mod_security3.so`
+- BUILD_ROOT: `/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d`
+- Apache wrapper: `/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apachectl-mrts`
+- Apache module: `/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so`
 - Apache native result: `-`; attempted `-`, passed `-`, failed cases `-`
-- NGINX binary: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/sbin/nginx`
-- NGINX module: `/src/ModSecurity-conector-cache/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/modules/ngx_http_modsecurity_module.so`
+- NGINX binary: `/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx`
+- NGINX module: `/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so`
 - NGINX native result: `-`; attempted `-`, passed `-`, failed cases `-`
 <!-- post-libcrypt-native:end -->
 
@@ -153,7 +153,7 @@ Generated at: `2026-06-09T18:40:47Z`
 
 | Connector | Status | Connector build ID | Uses ModSecurity build ID | Blocker |
 |---|---|---|---|---|
-| apache | reused | `030126f9ca4b1e5aacd68c19c603f527dd35ddcd8d5cca84bcd73bf15ab14c72` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
-| nginx | reused | `24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
-| haproxy | reused | `8299ef128a35b1f67aa49b6cc75dec561f0c311caf3d7d03353ff3588fbe5939` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
+| apache | reused | `58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
+| nginx | reused | `60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
+| haproxy | reused | `51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
 <!-- runtime-build-cache:end -->
