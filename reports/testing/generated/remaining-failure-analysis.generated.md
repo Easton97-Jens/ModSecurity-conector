@@ -1,6 +1,6 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-13T20:27:27Z`
+Generated at: `2026-06-14T08:46:07Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -29,12 +29,13 @@ Generated at: `2026-06-13T20:27:27Z`
 |---|---|---|---|---|---|
 | intervention_blocking | 261 | apache, haproxy, nginx | partly fixable; first split true connector gaps from future/native semantic cases | medium to high | sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation |
 | transformation_semantics | 144 | apache, haproxy, nginx | not a harness quick win; needs semantic comparison against libmodsecurity expectations | high | compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes |
-| request_body_processor | 69 | apache, haproxy, nginx | possibly fixable after processor-specific triage | medium | split JSON, URL-encoded, and XML body processor cases before code changes |
 | multipart_files | 66 | apache, haproxy, nginx | possibly fixable; likely connector/body parser evidence work | medium | compare multipart variable population across connectors with one representative request |
 | phase4_missing_abort_evidence | 64 | apache, nginx | fixable only through real strict abort/log evidence, not status-only changes | high if promoted without transport proof | add real Phase 4 intervention log plus connection-abort evidence before promotion |
+| request_body_processor | 60 | apache, haproxy, nginx | possibly fixable after processor-specific triage | medium | split JSON, URL-encoded, and XML body processor cases before code changes |
 | response_header_mrts_detection_only | 60 | apache, haproxy, nginx | classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action | low; report-only if kept separate from PASS promotion | keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence |
 | xml_processor | 54 | apache, haproxy, nginx | possibly fixable, but high risk without XML processor parity checks | medium to high | verify XML processor enablement and malformed XML semantics |
 | phase4_connector_gap | 46 | apache, haproxy, nginx | connector capability gap unless a real abort mechanism is implemented and evidenced | high if faked; low if reported as gap | document connector gap unless implementation can prove a real hard abort |
+| connector_gap | 9 | apache, haproxy, nginx | unknown; review required | unknown | manual review |
 | nolog_expected_no_audit | 6 | apache, haproxy, nginx | classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated | low; no runtime or expected-status change | keep as classification-only evidence; do not add artificial audit logs |
 | phase4_log_only_no_abort | 6 | nginx | report-only unless the case is meant to exercise strict hard abort | low if reported honestly, high if promoted as hard abort | keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence |
 | rule_chain_semantics | 6 | apache, haproxy, nginx | small but semantic; requires focused rule-chain evidence | medium | single-case rule-chain triage with logs |

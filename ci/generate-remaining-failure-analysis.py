@@ -61,6 +61,9 @@ OLD_CLUSTER_CHECKS = (
     ("nginx_actual_500", "NGINX actual status 500"),
     ("classification_incomplete", "MRTS classification incomplete"),
 )
+BODY_PROCESSOR_CONNECTOR_GAP_CASES = {
+    "phase1_vs_phase2_request_body_gap",
+}
 
 
 def utc_now() -> str:
@@ -202,6 +205,8 @@ def failure_category(entry: dict[str, Any]) -> str:
         return "multipart_files"
     if category == "xml" or "request_body_xml" in functional_area:
         return "xml_processor"
+    if case_id in BODY_PROCESSOR_CONNECTOR_GAP_CASES:
+        return "connector_gap"
     if category in {"body-processors", "request-body"} or any(item.startswith("request_body") for item in functional_area):
         return "request_body_processor"
     if category == "security/rule-chain" or "chain" in case_id:

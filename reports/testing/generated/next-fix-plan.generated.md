@@ -1,6 +1,6 @@
 # Next Fix Plan
 
-Generated at: `2026-06-13T20:27:27Z`
+Generated at: `2026-06-14T08:46:07Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -13,7 +13,7 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 ## P2
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |
 |---|---|---|---|---|---|---|
-| request_body_processor / multipart_files / xml_processor | 189 | apache, nginx, haproxy | high combined volume, but likely multiple true processor gaps | split by body type first; avoid one broad fix | medium to high | targeted body processor cases, connector smoke for touched connector, full matrix if parser behavior changes |
+| request_body_processor / multipart_files / xml_processor | 180 | apache, nginx, haproxy | high combined volume, but likely multiple true processor gaps | split by body type first; avoid one broad fix | medium to high | targeted body processor cases, connector smoke for touched connector, full matrix if parser behavior changes |
 
 ## P3
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |

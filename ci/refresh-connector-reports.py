@@ -181,6 +181,11 @@ INTERVENTION_BLOCKING_OUTPUTS = (
     "reports/testing/generated/intervention-blocking-analysis.generated.md",
 )
 
+BODY_PROCESSOR_OUTPUTS = (
+    "reports/testing/generated/body-processor-analysis.generated.json",
+    "reports/testing/generated/body-processor-analysis.generated.md",
+)
+
 REMAINING_OUTPUTS = (
     "reports/testing/generated/remaining-failure-analysis.generated.json",
     "reports/testing/generated/remaining-failure-analysis.generated.md",
@@ -453,6 +458,31 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
                 "ci/generate-remaining-failure-analysis.py",
                 "--connector-root",
                 str(connector_root),
+                "--output-dir",
+                str(report_dir),
+            ),
+            requires_runtime=True,
+            requires_full_matrix=True,
+        ),
+        ReportSpec(
+            name="body_processor_analysis",
+            owner="connector",
+            generator="ci/generate-body-processor-analysis.py",
+            make_target="generate-body-processor-analysis",
+            inputs=(
+                "reports/testing/generated/connector-work-queue.generated.json",
+                "reports/testing/generated/remaining-failure-analysis.generated.json",
+                "reports/testing/generated/phase-work-queue.generated.json",
+                "reports/testing/generated/next-fix-plan.generated.json",
+            ),
+            outputs=BODY_PROCESSOR_OUTPUTS,
+            command=(
+                python,
+                "ci/generate-body-processor-analysis.py",
+                "--connector-root",
+                str(connector_root),
+                "--framework-root",
+                str(framework_root),
                 "--output-dir",
                 str(report_dir),
             ),

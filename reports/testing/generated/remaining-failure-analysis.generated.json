@@ -161,86 +161,6 @@
       ]
     },
     {
-      "category": "request_body_processor",
-      "connectors": [
-        "apache",
-        "haproxy",
-        "nginx"
-      ],
-      "count": 69,
-      "fixable": "possibly fixable after processor-specific triage",
-      "recommended_next_step": "split JSON, URL-encoded, and XML body processor cases before code changes",
-      "risk": "medium",
-      "typical_examples": [
-        {
-          "actual_status": 200,
-          "case_id": "phase1_vs_phase2_request_body_gap",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "POST",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "1",
-          "query": "-",
-          "rule_id": "4511",
-          "runtime_verified": "false",
-          "variable": "REQUEST_BODY",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "intervention_blocking"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "json_duplicate_keys_runtime_difference",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "POST",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "-",
-          "rule_id": "4710",
-          "runtime_verified": "false",
-          "variable": "REQUEST_BODY",
-          "variant": "no-crs/with-mrts",
-          "work_direction": [
-            "intervention_blocking"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "json_nested_object_future_compatibility",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "POST",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "-",
-          "rule_id": "4709",
-          "runtime_verified": "false",
-          "variable": "REQUEST_BODY",
-          "variant": "no-crs/with-mrts",
-          "work_direction": [
-            "intervention_blocking"
-          ]
-        }
-      ]
-    },
-    {
       "category": "multipart_files",
       "connectors": [
         "apache",
@@ -395,6 +315,86 @@
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "response_body_non_promoted"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "request_body_processor",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 60,
+      "fixable": "possibly fixable after processor-specific triage",
+      "recommended_next_step": "split JSON, URL-encoded, and XML body processor cases before code changes",
+      "risk": "medium",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "json_duplicate_keys_runtime_difference",
+          "classification": "runtime-difference",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "POST",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "2",
+          "query": "-",
+          "rule_id": "4710",
+          "runtime_verified": "false",
+          "variable": "REQUEST_BODY",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "intervention_blocking"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "json_nested_object_future_compatibility",
+          "classification": "runtime-difference",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "POST",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "2",
+          "query": "-",
+          "rule_id": "4709",
+          "runtime_verified": "false",
+          "variable": "REQUEST_BODY",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "intervention_blocking"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "json_request_body_block",
+          "classification": "runtime-difference",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "POST",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "2",
+          "query": "-",
+          "rule_id": "2501",
+          "runtime_verified": "false",
+          "variable": "REQUEST_BODY",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "intervention_blocking"
           ]
         }
       ]
@@ -640,6 +640,42 @@
       ]
     },
     {
+      "category": "connector_gap",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 9,
+      "fixable": "unknown; review required",
+      "recommended_next_step": "manual review",
+      "risk": "unknown",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "phase1_vs_phase2_request_body_gap",
+          "classification": "runtime-difference",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "POST",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "1",
+          "query": "-",
+          "rule_id": "4511",
+          "runtime_verified": "false",
+          "variable": "REQUEST_BODY",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "intervention_blocking"
+          ]
+        }
+      ]
+    },
+    {
       "category": "nolog_expected_no_audit",
       "connectors": [
         "apache",
@@ -808,15 +844,6 @@
       "typical_examples": []
     },
     {
-      "category": "connector_gap",
-      "connectors": [],
-      "count": 0,
-      "fixable": "unknown; review required",
-      "recommended_next_step": "manual review",
-      "risk": "unknown",
-      "typical_examples": []
-    },
-    {
       "category": "harness_evidence_issue",
       "connectors": [],
       "count": 0,
@@ -925,7 +952,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-13T20:27:27Z",
+  "generated_at": "2026-06-14T08:46:07Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -990,7 +1017,7 @@
       {
         "cluster_name": "request_body_processor / multipart_files / xml_processor",
         "connector": "apache, nginx, haproxy",
-        "count": 189,
+        "count": 180,
         "likely_change": "split by body type first; avoid one broad fix",
         "risk": "medium to high",
         "tests": [
