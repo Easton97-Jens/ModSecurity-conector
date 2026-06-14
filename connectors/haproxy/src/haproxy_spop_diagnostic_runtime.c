@@ -173,17 +173,18 @@ static void log_line(FILE *log, const char *fmt, ...) {
 }
 
 static int bounded_cstring_length(const char *value, size_t max_len, size_t *out_len) {
-    const char *end = 0;
+    size_t len;
 
     if (value == 0 || out_len == 0 || max_len == 0) {
         return -1;
     }
-    end = (const char *)memchr(value, '\0', max_len);
-    if (end == 0) {
-        return -1;
+    for (len = 0; len < max_len; ++len) {
+        if (value[len] == '\0') {
+            *out_len = len;
+            return 0;
+        }
     }
-    *out_len = (size_t)(end - value);
-    return 0;
+    return -1;
 }
 
 static size_t safe_cstring_length(const char *value, size_t max_len) {
@@ -195,14 +196,17 @@ static size_t safe_cstring_length(const char *value, size_t max_len) {
     return len;
 }
 
-static void close_owned_stream(FILE **stream, FILE *standard_stream) {
+static int close_owned_stream(FILE **stream, FILE *standard_stream) {
+    int rc = 0;
+
     if (stream == 0 || *stream == 0) {
-        return;
+        return 0;
     }
     if (*stream != standard_stream) {
-        fclose(*stream);
+        rc = fclose(*stream);
     }
     *stream = 0;
+    return rc;
 }
 
 static int mkdir_p(const char *path) {
@@ -264,6 +268,8 @@ static int write_text_file(const char *path, const char *fmt, ...) {
     char dir[4096];
     FILE *file;
     va_list args;
+    int write_rc;
+    int close_rc;
 
     if (dirname_to_buffer(path, dir, sizeof(dir)) != 0 || mkdir_p(dir) != 0) {
         return -1;
@@ -273,9 +279,10 @@ static int write_text_file(const char *path, const char *fmt, ...) {
         return -1;
     }
     va_start(args, fmt);
-    vfprintf(file, fmt, args);
+    write_rc = vfprintf(file, fmt, args);
     va_end(args);
-    if (fclose(file) != 0) {
+    close_rc = fclose(file);
+    if (write_rc < 0 || close_rc != 0) {
         return -1;
     }
     return 0;
