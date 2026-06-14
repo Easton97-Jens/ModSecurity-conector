@@ -93,11 +93,11 @@
   "body_processor_analysis_report": {
     "analysis": "reports/testing/generated/body-processor-analysis.generated.md",
     "json": "reports/testing/generated/body-processor-analysis.generated.json",
-    "multipart_activation_missing_subcluster_count": 12,
+    "multipart_activation_missing_subcluster_count": 8,
     "multipart_active_after_report_sync": 0,
     "urlencoded_active_after_report_sync": 0,
-    "urlencoded_form_subcluster_count": 18,
-    "xml_activation_missing_subcluster_count": 24,
+    "urlencoded_form_subcluster_count": 12,
+    "xml_activation_missing_subcluster_count": 16,
     "xml_active_after_report_sync": 0
   },
   "expat": {
@@ -741,27 +741,25 @@
         "hard_abort_evidence_rows": 0
       },
       "nginx": {
-        "capability_status": "partial_supported_with_strict_evidence",
-        "full_delivery_without_abort_rows": 298,
-        "hard_abort_evidence_rows": 2
+        "capability_status": "connector_gap_no_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 294,
+        "hard_abort_evidence_rows": 0
       }
     },
     "json": "reports/testing/generated/phase4-hard-abort-capability.generated.json",
     "report": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
     "summary": {
       "category_counts": {
-        "phase4_connection_aborted": 2,
-        "phase4_connector_gap": 80,
-        "phase4_hard_abort_evidence": 2,
-        "phase4_log_only_no_abort": 10,
-        "phase4_missing_abort_evidence": 92,
+        "phase4_connector_gap": 76,
+        "phase4_log_only_no_abort": 6,
+        "phase4_missing_abort_evidence": 102,
         "phase4_no_hard_abort_required": 684
       },
-      "connection_aborted_rows": 2,
-      "full_delivery_without_abort_rows": 842,
-      "hard_abort_evidence_rows": 2,
-      "log_evidence_rows": 336,
-      "log_only_not_hard_abort_rows": 10,
+      "connection_aborted_rows": 0,
+      "full_delivery_without_abort_rows": 838,
+      "hard_abort_evidence_rows": 0,
+      "log_evidence_rows": 304,
+      "log_only_not_hard_abort_rows": 6,
       "no_hard_abort_required_rows": 684,
       "rows": 868,
       "runtime_status": {
@@ -837,10 +835,10 @@
     "json": "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
     "report": "reports/testing/generated/rule-chain-semantics-analysis.generated.md",
     "summary": {
-      "chain_child_matched_rows": 4,
+      "chain_child_matched_rows": 2,
       "chain_named_non_rule_chain_groups": 1,
       "chain_named_non_rule_chain_rows": 6,
-      "chain_parent_matched_rows": 5,
+      "chain_parent_matched_rows": 3,
       "connectors": {
         "apache": 2,
         "haproxy": 2,
@@ -848,7 +846,7 @@
       },
       "evidence_parser_missing_full_chain_rows": 0,
       "full_chain_disruptive_rows": 0,
-      "full_chain_matched_rows": 5,
+      "full_chain_matched_rows": 3,
       "full_chain_non_disruptive_detection_only_rows": 6,
       "report_only_items": 13,
       "rule_chain_case_groups": 1,

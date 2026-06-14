@@ -3,7 +3,7 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-14T13:00:25Z`
+- Generated at: `2026-06-14T19:39:13Z`
 - Runtime evidence rows analyzed: **3928**
 - Queued work rows: **1594**
 - Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **782** / **0** / **72**
@@ -333,7 +333,7 @@ Generated file - do not edit manually.
 <!-- phase4-hard-abort:start -->
 ## Phase 4 Hard Abort Capability
 - Report: `reports/testing/generated/phase4-hard-abort-capability.generated.md`
-- Hard-abort evidence rows: **2**
-- Full-delivery-without-abort rows: **842**
+- Hard-abort evidence rows: **0**
+- Full-delivery-without-abort rows: **838**
 - Phase 4 PASS promotion now requires intervention log evidence plus transport abort evidence, not HTTP status alone.
 <!-- phase4-hard-abort:end -->

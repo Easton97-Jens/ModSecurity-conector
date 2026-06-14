@@ -9,29 +9,32 @@ are useful evidence, but they do not by themselves promote connector behavior.
 
 ## Current Focus
 
-- Keep Apache and NGINX evidence scoped to the real-world connector path:
+- Keep Apache, NGINX, and HAProxy evidence scoped to the real-world connector
+  path:
   HTTP client to server process to connector module to libmodsecurity to HTTP
   response.
 - Keep generated report status aligned with `TEST-COVERAGE-SUMMARY.md`,
-  `reports/testing/generated/runtime-matrix.generated.md`, and
-  `reports/testing/test-coverage-overview.md`.
+  `reports/testing/generated/full-runtime-matrix.generated.md`,
+  `reports/testing/generated/final-consistency-audit.generated.md`, and
+  `reports/testing/README.md`.
 - Preserve the distinction between default local connector summaries and
-  force-all/runtime-matrix evidence. The tracked 2026-05-24 snapshot records
-  force-all Apache and NGINX failures; it does not imply `make smoke-all`
-  passed.
+  force-all/full-matrix evidence. Full-Matrix failures remain visible and
+  classified; they are not blanket connector PASS proof.
 - Keep `RESPONSE_BODY` non-verified and non-promoted until both Apache and
   NGINX return stable HTTP 403 for the same response-body blocking YAML case.
 - Keep RAW argument collection work mapped-only until a configured local
   ModSecurity v3 source contains PR #3564 behavior and both connectors pass
   real HTTP smokes for the same YAML cases.
 - Maintain source attribution, license, origin/provenance metadata, and adapter
-  metadata drift checks while Apache and NGINX source stays adapter-owned.
+  metadata drift checks while Apache, NGINX, and HAProxy source stays
+  adapter-owned.
 
 ## Implemented
 
-- Monorepo layout with repo-local Apache and NGINX adapter-owned connector
-  source trees under `connectors/apache/` and `connectors/nginx/`.
-- Placeholder scaffolds for `connectors/{envoy,haproxy,lighttpd,traefik}/`.
+- Monorepo layout with repo-local Apache, NGINX, and HAProxy connector source
+  trees under `connectors/apache/`, `connectors/nginx/`, and
+  `connectors/haproxy/`.
+- Placeholder scaffolds for `connectors/{envoy,lighttpd,traefik}/`.
 - Connector-neutral C-first headers in `common/include/msconnector/` for
   directives, options/defaults, rule-load stats, request, response,
   transaction, intervention, capability, origin/provenance, logging, and
@@ -68,21 +71,21 @@ are useful evidence, but they do not by themselves promote connector behavior.
 - Runtime result metadata aligned with `msconnector_status`,
   `msconnector_origin`, and `msconnector_intervention` while keeping the
   shell/Python harness independent of C FFI.
-- Real-world connector result metadata for Apache and NGINX summaries,
-  including server binary, connector module, libmodsecurity path, origin, and
-  verified variable families derived only from passing active/imported cases.
-- Current local default connector summary data under `$BUILD_ROOT/results/`
-  reports Apache 54 PASS / 0 FAIL / 0 BLOCKED and NGINX 60 PASS / 0 FAIL /
-  0 BLOCKED. This is local default-smoke evidence only; it is not a blanket
-  stability claim for force-all, former expected-failure, mapped-only, future, or blocked cases.
-- This workspace's 2026-05-24 normal-scope refresh executed
-  `make smoke-common`, `make smoke-apache`, `make smoke-nginx`, and
-  `make smoke-all` with exit code 0. These local smoke results remain separate
-  from the tracked force-all runtime-matrix snapshot.
-- The tracked 2026-05-24 runtime matrix snapshot records force-all evidence:
-  Apache 87 PASS / 46 FAIL / 0 BLOCKED and NGINX 94 PASS / 46 FAIL /
-  0 BLOCKED, with former expected-failure, future, connector-gap, runtime-difference, and
-  response-body pass-through results not promoted.
+- Real-world connector result metadata for Apache, NGINX, and HAProxy
+  summaries, including server/proxy binary, connector module or SPOA/SPOP
+  integration path, libmodsecurity path, origin, and verified variable families
+  derived only from passing active/imported cases.
+- Current generated default runtime evidence reports Apache 54 PASS /
+  0 FAIL / 0 BLOCKED, NGINX 60 PASS / 0 FAIL / 0 BLOCKED, and HAProxy
+  55 PASS / 0 FAIL / 0 BLOCKED. This is default-smoke evidence only; it is
+  not a blanket stability claim for force-all, former expected-failure,
+  mapped-only, future, or blocked cases.
+- Current force-all runtime evidence reports Apache 100 PASS / 27 FAIL /
+  0 BLOCKED, NGINX 95 PASS / 39 FAIL / 0 BLOCKED, and HAProxy 104 PASS /
+  23 FAIL / 0 BLOCKED, with former expected-failure, future, connector-gap,
+  runtime-difference, and response-body pass-through results not promoted.
+- Current Full-Matrix evidence reports 3074 PASS / 782 FAIL / 0 BLOCKED. The
+  final consistency audit recommends no next runtime-fixable connector cluster.
 - Documentation for the capability model, status model, adapter interface,
   common runtime boundaries, directive parity, rule-load stats, source
   attribution, and license/origin policy.
@@ -105,14 +108,17 @@ are useful evidence, but they do not by themselves promote connector behavior.
   volatile fields out of required assertions.
 - Promote NGINX-only TX scoring and redirect cases to common only after Apache
   equivalence is implemented, tested, and documented.
-- Promote multipart filename/file-collection edge cases only after both Apache
-  and NGINX pass the same real-world connector cases.
+- Promote multipart filename/file-collection edge cases only after connector
+  runtime evidence and native/semantic comparison justify promotion.
 
 ## Later / Deferred
 
-- HAProxy, Envoy, Lighttpd, and Traefik remain deferred. They need stable
-  Common metadata, stable harness behavior, a selected integration approach,
-  and real-world connector summaries before any compatibility claim.
+- Envoy, Lighttpd, and Traefik remain deferred. They need stable Common
+  metadata, stable harness behavior, a selected integration approach, and
+  real-world connector summaries before any compatibility claim.
+- HAProxy has an evidence-scoped SPOA/SPOP runtime path with default and
+  force-all smoke evidence, while broader capability gaps remain reported and
+  non-promoted.
 - Apache parity for NGINX-specific phase-4 directives remains deferred.
 - Common reporting for rule-load stats and Apache post-config display of those
   counters remain deferred until aggregation and merge semantics are designed.

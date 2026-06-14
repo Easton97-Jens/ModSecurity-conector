@@ -2,14 +2,14 @@
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-13T20:27:29Z`
-- Connector SHA: `950bfbc06a88a89d0862a526432d0d8c76fa52ed`
-- Framework SHA: `b2575df2af629dcc42f64e24b746ccc8b2c17217`
-- Framework submodule SHA: `b2575df2af629dcc42f64e24b746ccc8b2c17217`
+- Generated at: `2026-06-14T19:39:52Z`
+- Connector SHA: `1792360f4abf0bd19b145eb57a66ad77a620c0bf`
+- Framework SHA: `b928e944a0f5928fb0ac1a7466292f92f1c88cfe`
+- Framework submodule SHA: `b928e944a0f5928fb0ac1a7466292f92f1c88cfe`
 - MRTS SHA: `13aa91291adea12d5c607fdd165d010fcfb1da78`
 
 ## Inputs
-- `full_runtime_matrix`: `22ef9cc56a7bfe2c307f97ba5d4d5e4a75c68b46b38c8bf096c63e998a3f11f5`
+- `full_runtime_matrix`: `c2594bb3599a4219364300ba5121da0220f658815ad6c416cc3731c1a0c3fa84`
 - `native_mrts`: `e76859e6673c48a4aea523f8c02561a61132518381b0701baca344adf5fe6513`
 - `build_cache`: `047eb3758de4dcced26b3ddf0504f9d2580b171d8f3c9116a6afd1a42dbfb7e6`
 - `component_cache`: `b08761c80e144f379d77396a40b6b0fdd23f58c6565754b51fad923eb196d3b2`
@@ -26,4 +26,9 @@ Generated file - do not edit manually.
 | response_header_hook_analysis | connector | ci/generate-response-header-hook-analysis.py | generate-response-header-hook-analysis | generated | true | false | true | - |
 | phase4_hard_abort_capability | connector | ci/generate-phase4-hard-abort-capability.py | generate-phase4-hard-abort-capability | generated | true | false | true | - |
 | remaining_failure_analysis | connector | ci/generate-remaining-failure-analysis.py | generate-remaining-failure-analysis | generated | true | false | true | - |
+| intervention_blocking_analysis | connector | ci/generate-intervention-blocking-analysis.py | generate-intervention-blocking-analysis | generated | true | false | true | - |
+| no_mrts_intervention_nomatch_analysis | connector | ci/generate-no-mrts-intervention-nomatch-analysis.py | generate-no-mrts-intervention-nomatch-analysis | generated | true | false | true | - |
+| body_processor_analysis | connector | ci/generate-body-processor-analysis.py | generate-body-processor-analysis | generated | true | false | true | - |
+| rule_chain_semantics_analysis | connector | ci/generate-rule-chain-semantics-analysis.py | generate-rule-chain-semantics-analysis | generated | true | false | true | - |
+| final_consistency_audit | connector | ci/generate-final-consistency-audit.py | generate-final-consistency-audit | generated | true | false | true | - |
 | runtime_cache_reports | connector | ci/update-runtime-reports.py | prepare-runtime-components | generated | true | false | false | - |

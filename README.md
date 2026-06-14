@@ -49,6 +49,32 @@ separate: Apache `133 attempted / 100 PASS / 27 FAIL / 0 BLOCKED /
 6 NOT_EXECUTABLE`, and HAProxy `133 attempted / 104 PASS / 23 FAIL /
 0 BLOCKED / 6 NOT_EXECUTABLE`. API-only smokes are not connector proof.
 
+## Merge Readiness / Current Status
+
+Current merge-readiness evidence for PR #13:
+
+- SonarCloud Quality Gate: `OK`
+- SonarCloud ratings: Reliability `A`, Security `A`
+- SonarCloud Bugs/Vulnerabilities: `0`
+- SonarCloud Security Hotspots: `0 open / 100% reviewed`
+- Full-Matrix: `3074 PASS / 782 FAIL / 0 BLOCKED`
+- Final consistency audit: `recommended_next_fix_cluster: none`
+- Active runtime-fixable clusters: none
+- Reports refreshed through the Make/generator targets
+- Framework and MRTS submodules: clean
+
+The 782 Full-Matrix failures are not ignored and are not manually flipped. They
+remain classified in the generated work queues and analysis reports as semantic
+differences, capability gaps, report-only cases, or `not_next` areas that should
+not be solved by changing Expected statuses or PASS/FAIL values. The canonical
+merge-readiness reports are:
+
+- [Full runtime matrix](./reports/testing/generated/full-runtime-matrix.generated.md)
+- [Final consistency audit](./reports/testing/generated/final-consistency-audit.generated.md)
+- [Next fix plan](./reports/testing/generated/next-fix-plan.generated.md)
+- [Remaining failure analysis](./reports/testing/generated/remaining-failure-analysis.generated.md)
+- [Testing report index](./reports/testing/README.md)
+
 ## Connector Feature Status
 
 The Apache and NGINX connectors share connector-neutral metadata in `common/`,
@@ -320,6 +346,28 @@ Connector-specific generated evidence is written in this repository under
 `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`; the parent
 repository does not maintain a separate coverage-summary source of truth.
 
+## Report Refresh
+
+Generated reports must be updated through their generators, not patched by hand.
+The connector refresh target updates the connector-owned report catalog,
+including the full runtime matrix, work queues, remaining-failure analysis,
+capability/gap reports, and the final consistency audit:
+
+```sh
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make refresh-all-reports
+```
+
+The framework refresh target updates framework-owned generated documentation:
+
+```sh
+make -C modules/ModSecurity-test-Framework refresh-framework-reports
+```
+
+Before merge, rerun the lint and quick checks in both repositories, then verify
+that the generated report manifest and final consistency audit agree with the
+current branch state. Runtime caches, generated MRTS rules, FTW YAML, load
+files, and temporary job output are local artifacts and must not be committed.
+
 ## Documentation Links
 
 - Build docs: [Compile NGINX](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md), [Compile HAProxy](./COMPILE_HAPROXY.md)
@@ -335,9 +383,13 @@ repository does not maintain a separate coverage-summary source of truth.
 - YAML schema notes: [modules/ModSecurity-test-Framework/docs/imports/common/schema.md](./modules/ModSecurity-test-Framework/docs/imports/common/schema.md)
 - Shared fixtures: [modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md](./modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md)
 - Smoke target semantics: [modules/ModSecurity-test-Framework/docs/testing/fast-checks.md](./modules/ModSecurity-test-Framework/docs/testing/fast-checks.md)
+- Testing report index: [reports/testing/README.md](./reports/testing/README.md)
 - Real-world connector validation: [reports/testing/real-world-connector-validation.md](./reports/testing/real-world-connector-validation.md)
 - HAProxy PoC evidence: [reports/testing/haproxy-poc.md](./reports/testing/haproxy-poc.md)
+- Full runtime matrix: [reports/testing/generated/full-runtime-matrix.generated.md](./reports/testing/generated/full-runtime-matrix.generated.md)
 - Final consistency audit: [reports/testing/generated/final-consistency-audit.generated.md](./reports/testing/generated/final-consistency-audit.generated.md)
+- Next fix plan: [reports/testing/generated/next-fix-plan.generated.md](./reports/testing/generated/next-fix-plan.generated.md)
+- Remaining failure analysis: [reports/testing/generated/remaining-failure-analysis.generated.md](./reports/testing/generated/remaining-failure-analysis.generated.md)
 - Case matrix reports: [reports/testing/case-matrix.md](./reports/testing/case-matrix.md), [reports/testing/generated/case-matrix.generated.md](./reports/testing/generated/case-matrix.generated.md)
 - PR/source evidence: [reports/testing/evidence/pr-evidence-summary.md](./reports/testing/evidence/pr-evidence-summary.md), [reports/testing/evidence/raw-args-pr3564.md](./reports/testing/evidence/raw-args-pr3564.md)
 - Licensing and origin index: [docs/licensing/license-and-origin.md](./docs/licensing/license-and-origin.md)

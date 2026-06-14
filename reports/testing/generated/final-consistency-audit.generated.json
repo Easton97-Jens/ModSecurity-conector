@@ -1,7 +1,7 @@
 {
   "active_vs_report_only": {
     "active_runtime_fixable_clusters": [],
-    "capability_evidence_pending_rows": 64,
+    "capability_evidence_pending_rows": 68,
     "categories": [
       {
         "category": "with_mrts_detection_only_non_disruptive",
@@ -22,7 +22,7 @@
           "apache",
           "nginx"
         ],
-        "count": 64,
+        "count": 68,
         "disposition": "capability_evidence_pending",
         "fixable": "fixable only through real strict abort/log evidence, not status-only changes",
         "recommended_next_step": "add real Phase 4 intervention log plus connection-abort evidence before promotion",
@@ -48,7 +48,7 @@
           "haproxy",
           "nginx"
         ],
-        "count": 46,
+        "count": 42,
         "disposition": "connector_gap",
         "fixable": "connector capability gap unless a real abort mechanism is implemented and evidenced",
         "recommended_next_step": "document connector gap unless implementation can prove a real hard abort",
@@ -144,7 +144,7 @@
         "risk": "unknown"
       }
     ],
-    "connector_gap_rows": 49,
+    "connector_gap_rows": 45,
     "report_only_rows": 603,
     "semantic_pending_rows": 66
   },
@@ -231,31 +231,31 @@
   },
   "freshness": [
     {
-      "generated_at": "2026-06-13T20:27:13Z",
+      "generated_at": "2026-06-14T19:39:06Z",
       "path": "reports/testing/generated/full-runtime-matrix.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-14T13:00:22Z",
+      "generated_at": "2026-06-14T19:39:10Z",
       "path": "reports/testing/generated/connector-work-queue.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-14T13:00:25Z",
+      "generated_at": "2026-06-14T19:39:13Z",
       "path": "reports/testing/generated/phase-work-queue.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-14T13:00:32Z",
+      "generated_at": "2026-06-14T19:39:20Z",
       "path": "reports/testing/generated/remaining-failure-analysis.generated.json",
       "present": true,
       "report_kind": "remaining-full-matrix-failure-analysis"
     },
     {
-      "generated_at": "2026-06-14T13:00:32Z",
+      "generated_at": "2026-06-14T19:39:20Z",
       "path": "reports/testing/generated/next-fix-plan.generated.json",
       "present": true,
       "report_kind": "next-fix-plan"
@@ -273,43 +273,43 @@
       "report_kind": "native-mrts-summary"
     },
     {
-      "generated_at": "2026-06-14T13:00:31Z",
+      "generated_at": "2026-06-14T19:39:18Z",
       "path": "reports/testing/generated/phase4-hard-abort-capability.generated.json",
       "present": true,
       "report_kind": "phase4-hard-abort-capability"
     },
     {
-      "generated_at": "2026-06-14T13:00:24Z",
+      "generated_at": "2026-06-14T19:39:11Z",
       "path": "reports/testing/generated/nolog-audit-evidence.generated.json",
       "present": true,
       "report_kind": "nolog-audit-evidence-analysis"
     },
     {
-      "generated_at": "2026-06-14T13:00:25Z",
+      "generated_at": "2026-06-14T19:39:14Z",
       "path": "reports/testing/generated/response-header-hook-analysis.generated.json",
       "present": true,
       "report_kind": "response-header-hook-analysis"
     },
     {
-      "generated_at": "2026-06-14T13:00:42Z",
+      "generated_at": "2026-06-14T19:39:51Z",
       "path": "reports/testing/generated/body-processor-analysis.generated.json",
       "present": true,
       "report_kind": "body-processor-analysis"
     },
     {
-      "generated_at": "2026-06-14T13:00:38Z",
+      "generated_at": "2026-06-14T19:39:43Z",
       "path": "reports/testing/generated/intervention-blocking-analysis.generated.json",
       "present": true,
       "report_kind": "intervention-blocking-analysis"
     },
     {
-      "generated_at": "2026-06-14T13:00:39Z",
+      "generated_at": "2026-06-14T19:39:43Z",
       "path": "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json",
       "present": true,
       "report_kind": "no-mrts-intervention-nomatch-analysis"
     },
     {
-      "generated_at": "2026-06-14T13:00:43Z",
+      "generated_at": "2026-06-14T19:39:51Z",
       "path": "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
       "present": true,
       "report_kind": "rule-chain-semantics-analysis"
@@ -323,9 +323,9 @@
     "pass": 3074,
     "pending": 2298
   },
-  "generated_at": "2026-06-14T13:00:43Z",
+  "generated_at": "2026-06-14T19:39:52Z",
   "git_snapshot": {
-    "connector_head": "b033dd246f7941da57715bfe0c36fa91a970c08b",
+    "connector_head": "1792360f4abf0bd19b145eb57a66ad77a620c0bf",
     "framework_head": "b928e944a0f5928fb0ac1a7466292f92f1c88cfe",
     "submodules": [
       "b928e944a0f5928fb0ac1a7466292f92f1c88cfe modules/ModSecurity-test-Framework (remotes/origin/HEAD-9-gb928e94)",
@@ -380,11 +380,11 @@
         "hard_abort_evidence_rows": 0
       },
       "nginx": {
-        "capability_status": "partial_supported_with_strict_evidence",
-        "hard_abort_evidence_rows": 2
+        "capability_status": "connector_gap_no_hard_abort_evidence",
+        "hard_abort_evidence_rows": 0
       }
     },
-    "hard_abort_evidence_rows": 2,
+    "hard_abort_evidence_rows": 0,
     "rows": 868,
     "sensitive_log_leak_rows": 0
   },
@@ -429,8 +429,8 @@
   "remaining_known_gaps": {
     "collection_name_normalization_semantics": 30,
     "connector_gap": 3,
-    "phase4_connector_gap": 46,
-    "phase4_missing_abort_evidence": 64,
+    "phase4_connector_gap": 42,
+    "phase4_missing_abort_evidence": 68,
     "transformation_semantics": 36
   },
   "remaining_summary": {

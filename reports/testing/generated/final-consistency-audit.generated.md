@@ -2,14 +2,14 @@
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-14T13:00:43Z`
+- Generated at: `2026-06-14T19:39:52Z`
 - Release readiness: `ready_with_known_reported_gaps`
 - Recommended next fix cluster: `none`
 - Recommendation justified: `yes`
 - Reason: No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.
 
 ## Git And Submodules
-- Connector HEAD: `b033dd246f7941da57715bfe0c36fa91a970c08b`
+- Connector HEAD: `1792360f4abf0bd19b145eb57a66ad77a620c0bf`
 - Framework HEAD: `b928e944a0f5928fb0ac1a7466292f92f1c88cfe`
 
 | Submodule status |
@@ -39,14 +39,14 @@ Generated file - do not edit manually.
 - Active runtime-fixable clusters: **0**
 - Report-only rows: **603**
 - Semantic pending rows: **66**
-- Capability-evidence pending rows: **64**
-- Connector-gap rows: **49**
+- Capability-evidence pending rows: **68**
+- Connector-gap rows: **45**
 | Category | Count | Connectors | Disposition | Recommended next step |
 |---|---|---|---|---|
 | with_mrts_detection_only_non_disruptive | 495 | apache, haproxy, nginx | report_only | keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases |
-| phase4_missing_abort_evidence | 64 | apache, nginx | capability_evidence_pending | add real Phase 4 intervention log plus connection-abort evidence before promotion |
+| phase4_missing_abort_evidence | 68 | apache, nginx | capability_evidence_pending | add real Phase 4 intervention log plus connection-abort evidence before promotion |
 | response_header_mrts_detection_only | 60 | apache, haproxy, nginx | report_only | keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence |
-| phase4_connector_gap | 46 | apache, haproxy, nginx | connector_gap | document connector gap unless implementation can prove a real hard abort |
+| phase4_connector_gap | 42 | apache, haproxy, nginx | connector_gap | document connector gap unless implementation can prove a real hard abort |
 | transformation_semantics | 36 | apache, haproxy, nginx | semantic_pending_native_or_libmodsecurity_comparison | compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes |
 | collection_name_normalization_semantics | 30 | apache, haproxy, nginx | semantic_pending_native_or_libmodsecurity_comparison | compare collection-name normalization semantics against native/libmodsecurity before treating as a runtime fix |
 | xml_processor_activation_missing | 24 | apache, haproxy, nginx | report_only | keep XML processor activation-missing rows report-only; do not change rules or Expected statuses |
@@ -84,8 +84,8 @@ Generated file - do not edit manually.
 ## Known Gaps
 | Gap | Rows |
 |---|---|
-| phase4_missing_abort_evidence | 64 |
-| phase4_connector_gap | 46 |
+| phase4_missing_abort_evidence | 68 |
+| phase4_connector_gap | 42 |
 | transformation_semantics | 36 |
 | collection_name_normalization_semantics | 30 |
 | connector_gap | 3 |
@@ -106,31 +106,31 @@ Generated file - do not edit manually.
 
 ## Phase 4 Hard-Abort
 - Rows: **868**
-- Hard-abort evidence rows: **2**
+- Hard-abort evidence rows: **0**
 - Sensitive log leak rows: **0**
 | Connector | Capability status | Hard-abort evidence rows |
 |---|---|---|
 | apache | implementation_path_present_no_runtime_hard_abort_evidence | 0 |
 | haproxy | connector_gap_no_hard_abort_evidence | 0 |
-| nginx | partial_supported_with_strict_evidence | 2 |
+| nginx | connector_gap_no_hard_abort_evidence | 0 |
 
 ## Freshness
 | Input | Present | Generated at |
 |---|---|---|
-| reports/testing/generated/full-runtime-matrix.generated.json | yes | 2026-06-13T20:27:13Z |
-| reports/testing/generated/connector-work-queue.generated.json | yes | 2026-06-14T13:00:22Z |
-| reports/testing/generated/phase-work-queue.generated.json | yes | 2026-06-14T13:00:25Z |
-| reports/testing/generated/remaining-failure-analysis.generated.json | yes | 2026-06-14T13:00:32Z |
-| reports/testing/generated/next-fix-plan.generated.json | yes | 2026-06-14T13:00:32Z |
+| reports/testing/generated/full-runtime-matrix.generated.json | yes | 2026-06-14T19:39:06Z |
+| reports/testing/generated/connector-work-queue.generated.json | yes | 2026-06-14T19:39:10Z |
+| reports/testing/generated/phase-work-queue.generated.json | yes | 2026-06-14T19:39:13Z |
+| reports/testing/generated/remaining-failure-analysis.generated.json | yes | 2026-06-14T19:39:20Z |
+| reports/testing/generated/next-fix-plan.generated.json | yes | 2026-06-14T19:39:20Z |
 | reports/testing/generated/full-run-evidence.generated.json | yes | 2026-06-09T18:40:47Z |
 | reports/testing/generated/mrts-native-summary.generated.json | yes | 2026-06-13T11:32:41Z |
-| reports/testing/generated/phase4-hard-abort-capability.generated.json | yes | 2026-06-14T13:00:31Z |
-| reports/testing/generated/nolog-audit-evidence.generated.json | yes | 2026-06-14T13:00:24Z |
-| reports/testing/generated/response-header-hook-analysis.generated.json | yes | 2026-06-14T13:00:25Z |
-| reports/testing/generated/body-processor-analysis.generated.json | yes | 2026-06-14T13:00:42Z |
-| reports/testing/generated/intervention-blocking-analysis.generated.json | yes | 2026-06-14T13:00:38Z |
-| reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json | yes | 2026-06-14T13:00:39Z |
-| reports/testing/generated/rule-chain-semantics-analysis.generated.json | yes | 2026-06-14T13:00:43Z |
+| reports/testing/generated/phase4-hard-abort-capability.generated.json | yes | 2026-06-14T19:39:18Z |
+| reports/testing/generated/nolog-audit-evidence.generated.json | yes | 2026-06-14T19:39:11Z |
+| reports/testing/generated/response-header-hook-analysis.generated.json | yes | 2026-06-14T19:39:14Z |
+| reports/testing/generated/body-processor-analysis.generated.json | yes | 2026-06-14T19:39:51Z |
+| reports/testing/generated/intervention-blocking-analysis.generated.json | yes | 2026-06-14T19:39:43Z |
+| reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json | yes | 2026-06-14T19:39:43Z |
+| reports/testing/generated/rule-chain-semantics-analysis.generated.json | yes | 2026-06-14T19:39:51Z |
 
 ## Guardrails
 | Guardrail | Value |

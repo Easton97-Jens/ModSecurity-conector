@@ -1,6 +1,14 @@
 # Apache Connector Open Items Status
 
-Stand: 2026-05-24. Diese Analyse basiert auf den aktuell offenen GitHub-Issues und -Pull-Requests in `owasp-modsecurity/ModSecurity-apache`, den lokalen Quellen in `ModSecurity-conector` und den vorhandenen Test-/Runtime-Artefakten in `ModSecurity-test-Framework`. Es wurden keine Produktivcodeänderungen vorgenommen und keine neuen Smoke-Runs gestartet.
+Status: historical issue/PR analysis snapshot.
+
+Stand: 2026-05-24. Diese Analyse basiert auf den damals offenen GitHub-Issues und -Pull-Requests in `owasp-modsecurity/ModSecurity-apache`, den lokalen Quellen in `ModSecurity-conector` und den damals vorhandenen Test-/Runtime-Artefakten in `ModSecurity-test-Framework`. Es wurden keine Produktivcodeänderungen vorgenommen und keine neuen Smoke-Runs gestartet.
+
+Aktueller Merge-Readiness-Status, Full-Matrix-Zahlen und der kanonische nächste
+Fix-Plan stehen in [reports/testing/README.md](../reports/testing/README.md)
+und
+[final-consistency-audit.generated.md](../reports/testing/generated/final-consistency-audit.generated.md).
+Diese Datei bleibt als historischer Apache-Open-Items-Abgleich erhalten.
 
 ## Quelle
 

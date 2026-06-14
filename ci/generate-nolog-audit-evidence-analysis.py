@@ -118,17 +118,10 @@ def action_value(actions: list[str], name: str) -> str:
 
 
 def first_secrule_parts(rules: str) -> tuple[str, str, str]:
-    for line in rules.splitlines():
-        text = line.strip()
-        if not text.startswith("SecRule "):
-            continue
-        quoted = text.split('"')
-        if len(quoted) < 4:
-            continue
-        before_operator = quoted[0].split()
-        if len(before_operator) < 2:
-            continue
-        return before_operator[1], quoted[1], quoted[3]
+    normalized = re.sub(r"\\\s*\n\s*", " ", rules)
+    match = re.search(r"SecRule\s+([^\s]+)\s+\"([^\"]*)\"\s+\"([^\"]+)\"", normalized, re.DOTALL)
+    if match:
+        return match.group(1), match.group(2), match.group(3)
     return "-", "-", ""
 
 
@@ -210,12 +203,26 @@ def run_log_index(full_runtime_matrix: dict[str, Any]) -> dict[tuple[str, str, s
     return index
 
 
-def load_case_for_entry(entry: dict[str, Any], framework_root: Path) -> Path:
+def find_framework_case_path(framework_root: Path, case_id: Any) -> Path | None:
+    case_name = str(case_id or "").strip()
+    if not case_name or "/" in case_name or "\\" in case_name:
+        return None
+    for root in (framework_root / "tests/cases", framework_root / "tests/upstream"):
+        if not root.is_dir():
+            continue
+        for candidate in root.rglob(f"{case_name}.yaml"):
+            path = safe_existing_file(candidate)
+            if path is not None:
+                return path
+    return None
+
+
+def load_case_for_entry(entry: dict[str, Any], framework_root: Path) -> Path | None:
     evidence = read_json(evidence_path(entry) or Path())
     case_path = safe_existing_file(evidence.get("path"))
     if case_path is not None and case_path.is_file():
         return case_path
-    return framework_root / "tests/cases/audit-log" / f"{CASE_ID}.yaml"
+    return find_framework_case_path(framework_root, entry.get("case_id") or CASE_ID)
 
 
 def observed_row(

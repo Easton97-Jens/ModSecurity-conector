@@ -21,12 +21,12 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
           "query": "-",
-          "rule_id": "2101",
+          "rule_id": "-",
           "runtime_verified": "false",
           "variable": "-",
           "variant": "no-crs/with-mrts",
@@ -43,12 +43,12 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "2102",
+          "rule_id": "-",
           "runtime_verified": "false",
           "variable": "-",
           "variant": "no-crs/with-mrts",
@@ -65,14 +65,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
-          "query": "what=block401",
-          "rule_id": "2320",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "classification_only"
@@ -86,7 +86,7 @@
         "apache",
         "nginx"
       ],
-      "count": 64,
+      "count": 68,
       "fixable": "fixable only through real strict abort/log evidence, not status-only changes",
       "recommended_next_step": "add real Phase 4 intervention log plus connection-abort evidence before promotion",
       "risk": "high if promoted without transport proof",
@@ -100,14 +100,36 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "4910",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase4_auditlog_outbound_escaped_value_gap",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "-",
+          "path": "-",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "-",
+          "runtime_verified": "false",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -122,36 +144,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "4908",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "response_body_non_promoted"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase4_auditlog_outbound_rule_id_runtime_difference",
-          "classification": "response-body-non-promoted",
-          "connector": "nginx",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": true,
-          "phase": "4",
-          "query": "-",
-          "rule_id": "4811",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -180,14 +180,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "3",
           "query": "-",
-          "rule_id": "4902",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Content-Type",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_header_mrts_detection_only"
@@ -202,14 +202,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "3",
           "query": "-",
-          "rule_id": "4803",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Set-Cookie",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_header_mrts_detection_only"
@@ -224,14 +224,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "3",
           "query": "-",
-          "rule_id": "4804",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Location",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_header_mrts_detection_only"
@@ -246,33 +246,11 @@
         "haproxy",
         "nginx"
       ],
-      "count": 46,
+      "count": 42,
       "fixable": "connector capability gap unless a real abort mechanism is implemented and evidenced",
       "recommended_next_step": "document connector gap unless implementation can prove a real hard abort",
       "risk": "high if faked; low if reported as gap",
       "typical_examples": [
-        {
-          "actual_status": 200,
-          "case_id": "phase4_auditlog_outbound_escaped_value_gap",
-          "classification": "response-body-non-promoted",
-          "connector": "nginx",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": true,
-          "phase": "4",
-          "query": "-",
-          "rule_id": "-",
-          "runtime_verified": "false",
-          "variable": "-",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "response_body_non_promoted"
-          ]
-        },
         {
           "actual_status": 200,
           "case_id": "phase4_auditlog_outbound_message_connector_gap",
@@ -282,14 +260,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "4812",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -304,14 +282,36 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "4808",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase4_auditlog_outbound_multiline_section_gap",
+          "classification": "response-body-non-promoted",
+          "connector": "haproxy",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "-",
+          "path": "-",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "-",
+          "runtime_verified": "false",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -340,14 +340,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "q=SAFE",
-          "rule_id": "4715",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS:q",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "transformation_semantics"
@@ -362,14 +362,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "q=SAFE",
-          "rule_id": "4716",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS:q",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "transformation_semantics"
@@ -384,14 +384,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
-          "query": "q=%25u0063%25u0061%25u0066%25u00E9",
-          "rule_id": "4707",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "REQUEST_URI",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "transformation_semantics"
@@ -420,14 +420,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "a=1%3Bb=2&a=3",
-          "rule_id": "4608",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "collection_semantics"
@@ -442,14 +442,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
           "query": "-",
-          "rule_id": "4607",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "REQUEST_HEADERS_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "collection_semantics"
@@ -464,14 +464,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "a=1;b=2",
-          "rule_id": "4513",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "collection_semantics"
@@ -500,14 +500,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "4610",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "XML",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -522,14 +522,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "4712",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "XML",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -544,14 +544,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "4711",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "XML",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -580,14 +580,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "4705",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "FILES_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -602,14 +602,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "4703",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -638,14 +638,14 @@
           "failure_pattern": [
             "expected_pass_but_evidence_missing"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
-          "query": "foo=bar&a=xxx",
-          "rule_id": "3326",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS:foo",
+          "variable": "-",
           "variant": "with-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -672,14 +672,14 @@
           "failure_pattern": [
             "expected_pass_but_evidence_missing"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "920002",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -694,14 +694,14 @@
           "failure_pattern": [
             "expected_pass_but_evidence_missing"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "910001",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -716,14 +716,14 @@
           "failure_pattern": [
             "expected_pass_but_evidence_missing"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "910002",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -752,14 +752,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
           "query": "-",
-          "rule_id": "4511",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "REQUEST_BODY",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "request_body_processor"
@@ -939,7 +939,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-14T13:00:32Z",
+  "generated_at": "2026-06-14T19:39:20Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -1102,13 +1102,13 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-14T13:00:22Z",
+    "connector_work_queue": "2026-06-14T19:39:10Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
-    "full_runtime_matrix": "2026-06-13T20:27:13Z",
+    "full_runtime_matrix": "2026-06-14T19:39:06Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-14T13:00:25Z",
+    "phase_work_queue": "2026-06-14T19:39:13Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {
@@ -1143,14 +1143,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "q=SAFE",
-            "rule_id": "4715",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:q",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -1188,14 +1188,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4710",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -1233,14 +1233,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4705",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "FILES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -1278,14 +1278,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
             "query": "-",
-            "rule_id": "4606",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_COOKIES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -1323,14 +1323,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "3",
             "query": "-",
-            "rule_id": "4902",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_header_mrts_detection_only"
@@ -1368,14 +1368,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "arg1=val1&arg2=val2",
-            "rule_id": "2203",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS_COMBINED_SIZE",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -1413,14 +1413,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "probe=abcdefghi",
-            "rule_id": "3220",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:probe",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -1458,14 +1458,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "a=block",
-            "rule_id": "4605",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:a",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -1503,14 +1503,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_URI",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -1548,14 +1548,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4906",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -1592,14 +1592,14 @@
           "failure_pattern": [
             "expected_pass_but_evidence_missing"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "920002",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -1629,14 +1629,14 @@
           "failure_pattern": [
             "expected_pass_but_evidence_missing"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "910001",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -1666,14 +1666,14 @@
           "failure_pattern": [
             "expected_pass_but_evidence_missing"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "910002",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -1703,14 +1703,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "910003",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -1740,14 +1740,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
-          "query": "what=redirect302",
-          "rule_id": "3302",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "classification_only"
@@ -1777,14 +1777,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "what=badarg2",
-          "rule_id": "3101",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "classification_only"
@@ -1814,14 +1814,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "a=badarg1&b=badarg2&c=badarg3",
-          "rule_id": "3201",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS",
+          "variable": "-",
           "variant": "no-crs/with-mrts",
           "work_direction": [
             "classification_only"
@@ -1855,14 +1855,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "a=1%3Bb=2&a=3",
-          "rule_id": "4608",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "collection_semantics"
@@ -1896,14 +1896,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
           "query": "-",
-          "rule_id": "4607",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "REQUEST_HEADERS_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "collection_semantics"
@@ -1937,14 +1937,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "a=1;b=2",
-          "rule_id": "4513",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "collection_semantics"
@@ -1978,14 +1978,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "4705",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "FILES_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -2019,14 +2019,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "4703",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS_NAMES",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -2060,14 +2060,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "POST",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
           "query": "-",
-          "rule_id": "4610",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "XML",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -2101,14 +2101,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "4910",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "response_body_non_promoted"
@@ -2142,14 +2142,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "q=SAFE",
-          "rule_id": "4715",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS:q",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "transformation_semantics"
@@ -2183,14 +2183,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "2",
-          "query": "q=SAFE",
-          "rule_id": "4716",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "ARGS:q",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "transformation_semantics"
@@ -2224,14 +2224,14 @@
           "failure_pattern": [
             "expected_block_got_200"
           ],
-          "method": "GET",
-          "path": "/",
+          "method": "-",
+          "path": "-",
           "pending_or_non_promoted": false,
           "phase": "1",
-          "query": "q=%25u0063%25u0061%25u0066%25u00E9",
-          "rule_id": "4707",
+          "query": "-",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "REQUEST_URI",
+          "variable": "-",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "transformation_semantics"
@@ -2268,14 +2268,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "q=SAFE",
-            "rule_id": "4715",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:q",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2313,14 +2313,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4710",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2358,14 +2358,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4705",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "FILES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2403,14 +2403,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
             "query": "-",
-            "rule_id": "4606",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_COOKIES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2448,14 +2448,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "3",
             "query": "-",
-            "rule_id": "4902",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_header_mrts_detection_only"
@@ -2493,14 +2493,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4910",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -2540,14 +2540,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "arg1=val1&arg2=val2",
-            "rule_id": "2203",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS_COMBINED_SIZE",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2585,14 +2585,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4906",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -2630,14 +2630,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "probe=abcdefghi",
-            "rule_id": "3220",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:probe",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2675,14 +2675,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "a=block",
-            "rule_id": "4605",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:a",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2724,14 +2724,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "q=SAFE",
-            "rule_id": "4715",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:q",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2771,14 +2771,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4710",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2818,14 +2818,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4705",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "FILES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2865,14 +2865,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
             "query": "-",
-            "rule_id": "4606",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_COOKIES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -2912,14 +2912,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "3",
             "query": "-",
-            "rule_id": "4902",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_header_mrts_detection_only"
@@ -2959,14 +2959,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "arg1=val1&arg2=val2",
-            "rule_id": "2203",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS_COMBINED_SIZE",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3006,14 +3006,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "probe=abcdefghi",
-            "rule_id": "3220",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:probe",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3052,14 +3052,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4906",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -3101,14 +3101,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "a=block",
-            "rule_id": "4605",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:a",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3148,14 +3148,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_URI",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3196,14 +3196,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4906",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -3243,14 +3243,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "q=SAFE",
-            "rule_id": "4715",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:q",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3267,6 +3267,53 @@
         ],
         "work_direction": [
           "classification_only"
+        ]
+      },
+      {
+        "category": "phase4_missing_abort_evidence",
+        "classification": "response-body-non-promoted",
+        "cluster_name": "nginx / phase4_missing_abort_evidence / audit-log / phase:4 / 403\u2192200",
+        "connectors": [
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 20,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "phase4_auditlog_outbound_escaped_value_gap",
+            "classification": "response-body-non-promoted",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "-",
+            "path": "-",
+            "pending_or_non_promoted": true,
+            "phase": "4",
+            "query": "-",
+            "rule_id": "-",
+            "runtime_verified": "false",
+            "variable": "-",
+            "variant": "no-crs/no-mrts",
+            "work_direction": [
+              "response_body_non_promoted"
+            ]
+          }
+        ],
+        "phase": "4",
+        "source_category": "audit-log",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "response_body_non_promoted"
         ]
       },
       {
@@ -3288,14 +3335,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4710",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3333,14 +3380,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4705",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "FILES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3357,53 +3404,6 @@
         ],
         "work_direction": [
           "classification_only"
-        ]
-      },
-      {
-        "category": "phase4_missing_abort_evidence",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "nginx / phase4_missing_abort_evidence / audit-log / phase:4 / 403\u2192200",
-        "connectors": [
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 16,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_matched_var_future",
-            "classification": "response-body-non-promoted",
-            "connector": "nginx",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4908",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
         ]
       },
       {
@@ -3425,14 +3425,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
             "query": "-",
-            "rule_id": "4606",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_COOKIES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3470,14 +3470,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "3",
             "query": "-",
-            "rule_id": "4902",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_header_mrts_detection_only"
@@ -3515,14 +3515,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "arg1=val1&arg2=val2",
-            "rule_id": "2203",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS_COMBINED_SIZE",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3560,14 +3560,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "probe=abcdefghi",
-            "rule_id": "3220",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:probe",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3605,14 +3605,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "a=block",
-            "rule_id": "4605",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:a",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3654,14 +3654,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "q=SAFE",
-            "rule_id": "4715",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:q",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3701,14 +3701,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4710",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3748,14 +3748,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4705",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "FILES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3795,14 +3795,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
             "query": "-",
-            "rule_id": "4606",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_COOKIES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3842,14 +3842,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "3",
             "query": "-",
-            "rule_id": "4902",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_header_mrts_detection_only"
@@ -3889,14 +3889,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "arg1=val1&arg2=val2",
-            "rule_id": "2203",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS_COMBINED_SIZE",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3936,14 +3936,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "probe=abcdefghi",
-            "rule_id": "3220",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:probe",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -3982,14 +3982,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4906",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -4031,14 +4031,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "a=block",
-            "rule_id": "4605",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:a",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4078,14 +4078,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_URI",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4127,14 +4127,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "q=SAFE",
-            "rule_id": "4715",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:q",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4174,14 +4174,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4710",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4221,14 +4221,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "POST",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
             "query": "-",
-            "rule_id": "4705",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "FILES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4268,14 +4268,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
             "query": "-",
-            "rule_id": "4606",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_COOKIES_NAMES",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4315,14 +4315,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "3",
             "query": "-",
-            "rule_id": "4902",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_HEADERS:Content-Type",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_header_mrts_detection_only"
@@ -4362,14 +4362,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "arg1=val1&arg2=val2",
-            "rule_id": "2203",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS_COMBINED_SIZE",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4409,14 +4409,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "2",
-            "query": "probe=abcdefghi",
-            "rule_id": "3220",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:probe",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4455,14 +4455,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4906",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -4504,14 +4504,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "a=block",
-            "rule_id": "4605",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "ARGS:a",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4551,14 +4551,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": false,
             "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
+            "query": "-",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "REQUEST_URI",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "classification_only"
@@ -4599,14 +4599,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4906",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -4636,7 +4636,7 @@
           "nginx"
         ],
         "corpus": "none",
-        "count": 26,
+        "count": 30,
         "examples": [
           {
             "actual_status": 200,
@@ -4647,14 +4647,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4910",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -4685,19 +4685,19 @@
           "nginx"
         ],
         "corpus": "none",
-        "count": 26,
+        "count": 22,
         "examples": [
           {
             "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_escaped_value_gap",
+            "case_id": "phase4_auditlog_outbound_message_connector_gap",
             "classification": "response-body-non-promoted",
             "connector": "nginx",
             "expected_status": 403,
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
@@ -4745,14 +4745,14 @@
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4808",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -4792,14 +4792,14 @@
             "failure_pattern": [
               "expected_pass_but_evidence_missing"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "920002",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/with-mrts",
             "work_direction": [
               "response_body_non_promoted"

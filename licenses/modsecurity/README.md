@@ -5,16 +5,17 @@ Status: implemented
 The ModSecurity engine repositories are read-only reference inputs for this
 monorepo. Engine source files are not imported here.
 
-## Observed Local References
+## Observed References
 
-| Repository | Local reference | Upstream | Branch | Commit | Describe | Role |
+| Repository | Repo-local reference | Upstream | Branch | Commit | Describe | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| ModSecurity v2 | `/root/conecter/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | `v2/master` | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Regression, semantic, and compatibility reference |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `v3/master` | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Primary libmodsecurity v3 architecture/API reference |
+| ModSecurity v2 | `licenses/modsecurity/` | https://github.com/owasp-modsecurity/ModSecurity | `v2/master` | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Regression, semantic, and compatibility reference |
+| ModSecurity v3 | `licenses/modsecurity/` | https://github.com/owasp-modsecurity/ModSecurity | `v3/master` | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Primary libmodsecurity v3 architecture/API reference |
 
 ## License Observation
 
-Both local reference repositories contain an Apache License 2.0 `LICENSE` file.
+Both observed reference repositories contain an Apache License 2.0 `LICENSE`
+file.
 This monorepo does not copy ModSecurity engine source files into `common/` or
 connector source trees. Any future engine-source import must add a file-level
 origin map before code is copied.

@@ -112,7 +112,29 @@ def action_parts(action_text: str) -> list[str]:
     return parts
 
 
-def parse_case_metadata(case_path: Path) -> dict[str, Any]:
+def find_framework_case_path(framework_root: Path, case_id: Any) -> Path | None:
+    case_name = str(case_id or "").strip()
+    if not case_name or "/" in case_name or "\\" in case_name:
+        return None
+    for root in (framework_root / "tests/cases", framework_root / "tests/upstream"):
+        if not root.is_dir():
+            continue
+        for candidate in root.rglob(f"{case_name}.yaml"):
+            path = safe_existing_file(candidate)
+            if path is not None:
+                return path
+    return None
+
+
+def case_path_for_entry(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> Path | None:
+    case_path = safe_existing_file(evidence.get("path"))
+    if case_path is not None:
+        return case_path
+    return find_framework_case_path(framework_root, entry.get("case_id") or evidence.get("name"))
+
+
+def parse_case_metadata(case_path: Path | None, fallback: dict[str, Any] | None = None) -> dict[str, Any]:
+    fallback = fallback or {}
     raw = read_text(case_path)
     parsed: dict[str, Any] = {}
     if yaml is not None and raw:
@@ -141,21 +163,21 @@ def parse_case_metadata(case_path: Path) -> dict[str, Any]:
     header_name = variable.split(":", 1)[1] if ":" in variable else variable
     response_headers = response.get("headers") if isinstance(response.get("headers"), dict) else {}
     return {
-        "case_id": str(parsed.get("name") or case_path.stem),
-        "category": str(parsed.get("category") or "-"),
-        "case_path": str(case_path),
+        "case_id": str(parsed.get("name") or fallback.get("case_id") or (case_path.stem if case_path else "-")),
+        "category": str(parsed.get("category") or fallback.get("category") or "-"),
+        "case_path": str(case_path) if case_path else "-",
         "rule_id": rule_id_match.group(1) if rule_id_match else "-",
-        "phase": phase_match.group(1) if phase_match else "-",
+        "phase": phase_match.group(1) if phase_match else str(fallback.get("phase") or "-"),
         "target": variable,
         "header_name": header_name,
         "operator": operator,
         "actions": actions,
-        "method": str(request.get("method") or "-"),
+        "method": str(request.get("method") or fallback.get("method") or "-"),
         "path": path,
         "query": query,
         "response_headers_configured": bool(response_headers),
         "response_headers": response_headers,
-        "expected_status": expect.get("status"),
+        "expected_status": expect.get("status", fallback.get("expected_status")),
     }
 
 
@@ -257,8 +279,8 @@ def build_rows(
     rows: list[dict[str, Any]] = []
     for entry in failure_rows:
         evidence = read_json(evidence_path(entry) or Path())
-        case_path = safe_existing_file(evidence.get("path"))
-        meta = parse_case_metadata(case_path)
+        case_path = case_path_for_entry(entry, evidence, framework_root)
+        meta = parse_case_metadata(case_path, entry)
         logs = log_text(evidence)
         evidence_classification, reason = classify_row(entry, meta, logs, entries)
         target_rule_logged = rule_logged(logs, str(meta.get("rule_id") or ""))
@@ -306,8 +328,8 @@ def build_rows(
     controls: list[dict[str, Any]] = []
     for entry in pass_rows:
         evidence = read_json(evidence_path(entry) or Path())
-        case_path = safe_existing_file(evidence.get("path"))
-        meta = parse_case_metadata(case_path)
+        case_path = case_path_for_entry(entry, evidence, framework_root)
+        meta = parse_case_metadata(case_path, entry)
         controls.append(
             {
                 "connector": entry.get("connector", "-"),

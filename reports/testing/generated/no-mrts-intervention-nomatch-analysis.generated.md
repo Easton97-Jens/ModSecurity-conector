@@ -1,21 +1,21 @@
 # No-MRTS Intervention No-Match Analysis
 
-- Generated at: `2026-06-14T13:00:39Z`
-- no-MRTS expected `403` / actual `200` rows with loaded rule and no match: **69**
+- Generated at: `2026-06-14T19:39:43Z`
+- no-MRTS expected `403` / actual `200` rows with loaded rule and no match: **46**
 - Unique cases: **12**
 - Rule not loaded: **0**
-- Rule loaded, no match: **69**
+- Rule loaded, no match: **46**
 - Rule matched, no intervention: **0**
 - Intervention created but connector did not return 403: **0**
-- Backend reached: **69**
+- Backend reached: **46**
 
 ## Cause Groups
 
 | Cause | Count | Likely cause | Safe fixability | Risk | Examples |
 |---|---|---|---|---|---|
-| Transformation/request literal does not expose expected token | 36 | The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur. | not safe as a harness fix; changing the request token would change test semantics | high | sqli_like_keyword_spacing_probe, sqli_like_quote_encoding_runtime_difference, unicode_double_encoded_uri_runtime_difference, unicode_whitespace_normalization_gap, xss_like_encoded_angles_normalization_probe, xss_like_mixed_case_script_token_gap |
-| Collection-name normalization semantics | 30 | Header, cookie, or query-name normalization differs from the rule target expectation. | requires native/libmodsecurity comparison before changing harness or connector code | medium to high | duplicate_args_encoded_separator_edge, duplicate_header_case_normalization_gap, edge_semicolon_query_args_names, v3_request_cookies_names_case_runtime_difference, v3_request_headers_names_lowercase_runtime_difference |
-| Phase 1 request-body unavailable or empty | 3 | The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token. | not safe to fix by changing the body; that would change the test definition | low to medium | phase1_vs_phase2_request_body_gap |
+| Transformation/request literal does not expose expected token | 24 | The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur. | not safe as a harness fix; changing the request token would change test semantics | high | sqli_like_keyword_spacing_probe, sqli_like_quote_encoding_runtime_difference, unicode_double_encoded_uri_runtime_difference, unicode_whitespace_normalization_gap, xss_like_encoded_angles_normalization_probe, xss_like_mixed_case_script_token_gap |
+| Collection-name normalization semantics | 20 | Header, cookie, or query-name normalization differs from the rule target expectation. | requires native/libmodsecurity comparison before changing harness or connector code | medium to high | duplicate_args_encoded_separator_edge, duplicate_header_case_normalization_gap, edge_semicolon_query_args_names, v3_request_cookies_names_case_runtime_difference, v3_request_headers_names_lowercase_runtime_difference |
+| Phase 1 request-body unavailable or empty | 2 | The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token. | not safe to fix by changing the body; that would change the test definition | low to medium | phase1_vs_phase2_request_body_gap |
 
 ## Connector / Phase / Target / Operator
 
@@ -23,65 +23,64 @@
 | Value | Count |
 |---|---|
 | apache | 23 |
-| nginx | 23 |
 | haproxy | 23 |
 
 ### Phases
 | Value | Count |
 |---|---|
-| 2 | 42 |
-| 1 | 27 |
+| 2 | 28 |
+| 1 | 18 |
 
 ### Targets
 | Value | Count |
 |---|---|
-| ARGS:q | 30 |
-| ARGS_NAMES | 12 |
-| REQUEST_HEADERS_NAMES | 12 |
-| REQUEST_URI | 6 |
-| REQUEST_COOKIES_NAMES | 6 |
-| REQUEST_BODY | 3 |
+| ARGS:q | 20 |
+| ARGS_NAMES | 8 |
+| REQUEST_HEADERS_NAMES | 8 |
+| REQUEST_URI | 4 |
+| REQUEST_COOKIES_NAMES | 4 |
+| REQUEST_BODY | 2 |
 
 ### Operators
 | Value | Count |
 |---|---|
-| @contains b | 12 |
-| @contains x-demo | 6 |
-| @contains select from | 6 |
-| @contains a'b | 6 |
-| @contains café | 6 |
-| @streq a b | 6 |
-| @contains user_token | 6 |
-| @contains x-smoke-header | 6 |
-| @contains <tag> | 6 |
-| @contains script | 6 |
-| @contains bodyhit | 3 |
+| @contains b | 8 |
+| @contains x-demo | 4 |
+| @contains select from | 4 |
+| @contains a'b | 4 |
+| @contains café | 4 |
+| @streq a b | 4 |
+| @contains user_token | 4 |
+| @contains x-smoke-header | 4 |
+| @contains <tag> | 4 |
+| @contains script | 4 |
+| @contains bodyhit | 2 |
 
 ### Source categories
 | Value | Count |
 |---|---|
-| transformations | 36 |
-| collections | 30 |
-| phase-handling | 3 |
+| transformations | 24 |
+| collections | 20 |
+| phase-handling | 2 |
 
 ### Classifications
 | Value | Count |
 |---|---|
-| transformation_request_literal_no_match | 36 |
-| collection_name_normalization_semantics | 30 |
-| phase1_request_body_unavailable | 3 |
+| transformation_request_literal_no_match | 24 |
+| collection_name_normalization_semantics | 20 |
+| phase1_request_body_unavailable | 2 |
 
 ### Work directions
 | Value | Count |
 |---|---|
-| transformation_semantics | 36 |
-| collection_semantics | 30 |
-| request_body_processor | 3 |
+| transformation_semantics | 24 |
+| collection_semantics | 20 |
+| request_body_processor | 2 |
 
 ### Priorities
 | Value | Count |
 |---|---|
-| P3 | 69 |
+| P3 | 46 |
 
 ## Native Comparator
 
@@ -103,9 +102,9 @@
 
 | Metric | Before | After |
 |---|---|---|
-| no-MRTS no-match | 69 | 69 |
-| intervention_blocking true candidates | 69 |  |
-| P0/P1 intervention_blocking rows | 69 |  |
+| no-MRTS no-match | 46 | 46 |
+| intervention_blocking true candidates | 46 |  |
+| P0/P1 intervention_blocking rows | 46 |  |
 | full-matrix pass | 3074 | 3074 |
 | full-matrix fail | 782 | 782 |
 | full-matrix blocked |  |  |
@@ -126,18 +125,18 @@
 | v3_request_headers_names_lowercase_runtime_difference | apache | no-crs/no-mrts | 4401 | 1 | REQUEST_HEADERS_NAMES | @contains x-smoke-header | GET /?- | x-smoke-header | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
 | xss_like_encoded_angles_normalization_probe | apache | no-crs/no-mrts | 4713 | 2 | ARGS:q | @contains <tag> | GET /?q=SAFE | <tag> | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
 | xss_like_mixed_case_script_token_gap | apache | no-crs/no-mrts | 4714 | 2 | ARGS:q | @contains script | GET /?q=SAFE | script | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
-| duplicate_args_encoded_separator_edge | nginx | no-crs/no-mrts | 4608 | 2 | ARGS_NAMES | @contains b | GET /?a=1%3Bb=2&a=3 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
-| duplicate_header_case_normalization_gap | nginx | no-crs/no-mrts | 4607 | 1 | REQUEST_HEADERS_NAMES | @contains x-demo | GET /?- | x-demo | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
-| edge_semicolon_query_args_names | nginx | no-crs/no-mrts | 4513 | 2 | ARGS_NAMES | @contains b | GET /?a=1;b=2 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
-| phase1_vs_phase2_request_body_gap | nginx | no-crs/no-mrts | 4511 | 1 | REQUEST_BODY | @contains bodyhit | POST /?- | bodyhit | phase1_request_body_unavailable | request_body_processor | P3 | phase1_request_body_unavailable_or_empty_body |
-| sqli_like_keyword_spacing_probe | nginx | no-crs/no-mrts | 4715 | 2 | ARGS:q | @contains select from | GET /?q=SAFE | select from | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
-| sqli_like_quote_encoding_runtime_difference | nginx | no-crs/no-mrts | 4716 | 2 | ARGS:q | @contains a'b | GET /?q=SAFE | a'b | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
-| unicode_double_encoded_uri_runtime_difference | nginx | no-crs/no-mrts | 4707 | 1 | REQUEST_URI | @contains café | GET /?q=%25u0063%25u0061%25u0066%25u00E9 | café | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
-| unicode_whitespace_normalization_gap | nginx | no-crs/no-mrts | 4708 | 2 | ARGS:q | @streq a b | GET /?q=SAFE | a b | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
-| v3_request_cookies_names_case_runtime_difference | nginx | no-crs/no-mrts | 4403 | 1 | REQUEST_COOKIES_NAMES | @contains user_token | GET /?- | user_token | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
-| v3_request_headers_names_lowercase_runtime_difference | nginx | no-crs/no-mrts | 4401 | 1 | REQUEST_HEADERS_NAMES | @contains x-smoke-header | GET /?- | x-smoke-header | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
-| xss_like_encoded_angles_normalization_probe | nginx | no-crs/no-mrts | 4713 | 2 | ARGS:q | @contains <tag> | GET /?q=SAFE | <tag> | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
-| xss_like_mixed_case_script_token_gap | nginx | no-crs/no-mrts | 4714 | 2 | ARGS:q | @contains script | GET /?q=SAFE | script | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
+| duplicate_args_encoded_separator_edge | haproxy | no-crs/no-mrts | 4608 | 2 | ARGS_NAMES | @contains b | GET /?a=1%3Bb=2&a=3 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
+| duplicate_header_case_normalization_gap | haproxy | no-crs/no-mrts | 4607 | 1 | REQUEST_HEADERS_NAMES | @contains x-demo | GET /?- | x-demo | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
+| edge_semicolon_query_args_names | haproxy | no-crs/no-mrts | 4513 | 2 | ARGS_NAMES | @contains b | GET /?a=1;b=2 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
+| phase1_vs_phase2_request_body_gap | haproxy | no-crs/no-mrts | 4511 | 1 | REQUEST_BODY | @contains bodyhit | POST /?- | bodyhit | phase1_request_body_unavailable | request_body_processor | P3 | phase1_request_body_unavailable_or_empty_body |
+| sqli_like_keyword_spacing_probe | haproxy | no-crs/no-mrts | 4715 | 2 | ARGS:q | @contains select from | GET /?q=SAFE | select from | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
+| sqli_like_quote_encoding_runtime_difference | haproxy | no-crs/no-mrts | 4716 | 2 | ARGS:q | @contains a'b | GET /?q=SAFE | a'b | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
+| unicode_double_encoded_uri_runtime_difference | haproxy | no-crs/no-mrts | 4707 | 1 | REQUEST_URI | @contains café | GET /?q=%25u0063%25u0061%25u0066%25u00E9 | café | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
+| unicode_whitespace_normalization_gap | haproxy | no-crs/no-mrts | 4708 | 2 | ARGS:q | @streq a b | GET /?q=SAFE | a b | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
+| v3_request_cookies_names_case_runtime_difference | haproxy | no-crs/no-mrts | 4403 | 1 | REQUEST_COOKIES_NAMES | @contains user_token | GET /?- | user_token | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
+| v3_request_headers_names_lowercase_runtime_difference | haproxy | no-crs/no-mrts | 4401 | 1 | REQUEST_HEADERS_NAMES | @contains x-smoke-header | GET /?- | x-smoke-header | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
+| xss_like_encoded_angles_normalization_probe | haproxy | no-crs/no-mrts | 4713 | 2 | ARGS:q | @contains <tag> | GET /?q=SAFE | <tag> | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
+| xss_like_mixed_case_script_token_gap | haproxy | no-crs/no-mrts | 4714 | 2 | ARGS:q | @contains script | GET /?q=SAFE | script | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
 
 ## Guardrails
 
