@@ -181,6 +181,11 @@ INTERVENTION_BLOCKING_OUTPUTS = (
     "reports/testing/generated/intervention-blocking-analysis.generated.md",
 )
 
+NO_MRTS_NOMATCH_OUTPUTS = (
+    "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json",
+    "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md",
+)
+
 BODY_PROCESSOR_OUTPUTS = (
     "reports/testing/generated/body-processor-analysis.generated.json",
     "reports/testing/generated/body-processor-analysis.generated.md",
@@ -431,6 +436,31 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
             command=(
                 python,
                 "ci/generate-intervention-blocking-analysis.py",
+                "--connector-root",
+                str(connector_root),
+                "--framework-root",
+                str(framework_root),
+                "--output-dir",
+                str(report_dir),
+            ),
+            requires_runtime=True,
+            requires_full_matrix=True,
+        ),
+        ReportSpec(
+            name="no_mrts_intervention_nomatch_analysis",
+            owner="connector",
+            generator="ci/generate-no-mrts-intervention-nomatch-analysis.py",
+            make_target="generate-no-mrts-intervention-nomatch-analysis",
+            inputs=(
+                "reports/testing/generated/intervention-blocking-analysis.generated.json",
+                "reports/testing/generated/full-runtime-matrix.generated.json",
+                "reports/testing/generated/remaining-failure-analysis.generated.json",
+                "reports/testing/generated/next-fix-plan.generated.json",
+            ),
+            outputs=NO_MRTS_NOMATCH_OUTPUTS + FULL_RUN_EVIDENCE_OUTPUTS,
+            command=(
+                python,
+                "ci/generate-no-mrts-intervention-nomatch-analysis.py",
                 "--connector-root",
                 str(connector_root),
                 "--framework-root",

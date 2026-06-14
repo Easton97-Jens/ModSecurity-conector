@@ -70,6 +70,28 @@
         "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token."
       }
     ],
+    "classifications": [
+      {
+        "count": 36,
+        "value": "transformation_request_literal_no_match"
+      },
+      {
+        "count": 30,
+        "value": "collection_name_normalization_semantics"
+      },
+      {
+        "count": 24,
+        "value": "xml_body_processor_collection_semantics"
+      },
+      {
+        "count": 12,
+        "value": "multipart_collection_semantics"
+      },
+      {
+        "count": 3,
+        "value": "phase1_request_body_unavailable"
+      }
+    ],
     "connectors": [
       {
         "count": 35,
@@ -162,6 +184,16 @@
       {
         "count": 27,
         "value": "1"
+      }
+    ],
+    "priorities": [
+      {
+        "count": 69,
+        "value": "P3"
+      },
+      {
+        "count": 36,
+        "value": "P2"
       }
     ],
     "source_categories": [
@@ -259,9 +291,31 @@
         "count": 51,
         "value": "with-crs/no-mrts"
       }
+    ],
+    "work_directions": [
+      {
+        "count": 36,
+        "value": "transformation_semantics"
+      },
+      {
+        "count": 30,
+        "value": "collection_semantics"
+      },
+      {
+        "count": 24,
+        "value": "xml_processor"
+      },
+      {
+        "count": 12,
+        "value": "multipart_files"
+      },
+      {
+        "count": 3,
+        "value": "request_body_processor"
+      }
     ]
   },
-  "generated_at": "2026-06-14T09:07:51Z",
+  "generated_at": "2026-06-14T10:14:02Z",
   "groups": {
     "by_cause": [
       {
@@ -1991,6 +2045,7 @@
       "case_id": "duplicate_args_encoded_separator_edge",
       "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2006,6 +2061,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -2026,7 +2082,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -2040,6 +2099,7 @@
       "case_id": "duplicate_header_case_normalization_gap",
       "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2055,6 +2115,7 @@
       ],
       "operator": "@contains x-demo",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2077,7 +2138,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -2091,6 +2155,7 @@
       "case_id": "edge_semicolon_query_args_names",
       "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2106,6 +2171,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -2126,7 +2192,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -2140,6 +2209,7 @@
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2155,6 +2225,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -2177,7 +2248,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "FILES_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -2191,6 +2265,7 @@
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2206,6 +2281,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -2228,7 +2304,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -2242,6 +2321,7 @@
       "case_id": "parser_xml_partial_body_future_target",
       "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2257,6 +2337,7 @@
       ],
       "operator": "@contains root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 9,
@@ -2279,7 +2360,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -2293,6 +2377,7 @@
       "case_id": "phase1_vs_phase2_request_body_gap",
       "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
       "cause": "phase1_request_body_unavailable_or_empty_body",
+      "classification": "phase1_request_body_unavailable",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2308,6 +2393,7 @@
       ],
       "operator": "@contains bodyhit",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2330,7 +2416,10 @@
       "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token.",
       "target": "REQUEST_BODY",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "request_body_processor"
+      ]
     },
     {
       "actions": [
@@ -2346,6 +2435,7 @@
       "case_id": "sqli_like_keyword_spacing_probe",
       "case_path": "framework:tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2361,6 +2451,7 @@
       ],
       "operator": "@contains select from",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2384,7 +2475,10 @@
         "lowercase",
         "compressWhitespace"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -2399,6 +2493,7 @@
       "case_id": "sqli_like_quote_encoding_runtime_difference",
       "case_path": "framework:tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2414,6 +2509,7 @@
       ],
       "operator": "@contains a'b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2436,7 +2532,10 @@
       "transformations": [
         "urlDecode"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -2452,6 +2551,7 @@
       "case_id": "unicode_double_encoded_uri_runtime_difference",
       "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2467,6 +2567,7 @@
       ],
       "operator": "@contains caf\u00e9",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2490,7 +2591,10 @@
         "urlDecode",
         "urlDecodeUni"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -2505,6 +2609,7 @@
       "case_id": "unicode_whitespace_normalization_gap",
       "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2520,6 +2625,7 @@
       ],
       "operator": "@streq a b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2542,7 +2648,10 @@
       "transformations": [
         "compressWhitespace"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -2556,6 +2665,7 @@
       "case_id": "v3_request_cookies_names_case_runtime_difference",
       "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2570,6 +2680,7 @@
       ],
       "operator": "@contains user_token",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2592,7 +2703,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_COOKIES_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -2606,6 +2720,7 @@
       "case_id": "v3_request_headers_names_lowercase_runtime_difference",
       "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2620,6 +2735,7 @@
       ],
       "operator": "@contains x-smoke-header",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2642,7 +2758,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -2656,6 +2775,7 @@
       "case_id": "xml_deep_nesting_future_target",
       "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2671,6 +2791,7 @@
       ],
       "operator": "@contains deepnode",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 50,
@@ -2693,7 +2814,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -2707,6 +2831,7 @@
       "case_id": "xml_namespace_edge_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2722,6 +2847,7 @@
       ],
       "operator": "@contains ns:root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 53,
@@ -2744,7 +2870,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -2758,6 +2887,7 @@
       "case_id": "xml_request_body_malformed_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2772,6 +2902,7 @@
       ],
       "operator": "@contains broken",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 21,
@@ -2794,7 +2925,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -2809,6 +2943,7 @@
       "case_id": "xss_like_encoded_angles_normalization_probe",
       "case_path": "framework:tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2824,6 +2959,7 @@
       ],
       "operator": "@contains <tag>",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2846,7 +2982,10 @@
       "transformations": [
         "htmlEntityDecode"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -2861,6 +3000,7 @@
       "case_id": "xss_like_mixed_case_script_token_gap",
       "case_path": "framework:tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2876,6 +3016,7 @@
       ],
       "operator": "@contains script",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2898,7 +3039,10 @@
       "transformations": [
         "lowercase"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -2912,6 +3056,7 @@
       "case_id": "duplicate_args_encoded_separator_edge",
       "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -2927,6 +3072,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -2947,7 +3093,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -2961,6 +3110,7 @@
       "case_id": "duplicate_header_case_normalization_gap",
       "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -2976,6 +3126,7 @@
       ],
       "operator": "@contains x-demo",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -2998,7 +3149,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -3012,6 +3166,7 @@
       "case_id": "edge_semicolon_query_args_names",
       "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3027,6 +3182,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -3047,7 +3203,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -3061,6 +3220,7 @@
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3076,6 +3236,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -3098,7 +3259,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "FILES_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -3112,6 +3276,7 @@
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3127,6 +3292,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -3149,7 +3315,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -3163,6 +3332,7 @@
       "case_id": "parser_xml_partial_body_future_target",
       "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3178,6 +3348,7 @@
       ],
       "operator": "@contains root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 9,
@@ -3200,7 +3371,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -3214,6 +3388,7 @@
       "case_id": "phase1_vs_phase2_request_body_gap",
       "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
       "cause": "phase1_request_body_unavailable_or_empty_body",
+      "classification": "phase1_request_body_unavailable",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3229,6 +3404,7 @@
       ],
       "operator": "@contains bodyhit",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3251,7 +3427,10 @@
       "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token.",
       "target": "REQUEST_BODY",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "request_body_processor"
+      ]
     },
     {
       "actions": [
@@ -3267,6 +3446,7 @@
       "case_id": "sqli_like_keyword_spacing_probe",
       "case_path": "framework:tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3282,6 +3462,7 @@
       ],
       "operator": "@contains select from",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3305,7 +3486,10 @@
         "lowercase",
         "compressWhitespace"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -3320,6 +3504,7 @@
       "case_id": "sqli_like_quote_encoding_runtime_difference",
       "case_path": "framework:tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3335,6 +3520,7 @@
       ],
       "operator": "@contains a'b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3357,7 +3543,10 @@
       "transformations": [
         "urlDecode"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -3373,6 +3562,7 @@
       "case_id": "unicode_double_encoded_uri_runtime_difference",
       "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3388,6 +3578,7 @@
       ],
       "operator": "@contains caf\u00e9",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3411,7 +3602,10 @@
         "urlDecode",
         "urlDecodeUni"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -3426,6 +3620,7 @@
       "case_id": "unicode_whitespace_normalization_gap",
       "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3441,6 +3636,7 @@
       ],
       "operator": "@streq a b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3463,7 +3659,10 @@
       "transformations": [
         "compressWhitespace"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -3477,6 +3676,7 @@
       "case_id": "v3_request_cookies_names_case_runtime_difference",
       "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3491,6 +3691,7 @@
       ],
       "operator": "@contains user_token",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3513,7 +3714,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_COOKIES_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -3527,6 +3731,7 @@
       "case_id": "v3_request_headers_names_lowercase_runtime_difference",
       "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3541,6 +3746,7 @@
       ],
       "operator": "@contains x-smoke-header",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3563,7 +3769,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -3577,6 +3786,7 @@
       "case_id": "xml_deep_nesting_future_target",
       "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3592,6 +3802,7 @@
       ],
       "operator": "@contains deepnode",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 50,
@@ -3614,7 +3825,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -3628,6 +3842,7 @@
       "case_id": "xml_namespace_edge_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3643,6 +3858,7 @@
       ],
       "operator": "@contains ns:root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 53,
@@ -3665,7 +3881,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -3679,6 +3898,7 @@
       "case_id": "xml_request_body_malformed_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3693,6 +3913,7 @@
       ],
       "operator": "@contains broken",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 21,
@@ -3715,7 +3936,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -3730,6 +3954,7 @@
       "case_id": "xss_like_encoded_angles_normalization_probe",
       "case_path": "framework:tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3745,6 +3970,7 @@
       ],
       "operator": "@contains <tag>",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3767,7 +3993,10 @@
       "transformations": [
         "htmlEntityDecode"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -3782,6 +4011,7 @@
       "case_id": "xss_like_mixed_case_script_token_gap",
       "case_path": "framework:tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3797,6 +4027,7 @@
       ],
       "operator": "@contains script",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3819,7 +4050,10 @@
       "transformations": [
         "lowercase"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -3833,6 +4067,7 @@
       "case_id": "duplicate_args_encoded_separator_edge",
       "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -3848,6 +4083,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -3868,7 +4104,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -3882,6 +4121,7 @@
       "case_id": "duplicate_header_case_normalization_gap",
       "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -3897,6 +4137,7 @@
       ],
       "operator": "@contains x-demo",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -3919,7 +4160,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -3933,6 +4177,7 @@
       "case_id": "edge_semicolon_query_args_names",
       "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -3948,6 +4193,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -3968,7 +4214,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -3982,6 +4231,7 @@
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -3997,6 +4247,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -4019,7 +4270,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "FILES_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -4033,6 +4287,7 @@
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4048,6 +4303,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -4070,7 +4326,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -4084,6 +4343,7 @@
       "case_id": "parser_xml_partial_body_future_target",
       "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4099,6 +4359,7 @@
       ],
       "operator": "@contains root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 9,
@@ -4121,7 +4382,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -4135,6 +4399,7 @@
       "case_id": "phase1_vs_phase2_request_body_gap",
       "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
       "cause": "phase1_request_body_unavailable_or_empty_body",
+      "classification": "phase1_request_body_unavailable",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4150,6 +4415,7 @@
       ],
       "operator": "@contains bodyhit",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4172,7 +4438,10 @@
       "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token.",
       "target": "REQUEST_BODY",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "request_body_processor"
+      ]
     },
     {
       "actions": [
@@ -4188,6 +4457,7 @@
       "case_id": "sqli_like_keyword_spacing_probe",
       "case_path": "framework:tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4203,6 +4473,7 @@
       ],
       "operator": "@contains select from",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4226,7 +4497,10 @@
         "lowercase",
         "compressWhitespace"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -4241,6 +4515,7 @@
       "case_id": "sqli_like_quote_encoding_runtime_difference",
       "case_path": "framework:tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4256,6 +4531,7 @@
       ],
       "operator": "@contains a'b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4278,7 +4554,10 @@
       "transformations": [
         "urlDecode"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -4294,6 +4573,7 @@
       "case_id": "unicode_double_encoded_uri_runtime_difference",
       "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4309,6 +4589,7 @@
       ],
       "operator": "@contains caf\u00e9",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4332,7 +4613,10 @@
         "urlDecode",
         "urlDecodeUni"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -4347,6 +4631,7 @@
       "case_id": "unicode_whitespace_normalization_gap",
       "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4362,6 +4647,7 @@
       ],
       "operator": "@streq a b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4384,7 +4670,10 @@
       "transformations": [
         "compressWhitespace"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -4398,6 +4687,7 @@
       "case_id": "v3_request_cookies_names_case_runtime_difference",
       "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4412,6 +4702,7 @@
       ],
       "operator": "@contains user_token",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4434,7 +4725,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_COOKIES_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -4448,6 +4742,7 @@
       "case_id": "v3_request_headers_names_lowercase_runtime_difference",
       "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4462,6 +4757,7 @@
       ],
       "operator": "@contains x-smoke-header",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4484,7 +4780,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -4498,6 +4797,7 @@
       "case_id": "xml_deep_nesting_future_target",
       "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4513,6 +4813,7 @@
       ],
       "operator": "@contains deepnode",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 50,
@@ -4535,7 +4836,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -4549,6 +4853,7 @@
       "case_id": "xml_namespace_edge_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4564,6 +4869,7 @@
       ],
       "operator": "@contains ns:root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 53,
@@ -4586,7 +4892,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -4600,6 +4909,7 @@
       "case_id": "xml_request_body_malformed_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4614,6 +4924,7 @@
       ],
       "operator": "@contains broken",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 21,
@@ -4636,7 +4947,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -4651,6 +4965,7 @@
       "case_id": "xss_like_encoded_angles_normalization_probe",
       "case_path": "framework:tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4666,6 +4981,7 @@
       ],
       "operator": "@contains <tag>",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4688,7 +5004,10 @@
       "transformations": [
         "htmlEntityDecode"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -4703,6 +5022,7 @@
       "case_id": "xss_like_mixed_case_script_token_gap",
       "case_path": "framework:tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4718,6 +5038,7 @@
       ],
       "operator": "@contains script",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4740,7 +5061,10 @@
       "transformations": [
         "lowercase"
       ],
-      "variant": "no-crs/no-mrts"
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -4754,6 +5078,7 @@
       "case_id": "duplicate_args_encoded_separator_edge",
       "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "yes",
@@ -4769,6 +5094,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -4789,7 +5115,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -4803,6 +5132,7 @@
       "case_id": "duplicate_header_case_normalization_gap",
       "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "yes",
@@ -4818,6 +5148,7 @@
       ],
       "operator": "@contains x-demo",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -4840,7 +5171,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -4854,6 +5188,7 @@
       "case_id": "edge_semicolon_query_args_names",
       "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -4869,6 +5204,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -4889,7 +5225,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -4903,6 +5242,7 @@
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -4918,6 +5258,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -4940,7 +5281,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "FILES_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -4954,6 +5298,7 @@
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -4969,6 +5314,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -4991,7 +5337,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -5005,6 +5354,7 @@
       "case_id": "parser_xml_partial_body_future_target",
       "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "yes",
@@ -5020,6 +5370,7 @@
       ],
       "operator": "@contains root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 9,
@@ -5042,7 +5393,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -5058,6 +5412,7 @@
       "case_id": "sqli_like_keyword_spacing_probe",
       "case_path": "framework:tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5073,6 +5428,7 @@
       ],
       "operator": "@contains select from",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5096,7 +5452,10 @@
         "lowercase",
         "compressWhitespace"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -5111,6 +5470,7 @@
       "case_id": "sqli_like_quote_encoding_runtime_difference",
       "case_path": "framework:tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5126,6 +5486,7 @@
       ],
       "operator": "@contains a'b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5148,7 +5509,10 @@
       "transformations": [
         "urlDecode"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -5164,6 +5528,7 @@
       "case_id": "unicode_double_encoded_uri_runtime_difference",
       "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5179,6 +5544,7 @@
       ],
       "operator": "@contains caf\u00e9",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5202,7 +5568,10 @@
         "urlDecode",
         "urlDecodeUni"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -5217,6 +5586,7 @@
       "case_id": "unicode_whitespace_normalization_gap",
       "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5232,6 +5602,7 @@
       ],
       "operator": "@streq a b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5254,7 +5625,10 @@
       "transformations": [
         "compressWhitespace"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -5268,6 +5642,7 @@
       "case_id": "v3_request_cookies_names_case_runtime_difference",
       "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5282,6 +5657,7 @@
       ],
       "operator": "@contains user_token",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5304,7 +5680,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_COOKIES_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -5318,6 +5697,7 @@
       "case_id": "v3_request_headers_names_lowercase_runtime_difference",
       "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5332,6 +5712,7 @@
       ],
       "operator": "@contains x-smoke-header",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5354,7 +5735,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -5368,6 +5752,7 @@
       "case_id": "xml_deep_nesting_future_target",
       "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5383,6 +5768,7 @@
       ],
       "operator": "@contains deepnode",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 50,
@@ -5405,7 +5791,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -5419,6 +5808,7 @@
       "case_id": "xml_namespace_edge_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5434,6 +5824,7 @@
       ],
       "operator": "@contains ns:root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 53,
@@ -5456,7 +5847,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -5470,6 +5864,7 @@
       "case_id": "xml_request_body_malformed_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5484,6 +5879,7 @@
       ],
       "operator": "@contains broken",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 21,
@@ -5506,7 +5902,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -5521,6 +5920,7 @@
       "case_id": "xss_like_encoded_angles_normalization_probe",
       "case_path": "framework:tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5536,6 +5936,7 @@
       ],
       "operator": "@contains <tag>",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5558,7 +5959,10 @@
       "transformations": [
         "htmlEntityDecode"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -5573,6 +5977,7 @@
       "case_id": "xss_like_mixed_case_script_token_gap",
       "case_path": "framework:tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5588,6 +5993,7 @@
       ],
       "operator": "@contains script",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5610,7 +6016,10 @@
       "transformations": [
         "lowercase"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -5624,6 +6033,7 @@
       "case_id": "duplicate_args_encoded_separator_edge",
       "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "yes",
@@ -5639,6 +6049,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -5659,7 +6070,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -5673,6 +6087,7 @@
       "case_id": "duplicate_header_case_normalization_gap",
       "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "yes",
@@ -5688,6 +6103,7 @@
       ],
       "operator": "@contains x-demo",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5710,7 +6126,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -5724,6 +6143,7 @@
       "case_id": "edge_semicolon_query_args_names",
       "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -5739,6 +6159,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -5759,7 +6180,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -5773,6 +6197,7 @@
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -5788,6 +6213,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -5810,7 +6236,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "FILES_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -5824,6 +6253,7 @@
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -5839,6 +6269,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -5861,7 +6292,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -5875,6 +6309,7 @@
       "case_id": "parser_xml_partial_body_future_target",
       "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "yes",
@@ -5890,6 +6325,7 @@
       ],
       "operator": "@contains root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 9,
@@ -5912,7 +6348,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -5928,6 +6367,7 @@
       "case_id": "sqli_like_keyword_spacing_probe",
       "case_path": "framework:tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -5943,6 +6383,7 @@
       ],
       "operator": "@contains select from",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -5966,7 +6407,10 @@
         "lowercase",
         "compressWhitespace"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -5981,6 +6425,7 @@
       "case_id": "sqli_like_quote_encoding_runtime_difference",
       "case_path": "framework:tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -5996,6 +6441,7 @@
       ],
       "operator": "@contains a'b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6018,7 +6464,10 @@
       "transformations": [
         "urlDecode"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -6034,6 +6483,7 @@
       "case_id": "unicode_double_encoded_uri_runtime_difference",
       "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6049,6 +6499,7 @@
       ],
       "operator": "@contains caf\u00e9",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6072,7 +6523,10 @@
         "urlDecode",
         "urlDecodeUni"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -6087,6 +6541,7 @@
       "case_id": "unicode_whitespace_normalization_gap",
       "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6102,6 +6557,7 @@
       ],
       "operator": "@streq a b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6124,7 +6580,10 @@
       "transformations": [
         "compressWhitespace"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -6138,6 +6597,7 @@
       "case_id": "v3_request_cookies_names_case_runtime_difference",
       "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6152,6 +6612,7 @@
       ],
       "operator": "@contains user_token",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6174,7 +6635,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_COOKIES_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -6188,6 +6652,7 @@
       "case_id": "v3_request_headers_names_lowercase_runtime_difference",
       "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6202,6 +6667,7 @@
       ],
       "operator": "@contains x-smoke-header",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6224,7 +6690,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -6238,6 +6707,7 @@
       "case_id": "xml_deep_nesting_future_target",
       "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6253,6 +6723,7 @@
       ],
       "operator": "@contains deepnode",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 50,
@@ -6275,7 +6746,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -6289,6 +6763,7 @@
       "case_id": "xml_namespace_edge_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6304,6 +6779,7 @@
       ],
       "operator": "@contains ns:root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 53,
@@ -6326,7 +6802,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -6340,6 +6819,7 @@
       "case_id": "xml_request_body_malformed_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6354,6 +6834,7 @@
       ],
       "operator": "@contains broken",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 21,
@@ -6376,7 +6857,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -6391,6 +6875,7 @@
       "case_id": "xss_like_encoded_angles_normalization_probe",
       "case_path": "framework:tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6406,6 +6891,7 @@
       ],
       "operator": "@contains <tag>",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6428,7 +6914,10 @@
       "transformations": [
         "htmlEntityDecode"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -6443,6 +6932,7 @@
       "case_id": "xss_like_mixed_case_script_token_gap",
       "case_path": "framework:tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6458,6 +6948,7 @@
       ],
       "operator": "@contains script",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6480,7 +6971,10 @@
       "transformations": [
         "lowercase"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -6494,6 +6988,7 @@
       "case_id": "duplicate_args_encoded_separator_edge",
       "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "yes",
@@ -6509,6 +7004,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -6529,7 +7025,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -6543,6 +7042,7 @@
       "case_id": "duplicate_header_case_normalization_gap",
       "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "yes",
@@ -6558,6 +7058,7 @@
       ],
       "operator": "@contains x-demo",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6580,7 +7081,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -6594,6 +7098,7 @@
       "case_id": "edge_semicolon_query_args_names",
       "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -6609,6 +7114,7 @@
       ],
       "operator": "@contains b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 0,
@@ -6629,7 +7135,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -6643,6 +7152,7 @@
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -6658,6 +7168,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -6680,7 +7191,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "FILES_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -6694,6 +7208,7 @@
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
       "cause": "multipart_collection_semantics",
+      "classification": "multipart_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -6709,6 +7224,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -6731,7 +7247,10 @@
       "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
       "target": "ARGS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "multipart_files"
+      ]
     },
     {
       "actions": [
@@ -6745,6 +7264,7 @@
       "case_id": "parser_xml_partial_body_future_target",
       "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "yes",
@@ -6760,6 +7280,7 @@
       ],
       "operator": "@contains root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 9,
@@ -6782,7 +7303,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -6798,6 +7322,7 @@
       "case_id": "sqli_like_keyword_spacing_probe",
       "case_path": "framework:tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -6813,6 +7338,7 @@
       ],
       "operator": "@contains select from",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6836,7 +7362,10 @@
         "lowercase",
         "compressWhitespace"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -6851,6 +7380,7 @@
       "case_id": "sqli_like_quote_encoding_runtime_difference",
       "case_path": "framework:tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -6866,6 +7396,7 @@
       ],
       "operator": "@contains a'b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6888,7 +7419,10 @@
       "transformations": [
         "urlDecode"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -6904,6 +7438,7 @@
       "case_id": "unicode_double_encoded_uri_runtime_difference",
       "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -6919,6 +7454,7 @@
       ],
       "operator": "@contains caf\u00e9",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6942,7 +7478,10 @@
         "urlDecode",
         "urlDecodeUni"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -6957,6 +7496,7 @@
       "case_id": "unicode_whitespace_normalization_gap",
       "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -6972,6 +7512,7 @@
       ],
       "operator": "@streq a b",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -6994,7 +7535,10 @@
       "transformations": [
         "compressWhitespace"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -7008,6 +7552,7 @@
       "case_id": "v3_request_cookies_names_case_runtime_difference",
       "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7022,6 +7567,7 @@
       ],
       "operator": "@contains user_token",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -7044,7 +7590,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_COOKIES_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -7058,6 +7607,7 @@
       "case_id": "v3_request_headers_names_lowercase_runtime_difference",
       "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
       "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7072,6 +7622,7 @@
       ],
       "operator": "@contains x-smoke-header",
       "phase": "1",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -7094,7 +7645,10 @@
       "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
       "target": "REQUEST_HEADERS_NAMES",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
     },
     {
       "actions": [
@@ -7108,6 +7662,7 @@
       "case_id": "xml_deep_nesting_future_target",
       "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7123,6 +7678,7 @@
       ],
       "operator": "@contains deepnode",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 50,
@@ -7145,7 +7701,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -7159,6 +7718,7 @@
       "case_id": "xml_namespace_edge_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7174,6 +7734,7 @@
       ],
       "operator": "@contains ns:root",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 53,
@@ -7196,7 +7757,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -7210,6 +7774,7 @@
       "case_id": "xml_request_body_malformed_connector_gap",
       "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
       "cause": "xml_body_processor_collection_semantics",
+      "classification": "xml_body_processor_collection_semantics",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7224,6 +7789,7 @@
       ],
       "operator": "@contains broken",
       "phase": "2",
+      "priority": "P2",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 21,
@@ -7246,7 +7812,10 @@
       "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
       "target": "XML",
       "transformations": [],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "xml_processor"
+      ]
     },
     {
       "actions": [
@@ -7261,6 +7830,7 @@
       "case_id": "xss_like_encoded_angles_normalization_probe",
       "case_path": "framework:tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7276,6 +7846,7 @@
       ],
       "operator": "@contains <tag>",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -7298,7 +7869,10 @@
       "transformations": [
         "htmlEntityDecode"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     },
     {
       "actions": [
@@ -7313,6 +7887,7 @@
       "case_id": "xss_like_mixed_case_script_token_gap",
       "case_path": "framework:tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
       "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7328,6 +7903,7 @@
       ],
       "operator": "@contains script",
       "phase": "2",
+      "priority": "P3",
       "raw_request_contains_expected_value": false,
       "request": {
         "body_length": 0,
@@ -7350,7 +7926,10 @@
       "transformations": [
         "lowercase"
       ],
-      "variant": "with-crs/no-mrts"
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
     }
   ],
   "report_kind": "no-mrts-intervention-nomatch-analysis",
@@ -7371,10 +7950,12 @@
   "summary": {
     "backend_reached": 105,
     "before_after": {
-      "intervention_blocking_true_candidates_after": 105,
+      "intervention_blocking_true_candidates_after": 0,
       "intervention_blocking_true_candidates_before": 105,
       "no_mrts_no_match_after": 105,
-      "no_mrts_no_match_before": 105
+      "no_mrts_no_match_before": 105,
+      "p0_p1_intervention_blocking_after": 0,
+      "p0_p1_intervention_blocking_before": 105
     },
     "full_matrix_totals": {
       "attempted": 3928,

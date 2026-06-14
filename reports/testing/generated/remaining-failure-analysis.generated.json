@@ -334,7 +334,7 @@
         {
           "actual_status": 200,
           "case_id": "sqli_like_keyword_spacing_probe",
-          "classification": "runtime-difference",
+          "classification": "transformation_request_literal_no_match",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -350,13 +350,13 @@
           "variable": "ARGS:q",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "transformation_semantics"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "sqli_like_quote_encoding_runtime_difference",
-          "classification": "runtime-difference",
+          "classification": "transformation_request_literal_no_match",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -372,13 +372,13 @@
           "variable": "ARGS:q",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "transformation_semantics"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "unicode_double_encoded_uri_runtime_difference",
-          "classification": "runtime-difference",
+          "classification": "transformation_request_literal_no_match",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -394,27 +394,27 @@
           "variable": "REQUEST_URI",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "transformation_semantics"
           ]
         }
       ]
     },
     {
-      "category": "intervention_blocking",
+      "category": "collection_name_normalization_semantics",
       "connectors": [
         "apache",
         "haproxy",
         "nginx"
       ],
-      "count": 35,
-      "fixable": "partly fixable; first split true connector gaps from future/native semantic cases",
-      "recommended_next_step": "sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation",
+      "count": 30,
+      "fixable": "metadata-only semantic split; needs native/libmodsecurity comparison before any fix",
+      "recommended_next_step": "compare collection-name normalization semantics against native/libmodsecurity before treating as a runtime fix",
       "risk": "medium to high",
       "typical_examples": [
         {
           "actual_status": 200,
           "case_id": "duplicate_args_encoded_separator_edge",
-          "classification": "runtime-difference",
+          "classification": "collection_name_normalization_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -430,13 +430,13 @@
           "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "collection_semantics"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "duplicate_header_case_normalization_gap",
-          "classification": "runtime-difference",
+          "classification": "collection_name_normalization_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -452,13 +452,13 @@
           "variable": "REQUEST_HEADERS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "collection_semantics"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "edge_semicolon_query_args_names",
-          "classification": "runtime-difference",
+          "classification": "collection_name_normalization_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -474,7 +474,7 @@
           "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "collection_semantics"
           ]
         }
       ]
@@ -494,7 +494,7 @@
         {
           "actual_status": 200,
           "case_id": "parser_xml_partial_body_future_target",
-          "classification": "runtime-difference",
+          "classification": "xml_body_processor_collection_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -510,13 +510,13 @@
           "variable": "XML",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "xml_processor"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "xml_deep_nesting_future_target",
-          "classification": "runtime-difference",
+          "classification": "xml_body_processor_collection_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -532,13 +532,13 @@
           "variable": "XML",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "xml_processor"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "xml_namespace_edge_connector_gap",
-          "classification": "runtime-difference",
+          "classification": "xml_body_processor_collection_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -554,7 +554,7 @@
           "variable": "XML",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "xml_processor"
           ]
         }
       ]
@@ -574,7 +574,7 @@
         {
           "actual_status": 200,
           "case_id": "files_names_mixed_case_filename_gap",
-          "classification": "runtime-difference",
+          "classification": "multipart_collection_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -590,13 +590,13 @@
           "variable": "FILES_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "multipart_files"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "multipart_duplicate_field_names_gap",
-          "classification": "runtime-difference",
+          "classification": "multipart_collection_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -612,7 +612,7 @@
           "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "multipart_files"
           ]
         }
       ]
@@ -732,6 +732,64 @@
       ]
     },
     {
+      "category": "intervention_blocking",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 5,
+      "fixable": "partly fixable; first split true connector gaps from future/native semantic cases",
+      "recommended_next_step": "sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation",
+      "risk": "medium to high",
+      "typical_examples": [
+        {
+          "actual_status": 200,
+          "case_id": "action_status_401_phase1_block",
+          "classification": "runtime-difference",
+          "connector": "apache",
+          "expected_status": 401,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "1",
+          "query": "what=block401",
+          "rule_id": "2320",
+          "runtime_verified": "false",
+          "variable": "ARGS",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "intervention_blocking"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "nginx_redirect_phase1_302",
+          "classification": "runtime-difference",
+          "connector": "nginx",
+          "expected_status": 302,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "1",
+          "query": "what=redirect302",
+          "rule_id": "3302",
+          "runtime_verified": "false",
+          "variable": "ARGS",
+          "variant": "no-crs/with-mrts",
+          "work_direction": [
+            "intervention_blocking"
+          ]
+        }
+      ]
+    },
+    {
       "category": "connector_gap",
       "connectors": [
         "apache",
@@ -746,7 +804,7 @@
         {
           "actual_status": 200,
           "case_id": "phase1_vs_phase2_request_body_gap",
-          "classification": "runtime-difference",
+          "classification": "phase1_request_body_unavailable",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -762,7 +820,7 @@
           "variable": "REQUEST_BODY",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "request_body_processor"
           ]
         }
       ]
@@ -912,7 +970,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-14T08:58:55Z",
+  "generated_at": "2026-06-14T10:14:04Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -1050,6 +1108,10 @@
       {
         "cluster": "with_mrts_detection_only_non_disruptive",
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
+      },
+      {
+        "cluster": "collection_name_normalization_semantics",
+        "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
     "reason": "high combined volume, but likely multiple true processor gaps",
@@ -1089,13 +1151,13 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-14T08:58:46Z",
+    "connector_work_queue": "2026-06-14T10:13:54Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
     "full_runtime_matrix": "2026-06-13T20:27:13Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-14T08:58:49Z",
+    "phase_work_queue": "2026-06-14T10:13:57Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {
@@ -1826,7 +1888,7 @@
     "cross_connector_failures": [
       {
         "case_id": "duplicate_args_encoded_separator_edge",
-        "category": "intervention_blocking",
+        "category": "collection_name_normalization_semantics",
         "connectors": [
           "apache",
           "haproxy",
@@ -1836,7 +1898,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "duplicate_args_encoded_separator_edge",
-          "classification": "runtime-difference",
+          "classification": "collection_name_normalization_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -1852,7 +1914,7 @@
           "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "collection_semantics"
           ]
         },
         "status_pairs": {
@@ -1867,7 +1929,7 @@
       },
       {
         "case_id": "duplicate_header_case_normalization_gap",
-        "category": "intervention_blocking",
+        "category": "collection_name_normalization_semantics",
         "connectors": [
           "apache",
           "haproxy",
@@ -1877,7 +1939,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "duplicate_header_case_normalization_gap",
-          "classification": "runtime-difference",
+          "classification": "collection_name_normalization_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -1893,7 +1955,7 @@
           "variable": "REQUEST_HEADERS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "collection_semantics"
           ]
         },
         "status_pairs": {
@@ -1908,7 +1970,7 @@
       },
       {
         "case_id": "edge_semicolon_query_args_names",
-        "category": "intervention_blocking",
+        "category": "collection_name_normalization_semantics",
         "connectors": [
           "apache",
           "haproxy",
@@ -1918,7 +1980,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "edge_semicolon_query_args_names",
-          "classification": "runtime-difference",
+          "classification": "collection_name_normalization_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -1934,7 +1996,7 @@
           "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "collection_semantics"
           ]
         },
         "status_pairs": {
@@ -1959,7 +2021,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "files_names_mixed_case_filename_gap",
-          "classification": "runtime-difference",
+          "classification": "multipart_collection_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -1975,7 +2037,7 @@
           "variable": "FILES_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "multipart_files"
           ]
         },
         "status_pairs": {
@@ -2000,7 +2062,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "multipart_duplicate_field_names_gap",
-          "classification": "runtime-difference",
+          "classification": "multipart_collection_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2016,7 +2078,7 @@
           "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "multipart_files"
           ]
         },
         "status_pairs": {
@@ -2041,7 +2103,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "parser_xml_partial_body_future_target",
-          "classification": "runtime-difference",
+          "classification": "xml_body_processor_collection_semantics",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2057,7 +2119,7 @@
           "variable": "XML",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "xml_processor"
           ]
         },
         "status_pairs": {
@@ -2123,7 +2185,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "sqli_like_keyword_spacing_probe",
-          "classification": "runtime-difference",
+          "classification": "transformation_request_literal_no_match",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2139,7 +2201,7 @@
           "variable": "ARGS:q",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "transformation_semantics"
           ]
         },
         "status_pairs": {
@@ -2164,7 +2226,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "sqli_like_quote_encoding_runtime_difference",
-          "classification": "runtime-difference",
+          "classification": "transformation_request_literal_no_match",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2180,7 +2242,7 @@
           "variable": "ARGS:q",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "transformation_semantics"
           ]
         },
         "status_pairs": {
@@ -2205,7 +2267,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "unicode_double_encoded_uri_runtime_difference",
-          "classification": "runtime-difference",
+          "classification": "transformation_request_literal_no_match",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2221,7 +2283,7 @@
           "variable": "REQUEST_URI",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "intervention_blocking"
+            "transformation_semantics"
           ]
         },
         "status_pairs": {

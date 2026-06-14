@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-14T08:58:55Z",
+  "generated_at": "2026-06-14T10:14:04Z",
   "priority_plan": {
     "P0": [],
     "P1": [],
@@ -80,6 +80,10 @@
       {
         "cluster": "with_mrts_detection_only_non_disruptive",
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
+      },
+      {
+        "cluster": "collection_name_normalization_semantics",
+        "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
     "reason": "high combined volume, but likely multiple true processor gaps",

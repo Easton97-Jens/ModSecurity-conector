@@ -317,6 +317,9 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
             "case_id": item.get("case_id", "-"),
             "connector": item.get("connector", "-"),
             "variant": item.get("variant", "-"),
+            "classification": item.get("classification", "-"),
+            "work_direction": as_list(item.get("work_direction")),
+            "priority": item.get("priority", "-"),
             "source_kind": item.get("source_kind", "-"),
             "source_category": item.get("source_category", "-"),
             "case_path": display_case_path(case_path, framework_root),
@@ -352,6 +355,14 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
 
     case_ids = {str(item["case_id"]) for item in records}
     cause_counter = Counter(str(item["cause"]) for item in records)
+    remaining_intervention_blocking = sum(
+        1 for item in records if "intervention_blocking" in item["work_direction"]
+    )
+    remaining_p0_p1_intervention_blocking = sum(
+        1
+        for item in records
+        if "intervention_blocking" in item["work_direction"] and item["priority"] in {"P0", "P1"}
+    )
     safe_candidate = {
         "selected": False,
         "cluster": "none",
@@ -382,12 +393,17 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
                 "no_mrts_no_match_before": len(records),
                 "no_mrts_no_match_after": len(records),
                 "intervention_blocking_true_candidates_before": len(records),
-                "intervention_blocking_true_candidates_after": len(records),
+                "intervention_blocking_true_candidates_after": remaining_intervention_blocking,
+                "p0_p1_intervention_blocking_before": len(records),
+                "p0_p1_intervention_blocking_after": remaining_p0_p1_intervention_blocking,
             },
         },
         "distribution": {
             "connectors": top_counts([item["connector"] for item in records]),
             "variants": top_counts([item["variant"] for item in records]),
+            "classifications": top_counts([item["classification"] for item in records]),
+            "work_directions": top_counts([",".join(item["work_direction"]) or "-" for item in records]),
+            "priorities": top_counts([item["priority"] for item in records]),
             "phases": top_counts([item["phase"] for item in records]),
             "targets": top_counts([item["target"] for item in records]),
             "operators": top_counts([item["operator"] for item in records]),
@@ -468,6 +484,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         ("Targets", "targets"),
         ("Operators", "operators"),
         ("Source categories", "source_categories"),
+        ("Classifications", "classifications"),
+        ("Work directions", "work_directions"),
+        ("Priorities", "priorities"),
     ]:
         lines.extend(["", f"### {title}"])
         lines.extend(md_table(["Value", "Count"], [[item["value"], item["count"]] for item in report["distribution"][key]]))
@@ -507,6 +526,11 @@ def render_markdown(report: dict[str, Any]) -> str:
                     before_after["intervention_blocking_true_candidates_before"],
                     before_after["intervention_blocking_true_candidates_after"],
                 ],
+                [
+                    "P0/P1 intervention_blocking rows",
+                    before_after["p0_p1_intervention_blocking_before"],
+                    before_after["p0_p1_intervention_blocking_after"],
+                ],
                 ["full-matrix pass", summary["full_matrix_totals"].get("pass", "-"), summary["full_matrix_totals"].get("pass", "-")],
                 ["full-matrix fail", summary["full_matrix_totals"].get("fail", "-"), summary["full_matrix_totals"].get("fail", "-")],
                 ["full-matrix blocked", summary["full_matrix_totals"].get("blocked", "-"), summary["full_matrix_totals"].get("blocked", "-")],
@@ -526,6 +550,9 @@ def render_markdown(report: dict[str, Any]) -> str:
                 "Operator",
                 "Request",
                 "Expected value",
+                "Classification",
+                "Work direction",
+                "Priority",
                 "Cause",
             ],
             [
@@ -539,6 +566,9 @@ def render_markdown(report: dict[str, Any]) -> str:
                     item["operator"],
                     f"{item['request']['method']} {item['request']['path']}?{item['request']['query']}",
                     item["expected_match_value"],
+                    item["classification"],
+                    ",".join(item["work_direction"]),
+                    item["priority"],
                     item["cause"],
                 ]
                 for item in report["records"][:24]

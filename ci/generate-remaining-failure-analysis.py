@@ -18,6 +18,7 @@ except Exception:  # pragma: no cover - the report still works without YAML meta
 REPORT_DIR = Path("reports/testing/generated")
 FAILURE_CATEGORIES = (
     "intervention_blocking",
+    "collection_name_normalization_semantics",
     "phase4_hard_abort_supported",
     "phase4_hard_abort_evidence",
     "phase4_connection_aborted",
@@ -45,6 +46,13 @@ FAILURE_CATEGORIES = (
     "classification_only",
     "unknown_requires_review",
 )
+NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS = {
+    "transformation_request_literal_no_match",
+    "collection_name_normalization_semantics",
+    "xml_body_processor_collection_semantics",
+    "multipart_collection_semantics",
+    "phase1_request_body_unavailable",
+}
 PHASE4_HARD_ABORT_CATEGORIES = {
     "phase4_hard_abort_supported",
     "phase4_hard_abort_evidence",
@@ -178,6 +186,8 @@ def failure_category(entry: dict[str, Any]) -> str:
 
     if classification == "with_mrts_detection_only_non_disruptive":
         return "with_mrts_detection_only_non_disruptive"
+    if classification == "collection_name_normalization_semantics":
+        return "collection_name_normalization_semantics"
     if is_phase4_entry(entry):
         return phase4_detail_category(entry)
     if (
@@ -472,6 +482,7 @@ def category_rollup(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def fixability(category: str) -> str:
     return {
         "intervention_blocking": "partly fixable; first split true connector gaps from future/native semantic cases",
+        "collection_name_normalization_semantics": "metadata-only semantic split; needs native/libmodsecurity comparison before any fix",
         "phase4_hard_abort_supported": "classification-only; this row does not require a hard abort",
         "phase4_hard_abort_evidence": "evidence-backed; preserve strict hard-abort proof while stabilizing variants",
         "phase4_connection_aborted": "evidence-backed transport outcome",
@@ -509,6 +520,7 @@ def risk(category: str) -> str:
         "multipart_files": "medium",
         "xml_processor": "medium to high",
         "intervention_blocking": "medium to high",
+        "collection_name_normalization_semantics": "medium to high",
         "transformation_semantics": "high",
         "phase4_hard_abort_supported": "low",
         "phase4_hard_abort_evidence": "medium; keep strict/test-only semantics scoped",
@@ -531,6 +543,7 @@ def recommended_step(category: str) -> str:
         "response_header_multi_value_gap": "triage HAProxy Set-Cookie multi-value exposure through SPOE response-header evidence",
         "response_header_mrts_detection_only": "keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence",
         "with_mrts_detection_only_non_disruptive": "keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases",
+        "collection_name_normalization_semantics": "compare collection-name normalization semantics against native/libmodsecurity before treating as a runtime fix",
         "response_header_hook": "triage response-header phase 3 capture on Apache/NGINX first, then HAProxy",
         "request_body_processor": "split JSON, URL-encoded, and XML body processor cases before code changes",
         "multipart_files": "compare multipart variable population across connectors with one representative request",
@@ -764,6 +777,10 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
             {
                 "cluster": "with_mrts_detection_only_non_disruptive",
                 "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action",
+            },
+            {
+                "cluster": "collection_name_normalization_semantics",
+                "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes",
             },
         ],
     }

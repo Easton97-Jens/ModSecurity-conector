@@ -22,6 +22,13 @@ STRICT_LOAD_ERROR_RE = re.compile(
     re.IGNORECASE,
 )
 WITH_MRTS_DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
+NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS = {
+    "transformation_request_literal_no_match",
+    "collection_name_normalization_semantics",
+    "xml_body_processor_collection_semantics",
+    "multipart_collection_semantics",
+    "phase1_request_body_unavailable",
+}
 
 
 GROUPS = {
@@ -370,6 +377,7 @@ def build_records(connector_root: Path, framework_root: Path) -> list[dict[str, 
         if (
             "intervention_blocking" in as_list(entry.get("work_direction"))
             or entry.get("classification") == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION
+            or entry.get("classification") in NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS
         )
         and entry.get("expected_status") == 403
         and entry.get("actual_status") == 200
@@ -398,6 +406,7 @@ def build_records(connector_root: Path, framework_root: Path) -> list[dict[str, 
             "source_kind": entry.get("source_kind"),
             "source_category": entry.get("category"),
             "classification": entry.get("classification"),
+            "priority": entry.get("priority", "-"),
             "work_direction": as_list(entry.get("work_direction")),
             "failure_pattern": as_list(entry.get("failure_pattern")),
             "expected_status": entry.get("expected_status"),
@@ -532,16 +541,24 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
     records = build_records(connector_root, framework_root)
     group_summary = grouped_summary(records)
     detection_only_records = [item for item in records if item["classification"] == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION]
+    no_mrts_semantic_records = [
+        item for item in records if item["classification"] in NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS
+    ]
     true_candidates = [
         item
         for item in records
         if "intervention_blocking" in item["work_direction"]
         and item["classification"] != WITH_MRTS_DETECTION_ONLY_CLASSIFICATION
+        and item["classification"] not in NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS
     ]
     summary = {
         "expected_403_actual_200_total": len(records),
         "intervention_blocking_true_candidates": len(true_candidates),
         "detection_only_overlay_non_disruptive": len(detection_only_records),
+        "no_mrts_semantic_no_match": len(no_mrts_semantic_records),
+        "remaining_p0_p1_intervention_blocking": sum(
+            1 for item in true_candidates if item.get("priority") in {"P0", "P1"}
+        ),
         "rule_in_loadfile": sum(1 for item in records if item["rule_in_loadfile"]),
         "strict_rule_load_errors": sum(1 for item in records if item["strict_load_errors"]),
         "rule_loaded": sum(1 for item in records if item["rule_loaded"]),
@@ -572,6 +589,9 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
             "variants": top_counts(records, "variant"),
             "detection_only_connectors": top_counts(detection_only_records, "connector"),
             "detection_only_variants": top_counts(detection_only_records, "variant"),
+            "no_mrts_semantic_connectors": top_counts(no_mrts_semantic_records, "connector"),
+            "no_mrts_semantic_variants": top_counts(no_mrts_semantic_records, "variant"),
+            "no_mrts_semantic_classifications": top_counts(no_mrts_semantic_records, "classification"),
             "source_categories": top_counts(records, "source_category"),
             "phases": top_counts(records, "phase"),
             "targets": top_counts(records, "target"),
@@ -594,8 +614,10 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         f"- Generated at: `{report['generated_at']}`",
         f"- Expected `403` / actual `200` rows under review: **{summary['expected_403_actual_200_total']}**.",
-        f"- Intervention-blocking true candidates: **{summary['intervention_blocking_true_candidates']}** no-MRTS no-match rows.",
+        f"- Intervention-blocking true candidates: **{summary['intervention_blocking_true_candidates']}** runtime-fixable rows.",
+        f"- Remaining P0/P1 intervention-blocking rows: **{summary['remaining_p0_p1_intervention_blocking']}**.",
         f"- DetectionOnly overlay non-disruptive rows: **{summary['detection_only_overlay_non_disruptive']}** report-only rows.",
+        f"- no-MRTS semantic no-match rows: **{summary['no_mrts_semantic_no_match']}** metadata-only rows.",
         f"- Rule in generated loadfile: **{summary['rule_in_loadfile']}**",
         f"- Strict rule-load errors: **{summary['strict_rule_load_errors']}**",
         f"- Rule matched: **{summary['rule_matched']}**",

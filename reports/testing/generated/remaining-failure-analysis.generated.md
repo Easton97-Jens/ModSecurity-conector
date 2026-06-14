@@ -1,6 +1,6 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-14T08:58:55Z`
+Generated at: `2026-06-14T10:14:04Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -32,11 +32,12 @@ Generated at: `2026-06-14T08:58:55Z`
 | response_header_mrts_detection_only | 60 | apache, haproxy, nginx | classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action | low; report-only if kept separate from PASS promotion | keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence |
 | phase4_connector_gap | 46 | apache, haproxy, nginx | connector capability gap unless a real abort mechanism is implemented and evidenced | high if faked; low if reported as gap | document connector gap unless implementation can prove a real hard abort |
 | transformation_semantics | 36 | apache, haproxy, nginx | not a harness quick win; needs semantic comparison against libmodsecurity expectations | high | compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes |
-| intervention_blocking | 35 | apache, haproxy, nginx | partly fixable; first split true connector gaps from future/native semantic cases | medium to high | sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation |
+| collection_name_normalization_semantics | 30 | apache, haproxy, nginx | metadata-only semantic split; needs native/libmodsecurity comparison before any fix | medium to high | compare collection-name normalization semantics against native/libmodsecurity before treating as a runtime fix |
 | xml_processor | 24 | apache, haproxy, nginx | possibly fixable, but high risk without XML processor parity checks | medium to high | verify XML processor enablement and malformed XML semantics |
 | multipart_files | 12 | apache, haproxy, nginx | possibly fixable; likely connector/body parser evidence work | medium | compare multipart variable population across connectors with one representative request |
 | nolog_expected_no_audit | 6 | apache, haproxy, nginx | classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated | low; no runtime or expected-status change | keep as classification-only evidence; do not add artificial audit logs |
 | phase4_log_only_no_abort | 6 | nginx | report-only unless the case is meant to exercise strict hard abort | low if reported honestly, high if promoted as hard abort | keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence |
+| intervention_blocking | 5 | apache, haproxy, nginx | partly fixable; first split true connector gaps from future/native semantic cases | medium to high | sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation |
 | connector_gap | 3 | apache, haproxy, nginx | unknown; review required | unknown | manual review |
 
 ## Top 10 Overall Failure Clusters
@@ -138,9 +139,9 @@ Generated at: `2026-06-14T08:58:55Z`
 ## Top Cross-Connector Failures
 | Count | Case | Connectors | Variants | Category | Status pairs | Rule ID | Variable/target |
 |---|---|---|---|---|---|---|---|
-| 12 | duplicate_args_encoded_separator_edge | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | intervention_blocking | {'403→200': 12} | 4608 | ARGS_NAMES |
-| 12 | duplicate_header_case_normalization_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | intervention_blocking | {'403→200': 12} | 4607 | REQUEST_HEADERS_NAMES |
-| 12 | edge_semicolon_query_args_names | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | intervention_blocking | {'403→200': 12} | 4513 | ARGS_NAMES |
+| 12 | duplicate_args_encoded_separator_edge | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | collection_name_normalization_semantics | {'403→200': 12} | 4608 | ARGS_NAMES |
+| 12 | duplicate_header_case_normalization_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | collection_name_normalization_semantics | {'403→200': 12} | 4607 | REQUEST_HEADERS_NAMES |
+| 12 | edge_semicolon_query_args_names | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | collection_name_normalization_semantics | {'403→200': 12} | 4513 | ARGS_NAMES |
 | 12 | files_names_mixed_case_filename_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | multipart_files | {'403→200': 12} | 4705 | FILES_NAMES |
 | 12 | multipart_duplicate_field_names_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | multipart_files | {'403→200': 12} | 4703 | ARGS_NAMES |
 | 12 | parser_xml_partial_body_future_target | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | xml_processor | {'403→200': 12} | 4610 | XML |
@@ -168,3 +169,4 @@ Generated at: `2026-06-14T08:58:55Z`
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.
 - Nicht als nächstes bearbeiten: `response_header_mrts_detection_only`, weil classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action.
 - Nicht als nächstes bearbeiten: `with_mrts_detection_only_non_disruptive`, weil classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action.
+- Nicht als nächstes bearbeiten: `collection_name_normalization_semantics`, weil metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes.

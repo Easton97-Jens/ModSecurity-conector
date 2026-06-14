@@ -1,9 +1,11 @@
 # Intervention Blocking Analysis
 
-- Generated at: `2026-06-14T08:58:53Z`
+- Generated at: `2026-06-14T10:14:02Z`
 - Expected `403` / actual `200` rows under review: **595**.
-- Intervention-blocking true candidates: **105** no-MRTS no-match rows.
+- Intervention-blocking true candidates: **0** runtime-fixable rows.
+- Remaining P0/P1 intervention-blocking rows: **0**.
 - DetectionOnly overlay non-disruptive rows: **490** report-only rows.
+- no-MRTS semantic no-match rows: **105** metadata-only rows.
 - Rule in generated loadfile: **595**
 - Strict rule-load errors: **0**
 - Rule matched: **298**
