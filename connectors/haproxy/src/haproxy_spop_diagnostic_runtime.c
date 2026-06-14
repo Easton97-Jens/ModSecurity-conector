@@ -180,12 +180,13 @@ static int bounded_cstring_length(const char *value, size_t max_len, size_t *out
     if (value == 0 || out_len == 0 || max_len == 0) {
         return -1;
     }
-    len = strlen(value);
-    if (len >= max_len) {
-        return -1;
+    for (len = 0; len < max_len; ++len) {
+        if (value[len] == '\0') {
+            *out_len = len;
+            return 0;
+        }
     }
-    *out_len = len;
-    return 0;
+    return -1;
 }
 
 static size_t safe_cstring_length(const char *value, size_t max_len) {
@@ -356,10 +357,16 @@ static int append_byte(spop_buffer *buf, unsigned int value) {
 }
 
 static int append_bytes(spop_buffer *buf, const void *data, size_t len) {
-    if (buf == 0 || (data == 0 && len > 0U)) {
+    if (buf == 0) {
         return -1;
     }
     if (buf->len > sizeof(buf->data) || len > sizeof(buf->data) - buf->len) {
+        return -1;
+    }
+    if (len == 0U) {
+        return 0;
+    }
+    if (data == 0) {
         return -1;
     }
     memcpy(buf->data + buf->len, data, len);

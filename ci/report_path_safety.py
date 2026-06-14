@@ -93,6 +93,26 @@ def safe_existing_file(path: Path | str | None) -> Path | None:
     return safe_path(path, must_exist=True)
 
 
+def _safe_write_path(path: Path | str) -> Path:
+    if not SAFE_ROOTS:
+        raise ValueError("safe roots must be configured before writing reports")
+    resolved = safe_path(path, must_exist=False)
+    if resolved is None:
+        raise ValueError(f"unsafe output path: {path}")
+    if resolved == resolved.parent:
+        raise ValueError(f"unsafe output path: {path}")
+    if resolved.exists() and not resolved.is_file():
+        raise ValueError(f"unsafe output path: {path}")
+    return resolved
+
+
+def _write_file_contents(path: Path | str, text: str) -> None:
+    resolved = _safe_write_path(path)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    with resolved.open("w", encoding="utf-8") as output:
+        output.write(text)
+
+
 def read_json_file(path: Path | str | None) -> dict[str, Any]:
     resolved = safe_existing_file(path)
     if resolved is None:
@@ -115,16 +135,8 @@ def read_text_file(path: Path | str | None) -> str:
 
 
 def write_json_file(path: Path | str, value: dict[str, Any]) -> None:
-    resolved = safe_path(path, must_exist=False)
-    if resolved is None:
-        raise ValueError(f"unsafe output path: {path}")
-    resolved.parent.mkdir(parents=True, exist_ok=True)
-    resolved.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _write_file_contents(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
 def write_text_file(path: Path | str, text: str) -> None:
-    resolved = safe_path(path, must_exist=False)
-    if resolved is None:
-        raise ValueError(f"unsafe output path: {path}")
-    resolved.parent.mkdir(parents=True, exist_ok=True)
-    resolved.write_text(text, encoding="utf-8")
+    _write_file_contents(path, text)
