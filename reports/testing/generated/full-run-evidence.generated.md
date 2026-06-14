@@ -93,6 +93,14 @@ These native MRTS reports are separate from connector full-matrix evidence.
 - The report keeps Expected status and runtime PASS/FAIL unchanged while classifying report-only Rule-Chain and single-connector leftovers.
 <!-- rule-chain-semantics-analysis:end -->
 
+<!-- final-consistency-audit:start -->
+## Final Consistency Audit
+- Report: `reports/testing/generated/final-consistency-audit.generated.md`
+- Recommended next fix cluster: `none`
+- Release readiness: `ready_with_known_reported_gaps`
+- This is an audit-only report; Expected statuses and runtime PASS/FAIL values remain unchanged.
+<!-- final-consistency-audit:end -->
+
 ## Reports And Logs
 - Full matrix report: `reports/testing/generated/full-runtime-matrix.generated.md`
 - Connector work queue: `reports/testing/generated/connector-work-queue.generated.md`

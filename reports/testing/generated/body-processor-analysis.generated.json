@@ -7,7 +7,7 @@
     "targets": [],
     "variants": []
   },
-  "generated_at": "2026-06-14T12:41:39Z",
+  "generated_at": "2026-06-14T13:00:42Z",
   "groups": [],
   "multipart_activation_missing_subcluster": {
     "active_multipart_files_after_report_sync": 0,
@@ -729,7 +729,7 @@
     "work_direction": "classification_only"
   },
   "next_fix_plan": {
-    "reason": "No remaining connector Full-Matrix failures are present in the generated reports.",
+    "reason": "No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.",
     "recommended_next_fix_cluster": "none"
   },
   "records": [],

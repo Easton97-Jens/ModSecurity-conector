@@ -131,6 +131,20 @@
     "submodule_status_clean": true,
     "url": "https://github.com/libexpat/libexpat"
   },
+  "final_consistency_audit_report": {
+    "analysis": "reports/testing/generated/final-consistency-audit.generated.md",
+    "full_matrix_summary": {
+      "attempted": 3928,
+      "blocked": 0,
+      "fail": 782,
+      "not_executable": 72,
+      "pass": 3074,
+      "pending": 2298
+    },
+    "json": "reports/testing/generated/final-consistency-audit.generated.json",
+    "recommended_next_fix_cluster": "none",
+    "release_readiness": "ready_with_known_reported_gaps"
+  },
   "fixes": [
     "Allowed connector runtime/log/result roots under the requested BUILD_ROOT for isolated /tmp full-matrix jobs while preserving SOURCE_ROOT guardrails.",
     "Switched pinned Apache source download default to archive.apache.org after downloads.apache.org returned 404 for the pinned httpd release.",
@@ -810,7 +824,9 @@
     "reports/testing/generated/body-processor-analysis.generated.json",
     "reports/testing/generated/body-processor-analysis.generated.md",
     "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
-    "reports/testing/generated/rule-chain-semantics-analysis.generated.md"
+    "reports/testing/generated/rule-chain-semantics-analysis.generated.md",
+    "reports/testing/generated/final-consistency-audit.generated.json",
+    "reports/testing/generated/final-consistency-audit.generated.md"
   ],
   "response_header_hook_analysis_report": {
     "analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",

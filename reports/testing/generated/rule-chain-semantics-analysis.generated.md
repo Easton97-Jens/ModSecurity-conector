@@ -1,6 +1,6 @@
 # Rule Chain Semantics Analysis
 
-Generated at: `2026-06-14T12:45:23Z`
+Generated at: `2026-06-14T13:00:43Z`
 
 ## Summary
 | Rule-chain rows | Rule-chain groups | Single-connector groups | Single-connector rows | Runtime-fixable candidates | Report-only items | Parent matched | Child matched | Full chain matched | Name-only non-rule-chain rows |

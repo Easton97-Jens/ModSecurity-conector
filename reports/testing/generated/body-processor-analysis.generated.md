@@ -1,6 +1,6 @@
 # Body Processor Failure Analysis
 
-- Generated at: `2026-06-14T12:41:39Z`
+- Generated at: `2026-06-14T13:00:42Z`
 - Before selected metadata fix: request_body_processor **9**, multipart_files **12**, xml_processor **24**, combined **45**.
 - After selected metadata fix: request_body_processor **0**, multipart_files **0**, xml_processor **0**, combined **0**.
 - Selected subcluster rows: **9**
@@ -168,7 +168,7 @@
 ## Current Next Fix Plan
 
 - Recommended next cluster: `none`
-- Reason: No remaining connector Full-Matrix failures are present in the generated reports.
+- Reason: No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.
 
 ## Guardrail Notes
 

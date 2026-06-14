@@ -1,6 +1,6 @@
 # No-MRTS Intervention No-Match Analysis
 
-- Generated at: `2026-06-14T12:41:36Z`
+- Generated at: `2026-06-14T13:00:39Z`
 - no-MRTS expected `403` / actual `200` rows with loaded rule and no match: **69**
 - Unique cases: **12**
 - Rule not loaded: **0**

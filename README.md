@@ -337,6 +337,7 @@ repository does not maintain a separate coverage-summary source of truth.
 - Smoke target semantics: [modules/ModSecurity-test-Framework/docs/testing/fast-checks.md](./modules/ModSecurity-test-Framework/docs/testing/fast-checks.md)
 - Real-world connector validation: [reports/testing/real-world-connector-validation.md](./reports/testing/real-world-connector-validation.md)
 - HAProxy PoC evidence: [reports/testing/haproxy-poc.md](./reports/testing/haproxy-poc.md)
+- Final consistency audit: [reports/testing/generated/final-consistency-audit.generated.md](./reports/testing/generated/final-consistency-audit.generated.md)
 - Case matrix reports: [reports/testing/case-matrix.md](./reports/testing/case-matrix.md), [reports/testing/generated/case-matrix.generated.md](./reports/testing/generated/case-matrix.generated.md)
 - PR/source evidence: [reports/testing/evidence/pr-evidence-summary.md](./reports/testing/evidence/pr-evidence-summary.md), [reports/testing/evidence/raw-args-pr3564.md](./reports/testing/evidence/raw-args-pr3564.md)
 - Licensing and origin index: [docs/licensing/license-and-origin.md](./docs/licensing/license-and-origin.md)

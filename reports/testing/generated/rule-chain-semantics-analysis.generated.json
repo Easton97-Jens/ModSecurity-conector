@@ -120,7 +120,7 @@
     "safe_change": "metadata/report-only classification; no Expected status, rule, MRTS definition, or connector-core change.",
     "selected_subcluster": "with-MRTS DetectionOnly redirect classification and report-only Rule-Chain triage"
   },
-  "generated_at": "2026-06-14T12:45:23Z",
+  "generated_at": "2026-06-14T13:00:43Z",
   "next_recommendation": {
     "not_next": [
       {
@@ -707,10 +707,10 @@
     }
   ],
   "source_reports": {
-    "connector_work_queue": "2026-06-14T12:41:25Z",
+    "connector_work_queue": "2026-06-14T13:00:22Z",
     "full_runtime_matrix": "2026-06-13T20:27:13Z",
-    "next_fix_plan": "2026-06-14T12:45:21Z",
-    "remaining_failure_analysis": "2026-06-14T12:45:21Z"
+    "next_fix_plan": "2026-06-14T13:00:32Z",
+    "remaining_failure_analysis": "2026-06-14T13:00:32Z"
   },
   "summary": {
     "chain_child_matched_rows": 4,

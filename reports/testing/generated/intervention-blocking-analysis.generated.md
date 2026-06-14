@@ -1,6 +1,6 @@
 # Intervention Blocking Analysis
 
-- Generated at: `2026-06-14T12:41:35Z`
+- Generated at: `2026-06-14T13:00:38Z`
 - Expected `403` / actual `200` rows under review: **559**.
 - Intervention-blocking true candidates: **0** runtime-fixable rows.
 - Remaining P0/P1 intervention-blocking rows: **0**.
@@ -72,7 +72,7 @@
 ## Current Next Fix Plan
 
 - Recommended next cluster: `none`
-- Reason: No remaining connector Full-Matrix failures are present in the generated reports.
+- Reason: No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.
 
 ## Guardrail Notes
 

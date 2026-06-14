@@ -196,6 +196,11 @@ RULE_CHAIN_OUTPUTS = (
     "reports/testing/generated/rule-chain-semantics-analysis.generated.md",
 )
 
+FINAL_CONSISTENCY_OUTPUTS = (
+    "reports/testing/generated/final-consistency-audit.generated.json",
+    "reports/testing/generated/final-consistency-audit.generated.md",
+)
+
 REMAINING_OUTPUTS = (
     "reports/testing/generated/remaining-failure-analysis.generated.json",
     "reports/testing/generated/remaining-failure-analysis.generated.md",
@@ -539,6 +544,41 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
             command=(
                 python,
                 "ci/generate-rule-chain-semantics-analysis.py",
+                "--connector-root",
+                str(connector_root),
+                "--framework-root",
+                str(framework_root),
+                "--output-dir",
+                str(report_dir),
+            ),
+            requires_runtime=True,
+            requires_full_matrix=True,
+        ),
+        ReportSpec(
+            name="final_consistency_audit",
+            owner="connector",
+            generator="ci/generate-final-consistency-audit.py",
+            make_target="generate-final-consistency-audit",
+            inputs=(
+                "reports/testing/generated/full-runtime-matrix.generated.json",
+                "reports/testing/generated/connector-work-queue.generated.json",
+                "reports/testing/generated/phase-work-queue.generated.json",
+                "reports/testing/generated/remaining-failure-analysis.generated.json",
+                "reports/testing/generated/next-fix-plan.generated.json",
+                "reports/testing/generated/full-run-evidence.generated.json",
+                "reports/testing/generated/mrts-native-summary.generated.json",
+                "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+                "reports/testing/generated/nolog-audit-evidence.generated.json",
+                "reports/testing/generated/response-header-hook-analysis.generated.json",
+                "reports/testing/generated/body-processor-analysis.generated.json",
+                "reports/testing/generated/intervention-blocking-analysis.generated.json",
+                "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json",
+                "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
+            ),
+            outputs=FINAL_CONSISTENCY_OUTPUTS + FULL_RUN_EVIDENCE_OUTPUTS,
+            command=(
+                python,
+                "ci/generate-final-consistency-audit.py",
                 "--connector-root",
                 str(connector_root),
                 "--framework-root",

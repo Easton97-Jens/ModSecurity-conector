@@ -310,7 +310,7 @@
     }
   },
   "framework_root": "/root/git/ModSecurity-test-Framework",
-  "generated_at": "2026-06-14T12:41:27Z",
+  "generated_at": "2026-06-14T13:00:25Z",
   "guardrails": {
     "classification_is_explanatory_only": true,
     "feature_demo_runtime_cases": 0,

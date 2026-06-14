@@ -58,6 +58,16 @@ def as_list(value: Any) -> list[str]:
     return [str(value)]
 
 
+def refresh_connector_queue_totals(data: dict[str, Any]) -> None:
+    entries = [entry for entry in data.get("entries", []) if isinstance(entry, dict)]
+    non_pass = [entry for entry in entries if entry.get("runtime_status") != "PASS"]
+    priority_counts = Counter(str(entry.get("priority") or "-") for entry in non_pass)
+    totals = data.setdefault("totals", {})
+    totals["entries"] = len(entries)
+    totals["failures"] = sum(1 for entry in entries if entry.get("runtime_status") == "FAIL")
+    totals["priority"] = dict(sorted(priority_counts.items()))
+
+
 def import_script(path: Path, module_name: str) -> Any:
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
@@ -434,6 +444,7 @@ def classify_connector_queue(
         updated += 1
     after_audit = sum(1 for entry in entries if "audit_log_evidence" in as_list(entry.get("work_direction")))
     after_classification = sum(1 for entry in entries if "classification_only" in as_list(entry.get("work_direction")))
+    refresh_connector_queue_totals(data)
     write_json(path, data)
     render_connector_queue_markdown(report_dir, data, framework_root)
     return {
