@@ -280,18 +280,18 @@ generate-work-queue: check-framework
 	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-phase-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --connector-work-queue "$(CURDIR)/reports/testing/generated/connector-work-queue.generated.json" --phase-coverage "$(CURDIR)/reports/testing/generated/phase-coverage.generated.md" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/full-runtime-matrix.generated.json"
 	"$(FRAMEWORK_PYTHON)" ci/generate-nolog-audit-evidence-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-response-header-hook-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
+	"$(FRAMEWORK_PYTHON)" ci/generate-remaining-failure-analysis.py --connector-root "$(CURDIR)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-intervention-blocking-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-no-mrts-intervention-nomatch-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
-	"$(FRAMEWORK_PYTHON)" ci/generate-remaining-failure-analysis.py --connector-root "$(CURDIR)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-body-processor-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 
 generate-phase-work-queue: check-framework
 	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-phase-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --connector-work-queue "$(CURDIR)/reports/testing/generated/connector-work-queue.generated.json" --phase-coverage "$(CURDIR)/reports/testing/generated/phase-coverage.generated.md" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/full-runtime-matrix.generated.json"
 	"$(FRAMEWORK_PYTHON)" ci/generate-nolog-audit-evidence-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-response-header-hook-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
+	"$(FRAMEWORK_PYTHON)" ci/generate-remaining-failure-analysis.py --connector-root "$(CURDIR)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-intervention-blocking-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-no-mrts-intervention-nomatch-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
-	"$(FRAMEWORK_PYTHON)" ci/generate-remaining-failure-analysis.py --connector-root "$(CURDIR)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-body-processor-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 
 generate-nolog-audit-evidence-analysis: check-framework

@@ -1,31 +1,31 @@
 # Intervention Blocking Analysis
 
-- Generated at: `2026-06-14T10:14:02Z`
-- Expected `403` / actual `200` rows under review: **595**.
+- Generated at: `2026-06-14T10:52:30Z`
+- Expected `403` / actual `200` rows under review: **559**.
 - Intervention-blocking true candidates: **0** runtime-fixable rows.
 - Remaining P0/P1 intervention-blocking rows: **0**.
 - DetectionOnly overlay non-disruptive rows: **490** report-only rows.
-- no-MRTS semantic no-match rows: **105** metadata-only rows.
-- Rule in generated loadfile: **595**
+- no-MRTS semantic no-match rows: **69** metadata-only rows.
+- Rule in generated loadfile: **559**
 - Strict rule-load errors: **0**
 - Rule matched: **298**
 - Disruptive intervention evidence: **0**
 - Connector lost intervention evidence: **0**
 - Connector returned 403 from that evidence: **0**
-- Backend/client 200 reached: **595**
+- Backend/client 200 reached: **559**
 
 ## Key Split
 
 - with-MRTS DetectionOnly overlay rows: **490**
 - with-MRTS rows with logged target-rule match suppressed by that overlay: **298**
-- no-MRTS rows with loaded rule but no match evidence: **105**
+- no-MRTS rows with loaded rule but no match evidence: **69**
 
 ## A-H Groups
 
 | group | label | count | connectors | variants | suspected cause | fixability | risk |
 | --- | --- | ---: | --- | --- | --- | --- | --- |
 | A | Rule not loaded | 0 | - | - | - | - | - |
-| B | Rule loaded, no match | 105 | apache, haproxy, nginx | no-crs/no-mrts, with-crs/no-mrts | The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions. | not a safe intervention fix; requires semantic/native comparison | medium to high |
+| B | Rule loaded, no match | 69 | apache, haproxy, nginx | no-crs/no-mrts, with-crs/no-mrts | The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions. | not a safe intervention fix; requires semantic/native comparison | medium to high |
 | C | Rule matched, no intervention created | 0 | - | - | - | - | - |
 | D | Intervention created, connector did not set 403 | 0 | - | - | - | - | - |
 | E | Intervention created, runner/evidence missed it | 0 | - | - | - | - | - |
@@ -42,11 +42,11 @@
 | duplicate_args_encoded_separator_edge | apache | no-crs/no-mrts | 4608 | 2 | `ARGS_NAMES` | `@contains b` | `/?a=1%3Bb=2&a=3` | yes | no | no | yes |
 | duplicate_header_case_normalization_gap | apache | no-crs/no-mrts | 4607 | 1 | `REQUEST_HEADERS_NAMES` | `@contains x-demo` | `/` | yes | no | no | yes |
 | edge_semicolon_query_args_names | apache | no-crs/no-mrts | 4513 | 2 | `ARGS_NAMES` | `@contains b` | `/?a=1;b=2` | yes | no | no | yes |
-| files_names_mixed_case_filename_gap | apache | no-crs/no-mrts | 4705 | 2 | `FILES_NAMES` | `@contains MiXeD.TXT` | `/` | yes | no | no | yes |
-| multipart_duplicate_field_names_gap | apache | no-crs/no-mrts | 4703 | 2 | `ARGS_NAMES` | `@contains upload` | `/` | yes | no | no | yes |
-| parser_xml_partial_body_future_target | apache | no-crs/no-mrts | 4610 | 2 | `XML` | `@contains root` | `/` | yes | no | no | yes |
 | phase1_vs_phase2_request_body_gap | apache | no-crs/no-mrts | 4511 | 1 | `REQUEST_BODY` | `@contains bodyhit` | `/` | yes | no | no | yes |
 | sqli_like_keyword_spacing_probe | apache | no-crs/no-mrts | 4715 | 2 | `ARGS:q` | `@contains select from` | `/?q=SAFE` | yes | no | no | yes |
+| sqli_like_quote_encoding_runtime_difference | apache | no-crs/no-mrts | 4716 | 2 | `ARGS:q` | `@contains a'b` | `/?q=SAFE` | yes | no | no | yes |
+| unicode_double_encoded_uri_runtime_difference | apache | no-crs/no-mrts | 4707 | 1 | `REQUEST_URI` | `@contains café` | `/?q=%25u0063%25u0061%25u0066%25u00E9` | yes | no | no | yes |
+| unicode_whitespace_normalization_gap | apache | no-crs/no-mrts | 4708 | 2 | `ARGS:q` | `@streq a b` | `/?q=SAFE` | yes | no | no | yes |
 
 ### F. Expected block, but effective runtime is non-disruptive
 
@@ -71,8 +71,8 @@
 
 ## Current Next Fix Plan
 
-- Recommended next cluster: `request_body_processor / multipart_files / xml_processor`
-- Reason: high combined volume, but likely multiple true processor gaps
+- Recommended next cluster: `phase4_hard_abort_capability`
+- Reason: Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial
 
 ## Guardrail Notes
 

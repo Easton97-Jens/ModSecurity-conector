@@ -1,21 +1,8 @@
 {
-  "generated_at": "2026-06-14T10:46:41Z",
+  "generated_at": "2026-06-14T10:52:24Z",
   "priority_plan": {
     "P0": [],
-    "P1": [
-      {
-        "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
-        "connector": "apache, nginx, haproxy",
-        "count": 6,
-        "likely_change": "verify whether audit-log expectation is correct for nolog and classify/report accordingly",
-        "risk": "low to medium",
-        "tests": [
-          "targeted smoke for v3_action_nolog_pass_no_audit",
-          "make lint quick-check"
-        ],
-        "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics"
-      }
-    ],
+    "P1": [],
     "P2": [],
     "P3": [
       {
@@ -93,8 +80,8 @@
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
-    "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
-    "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
+    "reason": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial",
+    "recommended_next_fix_cluster": "phase4_hard_abort_capability"
   },
   "report_kind": "next-fix-plan"
 }

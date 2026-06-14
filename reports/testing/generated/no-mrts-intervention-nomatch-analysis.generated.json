@@ -33,32 +33,6 @@
         "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation."
       },
       {
-        "cause": "xml_processor_activation_missing",
-        "count": 24,
-        "example_cases": [
-          "parser_xml_partial_body_future_target",
-          "xml_deep_nesting_future_target",
-          "xml_namespace_edge_connector_gap",
-          "xml_request_body_malformed_connector_gap"
-        ],
-        "label": "XML processor activation missing",
-        "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-        "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-        "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML."
-      },
-      {
-        "cause": "multipart_processor_activation_missing",
-        "count": 12,
-        "example_cases": [
-          "files_names_mixed_case_filename_gap",
-          "multipart_duplicate_field_names_gap"
-        ],
-        "label": "Multipart processor activation missing",
-        "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-        "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-        "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections."
-      },
-      {
         "cause": "phase1_request_body_unavailable_or_empty_body",
         "count": 3,
         "example_cases": [
@@ -80,29 +54,21 @@
         "value": "collection_name_normalization_semantics"
       },
       {
-        "count": 24,
-        "value": "xml_processor_activation_missing"
-      },
-      {
-        "count": 12,
-        "value": "multipart_processor_activation_missing"
-      },
-      {
         "count": 3,
         "value": "phase1_request_body_unavailable"
       }
     ],
     "connectors": [
       {
-        "count": 35,
+        "count": 23,
         "value": "apache"
       },
       {
-        "count": 35,
+        "count": 23,
         "value": "nginx"
       },
       {
-        "count": 35,
+        "count": 23,
         "value": "haproxy"
       }
     ],
@@ -114,18 +80,6 @@
       {
         "count": 6,
         "value": "@contains x-demo"
-      },
-      {
-        "count": 6,
-        "value": "@contains MiXeD.TXT"
-      },
-      {
-        "count": 6,
-        "value": "@contains upload"
-      },
-      {
-        "count": 6,
-        "value": "@contains root"
       },
       {
         "count": 6,
@@ -153,18 +107,6 @@
       },
       {
         "count": 6,
-        "value": "@contains deepnode"
-      },
-      {
-        "count": 6,
-        "value": "@contains ns:root"
-      },
-      {
-        "count": 6,
-        "value": "@contains broken"
-      },
-      {
-        "count": 6,
         "value": "@contains <tag>"
       },
       {
@@ -178,7 +120,7 @@
     ],
     "phases": [
       {
-        "count": 78,
+        "count": 42,
         "value": "2"
       },
       {
@@ -190,10 +132,6 @@
       {
         "count": 69,
         "value": "P3"
-      },
-      {
-        "count": 36,
-        "value": "report_only"
       }
     ],
     "source_categories": [
@@ -206,14 +144,6 @@
         "value": "collections"
       },
       {
-        "count": 24,
-        "value": "body-processors"
-      },
-      {
-        "count": 12,
-        "value": "multipart"
-      },
-      {
         "count": 3,
         "value": "phase-handling"
       }
@@ -224,20 +154,12 @@
         "value": "ARGS:q"
       },
       {
-        "count": 24,
-        "value": "XML"
-      },
-      {
-        "count": 18,
+        "count": 12,
         "value": "ARGS_NAMES"
       },
       {
         "count": 12,
         "value": "REQUEST_HEADERS_NAMES"
-      },
-      {
-        "count": 6,
-        "value": "FILES_NAMES"
       },
       {
         "count": 6,
@@ -254,7 +176,7 @@
     ],
     "transformations": [
       {
-        "count": 69,
+        "count": 33,
         "value": "-"
       },
       {
@@ -284,19 +206,15 @@
     ],
     "variants": [
       {
-        "count": 54,
+        "count": 36,
         "value": "no-crs/no-mrts"
       },
       {
-        "count": 51,
+        "count": 33,
         "value": "with-crs/no-mrts"
       }
     ],
     "work_directions": [
-      {
-        "count": 36,
-        "value": "classification_only"
-      },
       {
         "count": 36,
         "value": "transformation_semantics"
@@ -311,7 +229,7 @@
       }
     ]
   },
-  "generated_at": "2026-06-14T10:46:39Z",
+  "generated_at": "2026-06-14T10:52:31Z",
   "groups": {
     "by_cause": [
       {
@@ -441,90 +359,6 @@
           "haproxy",
           "nginx"
         ],
-        "count": 24,
-        "example_cases": [
-          "parser_xml_partial_body_future_target",
-          "xml_deep_nesting_future_target",
-          "xml_namespace_edge_connector_gap",
-          "xml_request_body_malformed_connector_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains root"
-          },
-          {
-            "count": 6,
-            "value": "@contains deepnode"
-          },
-          {
-            "count": 6,
-            "value": "@contains ns:root"
-          },
-          {
-            "count": 6,
-            "value": "@contains broken"
-          }
-        ],
-        "phases": [
-          {
-            "count": 24,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 24,
-            "value": "XML"
-          }
-        ],
-        "value": "xml_processor_activation_missing"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 12,
-        "example_cases": [
-          "files_names_mixed_case_filename_gap",
-          "multipart_duplicate_field_names_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains MiXeD.TXT"
-          },
-          {
-            "count": 6,
-            "value": "@contains upload"
-          }
-        ],
-        "phases": [
-          {
-            "count": 12,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "FILES_NAMES"
-          },
-          {
-            "count": 6,
-            "value": "ARGS_NAMES"
-          }
-        ],
-        "value": "multipart_processor_activation_missing"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
         "count": 3,
         "example_cases": [
           "phase1_vs_phase2_request_body_gap"
@@ -555,16 +389,16 @@
         "connectors": [
           "apache"
         ],
-        "count": 35,
+        "count": 23,
         "example_cases": [
           "duplicate_args_encoded_separator_edge",
           "duplicate_header_case_normalization_gap",
           "edge_semicolon_query_args_names",
-          "files_names_mixed_case_filename_gap",
-          "multipart_duplicate_field_names_gap",
-          "parser_xml_partial_body_future_target",
           "phase1_vs_phase2_request_body_gap",
-          "sqli_like_keyword_spacing_probe"
+          "sqli_like_keyword_spacing_probe",
+          "sqli_like_quote_encoding_runtime_difference",
+          "unicode_double_encoded_uri_runtime_difference",
+          "unicode_whitespace_normalization_gap"
         ],
         "operators": [
           {
@@ -577,18 +411,6 @@
           },
           {
             "count": 2,
-            "value": "@contains MiXeD.TXT"
-          },
-          {
-            "count": 2,
-            "value": "@contains upload"
-          },
-          {
-            "count": 2,
-            "value": "@contains root"
-          },
-          {
-            "count": 2,
             "value": "@contains select from"
           },
           {
@@ -598,11 +420,23 @@
           {
             "count": 2,
             "value": "@contains caf\u00e9"
+          },
+          {
+            "count": 2,
+            "value": "@streq a b"
+          },
+          {
+            "count": 2,
+            "value": "@contains user_token"
+          },
+          {
+            "count": 2,
+            "value": "@contains x-smoke-header"
           }
         ],
         "phases": [
           {
-            "count": 26,
+            "count": 14,
             "value": "2"
           },
           {
@@ -616,20 +450,12 @@
             "value": "ARGS:q"
           },
           {
-            "count": 8,
-            "value": "XML"
-          },
-          {
-            "count": 6,
+            "count": 4,
             "value": "ARGS_NAMES"
           },
           {
             "count": 4,
             "value": "REQUEST_HEADERS_NAMES"
-          },
-          {
-            "count": 2,
-            "value": "FILES_NAMES"
           },
           {
             "count": 2,
@@ -650,16 +476,16 @@
         "connectors": [
           "haproxy"
         ],
-        "count": 35,
+        "count": 23,
         "example_cases": [
           "duplicate_args_encoded_separator_edge",
           "duplicate_header_case_normalization_gap",
           "edge_semicolon_query_args_names",
-          "files_names_mixed_case_filename_gap",
-          "multipart_duplicate_field_names_gap",
-          "parser_xml_partial_body_future_target",
           "phase1_vs_phase2_request_body_gap",
-          "sqli_like_keyword_spacing_probe"
+          "sqli_like_keyword_spacing_probe",
+          "sqli_like_quote_encoding_runtime_difference",
+          "unicode_double_encoded_uri_runtime_difference",
+          "unicode_whitespace_normalization_gap"
         ],
         "operators": [
           {
@@ -672,18 +498,6 @@
           },
           {
             "count": 2,
-            "value": "@contains MiXeD.TXT"
-          },
-          {
-            "count": 2,
-            "value": "@contains upload"
-          },
-          {
-            "count": 2,
-            "value": "@contains root"
-          },
-          {
-            "count": 2,
             "value": "@contains select from"
           },
           {
@@ -693,11 +507,23 @@
           {
             "count": 2,
             "value": "@contains caf\u00e9"
+          },
+          {
+            "count": 2,
+            "value": "@streq a b"
+          },
+          {
+            "count": 2,
+            "value": "@contains user_token"
+          },
+          {
+            "count": 2,
+            "value": "@contains x-smoke-header"
           }
         ],
         "phases": [
           {
-            "count": 26,
+            "count": 14,
             "value": "2"
           },
           {
@@ -711,20 +537,12 @@
             "value": "ARGS:q"
           },
           {
-            "count": 8,
-            "value": "XML"
-          },
-          {
-            "count": 6,
+            "count": 4,
             "value": "ARGS_NAMES"
           },
           {
             "count": 4,
             "value": "REQUEST_HEADERS_NAMES"
-          },
-          {
-            "count": 2,
-            "value": "FILES_NAMES"
           },
           {
             "count": 2,
@@ -745,16 +563,16 @@
         "connectors": [
           "nginx"
         ],
-        "count": 35,
+        "count": 23,
         "example_cases": [
           "duplicate_args_encoded_separator_edge",
           "duplicate_header_case_normalization_gap",
           "edge_semicolon_query_args_names",
-          "files_names_mixed_case_filename_gap",
-          "multipart_duplicate_field_names_gap",
-          "parser_xml_partial_body_future_target",
           "phase1_vs_phase2_request_body_gap",
-          "sqli_like_keyword_spacing_probe"
+          "sqli_like_keyword_spacing_probe",
+          "sqli_like_quote_encoding_runtime_difference",
+          "unicode_double_encoded_uri_runtime_difference",
+          "unicode_whitespace_normalization_gap"
         ],
         "operators": [
           {
@@ -767,18 +585,6 @@
           },
           {
             "count": 2,
-            "value": "@contains MiXeD.TXT"
-          },
-          {
-            "count": 2,
-            "value": "@contains upload"
-          },
-          {
-            "count": 2,
-            "value": "@contains root"
-          },
-          {
-            "count": 2,
             "value": "@contains select from"
           },
           {
@@ -788,11 +594,23 @@
           {
             "count": 2,
             "value": "@contains caf\u00e9"
+          },
+          {
+            "count": 2,
+            "value": "@streq a b"
+          },
+          {
+            "count": 2,
+            "value": "@contains user_token"
+          },
+          {
+            "count": 2,
+            "value": "@contains x-smoke-header"
           }
         ],
         "phases": [
           {
-            "count": 26,
+            "count": 14,
             "value": "2"
           },
           {
@@ -806,20 +624,12 @@
             "value": "ARGS:q"
           },
           {
-            "count": 8,
-            "value": "XML"
-          },
-          {
-            "count": 6,
+            "count": 4,
             "value": "ARGS_NAMES"
           },
           {
             "count": 4,
             "value": "REQUEST_HEADERS_NAMES"
-          },
-          {
-            "count": 2,
-            "value": "FILES_NAMES"
           },
           {
             "count": 2,
@@ -907,36 +717,6 @@
         ],
         "count": 6,
         "example_cases": [
-          "files_names_mixed_case_filename_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains MiXeD.TXT"
-          }
-        ],
-        "phases": [
-          {
-            "count": 6,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "FILES_NAMES"
-          }
-        ],
-        "value": "@contains MiXeD.TXT"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 6,
-        "example_cases": [
           "sqli_like_quote_encoding_runtime_difference"
         ],
         "operators": [
@@ -967,36 +747,6 @@
         ],
         "count": 6,
         "example_cases": [
-          "xml_request_body_malformed_connector_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains broken"
-          }
-        ],
-        "phases": [
-          {
-            "count": 6,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "XML"
-          }
-        ],
-        "value": "@contains broken"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 6,
-        "example_cases": [
           "unicode_double_encoded_uri_runtime_difference"
         ],
         "operators": [
@@ -1018,96 +768,6 @@
           }
         ],
         "value": "@contains caf\u00e9"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 6,
-        "example_cases": [
-          "xml_deep_nesting_future_target"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains deepnode"
-          }
-        ],
-        "phases": [
-          {
-            "count": 6,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "XML"
-          }
-        ],
-        "value": "@contains deepnode"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 6,
-        "example_cases": [
-          "xml_namespace_edge_connector_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains ns:root"
-          }
-        ],
-        "phases": [
-          {
-            "count": 6,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "XML"
-          }
-        ],
-        "value": "@contains ns:root"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 6,
-        "example_cases": [
-          "parser_xml_partial_body_future_target"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains root"
-          }
-        ],
-        "phases": [
-          {
-            "count": 6,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "XML"
-          }
-        ],
-        "value": "@contains root"
       },
       {
         "connectors": [
@@ -1168,36 +828,6 @@
           }
         ],
         "value": "@contains select from"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 6,
-        "example_cases": [
-          "multipart_duplicate_field_names_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains upload"
-          }
-        ],
-        "phases": [
-          {
-            "count": 6,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "ARGS_NAMES"
-          }
-        ],
-        "value": "@contains upload"
       },
       {
         "connectors": [
@@ -1357,33 +987,20 @@
           "haproxy",
           "nginx"
         ],
-        "count": 78,
+        "count": 42,
         "example_cases": [
           "duplicate_args_encoded_separator_edge",
           "edge_semicolon_query_args_names",
-          "files_names_mixed_case_filename_gap",
-          "multipart_duplicate_field_names_gap",
-          "parser_xml_partial_body_future_target",
           "sqli_like_keyword_spacing_probe",
           "sqli_like_quote_encoding_runtime_difference",
-          "unicode_whitespace_normalization_gap"
+          "unicode_whitespace_normalization_gap",
+          "xss_like_encoded_angles_normalization_probe",
+          "xss_like_mixed_case_script_token_gap"
         ],
         "operators": [
           {
             "count": 12,
             "value": "@contains b"
-          },
-          {
-            "count": 6,
-            "value": "@contains MiXeD.TXT"
-          },
-          {
-            "count": 6,
-            "value": "@contains upload"
-          },
-          {
-            "count": 6,
-            "value": "@contains root"
           },
           {
             "count": 6,
@@ -1399,12 +1016,16 @@
           },
           {
             "count": 6,
-            "value": "@contains deepnode"
+            "value": "@contains <tag>"
+          },
+          {
+            "count": 6,
+            "value": "@contains script"
           }
         ],
         "phases": [
           {
-            "count": 78,
+            "count": 42,
             "value": "2"
           }
         ],
@@ -1414,16 +1035,8 @@
             "value": "ARGS:q"
           },
           {
-            "count": 24,
-            "value": "XML"
-          },
-          {
-            "count": 18,
+            "count": 12,
             "value": "ARGS_NAMES"
-          },
-          {
-            "count": 6,
-            "value": "FILES_NAMES"
           }
         ],
         "value": "2"
@@ -1619,90 +1232,6 @@
           "haproxy",
           "nginx"
         ],
-        "count": 24,
-        "example_cases": [
-          "parser_xml_partial_body_future_target",
-          "xml_deep_nesting_future_target",
-          "xml_namespace_edge_connector_gap",
-          "xml_request_body_malformed_connector_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains root"
-          },
-          {
-            "count": 6,
-            "value": "@contains deepnode"
-          },
-          {
-            "count": 6,
-            "value": "@contains ns:root"
-          },
-          {
-            "count": 6,
-            "value": "@contains broken"
-          }
-        ],
-        "phases": [
-          {
-            "count": 24,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 24,
-            "value": "XML"
-          }
-        ],
-        "value": "body-processors"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 12,
-        "example_cases": [
-          "files_names_mixed_case_filename_gap",
-          "multipart_duplicate_field_names_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains MiXeD.TXT"
-          },
-          {
-            "count": 6,
-            "value": "@contains upload"
-          }
-        ],
-        "phases": [
-          {
-            "count": 12,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "FILES_NAMES"
-          },
-          {
-            "count": 6,
-            "value": "ARGS_NAMES"
-          }
-        ],
-        "value": "multipart"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
         "count": 3,
         "example_cases": [
           "phase1_vs_phase2_request_body_gap"
@@ -1785,76 +1314,26 @@
           "haproxy",
           "nginx"
         ],
-        "count": 24,
-        "example_cases": [
-          "parser_xml_partial_body_future_target",
-          "xml_deep_nesting_future_target",
-          "xml_namespace_edge_connector_gap",
-          "xml_request_body_malformed_connector_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains root"
-          },
-          {
-            "count": 6,
-            "value": "@contains deepnode"
-          },
-          {
-            "count": 6,
-            "value": "@contains ns:root"
-          },
-          {
-            "count": 6,
-            "value": "@contains broken"
-          }
-        ],
-        "phases": [
-          {
-            "count": 24,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 24,
-            "value": "XML"
-          }
-        ],
-        "value": "XML"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 18,
+        "count": 12,
         "example_cases": [
           "duplicate_args_encoded_separator_edge",
-          "edge_semicolon_query_args_names",
-          "multipart_duplicate_field_names_gap"
+          "edge_semicolon_query_args_names"
         ],
         "operators": [
           {
             "count": 12,
             "value": "@contains b"
-          },
-          {
-            "count": 6,
-            "value": "@contains upload"
           }
         ],
         "phases": [
           {
-            "count": 18,
+            "count": 12,
             "value": "2"
           }
         ],
         "targets": [
           {
-            "count": 18,
+            "count": 12,
             "value": "ARGS_NAMES"
           }
         ],
@@ -1894,36 +1373,6 @@
           }
         ],
         "value": "REQUEST_HEADERS_NAMES"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 6,
-        "example_cases": [
-          "files_names_mixed_case_filename_gap"
-        ],
-        "operators": [
-          {
-            "count": 6,
-            "value": "@contains MiXeD.TXT"
-          }
-        ],
-        "phases": [
-          {
-            "count": 6,
-            "value": "2"
-          }
-        ],
-        "targets": [
-          {
-            "count": 6,
-            "value": "FILES_NAMES"
-          }
-        ],
-        "value": "FILES_NAMES"
       },
       {
         "connectors": [
@@ -2195,174 +1644,6 @@
     },
     {
       "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "MiXeD.TXT",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains MiXeD.TXT",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 130,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4705",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "FILES_NAMES",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "upload",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains upload",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 175,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4703",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "ARGS_NAMES",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4610",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'partial XML parser future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "parser_xml_partial_body_future_target",
-      "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 9,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4610",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
         "id:4511",
         "phase:1",
         "deny",
@@ -2761,173 +2042,6 @@
     },
     {
       "actions": [
-        "id:4712",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'deep xml future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_deep_nesting_future_target",
-      "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "deepnode",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains deepnode",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 50,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4712",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4711",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'xml namespace edge gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_namespace_edge_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "ns:root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains ns:root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 53,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4711",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4408",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL malformed XML connector gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_request_body_malformed_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "broken",
-      "intervention_created": false,
-      "known_limitations": [
-        "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
-      ],
-      "operator": "@contains broken",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 21,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4408",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
         "id:4713",
         "phase:2",
         "t:htmlEntityDecode",
@@ -3202,174 +2316,6 @@
       "variant": "no-crs/no-mrts",
       "work_direction": [
         "collection_semantics"
-      ]
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "MiXeD.TXT",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains MiXeD.TXT",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 130,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4705",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "FILES_NAMES",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "upload",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains upload",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 175,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4703",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "ARGS_NAMES",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4610",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'partial XML parser future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "parser_xml_partial_body_future_target",
-      "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 9,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4610",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
       ]
     },
     {
@@ -3772,173 +2718,6 @@
     },
     {
       "actions": [
-        "id:4712",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'deep xml future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_deep_nesting_future_target",
-      "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "deepnode",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains deepnode",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 50,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4712",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4711",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'xml namespace edge gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_namespace_edge_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "ns:root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains ns:root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 53,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4711",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4408",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL malformed XML connector gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_request_body_malformed_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "broken",
-      "intervention_created": false,
-      "known_limitations": [
-        "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
-      ],
-      "operator": "@contains broken",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 21,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4408",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
         "id:4713",
         "phase:2",
         "t:htmlEntityDecode",
@@ -4213,174 +2992,6 @@
       "variant": "no-crs/no-mrts",
       "work_direction": [
         "collection_semantics"
-      ]
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "MiXeD.TXT",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains MiXeD.TXT",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 130,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4705",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "FILES_NAMES",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "upload",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains upload",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 175,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4703",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "ARGS_NAMES",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4610",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'partial XML parser future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "parser_xml_partial_body_future_target",
-      "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 9,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4610",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
       ]
     },
     {
@@ -4783,173 +3394,6 @@
     },
     {
       "actions": [
-        "id:4712",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'deep xml future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_deep_nesting_future_target",
-      "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "deepnode",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains deepnode",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 50,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4712",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4711",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'xml namespace edge gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_namespace_edge_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "ns:root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains ns:root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 53,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4711",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4408",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL malformed XML connector gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_request_body_malformed_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "broken",
-      "intervention_created": false,
-      "known_limitations": [
-        "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
-      ],
-      "operator": "@contains broken",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 21,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4408",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
         "id:4713",
         "phase:2",
         "t:htmlEntityDecode",
@@ -5224,174 +3668,6 @@
       "variant": "with-crs/no-mrts",
       "work_direction": [
         "collection_semantics"
-      ]
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "MiXeD.TXT",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains MiXeD.TXT",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 130,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4705",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "FILES_NAMES",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "upload",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains upload",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 175,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4703",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "ARGS_NAMES",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4610",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'partial XML parser future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "parser_xml_partial_body_future_target",
-      "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "yes",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 9,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4610",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
       ]
     },
     {
@@ -5738,173 +4014,6 @@
     },
     {
       "actions": [
-        "id:4712",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'deep xml future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_deep_nesting_future_target",
-      "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "deepnode",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains deepnode",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 50,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4712",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4711",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'xml namespace edge gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_namespace_edge_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "ns:root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains ns:root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 53,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4711",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4408",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL malformed XML connector gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_request_body_malformed_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "broken",
-      "intervention_created": false,
-      "known_limitations": [
-        "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
-      ],
-      "operator": "@contains broken",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 21,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4408",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
         "id:4713",
         "phase:2",
         "t:htmlEntityDecode",
@@ -6179,174 +4288,6 @@
       "variant": "with-crs/no-mrts",
       "work_direction": [
         "collection_semantics"
-      ]
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "MiXeD.TXT",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains MiXeD.TXT",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 130,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4705",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "FILES_NAMES",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "upload",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains upload",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 175,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4703",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "ARGS_NAMES",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4610",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'partial XML parser future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "parser_xml_partial_body_future_target",
-      "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "yes",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 9,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4610",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
       ]
     },
     {
@@ -6693,173 +4634,6 @@
     },
     {
       "actions": [
-        "id:4712",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'deep xml future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_deep_nesting_future_target",
-      "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "deepnode",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains deepnode",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 50,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4712",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4711",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'xml namespace edge gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_namespace_edge_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "ns:root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains ns:root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 53,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4711",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4408",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL malformed XML connector gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_request_body_malformed_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "nginx",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "broken",
-      "intervention_created": false,
-      "known_limitations": [
-        "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
-      ],
-      "operator": "@contains broken",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 21,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4408",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
         "id:4713",
         "phase:2",
         "t:htmlEntityDecode",
@@ -7134,174 +4908,6 @@
       "variant": "with-crs/no-mrts",
       "work_direction": [
         "collection_semantics"
-      ]
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "MiXeD.TXT",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains MiXeD.TXT",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 130,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4705",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "FILES_NAMES",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_processor_activation_missing",
-      "classification": "multipart_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "upload",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains upload",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 175,
-        "body_present": true,
-        "content_type": "multipart/form-data; boundary=----AaB03x",
-        "headers": {
-          "Content-Type": "multipart/form-data; boundary=----AaB03x"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
-      "rule_id": "4703",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
-      "source_category": "multipart",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
-      "target": "ARGS_NAMES",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4610",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'partial XML parser future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "parser_xml_partial_body_future_target",
-      "case_path": "framework:tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "yes",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 9,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4610",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
       ]
     },
     {
@@ -7644,173 +5250,6 @@
       "variant": "with-crs/no-mrts",
       "work_direction": [
         "collection_semantics"
-      ]
-    },
-    {
-      "actions": [
-        "id:4712",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'deep xml future target'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_deep_nesting_future_target",
-      "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "deepnode",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains deepnode",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 50,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4712",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4711",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'xml namespace edge gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_namespace_edge_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "ns:root",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "operator": "@contains ns:root",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 53,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4711",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actions": [
-        "id:4408",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'former XFAIL malformed XML connector gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "xml_request_body_malformed_connector_gap",
-      "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
-      "cause": "xml_processor_activation_missing",
-      "classification": "xml_processor_activation_missing",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "broken",
-      "intervention_created": false,
-      "known_limitations": [
-        "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
-      ],
-      "operator": "@contains broken",
-      "phase": "2",
-      "priority": "report_only",
-      "raw_request_contains_expected_value": true,
-      "request": {
-        "body_length": 21,
-        "body_present": true,
-        "content_type": "application/xml",
-        "headers": {
-          "Content-Type": "application/xml"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low if kept report-only; high if treated as connector XML parser evidence",
-      "rule_id": "4408",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
-      "source_category": "body-processors",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
-      "target": "XML",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "classification_only"
       ]
     },
     {
@@ -7944,14 +5383,14 @@
     "remaining_failure_analysis": "reports/testing/generated/remaining-failure-analysis.generated.json"
   },
   "summary": {
-    "backend_reached": 105,
+    "backend_reached": 69,
     "before_after": {
       "intervention_blocking_true_candidates_after": 0,
-      "intervention_blocking_true_candidates_before": 105,
-      "no_mrts_no_match_after": 105,
-      "no_mrts_no_match_before": 105,
+      "intervention_blocking_true_candidates_before": 69,
+      "no_mrts_no_match_after": 69,
+      "no_mrts_no_match_before": 69,
       "p0_p1_intervention_blocking_after": 0,
-      "p0_p1_intervention_blocking_before": 105
+      "p0_p1_intervention_blocking_before": 69
     },
     "full_matrix_totals": {
       "attempted": 3928,
@@ -7962,10 +5401,10 @@
       "pending": 2298
     },
     "intervention_created_connector_missed_403": 0,
-    "no_mrts_no_match": 105,
-    "rule_loaded_no_match": 105,
+    "no_mrts_no_match": 69,
+    "rule_loaded_no_match": 69,
     "rule_matched_no_intervention": 0,
     "rule_not_loaded": 0,
-    "unique_cases": 18
+    "unique_cases": 12
   }
 }

@@ -7,7 +7,7 @@
     "targets": [],
     "variants": []
   },
-  "generated_at": "2026-06-14T10:46:47Z",
+  "generated_at": "2026-06-14T10:52:34Z",
   "groups": [],
   "multipart_activation_missing_subcluster": {
     "active_multipart_files_after_report_sync": 0,
@@ -729,8 +729,8 @@
     "work_direction": "classification_only"
   },
   "next_fix_plan": {
-    "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
-    "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
+    "reason": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial",
+    "recommended_next_fix_cluster": "phase4_hard_abort_capability"
   },
   "records": [],
   "report_kind": "body-processor-analysis",

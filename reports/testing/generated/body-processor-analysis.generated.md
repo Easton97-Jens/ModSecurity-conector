@@ -1,6 +1,6 @@
 # Body Processor Failure Analysis
 
-- Generated at: `2026-06-14T10:46:47Z`
+- Generated at: `2026-06-14T10:52:34Z`
 - Before selected metadata fix: request_body_processor **9**, multipart_files **12**, xml_processor **24**, combined **45**.
 - After selected metadata fix: request_body_processor **0**, multipart_files **0**, xml_processor **0**, combined **0**.
 - Selected subcluster rows: **9**
@@ -167,8 +167,8 @@
 
 ## Current Next Fix Plan
 
-- Recommended next cluster: `audit_log_evidence / v3_action_nolog_pass_no_audit`
-- Reason: HTTP behavior passes; remaining failure is evidence/assertion semantics
+- Recommended next cluster: `phase4_hard_abort_capability`
+- Reason: Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial
 
 ## Guardrail Notes
 

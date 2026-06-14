@@ -17,9 +17,9 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "classification_only": 51,
-            "collection_mapping": 2,
+            "classification_only": 53,
             "collection_semantics": 6,
+            "request_body_processor": 1,
             "request_uri_mapping": 4,
             "transformation_semantics": 2
           }
@@ -55,8 +55,8 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "classification_only": 20,
-            "response_header_hook": 4
+            "response_header_hook": 4,
+            "response_header_mrts_detection_only": 20
           }
         },
         "4": {
@@ -83,7 +83,7 @@
       "top_3_next_work": [
         "response_body_non_promoted",
         "classification_only",
-        "transformation_semantics"
+        "response_header_mrts_detection_only"
       ],
       "top_failure_patterns": {
         "expected_block_got_200": 246,
@@ -91,8 +91,7 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "classification_only": 194,
-        "collection_mapping": 2,
+        "classification_only": 176,
         "collection_semantics": 10,
         "intervention_blocking": 1,
         "json_processor": 4,
@@ -100,6 +99,7 @@
         "request_uri_mapping": 4,
         "response_body_non_promoted": 284,
         "response_header_hook": 4,
+        "response_header_mrts_detection_only": 20,
         "transformation_semantics": 12
       }
     },
@@ -119,9 +119,9 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "classification_only": 51,
-            "collection_mapping": 2,
+            "classification_only": 53,
             "collection_semantics": 6,
+            "request_body_processor": 1,
             "request_uri_mapping": 4,
             "transformation_semantics": 2
           }
@@ -157,8 +157,8 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "classification_only": 20,
-            "response_header_hook": 4
+            "response_header_hook": 4,
+            "response_header_mrts_detection_only": 20
           }
         },
         "4": {
@@ -193,8 +193,7 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "classification_only": 194,
-        "collection_mapping": 2,
+        "classification_only": 176,
         "collection_semantics": 10,
         "intervention_blocking": 1,
         "json_processor": 4,
@@ -202,6 +201,7 @@
         "request_uri_mapping": 4,
         "response_body_non_promoted": 284,
         "response_header_hook": 4,
+        "response_header_mrts_detection_only": 20,
         "transformation_semantics": 12
       }
     },
@@ -221,7 +221,7 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "classification_only": 51,
+            "classification_only": 53,
             "collection_semantics": 6,
             "intervention_blocking": 3,
             "request_uri_mapping": 4,
@@ -259,8 +259,8 @@
             "not_executable": 4
           },
           "top_work_directions": {
-            "classification_only": 20,
-            "response_header_hook": 4
+            "response_header_hook": 4,
+            "response_header_mrts_detection_only": 20
           }
         },
         "4": {
@@ -296,8 +296,7 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "classification_only": 198,
-        "collection_mapping": 2,
+        "classification_only": 180,
         "collection_semantics": 10,
         "intervention_blocking": 3,
         "json_processor": 4,
@@ -305,12 +304,13 @@
         "request_uri_mapping": 4,
         "response_body_non_promoted": 300,
         "response_header_hook": 4,
+        "response_header_mrts_detection_only": 20,
         "transformation_semantics": 12
       }
     }
   },
   "framework_root": "/root/git/ModSecurity-test-Framework",
-  "generated_at": "2026-06-14T10:46:38Z",
+  "generated_at": "2026-06-14T10:52:23Z",
   "guardrails": {
     "classification_is_explanatory_only": true,
     "feature_demo_runtime_cases": 0,
@@ -329,9 +329,10 @@
     "1": {
       "classification": {
         "collection_name_normalization_semantics": 18,
+        "nolog-expected-no-audit": 6,
         "pending": 12,
         "phase1_request_body_unavailable": 3,
-        "runtime-difference": 11,
+        "runtime-difference": 5,
         "transformation_request_literal_no_match": 6,
         "with_mrts_detection_only_non_disruptive": 153
       },
@@ -361,8 +362,8 @@
       "priority": {
         "P0": 3,
         "P1": 2,
-        "P3": 45,
-        "report_only": 153
+        "P3": 39,
+        "report_only": 159
       },
       "queue": [
         {
@@ -817,72 +818,6 @@
         },
         {
           "actual_status": 200,
-          "case_id": "v3_action_nolog_pass_no_audit",
-          "category": "actions",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_pass_but_evidence_missing"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "audit_log"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "fail: expected audit log to be absent or empty: /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/audit.log",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "AUDIT_LOG"
-          ],
-          "work_direction": [
-            "collection_mapping"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "v3_action_nolog_pass_no_audit",
-          "category": "actions",
-          "classification": "runtime-difference",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_pass_but_evidence_missing"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "audit_log"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "fail: expected audit log to be absent or empty: /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/audit.log",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "AUDIT_LOG"
-          ],
-          "work_direction": [
-            "collection_mapping"
-          ]
-        },
-        {
-          "actual_status": 200,
           "case_id": "v3_request_cookies_names_case_runtime_difference",
           "category": "collections",
           "classification": "collection_name_normalization_semantics",
@@ -1310,72 +1245,6 @@
         },
         {
           "actual_status": 200,
-          "case_id": "v3_action_nolog_pass_no_audit",
-          "category": "actions",
-          "classification": "runtime-difference",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_pass_but_evidence_missing"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "audit_log"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "expected HTTP 200; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "AUDIT_LOG"
-          ],
-          "work_direction": [
-            "collection_mapping"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "v3_action_nolog_pass_no_audit",
-          "category": "actions",
-          "classification": "runtime-difference",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_pass_but_evidence_missing"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "audit_log"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "expected HTTP 200; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "AUDIT_LOG"
-          ],
-          "work_direction": [
-            "collection_mapping"
-          ]
-        },
-        {
-          "actual_status": 200,
           "case_id": "v3_request_cookies_names_case_runtime_difference",
           "category": "collections",
           "classification": "collection_name_normalization_semantics",
@@ -1799,72 +1668,6 @@
           ],
           "work_direction": [
             "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "v3_action_nolog_pass_no_audit",
-          "category": "actions",
-          "classification": "runtime-difference",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/result.json",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_pass_but_evidence_missing"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "audit_log"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "fail: expected audit log to be absent or empty: /src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/audit.log",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "AUDIT_LOG"
-          ],
-          "work_direction": [
-            "collection_mapping"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "v3_action_nolog_pass_no_audit",
-          "category": "actions",
-          "classification": "runtime-difference",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/result.json",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_pass_but_evidence_missing"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "audit_log"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "fail: expected audit log to be absent or empty: /src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/audit.log",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "AUDIT_LOG"
-          ],
-          "work_direction": [
-            "collection_mapping"
           ]
         },
         {
@@ -3131,6 +2934,72 @@
             "INTERVENTION",
             "REQUEST_URI",
             "TRANSFORMATIONS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "v3_action_nolog_pass_no_audit",
+          "category": "actions",
+          "classification": "nolog-expected-no-audit",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "audit_log"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "AUDIT_LOG"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "v3_action_nolog_pass_no_audit",
+          "category": "actions",
+          "classification": "nolog-expected-no-audit",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "audit_log"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "AUDIT_LOG"
           ],
           "work_direction": [
             "classification_only"
@@ -4799,6 +4668,72 @@
         },
         {
           "actual_status": 200,
+          "case_id": "v3_action_nolog_pass_no_audit",
+          "category": "actions",
+          "classification": "nolog-expected-no-audit",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "audit_log"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "AUDIT_LOG"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "v3_action_nolog_pass_no_audit",
+          "category": "actions",
+          "classification": "nolog-expected-no-audit",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "audit_log"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "AUDIT_LOG"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
           "case_id": "v3_auditlog_serial_fields_block",
           "category": "audit-log",
           "classification": "with_mrts_detection_only_non_disruptive",
@@ -6460,6 +6395,72 @@
         },
         {
           "actual_status": 200,
+          "case_id": "v3_action_nolog_pass_no_audit",
+          "category": "actions",
+          "classification": "nolog-expected-no-audit",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/result.json",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "audit_log"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "AUDIT_LOG"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "v3_action_nolog_pass_no_audit",
+          "category": "actions",
+          "classification": "nolog-expected-no-audit",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/result.json",
+          "expected_status": 200,
+          "failure_pattern": [
+            "expected_pass_but_evidence_missing"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "audit_log"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "classification-only: rule 3326 has nolog/pass and is absent from runtime logs; with-crs audit contains unrelated CRS rule(s): 920350",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "AUDIT_LOG"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
           "case_id": "v3_auditlog_serial_fields_block",
           "category": "audit-log",
           "classification": "with_mrts_detection_only_non_disruptive",
@@ -6996,8 +6997,7 @@
         "not_executable": 12
       },
       "top_work_directions": {
-        "classification_only": 153,
-        "collection_mapping": 6,
+        "classification_only": 159,
         "collection_semantics": 18,
         "intervention_blocking": 5,
         "request_body_processor": 3,
@@ -47761,7 +47761,7 @@
     "3": {
       "classification": {
         "pending": 12,
-        "with_mrts_detection_only_non_disruptive": 60
+        "response-header-mrts-detection-only": 60
       },
       "coverage": {
         "case_count": 12,
@@ -47786,10 +47786,1882 @@
       "focus": "RESPONSE_HEADERS, Set-Cookie, response-header hooks, and audit-log phase 3 evidence",
       "goal": "Separate response-header hook/mapping work from request-side intervention issues.",
       "priority": {
-        "P3": 12,
-        "report_only": 60
+        "P1": 60,
+        "P3": 12
       },
       "queue": [
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_content_type_charset_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_content_type_charset_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_encoded_value_future_target",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_encoded_value_future_target",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_mixed_case_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_mixed_case_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_multi_value_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_multi_value_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_set_cookie_multi_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_set_cookie_multi_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "pr70_phase3_audit_response_header",
+          "category": "audit-log",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/pr70_phase3_audit_response_header/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "audit_log",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "AUDIT_LOG",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "pr70_phase3_audit_response_header",
+          "category": "audit-log",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/pr70_phase3_audit_response_header/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "audit_log",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "AUDIT_LOG",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_header_basic",
+          "category": "unknown",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/response_header_basic/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_header_basic",
+          "category": "unknown",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/response_header_basic/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_headers_multi_value_runtime_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/response_headers_multi_value_runtime_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_headers_multi_value_runtime_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/response_headers_multi_value_runtime_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_content_type_charset_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_content_type_charset_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_content_type_charset_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_encoded_value_future_target",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_encoded_value_future_target",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_encoded_value_future_target/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_mixed_case_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_mixed_case_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_multi_value_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_multi_value_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_set_cookie_multi_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_set_cookie_multi_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "pr70_phase3_audit_response_header",
+          "category": "audit-log",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/pr70_phase3_audit_response_header/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "audit_log",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "AUDIT_LOG",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "pr70_phase3_audit_response_header",
+          "category": "audit-log",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/pr70_phase3_audit_response_header/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "audit_log",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "AUDIT_LOG",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_header_basic",
+          "category": "unknown",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/response_header_basic/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_header_basic",
+          "category": "unknown",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/response_header_basic/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_headers_multi_value_runtime_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_headers_multi_value_runtime_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_content_type_charset_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_content_type_charset_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_content_type_charset_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_content_type_charset_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_duplicate_value_runtime_difference/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_encoded_value_future_target",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_encoded_value_future_target/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_encoded_value_future_target",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_encoded_value_future_target/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_location_encoded_runtime_diff/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_location_encoded_runtime_diff/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_mixed_case_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_mixed_case_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_mixed_case_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_mixed_case_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_multi_value_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_multi_value_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_multi_value_connector_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_multi_value_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_set_cookie_multi_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_set_cookie_multi_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase3_response_headers_set_cookie_multi_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_set_cookie_multi_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "pr70_phase3_audit_response_header",
+          "category": "audit-log",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/pr70_phase3_audit_response_header/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "audit_log",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "AUDIT_LOG",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "pr70_phase3_audit_response_header",
+          "category": "audit-log",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/pr70_phase3_audit_response_header/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "audit_log",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "AUDIT_LOG",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_header_basic",
+          "category": "unknown",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/response_header_basic/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_header_basic",
+          "category": "unknown",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/response_header_basic/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_headers_multi_value_runtime_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/response_headers_multi_value_runtime_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "response_headers_multi_value_runtime_gap",
+          "category": "response-headers",
+          "classification": "response-header-mrts-detection-only",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/response_headers_multi_value_runtime_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "response_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "3",
+          "priority": "P1",
+          "reason": "classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "RESPONSE_HEADERS"
+          ],
+          "work_direction": [
+            "response_header_mrts_detection_only"
+          ]
+        },
         {
           "actual_status": null,
           "case_id": "phase3_response_headers_server_presence_pending",
@@ -48137,1878 +50009,6 @@
           "work_direction": [
             "response_header_hook"
           ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_content_type_charset_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_content_type_charset_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_encoded_value_future_target",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_encoded_value_future_target/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_encoded_value_future_target",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_encoded_value_future_target/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_mixed_case_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_mixed_case_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_multi_value_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_multi_value_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_set_cookie_multi_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_set_cookie_multi_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "pr70_phase3_audit_response_header",
-          "category": "audit-log",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/pr70_phase3_audit_response_header/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "audit_log",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "AUDIT_LOG",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "pr70_phase3_audit_response_header",
-          "category": "audit-log",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/pr70_phase3_audit_response_header/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "audit_log",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "AUDIT_LOG",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_header_basic",
-          "category": "unknown",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/response_header_basic/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_header_basic",
-          "category": "unknown",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/response_header_basic/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_headers_multi_value_runtime_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/response_headers_multi_value_runtime_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_headers_multi_value_runtime_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/response_headers_multi_value_runtime_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_content_type_charset_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_content_type_charset_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_content_type_charset_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_content_type_charset_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_encoded_value_future_target",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_encoded_value_future_target/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_encoded_value_future_target",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_encoded_value_future_target/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_mixed_case_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_mixed_case_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_mixed_case_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_multi_value_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_multi_value_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_set_cookie_multi_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_set_cookie_multi_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "pr70_phase3_audit_response_header",
-          "category": "audit-log",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/pr70_phase3_audit_response_header/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "audit_log",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "AUDIT_LOG",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "pr70_phase3_audit_response_header",
-          "category": "audit-log",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/pr70_phase3_audit_response_header/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "audit_log",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "AUDIT_LOG",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_header_basic",
-          "category": "unknown",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/response_header_basic/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_header_basic",
-          "category": "unknown",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/response_header_basic/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_headers_multi_value_runtime_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_headers_multi_value_runtime_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_content_type_charset_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_content_type_charset_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_content_type_charset_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_content_type_charset_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_duplicate_value_runtime_difference/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_duplicate_value_runtime_difference/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_encoded_value_future_target",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_encoded_value_future_target/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_encoded_value_future_target",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_encoded_value_future_target/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_location_encoded_runtime_diff/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_location_encoded_runtime_diff/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_mixed_case_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_mixed_case_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_mixed_case_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_mixed_case_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_multi_value_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_multi_value_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_multi_value_connector_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_multi_value_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_set_cookie_multi_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_set_cookie_multi_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_set_cookie_multi_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_set_cookie_multi_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "pr70_phase3_audit_response_header",
-          "category": "audit-log",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/pr70_phase3_audit_response_header/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "audit_log",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "AUDIT_LOG",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "pr70_phase3_audit_response_header",
-          "category": "audit-log",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/pr70_phase3_audit_response_header/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "audit_log",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "AUDIT_LOG",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_header_basic",
-          "category": "unknown",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/response_header_basic/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_header_basic",
-          "category": "unknown",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/response_header_basic/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_headers_multi_value_runtime_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/response_headers_multi_value_runtime_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "response_headers_multi_value_runtime_gap",
-          "category": "response-headers",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/response_headers_multi_value_runtime_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "response_headers"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "3",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "RESPONSE_HEADERS"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
         }
       ],
       "runtime_entries": 756,
@@ -50023,8 +50023,8 @@
         "not_executable": 12
       },
       "top_work_directions": {
-        "classification_only": 60,
-        "response_header_hook": 12
+        "response_header_hook": 12,
+        "response_header_mrts_detection_only": 60
       },
       "unique_runtime_cases": 114
     },
@@ -76520,7 +76520,7 @@
     "main_work_direction_by_phase": {
       "1": "classification_only",
       "2": "classification_only",
-      "3": "classification_only",
+      "3": "response_header_mrts_detection_only",
       "4": "response_body_non_promoted"
     },
     "metadata_status_by_phase": {

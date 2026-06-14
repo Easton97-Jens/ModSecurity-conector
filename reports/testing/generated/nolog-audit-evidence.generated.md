@@ -22,8 +22,8 @@ Generated file - do not edit manually.
 ## Before/After
 - `audit_log_evidence` rows before: **6**
 - `audit_log_evidence` rows after: **0**
-- `classification_only` rows before: **0**
-- `classification_only` rows after: **6**
+- `classification_only` rows before: **586**
+- `classification_only` rows after: **592**
 
 ## Runtime Rows
 | Connector | Variant | Status | Expected | Actual | Audit IDs | Decision IDs | Target Rule Logged | Backend | Classification |
