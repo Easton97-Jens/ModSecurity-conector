@@ -1,6 +1,6 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-14T10:52:24Z`
+Generated at: `2026-06-14T11:06:30Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -162,8 +162,8 @@ Generated at: `2026-06-14T10:52:24Z`
 | 2 | nginx_tx_scoring_iterative_block | nginx | no-crs/with-mrts, with-crs/with-mrts | with_mrts_detection_only_non_disruptive | {'403→200': 2} | 3201 | ARGS |
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `phase4_hard_abort_capability`
-- Begründung: Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial
+- Empfohlener nächster Fix-Cluster: `rule_chain_semantics and small single-connector leftovers`
+- Begründung: smaller count; useful after high-signal evidence clusters
 - Nicht als nächstes bearbeiten: `phase4_hard_abort_capability`, weil requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.

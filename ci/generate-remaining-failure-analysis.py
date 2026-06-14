@@ -19,7 +19,7 @@ REPORT_DIR = Path("reports/testing/generated")
 FAILURE_CATEGORIES = (
     "intervention_blocking",
     "collection_name_normalization_semantics",
-    "phase4_hard_abort_supported",
+    "phase4_no_hard_abort_required",
     "phase4_hard_abort_evidence",
     "phase4_connection_aborted",
     "phase4_log_only_no_abort",
@@ -57,7 +57,7 @@ NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS = {
     "phase1_request_body_unavailable",
 }
 PHASE4_HARD_ABORT_CATEGORIES = {
-    "phase4_hard_abort_supported",
+    "phase4_no_hard_abort_required",
     "phase4_hard_abort_evidence",
     "phase4_connection_aborted",
     "phase4_log_only_no_abort",
@@ -76,6 +76,40 @@ OLD_CLUSTER_CHECKS = (
 BODY_PROCESSOR_CONNECTOR_GAP_CASES = {
     "phase1_vs_phase2_request_body_gap",
 }
+NOT_NEXT_RECOMMENDATIONS = (
+    {
+        "cluster": "phase4_hard_abort_capability",
+        "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes",
+    },
+    {
+        "cluster": "transformation_semantics",
+        "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes",
+    },
+    {
+        "cluster": "nolog_expected_no_audit",
+        "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence",
+    },
+    {
+        "cluster": "response_header_mrts_detection_only",
+        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action",
+    },
+    {
+        "cluster": "with_mrts_detection_only_non_disruptive",
+        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action",
+    },
+    {
+        "cluster": "xml_processor_activation_missing",
+        "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML",
+    },
+    {
+        "cluster": "multipart_processor_activation_missing",
+        "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections",
+    },
+    {
+        "cluster": "collection_name_normalization_semantics",
+        "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes",
+    },
+)
 
 
 def utc_now() -> str:
@@ -175,7 +209,7 @@ def phase4_detail_category(entry: dict[str, Any]) -> str:
         return "phase4_missing_abort_evidence"
     if not has_log_evidence and entry.get("runtime_status") == "FAIL":
         return "phase4_missing_abort_evidence"
-    return "phase4_hard_abort_supported"
+    return "phase4_no_hard_abort_required"
 
 
 def failure_category(entry: dict[str, Any]) -> str:
@@ -490,7 +524,7 @@ def fixability(category: str) -> str:
     return {
         "intervention_blocking": "partly fixable; first split true connector gaps from future/native semantic cases",
         "collection_name_normalization_semantics": "metadata-only semantic split; needs native/libmodsecurity comparison before any fix",
-        "phase4_hard_abort_supported": "classification-only; this row does not require a hard abort",
+        "phase4_no_hard_abort_required": "classification-only; control/pass row does not require a hard abort and does not prove capability support",
         "phase4_hard_abort_evidence": "evidence-backed; preserve strict hard-abort proof while stabilizing variants",
         "phase4_connection_aborted": "evidence-backed transport outcome",
         "phase4_log_only_no_abort": "report-only unless the case is meant to exercise strict hard abort",
@@ -533,7 +567,7 @@ def risk(category: str) -> str:
         "intervention_blocking": "medium to high",
         "collection_name_normalization_semantics": "medium to high",
         "transformation_semantics": "high",
-        "phase4_hard_abort_supported": "low",
+        "phase4_no_hard_abort_required": "low",
         "phase4_hard_abort_evidence": "medium; keep strict/test-only semantics scoped",
         "phase4_connection_aborted": "medium; transport-level evidence is connector-specific",
         "phase4_log_only_no_abort": "low if reported honestly, high if promoted as hard abort",
@@ -563,7 +597,7 @@ def recommended_step(category: str) -> str:
         "multipart_processor_activation_missing": "keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses",
         "intervention_blocking": "sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation",
         "transformation_semantics": "compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes",
-        "phase4_hard_abort_supported": "keep as context/control evidence",
+        "phase4_no_hard_abort_required": "keep as context/control evidence; do not promote as hard-abort support",
         "phase4_hard_abort_evidence": "preserve NGINX strict hard-abort proof and stabilize MRTS-enabled variants",
         "phase4_connection_aborted": "preserve transport-abort evidence and do not replace it with status-only assertions",
         "phase4_log_only_no_abort": "keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence",
@@ -684,11 +718,13 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
     }
 
 
-def first_priority_item(plan: dict[str, list[dict[str, Any]]]) -> dict[str, Any] | None:
+def first_priority_item(plan: dict[str, list[dict[str, Any]]], *, excluded_clusters: set[str] | None = None) -> dict[str, Any] | None:
+    excluded_clusters = excluded_clusters or set()
     for priority in ("P0", "P1", "P2", "P3", "P4"):
         items = plan.get(priority, [])
-        if items:
-            return items[0]
+        for item in items:
+            if str(item.get("cluster_name") or "") not in excluded_clusters:
+                return item
     return None
 
 
@@ -766,44 +802,15 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
         "category_rollup": categories,
     }
     analysis["priority_plan"] = priority_plan(failures, categories)
-    recommended = first_priority_item(analysis["priority_plan"])
+    not_next = [dict(item) for item in NOT_NEXT_RECOMMENDATIONS]
+    recommended = first_priority_item(
+        analysis["priority_plan"],
+        excluded_clusters={str(item["cluster"]) for item in not_next},
+    )
     analysis["recommendation"] = {
         "recommended_next_fix_cluster": recommended.get("cluster_name") if recommended else "none",
         "reason": recommended.get("why") if recommended else "No remaining connector Full-Matrix failures are present in the generated reports.",
-        "not_next": [
-            {
-                "cluster": "phase4_hard_abort_capability",
-                "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes",
-            },
-            {
-                "cluster": "transformation_semantics",
-                "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes",
-            },
-            {
-                "cluster": "nolog_expected_no_audit",
-                "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence",
-            },
-            {
-                "cluster": "response_header_mrts_detection_only",
-                "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action",
-            },
-            {
-                "cluster": "with_mrts_detection_only_non_disruptive",
-                "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action",
-            },
-            {
-                "cluster": "xml_processor_activation_missing",
-                "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML",
-            },
-            {
-                "cluster": "multipart_processor_activation_missing",
-                "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections",
-            },
-            {
-                "cluster": "collection_name_normalization_semantics",
-                "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes",
-            },
-        ],
+        "not_next": not_next,
     }
     return analysis
 
@@ -934,7 +941,7 @@ def render_analysis_markdown(analysis: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_plan_markdown(plan: dict[str, Any], generated_at: str) -> str:
+def render_plan_markdown(plan: dict[str, Any], generated_at: str, recommendation: dict[str, Any] | None = None) -> str:
     lines = [
         "# Next Fix Plan",
         "",
@@ -942,6 +949,17 @@ def render_plan_markdown(plan: dict[str, Any], generated_at: str) -> str:
         "",
         "Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.",
     ]
+    if recommendation:
+        lines.extend(
+            [
+                "",
+                "## Recommendation",
+                f"- Empfohlener nächster Fix-Cluster: `{recommendation['recommended_next_fix_cluster']}`",
+                f"- Begründung: {recommendation['reason']}",
+            ]
+        )
+        for item in recommendation.get("not_next", []):
+            lines.append(f"- Nicht als nächstes bearbeiten: `{item['cluster']}`, weil {item['reason']}.")
     for priority in ("P0", "P1", "P2", "P3", "P4"):
         lines.extend(["", f"## {priority}"])
         items = plan.get(priority, [])
@@ -1045,7 +1063,7 @@ def main() -> int:
     (output_dir / "remaining-failure-analysis.generated.json").write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (output_dir / "remaining-failure-analysis.generated.md").write_text(render_analysis_markdown(analysis), encoding="utf-8")
     (output_dir / "next-fix-plan.generated.json").write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_dir / "next-fix-plan.generated.md").write_text(render_plan_markdown(plan["priority_plan"], plan["generated_at"]), encoding="utf-8")
+    (output_dir / "next-fix-plan.generated.md").write_text(render_plan_markdown(plan["priority_plan"], plan["generated_at"], plan["recommendation"]), encoding="utf-8")
     update_full_run_evidence(output_dir)
     print(output_dir / "remaining-failure-analysis.generated.md")
     print(output_dir / "next-fix-plan.generated.md")

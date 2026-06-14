@@ -6,7 +6,7 @@
     "root_cause": "monolithic response_header_hook cluster is reduced to MRTS DetectionOnly overlay after backend setup and HAProxy Set-Cookie multi-value evidence are stabilized",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-14T10:52:23Z",
+  "generated_at": "2026-06-14T11:06:29Z",
   "groups": {
     "by_case": [
       {

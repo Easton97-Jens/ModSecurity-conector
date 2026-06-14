@@ -739,21 +739,25 @@
         "phase4_connection_aborted": 2,
         "phase4_connector_gap": 80,
         "phase4_hard_abort_evidence": 2,
-        "phase4_hard_abort_supported": 684,
         "phase4_log_only_no_abort": 10,
-        "phase4_missing_abort_evidence": 92
+        "phase4_missing_abort_evidence": 92,
+        "phase4_no_hard_abort_required": 684
       },
       "connection_aborted_rows": 2,
       "full_delivery_without_abort_rows": 842,
       "hard_abort_evidence_rows": 2,
       "log_evidence_rows": 336,
+      "log_only_not_hard_abort_rows": 10,
+      "no_hard_abort_required_rows": 684,
       "rows": 868,
       "runtime_status": {
         "FAIL": 116,
         "NOT_EXECUTABLE": 12,
         "PASS": 740
       },
-      "sensitive_log_leak_rows": 0
+      "sensitive_log_leak_rows": 0,
+      "status_200_without_abort_rows": 806,
+      "truncated_not_hard_abort_rows": 0
     }
   },
   "post_libcrypt_native_rerun": {

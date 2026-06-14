@@ -237,7 +237,7 @@
       }
     ]
   },
-  "generated_at": "2026-06-14T10:52:30Z",
+  "generated_at": "2026-06-14T11:06:36Z",
   "groups": {
     "A": {
       "connectors": [],
@@ -593,9 +593,9 @@
     }
   },
   "next_fix_plan": {
-    "generated_at": "2026-06-14T10:52:24Z",
-    "reason": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial",
-    "recommended_next_fix_cluster": "phase4_hard_abort_capability"
+    "generated_at": "2026-06-14T11:06:30Z",
+    "reason": "smaller count; useful after high-signal evidence clusters",
+    "recommended_next_fix_cluster": "rule_chain_semantics and small single-connector leftovers"
   },
   "records": [
     {

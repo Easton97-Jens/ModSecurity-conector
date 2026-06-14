@@ -7,7 +7,7 @@
     "targets": [],
     "variants": []
   },
-  "generated_at": "2026-06-14T10:52:34Z",
+  "generated_at": "2026-06-14T11:06:40Z",
   "groups": [],
   "multipart_activation_missing_subcluster": {
     "active_multipart_files_after_report_sync": 0,
@@ -729,8 +729,8 @@
     "work_direction": "classification_only"
   },
   "next_fix_plan": {
-    "reason": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial",
-    "recommended_next_fix_cluster": "phase4_hard_abort_capability"
+    "reason": "smaller count; useful after high-signal evidence clusters",
+    "recommended_next_fix_cluster": "rule_chain_semantics and small single-connector leftovers"
   },
   "records": [],
   "report_kind": "body-processor-analysis",

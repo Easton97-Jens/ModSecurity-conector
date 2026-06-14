@@ -1,6 +1,6 @@
 # Intervention Blocking Analysis
 
-- Generated at: `2026-06-14T10:52:30Z`
+- Generated at: `2026-06-14T11:06:36Z`
 - Expected `403` / actual `200` rows under review: **559**.
 - Intervention-blocking true candidates: **0** runtime-fixable rows.
 - Remaining P0/P1 intervention-blocking rows: **0**.
@@ -71,8 +71,8 @@
 
 ## Current Next Fix Plan
 
-- Recommended next cluster: `phase4_hard_abort_capability`
-- Reason: Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial
+- Recommended next cluster: `rule_chain_semantics and small single-connector leftovers`
+- Reason: smaller count; useful after high-signal evidence clusters
 
 ## Guardrail Notes
 

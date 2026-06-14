@@ -17,7 +17,7 @@ except Exception:  # pragma: no cover - report generation still works from evide
 
 REPORT_DIR = Path("reports/testing/generated")
 PHASE4_CATEGORIES = (
-    "phase4_hard_abort_supported",
+    "phase4_no_hard_abort_required",
     "phase4_hard_abort_evidence",
     "phase4_connection_aborted",
     "phase4_log_only_no_abort",
@@ -274,7 +274,7 @@ def classify_case(
     )
     logs = log_evidence(phase4_events, decisions, evidence)
     expected_action = str(meta.get("expected_action") or "")
-    category = "phase4_hard_abort_supported"
+    category = "phase4_no_hard_abort_required"
     evidence_categories: list[str] = []
     log_only = action == "log_only" or mode in {"minimal", "safe"} or reason in {"mode_minimal", "mode_safe", "content_type_not_in_scope"}
     known_gap = (
@@ -422,6 +422,7 @@ def build_report(connector_root: Path) -> dict[str, Any]:
             ],
             "not_sufficient": [
                 "HTTP 200 with full body delivery.",
+                "Control/pass rows that do not require a hard abort.",
                 "log_only without abort.",
                 "body truncation without transport abort evidence.",
                 "expected 403 alone without Phase 4 intervention evidence.",
@@ -454,7 +455,11 @@ def build_report(connector_root: Path) -> dict[str, Any]:
             "category_counts": category_counts(rows),
             "hard_abort_evidence_rows": len(hard_abort_rows),
             "connection_aborted_rows": sum(1 for row in rows if "phase4_connection_aborted" in row.get("evidence_categories", [])),
+            "no_hard_abort_required_rows": sum(1 for row in rows if row.get("new_hard_abort_classification") == "phase4_no_hard_abort_required"),
             "log_evidence_rows": sum(1 for row in rows if row.get("log_evidence")),
+            "log_only_not_hard_abort_rows": sum(1 for row in rows if row.get("new_hard_abort_classification") == "phase4_log_only_no_abort"),
+            "truncated_not_hard_abort_rows": sum(1 for row in rows if row.get("new_hard_abort_classification") == "phase4_truncated_not_accepted"),
+            "status_200_without_abort_rows": sum(1 for row in rows if row.get("actual_status") == 200 and not row.get("abort_evidence")),
             "full_delivery_without_abort_rows": sum(1 for row in rows if row.get("response_delivered") == "full" and not row.get("abort_evidence")),
             "sensitive_log_leak_rows": sum(1 for row in rows if row.get("sensitive_log_leak")),
         },
@@ -511,15 +516,27 @@ def render_markdown(report: dict[str, Any]) -> str:
     summary = report["summary"]
     lines.extend(
         md_table(
-            ["Rows", "Runtime status", "Hard abort evidence", "Connection aborted", "Log evidence", "Full delivery without abort", "Sensitive log leaks"],
+            [
+                "Rows",
+                "Runtime status",
+                "Hard abort evidence",
+                "Connection aborted",
+                "No hard abort required",
+                "Log-only not hard abort",
+                "Truncated not hard abort",
+                "Status 200 without abort",
+                "Sensitive log leaks",
+            ],
             [
                 [
                     summary["rows"],
                     summary["runtime_status"],
                     summary["hard_abort_evidence_rows"],
                     summary["connection_aborted_rows"],
-                    summary["log_evidence_rows"],
-                    summary["full_delivery_without_abort_rows"],
+                    summary["no_hard_abort_required_rows"],
+                    summary["log_only_not_hard_abort_rows"],
+                    summary["truncated_not_hard_abort_rows"],
+                    summary["status_200_without_abort_rows"],
                     summary["sensitive_log_leak_rows"],
                 ]
             ],

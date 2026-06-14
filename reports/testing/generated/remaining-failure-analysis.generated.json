@@ -889,21 +889,21 @@
       "typical_examples": []
     },
     {
-      "category": "phase4_hard_abort_supported",
-      "connectors": [],
-      "count": 0,
-      "fixable": "classification-only; this row does not require a hard abort",
-      "recommended_next_step": "keep as context/control evidence",
-      "risk": "low",
-      "typical_examples": []
-    },
-    {
       "category": "phase4_native_semantics",
       "connectors": [],
       "count": 0,
       "fixable": "native semantics evidence only; keep separate from connector Full-Matrix PASS/FAIL",
       "recommended_next_step": "keep native MRTS result separate from connector Full-Matrix work",
       "risk": "low if kept separate",
+      "typical_examples": []
+    },
+    {
+      "category": "phase4_no_hard_abort_required",
+      "connectors": [],
+      "count": 0,
+      "fixable": "classification-only; control/pass row does not require a hard abort and does not prove capability support",
+      "recommended_next_step": "keep as context/control evidence; do not promote as hard-abort support",
+      "risk": "low",
       "typical_examples": []
     },
     {
@@ -988,7 +988,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-14T10:52:24Z",
+  "generated_at": "2026-06-14T11:06:30Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -1126,8 +1126,8 @@
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
-    "reason": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial",
-    "recommended_next_fix_cluster": "phase4_hard_abort_capability"
+    "reason": "smaller count; useful after high-signal evidence clusters",
+    "recommended_next_fix_cluster": "rule_chain_semantics and small single-connector leftovers"
   },
   "regression_checks": {
     "apache_expected_200_actual_404": {
@@ -1163,13 +1163,13 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-14T10:52:20Z",
+    "connector_work_queue": "2026-06-14T11:06:26Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
     "full_runtime_matrix": "2026-06-13T20:27:13Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-14T10:52:23Z",
+    "phase_work_queue": "2026-06-14T11:06:29Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {
