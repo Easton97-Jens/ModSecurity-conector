@@ -48,6 +48,13 @@ These native MRTS reports are separate from connector full-matrix evidence.
 - apache: `expat.h` missing; Provide local CPPFLAGS/LDFLAGS for expat headers/libs or install the matching system development package outside this run.
 - haproxy: `crypt.h` missing; Provide local CPPFLAGS/LDFLAGS for crypt headers/libs or install the matching system development package outside this run.
 
+<!-- no-mrts-intervention-nomatch-analysis:start -->
+## No-MRTS Intervention No-Match Analysis
+- Report: `reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md`
+- Scope: 105 no-MRTS expected 403 / actual 200 rows where the rule is loaded but no match evidence is visible.
+- This is analysis-only evidence; Expected statuses and runtime PASS/FAIL values remain unchanged.
+<!-- no-mrts-intervention-nomatch-analysis:end -->
+
 <!-- remaining-failure-analysis:start -->
 ## Remaining Failure Analysis
 - Remaining failure analysis: `reports/testing/generated/remaining-failure-analysis.generated.md`

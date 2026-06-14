@@ -694,6 +694,10 @@
       "total_size": 1778164186
     }
   },
+  "no_mrts_intervention_nomatch_analysis_report": {
+    "analysis": "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md",
+    "json": "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json"
+  },
   "nolog_audit_evidence_report": {
     "analysis": "reports/testing/generated/nolog-audit-evidence.generated.md",
     "case_id": "v3_action_nolog_pass_no_audit",
@@ -786,7 +790,9 @@
     "reports/testing/generated/nolog-audit-evidence.generated.json",
     "reports/testing/generated/nolog-audit-evidence.generated.md",
     "reports/testing/generated/response-header-hook-analysis.generated.json",
-    "reports/testing/generated/response-header-hook-analysis.generated.md"
+    "reports/testing/generated/response-header-hook-analysis.generated.md",
+    "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json",
+    "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md"
   ],
   "response_header_hook_analysis_report": {
     "analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",
