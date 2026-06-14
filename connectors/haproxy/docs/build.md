@@ -1,30 +1,49 @@
-# HAProxy Scaffold Build Plan
+# HAProxy Build
 
-## Hinweis
+Status: production SPOA runtime build available
 
-Dieses Dokument beschreibt offene Build-Fragen. Es behauptet keine
-funktionierende Build-Pipeline.
+The complete repository-supported HAProxy compile and local verification flow
+is documented in the root guide:
 
-## Offene Build-Fragen (noch zu prüfen)
+- [`COMPILE_HAPROXY.md`](../../../COMPILE_HAPROXY.md)
 
-- [ ] Wird ein kompilierter Connector-Bestandteil benötigt?
-- [ ] Wird ein separater SPOA-Agent gebaut?
-- [ ] Welche Abhängigkeiten/Versionen sind erforderlich?
-- [ ] Gibt es HAProxy-Testcontainer für reproduzierbare Läufe?
-- [ ] Welche Artefakte entstehen und wo werden sie abgelegt?
+## Current Build Path
 
-## Build-Isolation (noch zu prüfen)
+```bash
+git submodule update --init --recursive
+make -C connectors/haproxy build-modsecurity-binding
+make -C connectors/haproxy build-spoa-runtime
+make -C connectors/haproxy self-test-modsecurity-binding
+make -C connectors/haproxy self-test-spoa-runtime
+make smoke-haproxy
+```
 
-- [ ] Alle generierten Artefakte unter `BUILD_ROOT` halten.
-- [ ] Keine Seiteneffekte außerhalb der vorgesehenen Build-Verzeichnisse.
+The production SPOA binary is staged at:
 
-## Makefile-Integration (später, noch zu prüfen)
+```text
+/src/ModSecurity-conector-build/haproxy-spoa-runtime/haproxy-modsecurity-spoa
+```
 
-- [ ] `smoke-haproxy` Target definieren.
-- [ ] Optional `build-haproxy`/`check-haproxy` Targets definieren.
-- [ ] Erforderliche Umgebungsvariablen dokumentieren.
+The HAProxy binary is prepared under:
 
-## Nicht enthalten
+```text
+/src/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy
+```
 
-- Keine finalen Build-Kommandos.
-- Keine Aussage, dass ein HAProxy-Build aktuell möglich ist.
+## Current Runtime Evidence
+
+| Evidence set | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Default HAProxy smoke | 55 | 55 | 0 | 0 | 0 |
+| HAProxy force-all | 133 | 104 | 23 | 0 | 6 |
+
+Evidence is summarized in:
+
+- `/src/ModSecurity-conector-build/results/with-crs/haproxy-summary.json`
+- `/src/ModSecurity-conector-build/results/force-all/haproxy-summary.json`
+- `reports/testing/generated/haproxy-runtime-results.generated.md`
+- `reports/testing/haproxy-poc.md`
+- `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
+
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

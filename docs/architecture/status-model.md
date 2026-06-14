@@ -9,7 +9,7 @@ The framework separates runtime results from import/classification status.
 | `pass` | Real HTTP behavior matched the YAML expectation | success |
 | `fail` | Server ran but behavior differed from the YAML expectation | exit 1 |
 | `blocked` | Source, download, build, or runtime prerequisite was missing | exit 77 |
-| `xfail` | Expected failure/probe classification, not part of normal smoke | not counted as pass |
+| `not_executable` | Case could not be structurally materialized for the connector/runtime mode | exit 78 |
 | `skipped` | Reserved for explicit future skip behavior | not used silently |
 
 `fail` is used when a rule variable does not reach libmodsecurity or the
@@ -27,8 +27,8 @@ they do not replace the runtime statuses above.
 | `pass` | `ok` | `MSCONNECTOR_STATUS_OK` |
 | `fail` | `error` | `MSCONNECTOR_STATUS_ERROR` |
 | `blocked` | `blocked` | `MSCONNECTOR_STATUS_BLOCKED` |
+| `not_executable` | `unsupported` | `MSCONNECTOR_STATUS_UNSUPPORTED` |
 | `skipped` | `unsupported` | `MSCONNECTOR_STATUS_UNSUPPORTED` |
-| `xfail` | `unsupported` | `MSCONNECTOR_STATUS_UNSUPPORTED` |
 
 The mapping is intentionally one-way. Existing smoke semantics and exit codes
 stay unchanged. Python/Shell runners mirror this mapping through
@@ -37,8 +37,8 @@ FFI.
 
 Default smoke summaries, force-all runtime-matrix snapshots, and combined
 `make smoke-all` results are separate evidence classes. A PASS in one result
-file must not be generalized to mapped-only, xfail, future, connector-gap,
-runtime-difference, or blocked cases.
+file must not be generalized to mapped-only, future, connector-gap,
+runtime-difference, blocked, or former-XFAIL cases.
 
 ## Import Status
 
@@ -48,7 +48,7 @@ runtime-difference, or blocked cases.
 | `connector-specific` | Valid only for a named connector |
 | `mapped-only` | Source is documented but not executable as an active smoke |
 | `blocked` | Relevant source exists but current harness cannot execute it |
-| `xfail` | Probeable case with known instability or expected failure |
+| `former_xfail` | Historical migration metadata for cases now evaluated through normal runtime evidence |
 
 `config/testing/import-status.json` is the machine-readable manifest for import status
 counts. Connector summaries copy those counts into `import_status`.
@@ -71,8 +71,8 @@ Each case entry also includes an `intervention` object with the neutral
 For non-disruptive expectations the intervention status is `0`; the expected
 HTTP response remains available as `expected_status`.
 
-`audit_behavior` is `unstable` while the `nolog,pass` no-audit case remains an
-xfail due the local/GitHub Actions difference.
+Former XFAIL cases keep migration metadata, but PASS/FAIL/BLOCKED/NOT_EXECUTABLE
+now comes only from live runtime evidence.
 
 `RESPONSE_BODY` pass-through evidence is not response-body blocking support.
 RAW argument collections remain mapped-only until local PR #3564 support and

@@ -44,6 +44,7 @@ void modsecurity_log_cb(void *log, const void* data)
 int process_intervention (Transaction *t, request_rec *r)
 {
     ModSecurityIntervention intervention;
+    msc_t *msr = NULL;
     intervention.status = N_INTERVENTION_STATUS;
     intervention.url = NULL;
     intervention.log = NULL;
@@ -59,6 +60,14 @@ int process_intervention (Transaction *t, request_rec *r)
     if (intervention.log == NULL)
     {
         intervention.log = "(no log message was specified)";
+    }
+
+    msr = (msc_t *)apr_table_get(r->notes, NOTE_MSR);
+    if (msr != NULL)
+    {
+        msr->last_intervention_status = intervention.status;
+        msr->last_intervention_log = apr_pstrdup(r->pool, intervention.log);
+        msr->phase4_intervention = intervention.disruptive ? 1 : msr->phase4_intervention;
     }
 
     if (intervention.status == 301 || intervention.status == 302

@@ -32,7 +32,7 @@ Framework root:
 | Command | Result | Notes |
 | --- | --- | --- |
 | `make generate-test-matrix` | PASS | Generator exited 0; generated reporting is not runtime proof. |
-| `make check-test-matrix` | PASS | Matrix check exited 0. |
+| `make check-test-matrix` | FAIL | Exited 2 because generated reports intentionally differ from HEAD in this uncommitted HAProxy matrix update. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-no-crs` | PASS | Apache 54 PASS; NGINX 60 PASS; both 0 FAIL and 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make test-with-crs` | PASS | Apache 55 PASS; NGINX 61 PASS; both 0 FAIL and 0 BLOCKED. |
 | `SOURCE_ROOT=/src BUILD_ROOT=/src/ModSecurity-conector-build REFRESH=1 make smoke-common` | PASS | Apache common 54 PASS; NGINX common 54 PASS; both 0 FAIL and 0 BLOCKED. |

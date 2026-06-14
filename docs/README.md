@@ -19,15 +19,16 @@ and generated reports grow.
 
 ## Source References
 
-| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
-| --- | --- | --- | --- | --- | --- |
-| ModSecurity v2 | `/root/conecter/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 |
-| ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
-| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
+| Repository | Repo-local purpose | Upstream | Observed version/tag | License |
+| --- | --- | --- | --- | --- |
+| ModSecurity v2 | Historical/source comparison reference only | https://github.com/owasp-modsecurity/ModSecurity | `v2.9.13` | Apache-2.0 |
+| ModSecurity v3 | libmodsecurity runtime/API reference | https://github.com/owasp-modsecurity/ModSecurity | `v3.0.15` | Apache-2.0 |
+| ModSecurity-apache | Apache adapter behavior/source attribution reference | https://github.com/owasp-modsecurity/ModSecurity-apache | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+| ModSecurity-nginx | NGINX adapter behavior/source attribution reference | https://github.com/owasp-modsecurity/ModSecurity-nginx | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
-Local paths are examples only. CI and other machines should use environment
-variables and the upstream URLs above.
+CI, local development, and report refreshes should use repository-relative
+paths, submodules, and environment variables rather than machine-specific source
+locations.
 
 ## First Reads
 
@@ -35,6 +36,8 @@ variables and the upstream URLs above.
 - Capability model: `architecture/capability-model.md`
 - Status model: `architecture/status-model.md`
 - Real connector proof mode: `../reports/testing/real-world-connector-validation.md`
+- Testing report index: `../reports/testing/README.md`
+- Merge readiness: `../reports/testing/generated/final-consistency-audit.generated.md`
 - Current compatibility evidence: `../reports/testing/test-coverage-overview.md`
 - Case matrix: `../reports/testing/case-matrix.md` and
   `../reports/testing/generated/case-matrix.generated.md`

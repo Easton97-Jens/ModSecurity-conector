@@ -24,9 +24,8 @@ Not implemented:
   migration.
 - No claim that the Apache connector is complete beyond the documented shared
   minimal/imported smokes.
-- No Apache support for the NGINX phase-4 directives
-  `modsecurity_phase4_mode`, `modsecurity_phase4_content_types_file`, or
-  `modsecurity_phase4_log`.
+- No full RESPONSE_BODY promotion. Bounded Phase 4 strict-abort evidence is
+  documented as runtime evidence only.
 
 ## Supported Directives
 
@@ -39,6 +38,10 @@ The adapter-owned Apache connector currently registers:
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`
+- `modsecurity_phase4_mode minimal|safe|strict`
+- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_body_limit <bytes>`
 
 `modsecurity_transaction_id` accepts a static string and keeps the existing
 static semantics. `modsecurity_transaction_id_expr` accepts an Apache string
@@ -53,6 +56,10 @@ explicit ID if `UNIQUE_ID` is absent or empty.
 libmodsecurity log callback only. It does not change audit logging,
 intervention behavior, request or response handling, hooks, filters, buckets,
 or transaction ownership.
+
+The Phase 4 directives are bounded runtime controls. Phase 4 / RESPONSE_BODY
+remains non-promoted; bounded strict-abort evidence is documented/reported as
+runtime evidence only.
 
 Primary local reference: `/root/conecter/ModSecurity-apache`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache.
@@ -82,27 +89,19 @@ Relevant framework paths:
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/apache/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
-Current repository evidence keeps Apache `partial`: `phase1_header_block` has
-runtime-smoke evidence with HTTP 403, but Apache-specific YAML cases were not
-found beyond `README.md`, and `RESPONSE_BODY` blocking remains not verified.
+Current generated evidence keeps Apache `partial`:
 
-Current `/src` CRS-variant evidence is documented in
-`reports/template-verification-nginx-apache/verified-runtime-run.md`:
-
-- `make test-no-crs`: Apache PASS, 54 PASS, 0 FAIL, 0 BLOCKED.
-- `make test-with-crs`: Apache FAIL, 54 PASS, 1 FAIL, 0 BLOCKED.
-- With-CRS `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
-- With-CRS failing case: `action_status_401_phase1_block`, expected 401,
-  actual 403.
+- Default runtime smoke: `54/54 PASS`.
+- Force-all runtime evidence: `133 attempted / 100 PASS / 27 FAIL /
+  0 BLOCKED / 6 NOT_EXECUTABLE`.
 
 ## Coverage / Runtime Decision Matrix
 
 See `docs/coverage-decision-matrix.md`.
 
-Apache currently remains `partial`: `/src phase1_header_block` and the No-CRS
-target are documented as PASS for their executed scope, but the current
-With-CRS target has one FAIL, generated coverage reporting is not automatic
-runtime promotion, and `RESPONSE_BODY` blocking remains not verified.
+Apache currently remains `partial`: default smoke is clean, force-all evidence
+still records FAIL and NOT_EXECUTABLE rows, generated coverage reporting is not
+automatic runtime promotion, and RESPONSE_BODY remains non-promoted.
 
 See `docs/connectors/directive-parity.md` and
 `connectors/apache/harness/README.md`.

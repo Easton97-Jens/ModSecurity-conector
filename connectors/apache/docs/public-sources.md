@@ -1,12 +1,15 @@
 # Apache Public Sources
 
-Status: scaffolded
+Status: current references
 
-Source references used for this scaffold:
+Repository-owned Apache connector source lives under `connectors/apache/`.
+External references are used for provenance, comparison, and optional
+read-only rebuilds:
 
-- Local reference: `/root/conecter/ModSecurity-apache`
-- Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
+- Upstream ModSecurity-apache source:
+  https://github.com/owasp-modsecurity/ModSecurity-apache
 - Apache httpd source: https://github.com/apache/httpd
+- Apache module/APXS build context: Apache httpd documentation
 
-Tracked follow-up: document official Apache module and hook references before
-any maintained Apache adapter rewrite. See `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.
+Source pins and generated build roots for clean-clone runtime validation are
+documented in `COMPILE_APACHE.md` and the framework `ci/common.sh` helpers.

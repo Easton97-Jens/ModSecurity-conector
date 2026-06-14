@@ -124,4 +124,4 @@ This phase does not change:
 - adapter-owned Apache or NGINX source semantics.
 
 For NGINX, phase 9 changes the build input ownership but not the smoke semantics
-or verified variable model. `RESPONSE_BODY` remains xfail/mapped-only.
+or verified variable model. `RESPONSE_BODY` remains former expected-failure/mapped-only.

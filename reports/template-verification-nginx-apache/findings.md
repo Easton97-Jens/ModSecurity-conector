@@ -31,7 +31,7 @@ runtime results reviewed in this repository.
 | Command | Result | Evidence |
 | --- | --- | --- |
 | `make generate-test-matrix` | PASS | Generator exited 0; generated reporting is not runtime proof. |
-| `make check-test-matrix` | PASS | Matrix check exited 0. |
+| `make check-test-matrix` | FAIL | Exited 2 because generated reports intentionally differ from HEAD in this uncommitted HAProxy matrix update. |
 | `modules/ModSecurity-test-Framework: make lint` | PASS | Framework-local lint exited 0. |
 | `modules/ModSecurity-test-Framework: make quick-check` | not found | No `quick-check` target was found in the framework Makefile. |
 | `modules/ModSecurity-test-Framework: make check-test-matrix` | PASS | Framework-local matrix check exited 0 with a warning about missing `config/testing/import-status.json`. |
@@ -137,3 +137,151 @@ Detailed report:
 - CRS SQLi anomaly case: PASS for both connectors.
 - RESPONSE_BODY blocking: not verified.
 - Full runtime verification: no.
+
+## Envoy Scaffold Finding
+
+- `connectors/envoy` exists as a sidecar/HTTP bridge-starter connector.
+- Envoy follows global/shared connector gates from
+  `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
+  and references `connectors/_template/docs/coverage-decision-matrix.md` for
+  shared matrix semantics.
+- No local `connectors/envoy/tests` folder exists.
+- No Envoy runtime evidence, productive adapter-owned source, production build
+  evidence, or harness implementation is documented.
+- Envoy runtime status is `not-verified`; promotion beyond bridge-starter
+  is not allowed without future evidence.
+
+## Envoy Build-Starter Finding
+
+- Envoy has `ORIGIN.md`, `SOURCE_MAP.json`, `metadata.c`, `metadata.h`, a local
+  `Makefile`, `build/build_metadata.sh`, and `src/envoy_bridge*` for local
+  bridge-starter compilation.
+- The bridge starter uses `common/include/msconnector/request.h`,
+  `intervention.h`, `status.h`, `origin.h`, and `capabilities.h`, plus the
+  corresponding common helper sources.
+- No real Envoy API is used because no Envoy SDK/API dependency is present in
+  this repository.
+- ModSecurity bridge, Envoy runtime harness, No-CRS, With-CRS, and RESPONSE_BODY
+  validation remain blocked/deferred.
+
+## Envoy Build-Starter Result
+
+- `make -C connectors/envoy build-starter` passed for bridge-starter compilation.
+- `make -C connectors/envoy self-test` passed for local allow/block decision logic.
+- The result does not use Envoy API and does not prove runtime compatibility.
+
+## Envoy Bridge-Starter Finding
+
+- The selected Envoy path is a sidecar/HTTP bridge starter, not a native Envoy
+  filter, ext_proc service, or proxy-wasm module.
+- The local bridge self-test can model request header and URI/query data and
+  return a 403 `msconnector_intervention`.
+- The self-test does not use Envoy API, libmodsecurity API, CRS, or framework
+  YAML cases.
+## HAProxy
+
+- HAProxy implementation remains a starter, not a productive adapter.
+- Current status is `spoa-agent-starter`; runtime status is
+  `runtime-smoke-verified` for `haproxy_phase1_header_block` and
+  `haproxy_crs_sqli_anomaly_block`.
+- The local SPOA agent starter compiles and self-tests synthetic
+  request-decision logic using shared request/intervention/status data shapes.
+- The synthetic starter does not include HAProxy headers or CRS loading. Live
+  HAProxy-enforced ModSecurity decision evidence exists only through the
+  separate runtime harness for `haproxy_phase1_header_block` and
+  `haproxy_crs_sqli_anomaly_block`.
+- A separate minimal diagnostic SPOP handshake subset now self-tests local
+  HELLO/AGENT-HELLO, NOTIFY argument parsing, verified set-var ACK encoding,
+  and DISCONNECT handling. It is not a full SPOA agent implementation.
+- Framework `ci/prepare-haproxy-runtime.sh` can now prepare HAProxy `3.2.19`
+  locally under `/src/ModSecurity-conector-build` after verifying the official
+  checksum and `TARGET=linux-glibc` support from the downloaded source Makefile.
+- `make smoke-haproxy` now PASSes the scoped `haproxy_phase1_header_block` and
+  `haproxy_crs_sqli_anomaly_block` runtime smokes and records evidence in
+  `/src/ModSecurity-conector-build/results/haproxy-summary.json`.
+- `make runtime-matrix-haproxy` records one HAProxy row per existing framework
+  YAML case: 141 attempted rows, 1 PASS, 0 FAIL, 59 BLOCKED, 81
+  NOT_EXECUTABLE, and 10 MAPPED_ONLY entries. The YAML PASS is only
+  `crs_sqli_anomaly_block`.
+- `make test-haproxy-no-crs` records the No-CRS split: 141 attempted YAML
+  rows, 0 YAML PASS, 0 FAIL, 59 BLOCKED, 82 NOT_EXECUTABLE, and 10
+  MAPPED_ONLY entries. The `haproxy_phase1_header_block` smoke remains a live
+  diagnostic alias and is not promoted to the framework `phase1_header_block`
+  YAML case.
+- `make test-haproxy-with-crs` records the With-CRS split: 141 attempted YAML
+  rows, 1 PASS, 0 FAIL, 59 BLOCKED, 81 NOT_EXECUTABLE, and 10 MAPPED_ONLY
+  entries.
+- Generated SPOE config is syntax-valid by `haproxy -c`; local HAProxy
+  SPOE/SPOP docs/source verify set-var action type 1, arg count 3, transaction
+  scope 2, and bool true `0x11`.
+- The live runtime evidence records fresh NOTIFY, request argument extraction,
+  libmodsecurity disruptive status 403, set-var ACK, block-probe 403, and
+  pass-probe 200.
+- The With-CRS sub-scope loads
+  `/src/ModSecurity-conector-build/crs/modsecurity-crs-preamble.conf`, sends
+  the SQLi URI from `crs_sqli_anomaly_block`, records CRS decision evidence,
+  and verifies block-probe 403 plus pass-probe 200.
+- Productive adapter build remains BLOCKED because the repository still lacks a
+  full SPOA implementation and live PASS/FAIL execution for the currently
+  BLOCKED framework YAML rows.
+- No local `connectors/haproxy/tests` folder is used.
+- RESPONSE_BODY blocking remains not verified.
+## lighttpd Bridge-Starter Finding
+
+- `connectors/lighttpd` is bridge-starter only and runtime status is
+  not-verified.
+- Repo-owned metadata/probe source, bridge-starter source, `build/*.sh`, and
+  local Make targets provide compile/self-test checks using shared `common/`
+  helpers.
+- `connectors/lighttpd/build/build_starter.sh`, `make -C connectors/lighttpd
+  build-bridge-starter`, and `make -C connectors/lighttpd self-test-bridge`
+  PASS prove only local starter compilation/self-test; the bridge probe reports
+  a blocked local decision.
+- The lighttpd docs reference global connector gates instead of copying status
+  vocabulary, promotion gates, No-CRS/With-CRS separation, runtime evidence
+  rules, and RESPONSE_BODY requirements into connector-specific docs.
+- No local `connectors/lighttpd/tests` folder is present or required.
+- No lighttpd API, FastCGI/SCGI protocol implementation, ModSecurity API,
+  runtime harness, runtime evidence, adapter implementation, or runtime
+  PASS/FAIL/BLOCKED count is claimed.
+## Traefik Decision-Service Starter Finding
+
+- `connectors/traefik` now has a repo-owned local decision-service starter.
+- The Traefik docs reference shared connector gates and coverage rules instead
+  of duplicating global rules locally.
+- Traefik has local self-test evidence only, no implemented runtime harness, no
+  production Traefik adapter build, and no local `connectors/traefik/tests`
+  folder.
+- Missing production dependencies include a selected Traefik API/source/SDK or
+  HTTP bridge runtime strategy, libmodsecurity runtime integration point, Traefik
+  configuration, and harness configuration/evidence paths.
+
+## Connector-Starter Framework Finding
+
+- `modules/ModSecurity-test-Framework/ci/run-connector-starter-checks.sh`
+  provides a framework-owned local runner for Envoy, HAProxy, lighttpd, and
+  Traefik starter build/self-test checks.
+- `make connector-starter-checks` writes `summary.json`, `results.jsonl`, and
+  per-check stdout/stderr logs under
+  `/src/ModSecurity-conector-build/results/connector-starters/`.
+- Each `results.jsonl` entry records `test_type: connector-starter`,
+  `runtime_verified: false`, `runtime_status: not-verified`,
+  `response_body_verified: false`, and `installs_global_artifacts: false`.
+- The framework runner is not a server/proxy harness and does not prove No-CRS,
+  With-CRS, CRS, RESPONSE_BODY, audit/log, or runtime-smoke behavior.
+
+## New Connector Runtime-Smoke Finding
+
+- The framework now has runtime-smoke entrypoints for Envoy, HAProxy, lighttpd,
+  and Traefik.
+- The Envoy/HAProxy/lighttpd/Traefik harness folders now contain executable
+  `run_<name>_smoke.sh` entrypoints. HAProxy now writes PASS evidence only for
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`; Envoy,
+  lighttpd, and Traefik still write BLOCKED diagnostic evidence with
+  `runtime_verified: false`.
+- `smoke-new-connectors` is not allowed to turn blocked diagnostics into PASS;
+  with Envoy, lighttpd, and Traefik still blocked, the aggregate status remains
+  BLOCKED. HAProxy is runtime-smoke-verified only for
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`; the new
+  connector set is not fully runtime verified.
+- All runtime-smoke evidence paths are under `/src/ModSecurity-conector-build`.

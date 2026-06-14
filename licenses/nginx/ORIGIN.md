@@ -8,7 +8,7 @@ adapter-owned under `connectors/nginx/src`; the former
 `connectors/nginx/upstream/` reference tree was removed in phase 10. This
 directory is the durable attribution location.
 
-Local reference: `/root/conecter/ModSecurity-nginx`
+Repo-local reference: `connectors/nginx/`, `licenses/nginx/`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
 Source branch: `master`
 Source commit: `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846`
@@ -16,9 +16,9 @@ Source describe: `v1.0.4-14-g9eb44fd`
 License: Apache-2.0
 Default imported path: `connectors/nginx/src`
 
-| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| Repository | Repo-local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
+| ModSecurity-nginx | `connectors/nginx/`, `licenses/nginx/` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
 ## Files
 

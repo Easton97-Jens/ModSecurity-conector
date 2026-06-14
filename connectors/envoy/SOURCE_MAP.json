@@ -1,0 +1,57 @@
+{
+  "connector": "envoy",
+  "status": "bridge-starter",
+  "runtime_status": "not-verified",
+  "upstream_source": {
+    "repository": "not selected",
+    "branch": "not selected",
+    "commit": "not selected",
+    "describe": "not selected",
+    "license": "not selected"
+  },
+  "imported_upstream_files": [],
+  "local_files": [
+    {
+      "path": "connectors/envoy/metadata.c",
+      "kind": "repository-local bridge-starter metadata",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/metadata.h",
+      "kind": "repository-local bridge-starter metadata header",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/build/build_metadata.sh",
+      "kind": "repository-local bridge-starter build script",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/Makefile",
+      "kind": "repository-local bridge-starter target",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_bridge.c",
+      "kind": "repository-local sidecar/HTTP bridge decision starter",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_bridge.h",
+      "kind": "repository-local sidecar/HTTP bridge decision starter header",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_bridge_main.c",
+      "kind": "repository-local bridge self-test CLI",
+      "upstream_origin": "none"
+    }
+  ],
+  "claims": {
+    "envoy_api_used": false,
+    "bridge_self_test_implemented": true,
+    "libmodsecurity_adapter_implemented": false,
+    "runtime_verified": false,
+    "response_body_blocking_verified": false
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "counts": {
+    "attempted": 13,
+    "blocked": 0,
+    "fail": 1,
+    "failed_cases": [
+      "100003-1"
+    ],
+    "not_executable": 0,
+    "pass": 12
+  },
+  "first_failing_cases": [
+    {
+      "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+      "case_id": "100003-1",
+      "classification": "native_modsecurity_semantics",
+      "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+      "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+      "phase": "4",
+      "request": "POST /?foo=attack",
+      "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+      "rule_id": "100003",
+      "secondary_classification": "phase4_native_limitation",
+      "target": "ARGS",
+      "variable": "ARGS"
+    }
+  ],
+  "generated_at": "2026-06-13T11:32:41Z",
+  "guardrails": [
+    "tools/MRTS read-only",
+    "system paths read-only",
+    "no generated MRTS artifacts committed",
+    "native MRTS evidence is separate from connector full-matrix evidence"
+  ],
+  "infrastructure": "MRTS PR24 NGINX + libmodsecurity3 native infra",
+  "job": {
+    "counts": {
+      "attempted": 13,
+      "blocked": 0,
+      "fail": 1,
+      "failed_cases": [
+        "100003-1"
+      ],
+      "not_executable": 0,
+      "pass": 12
+    },
+    "duration_seconds": 6,
+    "exit_code": 1,
+    "first_failing_cases": [
+      {
+        "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+        "case_id": "100003-1",
+        "classification": "native_modsecurity_semantics",
+        "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+        "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+        "phase": "4",
+        "request": "POST /?foo=attack",
+        "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+        "rule_id": "100003",
+        "secondary_classification": "phase4_native_limitation",
+        "target": "ARGS",
+        "variable": "ARGS"
+      }
+    ],
+    "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+    "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",
+    "known_limitations": [
+      "phase4_native_limitation",
+      "RESPONSE_BODY non-promoted"
+    ],
+    "paths": {
+      "job_json_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+      "run_log_path": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+      "staged_infra_path": "$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra"
+    },
+    "reason": "native MRTS go-ftw run failed",
+    "remediation": [],
+    "run_log": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+    "status": "FAIL",
+    "summary_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+    "target": "nginx-pr24"
+  },
+  "known_limitations": [
+    "phase4_native_limitation",
+    "RESPONSE_BODY non-promoted"
+  ],
+  "paths": {
+    "job_json_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+    "run_log_path": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+    "staged_infra_path": "$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra"
+  },
+  "pr_metadata": {
+    "captured_at_utc": "2026-06-09T15:18:21Z",
+    "pr_head_sha": "134ea7e35d72e7d72294b66d80dafa07daa5fc92",
+    "pr_number": 24,
+    "replacement_note": "replace with $MRTS_ROOT/config_infra/nginx_linux once merged upstream",
+    "stability": "experimental",
+    "upstream_status": "open-pr"
+  },
+  "pr_url": "https://github.com/owasp-modsecurity/MRTS/pull/24",
+  "report_kind": "native-mrts-target-evidence",
+  "runtime_components": {
+    "MRTS_NATIVE_NGINX_BIN": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/sbin/nginx",
+    "MRTS_NATIVE_NGINX_MODULE_DIR": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/modules",
+    "albedo_binary": "$CONNECTOR_COMPONENT_CACHE/bin/albedo",
+    "connector_build_id": "24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71",
+    "go_ftw_binary": "$CONNECTOR_COMPONENT_CACHE/bin/go-ftw",
+    "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+    "ngx_http_modsecurity_module_so": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/24538fdb4ba2c382f8e9266978c966de1d90b7a8761a50cef0ccfe9327ba6d71/nginx/modules/ngx_http_modsecurity_module.so"
+  },
+  "separate_from_connector_full_matrix": true,
+  "source": "Framework PR24 overlay",
+  "status": "FAIL",
+  "target": "nginx-pr24"
+}

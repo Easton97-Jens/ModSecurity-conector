@@ -6,8 +6,8 @@ Status: implemented
 
 ```text
 HTTP client
-  -> real Apache or NGINX process
-  -> real ModSecurity connector module
+  -> real Apache, NGINX, or HAProxy process
+  -> real ModSecurity connector module or SPOA/SPOP integration path
   -> libmodsecurity
   -> rule variables
   -> real HTTP response
@@ -45,22 +45,21 @@ module artifacts, libraries, or runtime prerequisites.
 The YAML cases are the only source of rules, requests, and expectations. The
 connector harnesses materialize them and send real HTTP requests.
 
-The current local `$BUILD_ROOT/results/connector-summary.json` used by
-`make summary` reports default real-world connector PASS evidence for these
-variable families. The tracked 2026-05-24 runtime matrix snapshot also records
-force-all FAIL classes for xfail, future, connector-gap, runtime-difference,
-and response-body cases. Do not read the table below as a blanket stable status
-for every YAML case.
+The current generated default runtime summaries report real-world connector
+PASS evidence for these variable families. Full-Matrix and force-all evidence
+also record FAIL classes for former expected-failure, future, connector-gap,
+runtime-difference, semantic, capability, and response-body cases. Do not read
+the table below as a blanket stable status for every YAML case.
 
 | Verified variable | Example active cases | Status |
 | --- | --- | --- |
-| `ARGS` | `phase2_args_block`, `collection_args_get_block`, V2 operator/transform cases | Present in Apache and NGINX `verified_variables` from current local default summary |
-| `REQUEST_HEADERS` | `phase1_header_block` | Present in Apache and NGINX `verified_variables` from current local default summary |
-| `REQUEST_BODY` | `request_body_json_block`, `request_body_raw_text_block`, `json_request_body_block` | Present in Apache and NGINX `verified_variables` from current local default summary |
-| `FILES` | `multipart_files_value_block`, `multipart_files_names_block`, `multipart_files_combined_size`, `multipart_filename_block` | Present in Apache and NGINX `verified_variables` from current local default summary |
-| `XML` | `xml_request_body_block` | Present in Apache and NGINX `verified_variables` from current local default summary |
-| `AUDIT_LOG` | `audit_log_phase1_block` | Present in Apache and NGINX `verified_variables`; `audit_behavior` remains `unstable` |
-| `RESPONSE_HEADERS` | `response_header_basic` | Present in Apache and NGINX `verified_variables` from current local default summary |
+| `ARGS` | `phase2_args_block`, `collection_args_get_block`, V2 operator/transform cases | Present in default connector smoke evidence where the case is promoted |
+| `REQUEST_HEADERS` | `phase1_header_block` | Present in default connector smoke evidence where the case is promoted |
+| `REQUEST_BODY` | `request_body_json_block`, `request_body_raw_text_block`, `json_request_body_block` | Present in default connector smoke evidence where the case is promoted |
+| `FILES` | `multipart_files_value_block`, `multipart_files_names_block`, `multipart_files_combined_size`, `multipart_filename_block` | Remaining multipart gaps are classified and non-promoted |
+| `XML` | `xml_request_body_block` | Remaining XML processor activation gaps are classified and non-promoted |
+| `AUDIT_LOG` | `audit_log_phase1_block` | Explicit `nolog` and audit-evidence gaps are classified; no active `audit_log_evidence` next-fix cluster remains |
+| `RESPONSE_HEADERS` | `response_header_basic` | Phase 3 response-header evidence is implemented; remaining MRTS DetectionOnly cases are classification-only |
 
 `RESPONSE_BODY` is deliberately not listed as verified. The active
 `response_body_pass` case proves pass-through with response-body access enabled,
@@ -115,43 +114,36 @@ server still cannot run.
 
 ## Current Connector Status
 
-Current local default summary evidence under
-`$BUILD_ROOT/results/connector-summary.json`:
+Current generated default runtime evidence:
 
-| Connector | Real server path | Connector module path | Default local summary |
+| Connector | Runtime path | Integration path | Default summary |
 | --- | --- | --- | --- |
-| Apache | `$BUILD_ROOT/apache-runtime/httpd/bin/httpd` | `$BUILD_ROOT/apache-build/output/apache/mod_security3.so` | 54 PASS / 0 FAIL / 0 BLOCKED |
-| NGINX | `$BUILD_ROOT/nginx-runtime/nginx/sbin/nginx` | `$BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so` | 60 PASS / 0 FAIL / 0 BLOCKED |
-
-Latest local normal-scope refresh in this workspace on 2026-05-24:
-
-| Command | Result | Scope |
-| --- | --- | --- |
-| `make smoke-common` | PASS, exit code 0 | Normal common connector cases |
-| `make smoke-apache` | PASS, exit code 0 | Normal Apache connector cases |
-| `make smoke-nginx` | PASS, exit code 0 | Normal NGINX connector cases |
-| `make smoke-all` | PASS, exit code 0 | Normal Apache plus NGINX connector cases |
-| `make summary` | PASS, exit code 0 | Apache 54 PASS / 0 FAIL / 0 BLOCKED; NGINX 60 PASS / 0 FAIL / 0 BLOCKED |
+| Apache | real Apache process | Apache module | 54 PASS / 0 FAIL / 0 BLOCKED |
+| NGINX | real NGINX process | NGINX module | 60 PASS / 0 FAIL / 0 BLOCKED |
+| HAProxy | real HAProxy process | SPOA/SPOP agent | 55 PASS / 0 FAIL / 0 BLOCKED |
 
 These local results do not promote force-all failures, xfail probes,
 mapped-only inventory, future cases, connector-gap cases, runtime-difference
 cases, API-only smokes, or `RESPONSE_BODY` blocking.
 
-Tracked generated snapshot evidence from `reports/testing/test-coverage-overview.md`
-and `reports/testing/generated/runtime-matrix.generated.md`:
+Current force-all and Full-Matrix evidence:
 
-| Connector | Snapshot mode | Result |
-| --- | --- | --- |
-| Apache | `FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache` | FAIL: 87 PASS / 46 FAIL / 0 BLOCKED |
-| NGINX | `FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx` | FAIL: 94 PASS / 46 FAIL / 0 BLOCKED |
-| Combined | `REFRESH=1 make smoke-all` | NOT_RUN in the tracked runtime-matrix snapshot |
+| Scope | Result |
+| --- | --- |
+| Apache force-all | 100 PASS / 27 FAIL / 0 BLOCKED |
+| NGINX force-all | 95 PASS / 39 FAIL / 0 BLOCKED |
+| HAProxy force-all | 104 PASS / 23 FAIL / 0 BLOCKED |
+| Full-Matrix | 3074 PASS / 782 FAIL / 0 BLOCKED |
 
-Other environments must run the same smoke targets before claiming pass.
+Other environments must run the same smoke targets before claiming pass. The
+Full-Matrix FAIL rows are classified in the generated reports and the final
+consistency audit currently recommends no next runtime-fixable connector
+cluster.
 
 ## Future Connectors
 
-HAProxy, Envoy, Lighttpd, and Traefik need analogous proof before any runtime
-claim is made:
+Envoy, Lighttpd, and Traefik need analogous proof before any runtime claim is
+made:
 
 - real server/proxy process;
 - real integration module, plugin, filter, SPOE service, or middleware;
@@ -159,3 +151,7 @@ claim is made:
 - active YAML cases sent as HTTP traffic;
 - result summary with real server binary/module metadata and verified
   variables derived only from passing cases.
+
+HAProxy has an evidence-scoped SPOA/SPOP runtime path. Its broader gaps remain
+reported and non-promoted until runtime evidence justifies a narrower or wider
+support claim.

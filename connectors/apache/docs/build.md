@@ -2,91 +2,44 @@
 
 Status: adapter-owned source migration complete
 
-Observed local source uses Autotools and `apxs`:
+The complete repository-supported Apache compile and local verification flow is
+documented in the root guide:
 
-- `configure.ac`
-- `Makefile.am`
-- `build/apxs-wrapper.in`
+- [`COMPILE_APACHE.md`](../../../COMPILE_APACHE.md)
 
-The repository provides a controlled adapter-owned build helper:
+## Current Build Path
 
-```sh
-REFRESH=1 \
-BUILD_HTTPD_FROM_SOURCE=1 \
-BUILD_ROOT=/src/ModSecurity-conector-build \
-make smoke-apache
+The helper materializes connector source into `BUILD_ROOT`, builds
+libmodsecurity/httpd dependencies when requested, and uses the observed
+Autotools/APXS path:
+
+```bash
+git submodule update --init --recursive
+REFRESH=1 BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache
 ```
 
-The helper copies libmodsecurity v3 and materializes the Apache connector
-source into `BUILD_ROOT`, can build Apache httpd from source under
-`BUILD_ROOT`, and uses the observed Autotools/APXS path:
+By default the connector source is the adapter-owned monorepo import:
 
-```sh
-./autogen.sh
-./configure --with-libmodsecurity=<BUILD_ROOT staging prefix>
-make
-```
-
-Status `pass` is only a built module artifact. Runtime pass requires
-`connectors/apache/harness/run_apache_smoke.sh` to observe HTTP `403`.
-
-By default the connector source is the controlled monorepo import:
-
-```sh
+```bash
 MODSECURITY_APACHE_SOURCE_DIR=connectors/apache
 ```
 
-Set `MODSECURITY_APACHE_SOURCE_DIR=/path/to/ModSecurity-apache` to rebuild from
-an external read-only checkout. The build helper sanitizes connector source
-copies into `BUILD_ROOT` and excludes `.git`, CI files, caches, and build
-artifacts.
+Set `MODSECURITY_APACHE_SOURCE_DIR=/path/to/ModSecurity-apache` only when
+testing an external read-only checkout.
 
-For the monorepo default, the productive build input is:
+## Current Runtime Evidence
 
-```sh
-$BUILD_ROOT/apache-build/connector-src
-```
+| Evidence set | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Default Apache smoke | 54 | 54 | 0 | 0 | 0 |
+| Apache force-all | 133 | 100 | 27 | 0 | 6 |
 
-The generated source tree includes `MATERIALIZED_SOURCE.md` and
-`materialized-source.json`; required Apache files must be marked
-`adapter-owned`, not `upstream-derived`.
+Runtime evidence is written under `/src/ModSecurity-conector-build/results/`
+and summarized in:
 
-Observed import-source verification:
+- `reports/testing/generated/apache-runtime-results.generated.md`
+- `reports/testing/test-coverage-overview.md`
+- `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 
-```sh
-REFRESH=1 \
-BUILD_HTTPD_FROM_SOURCE=1 \
-BUILD_ROOT=/src/ModSecurity-conector-import-build \
-make smoke-apache
-```
-
-Result: pass. The built module path was under
-`/src/ModSecurity-conector-import-build/apache-build/output/apache/`.
-
-Phase 11 materialized-source verification:
-
-```sh
-REFRESH=1 \
-BUILD_ROOT=/src/ModSecurity-conector-apache-final-build \
-make smoke-apache
-```
-
-Result: pass. The former `connectors/apache/upstream/` tree was removed after
-this proof.
-
-Phase 12 source-tree cleanup removed `AUTHORS`, `CHANGES`, `LICENSE`, and
-`README.md` from `connectors/apache/src/` after the Autoconf source anchor was
-changed to `src/mod_security3.c`. The Apache module still builds from the
-materialized adapter-owned source tree; attribution remains in
-`licenses/apache/`, `connectors/apache/ORIGIN.md`, and
-`connectors/apache/SOURCE_MAP.json`.
-
-Phase 13 simplified the repository layout while preserving the materialized
-Autotools build layout. Build files now live in `connectors/apache/`, productive
-C sources live directly in `connectors/apache/src/`, and retained Autotools
-test templates live under `modules/ModSecurity-test-Framework/tests/upstream/connector-specific/apache/`.
-
-Open work is tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`:
-
-- Verify minimum Apache/APR/APR-util/PCRE build requirements.
-- Keep CI blocked-safe until those dependencies are explicitly provisioned.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

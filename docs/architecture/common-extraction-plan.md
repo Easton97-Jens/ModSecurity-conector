@@ -88,7 +88,7 @@ configuration parsing, or `RESPONSE_BODY` behavior moves to `common/`.
 After this boundary is stable, inspect duplicate libmodsecurity API usage and
 design a separate connector-neutral adapter proposal. That proposal must include
 before/after smoke results and must not start from response-body blocking
-behavior while it remains xfail/mapped-only.
+behavior while it remains former expected-failure/mapped-only.
 
 ## Phase 9 NGINX Source Ownership Boundary
 

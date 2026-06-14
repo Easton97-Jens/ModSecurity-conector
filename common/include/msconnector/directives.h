@@ -14,6 +14,7 @@ extern "C" {
 #define MSCONNECTOR_DIRECTIVE_PHASE4_MODE "modsecurity_phase4_mode"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE "modsecurity_phase4_content_types_file"
 #define MSCONNECTOR_DIRECTIVE_PHASE4_LOG "modsecurity_phase4_log"
+#define MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT "modsecurity_phase4_body_limit"
 #define MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG "modsecurity_use_error_log"
 
 #ifdef __cplusplus

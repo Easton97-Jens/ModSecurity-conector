@@ -53,7 +53,7 @@ external-source copy path.
 ## Response-Body Status
 
 This phase does not promote `RESPONSE_BODY`. The PR #377 source changes may
-improve NGINX phase-4 behavior, but `RESPONSE_BODY` remains xfail/mapped-only
+improve NGINX phase-4 behavior, but `RESPONSE_BODY` remains former expected-failure/mapped-only
 until a separate evidence phase proves stable Apache and NGINX HTTP behavior
 for a common blocking case.
 

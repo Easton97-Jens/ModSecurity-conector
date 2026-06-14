@@ -53,5 +53,7 @@ Apache and NGINX harnesses still use Python/Shell and mirror the schema through
 - Generated configs, logs, downloads, and binaries stay under `BUILD_ROOT`.
 - Direct libmodsecurity API success never counts as connector success.
 
-Future HAProxy, Envoy, Lighttpd, and Traefik adapters must prove the same
+Future Envoy, Lighttpd, and Traefik adapters must prove the same
 `real-world-connector-path` semantics before any common case is counted as PASS.
+HAProxy already has an evidence-scoped SPOA/SPOP runtime path; broader HAProxy
+capability gaps remain report-owned until runtime evidence supports promotion.

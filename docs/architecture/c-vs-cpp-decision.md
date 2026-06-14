@@ -17,7 +17,8 @@ part of the common refactor.
 - The imported Apache connector is C-oriented and built through APXS/Autotools.
 - NGINX modules are C modules and cross server ABI boundaries directly.
 - C++ would add ABI and linker complexity to server-module loading paths.
-- Future HAProxy and Lighttpd integrations are expected to stay close to C.
+- The HAProxy SPOA/SPOP runtime path and future Lighttpd integrations are
+  expected to stay close to C.
 
 ## Allowed C++ Use
 

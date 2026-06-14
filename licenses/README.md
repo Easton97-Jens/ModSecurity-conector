@@ -8,17 +8,17 @@ reference tree is reduced or removed.
 
 ## Included Source Imports
 
-| Area | Local reference | Upstream | Imported code in repo | License | Details |
+| Area | Repo-local reference | Upstream | Imported code in repo | License | Details |
 | --- | --- | --- | --- | --- | --- |
-| Apache connector | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `connectors/apache/` with productive source in `connectors/apache/src/`, attribution in `licenses/apache/`, and provenance in `connectors/apache/SOURCE_MAP.json` | Apache-2.0 | `licenses/apache/ORIGIN.md` |
-| NGINX connector | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `connectors/nginx/` with productive source in `connectors/nginx/src/`, attribution in `licenses/nginx/`, and provenance in `connectors/nginx/SOURCE_MAP.json` | Apache-2.0 | `licenses/nginx/ORIGIN.md` |
+| Apache connector | `connectors/apache/`, `licenses/apache/` | https://github.com/owasp-modsecurity/ModSecurity-apache | `connectors/apache/` with productive source in `connectors/apache/src/`, attribution in `licenses/apache/`, and provenance in `connectors/apache/SOURCE_MAP.json` | Apache-2.0 | `licenses/apache/ORIGIN.md` |
+| NGINX connector | `connectors/nginx/`, `licenses/nginx/` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `connectors/nginx/` with productive source in `connectors/nginx/src/`, attribution in `licenses/nginx/`, and provenance in `connectors/nginx/SOURCE_MAP.json` | Apache-2.0 | `licenses/nginx/ORIGIN.md` |
 
 ## Read-only Reference Sources
 
-| Area | Local reference | Upstream | Imported code in repo | License note | Details |
+| Area | Repo-local reference | Upstream | Imported code in repo | License note | Details |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity v2 | `/root/conecter/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | none | Apache-2.0 observed in source | `licenses/modsecurity/README.md` |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | none | Apache-2.0 observed in source | `licenses/modsecurity/README.md` |
+| ModSecurity v2 | `licenses/modsecurity/` | https://github.com/owasp-modsecurity/ModSecurity | none | Apache-2.0 observed in source | `licenses/modsecurity/README.md` |
+| ModSecurity v3 | `licenses/modsecurity/` | https://github.com/owasp-modsecurity/ModSecurity | none | Apache-2.0 observed in source | `licenses/modsecurity/README.md` |
 
 ## Rules
 

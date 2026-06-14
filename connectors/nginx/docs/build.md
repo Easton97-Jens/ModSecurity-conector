@@ -1,56 +1,44 @@
 # NGINX Build
 
-Status: scaffolded
+Status: adapter-owned dynamic module path
 
-Observed local source uses the NGINX third-party module `config` file. The
-source README documents `--add-module` and `--add-dynamic-module`.
+The complete repository-supported NGINX compile and local verification flow is
+documented in the root guide:
 
-The repository provides a PoC helper that builds NGINX from an official GitHub
-release archive and uses the observed dynamic-module path:
+- [`COMPILE_NGINX.md`](../../../COMPILE_NGINX.md)
 
-```sh
-REFRESH=1 \
-BUILD_NGINX_FROM_SOURCE=1 \
-BUILD_ROOT=/src/ModSecurity-conector-build \
-make smoke-nginx
+## Current Build Path
+
+The helper builds NGINX from the supported source mode, stages libmodsecurity
+under `BUILD_ROOT`, and builds the connector as a dynamic module:
+
+```bash
+git submodule update --init --recursive
+REFRESH=1 BUILD_NGINX_FROM_SOURCE=1 make smoke-nginx
 ```
 
-By default the connector source is the adapter-owned monorepo source:
+By default the connector source is the adapter-owned monorepo import:
 
-```sh
+```bash
 MODSECURITY_NGINX_SOURCE_DIR=connectors/nginx
 ```
 
-Set `MODSECURITY_NGINX_SOURCE_DIR=/path/to/ModSecurity-nginx` to rebuild from an
-external read-only checkout. The build helper sanitizes connector source copies
-into `BUILD_ROOT` and excludes `.git`, CI files, caches, and build artifacts.
-For the monorepo default it first materializes
-`$BUILD_ROOT/nginx-build/connector-src` from adapter-owned
-`connectors/nginx/config` and `connectors/nginx/src` files plus generated
-manifests. The former `connectors/nginx/upstream/` tree is not a build input.
+Set `MODSECURITY_NGINX_SOURCE_DIR=/path/to/ModSecurity-nginx` only when testing
+an external read-only checkout.
 
-Phase 13 keeps the NGINX module `config` in `connectors/nginx/config` and
-productive source/header files in `connectors/nginx/src/`; support metadata
-lives at the connector root.
+## Current Runtime Evidence
 
-Status `pass` is only a built NGINX binary and dynamic module artifact. Runtime
-pass requires `connectors/nginx/harness/run_nginx_smoke.sh` to observe the
-expected HTTP behavior.
+| Evidence set | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Default NGINX smoke | 60 | 60 | 0 | 0 | 0 |
+| NGINX force-all | 140 | 95 | 39 | 0 | 6 |
 
-Observed import-source verification:
+Runtime evidence is written under `/src/ModSecurity-conector-build/results/`
+and summarized in:
 
-```sh
-REFRESH=1 \
-BUILD_NGINX_FROM_SOURCE=1 \
-BUILD_ROOT=/src/ModSecurity-conector-import-build \
-make smoke-nginx
-```
+- `reports/testing/generated/nginx-runtime-results.generated.md`
+- `reports/testing/test-coverage-overview.md`
+- `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 
-Result: pass. The built NGINX binary and dynamic module paths were under
-`/src/ModSecurity-conector-import-build/nginx-runtime/nginx/`.
-
-Open work is tracked in `modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`:
-
-- Verify supported NGINX versions.
-- Keep dynamic module support as the only active PoC path until static module
-  behavior is separately proven.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

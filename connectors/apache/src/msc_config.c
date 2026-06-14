@@ -5,6 +5,8 @@
 #include "msconnector/directives.h"
 #include "msconnector/options.h"
 
+#include <stdlib.h>
+
 
 const command_rec module_directives[] =
 {
@@ -62,6 +64,38 @@ const command_rec module_directives[] =
         NULL,
         RSRC_CONF | ACCESS_CONF,
         "Enable or disable forwarding libmodsecurity log messages to the Apache error log"
+    ),
+
+    AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_PHASE4_MODE,
+        msc_config_phase4_mode,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Phase 4 handling mode: minimal, safe, or strict"
+    ),
+
+    AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE,
+        msc_config_phase4_content_types_file,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Load Phase 4 response body MIME types from a file"
+    ),
+
+    AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_PHASE4_LOG,
+        msc_config_phase4_log,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Write Phase 4 connector decisions as JSON lines"
+    ),
+
+    AP_INIT_TAKE1(
+        MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT,
+        msc_config_phase4_body_limit,
+        NULL,
+        RSRC_CONF | ACCESS_CONF,
+        "Bound Apache connector response-body buffering for Phase 4"
     ),
 
     {NULL}
@@ -225,6 +259,140 @@ static const char *msc_config_use_error_log(cmd_parms *cmd, void *_cnf,
 }
 
 
+static const char *msc_config_phase4_mode(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+
+    if (strcasecmp(p1, "minimal") == 0)
+    {
+        cnf->phase4_mode = MSCONNECTOR_PHASE4_MODE_MINIMAL;
+    }
+    else if (strcasecmp(p1, "safe") == 0)
+    {
+        cnf->phase4_mode = MSCONNECTOR_PHASE4_MODE_SAFE;
+    }
+    else if (strcasecmp(p1, "strict") == 0)
+    {
+        cnf->phase4_mode = MSCONNECTOR_PHASE4_MODE_STRICT;
+    }
+    else
+    {
+        return "modsecurity_phase4_mode must be minimal, safe, or strict";
+    }
+
+    return NULL;
+}
+
+
+static const char *msc_config_phase4_content_types_file(cmd_parms *cmd,
+    void *_cnf, const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    apr_file_t *file = NULL;
+    char line[512];
+    apr_status_t rc;
+
+    if (p1 == NULL || p1[0] == '\0')
+    {
+        return "modsecurity_phase4_content_types_file must not be empty";
+    }
+
+    cnf->phase4_content_types_file = apr_pstrdup(cmd->pool, p1);
+    cnf->phase4_content_types = apr_array_make(cmd->pool, 8,
+        sizeof(const char *));
+    if (cnf->phase4_content_types == NULL)
+    {
+        return "failed to allocate phase4 content-type list";
+    }
+
+    rc = apr_file_open(&file, p1, APR_READ, APR_OS_DEFAULT, cmd->pool);
+    if (rc != APR_SUCCESS)
+    {
+        return apr_psprintf(cmd->pool,
+            "failed to open modsecurity_phase4_content_types_file: %s", p1);
+    }
+
+    while (apr_file_gets(line, sizeof(line), file) == APR_SUCCESS)
+    {
+        char *start = line;
+        char *end;
+        char *comment;
+
+        while (*start != '\0' && apr_isspace(*start))
+        {
+            start++;
+        }
+        comment = strchr(start, '#');
+        if (comment != NULL)
+        {
+            *comment = '\0';
+        }
+        comment = strchr(start, ';');
+        if (comment != NULL)
+        {
+            *comment = '\0';
+        }
+        for (end = start; *end != '\0'; end++)
+        {
+            /* Advance to the end so trailing whitespace can be trimmed below. */
+        }
+        while (end > start && apr_isspace(*(end - 1)))
+        {
+            end--;
+        }
+        *end = '\0';
+        if (*start == '\0')
+        {
+            continue;
+        }
+        *(const char **)apr_array_push(cnf->phase4_content_types) =
+            apr_pstrdup(cmd->pool, start);
+    }
+
+    apr_file_close(file);
+    return NULL;
+}
+
+
+static const char *msc_config_phase4_log(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+
+    if (p1 == NULL || p1[0] == '\0')
+    {
+        return "modsecurity_phase4_log must not be empty";
+    }
+
+    cnf->phase4_log_path = apr_pstrdup(cmd->pool, p1);
+    return NULL;
+}
+
+
+static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_cnf,
+    const char *p1)
+{
+    msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    char *end = NULL;
+    unsigned long value;
+
+    if (p1 == NULL || p1[0] == '\0')
+    {
+        return "modsecurity_phase4_body_limit must not be empty";
+    }
+
+    value = strtoul(p1, &end, 10);
+    if (end == p1 || *end != '\0' || value == 0)
+    {
+        return "modsecurity_phase4_body_limit must be a positive integer";
+    }
+
+    cnf->phase4_body_limit = (apr_size_t)value;
+    return NULL;
+}
+
+
 void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 {
     msc_conf_t *cnf = NULL;
@@ -244,6 +412,11 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
     cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
     cnf->transaction_id = NULL;
     cnf->transaction_id_expr = NULL;
+    cnf->phase4_mode = -1;
+    cnf->phase4_content_types_file = NULL;
+    cnf->phase4_content_types = NULL;
+    cnf->phase4_log_path = NULL;
+    cnf->phase4_body_limit = 0;
     msconnector_rule_load_stats_init(&cnf->rule_load_stats);
     if (cnf->rules_set == NULL)
     {
@@ -381,6 +554,61 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
     {
         cnf_new->transaction_id = NULL;
         cnf_new->transaction_id_expr = NULL;
+    }
+
+    if (cnf_c != NULL && cnf_c->phase4_mode != -1)
+    {
+        cnf_new->phase4_mode = cnf_c->phase4_mode;
+    }
+    else if (cnf_p != NULL && cnf_p->phase4_mode != -1)
+    {
+        cnf_new->phase4_mode = cnf_p->phase4_mode;
+    }
+    else
+    {
+        cnf_new->phase4_mode = MSCONNECTOR_DEFAULT_PHASE4_MODE;
+    }
+
+    if (cnf_c != NULL && cnf_c->phase4_content_types != NULL)
+    {
+        cnf_new->phase4_content_types = cnf_c->phase4_content_types;
+        cnf_new->phase4_content_types_file = cnf_c->phase4_content_types_file;
+    }
+    else if (cnf_p != NULL && cnf_p->phase4_content_types != NULL)
+    {
+        cnf_new->phase4_content_types = cnf_p->phase4_content_types;
+        cnf_new->phase4_content_types_file = cnf_p->phase4_content_types_file;
+    }
+    else
+    {
+        cnf_new->phase4_content_types = NULL;
+        cnf_new->phase4_content_types_file = NULL;
+    }
+
+    if (cnf_c != NULL && cnf_c->phase4_log_path != NULL)
+    {
+        cnf_new->phase4_log_path = apr_pstrdup(mp, cnf_c->phase4_log_path);
+    }
+    else if (cnf_p != NULL && cnf_p->phase4_log_path != NULL)
+    {
+        cnf_new->phase4_log_path = apr_pstrdup(mp, cnf_p->phase4_log_path);
+    }
+    else
+    {
+        cnf_new->phase4_log_path = NULL;
+    }
+
+    if (cnf_c != NULL && cnf_c->phase4_body_limit > 0)
+    {
+        cnf_new->phase4_body_limit = cnf_c->phase4_body_limit;
+    }
+    else if (cnf_p != NULL && cnf_p->phase4_body_limit > 0)
+    {
+        cnf_new->phase4_body_limit = cnf_p->phase4_body_limit;
+    }
+    else
+    {
+        cnf_new->phase4_body_limit = MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT;
     }
 
     if (cnf_p != NULL)

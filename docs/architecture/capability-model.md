@@ -5,7 +5,7 @@ automatic skips. A capability is counted as verified only when a real connector
 smoke case passes through Apache or NGINX.
 
 Capability metadata is not connector proof on its own. API-only smokes,
-mapped-only inventory entries, xfail probes, blocked cases, and generated
+mapped-only inventory entries, former expected-failure probes, blocked cases, and generated
 coverage rows do not add verified variables.
 
 ## Active Capability Names
@@ -18,7 +18,7 @@ coverage rows do not add verified variables.
 | `json` | JSON or raw JSON request-body behavior | `REQUEST_BODY` |
 | `response-body` | Response-body access/pass-through behavior | not `RESPONSE_BODY` until blocking passes |
 | `audit-log` | Stable audit-log fields are asserted | `AUDIT_LOG` |
-| `audit-log-absent` | Expected audit-log absence; currently used only for xfail/probes | none |
+| `audit-log-absent` | Expected audit-log absence; currently used only for former expected-failure/probes | none |
 | `collections` | ModSecurity collection behavior | none by itself |
 | `request-cookies` | Cookie value/name collections | `REQUEST_COOKIES` |
 | `args-names` | Argument-name collection | `ARGS_NAMES` |
@@ -29,7 +29,7 @@ coverage rows do not add verified variables.
 | `query-args` / `form-urlencoded` | Query or URL-encoded body args | `ARGS` |
 
 `RESPONSE_BODY` is intentionally not emitted in `verified_variables` while
-`response_body_basic_block` remains xfail/mapped-only.
+`response_body_basic_block` remains former expected-failure/mapped-only.
 
 ## Validation Rules
 
@@ -42,7 +42,7 @@ status based:
 
 - `modules/ModSecurity-test-Framework/tests/cases/minimal`, `imported`, `v2-imported`, and `v3-imported`
   are active common scopes.
-- `modules/ModSecurity-test-Framework/tests/cases/xfail` is excluded from normal discovery and must be
+- `modules/ModSecurity-test-Framework/tests/cases/former expected-failure` is excluded from normal discovery and must be
   selected explicitly with `SMOKE_CASES`.
 - Connector-specific cases are active only for their matching connector.
 

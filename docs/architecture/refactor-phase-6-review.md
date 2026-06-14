@@ -27,7 +27,7 @@ participates in generated NGINX build copies.
 - Request and response body handling.
 - libmodsecurity transaction ownership and lifecycle.
 - Runtime intervention behavior.
-- YAML cases, xfail/mapped-only classifications, and `verified_variables`.
+- YAML cases, former expected-failure/mapped-only classifications, and `verified_variables`.
 
 ## Evidence
 

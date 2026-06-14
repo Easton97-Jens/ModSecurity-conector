@@ -72,15 +72,15 @@ Apache, and NGINX scaffold decisions?
 
 Decision: accepted.
 
-Reason: `TEST-COVERAGE-SUMMARY.md` is generated reporting and explicitly says
-it is not runtime proof. It records framework coverage, runtime snapshot
-PASS/FAIL counts, and that `runtime_verified=true` remains 0. Separate
-coverage decision matrices make that distinction visible for Template, Apache,
-and NGINX.
+Reason: `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md` is
+framework-owned generated reporting and explicitly says it is not runtime
+proof. It records framework coverage, runtime snapshot PASS/FAIL counts, and
+that `runtime_verified=true` remains 0. Separate coverage decision matrices
+make that distinction visible for Template, Apache, and NGINX.
 
 Evidence/paths:
 
-- `TEST-COVERAGE-SUMMARY.md`
+- `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 - `connectors/_template/docs/coverage-decision-matrix.md`
 - `connectors/apache/docs/coverage-decision-matrix.md`
 - `connectors/nginx/docs/coverage-decision-matrix.md`
@@ -275,8 +275,9 @@ Status vocabulary:
   implementation is proven.
 - `adapter-owned`: productive connector code lives in the connector tree with
   provenance and metadata.
-- `runtime-smoke-verified`: only specific smoke cases with recorded command and
-  result are verified.
+- `runtime-smoke-verified`: only specific smoke cases with recorded command,
+  result, and explicit `verified_case` scope are verified; this does not imply
+  CRS, RESPONSE_BODY, or full-matrix verification.
 - `crs-verified`: With-CRS target or case claim has recorded command, CRS
   evidence, and result.
 - `partial`: structure or partial runtime evidence exists, but full validation
@@ -409,3 +410,271 @@ Needed evidence:
 - negative/pass-through case
 - Apache and NGINX separately documented with commands and results when those
   connectors are part of the claim
+
+## Envoy Scaffold Decision
+
+Question: How should the existing `connectors/envoy` directory be completed
+without duplicating shared connector rules or claiming unverified behavior?
+
+Decision: accepted as initial scaffold baseline; extended by the Envoy Build-Starter Decision below.
+
+Reason: Envoy initially had no repository-backed adapter-owned source, build
+evidence, harness implementation, or runtime evidence. Connector-specific Envoy
+files document only Envoy status and open gates, while referencing shared rules
+in this file and in `connectors/_template/docs/coverage-decision-matrix.md`.
+
+Evidence/paths:
+
+- `connectors/envoy/README.md`
+- `connectors/envoy/TODO.md`
+- `connectors/envoy/docs/architecture.md`
+- `connectors/envoy/docs/build.md`
+- `connectors/envoy/docs/validation.md`
+- `connectors/envoy/docs/coverage-decision-matrix.md`
+- `connectors/envoy/harness/README.md`
+- `connectors/envoy/src/README.md`
+- `reports/template-verification-nginx-apache/envoy-template-alignment.md`
+
+Impact on new connectors: shared scaffold rules, promotion gates, status
+vocabulary, No-CRS/With-CRS separation, coverage matrix semantics, and runtime
+evidence requirements stay global/shared. Envoy-specific files must not claim
+runtime behavior until an Envoy build/harness and executed Envoy-scoped targets
+produce evidence.
+
+Envoy status:
+
+- Scaffold: OK.
+- Origin/metadata: build-starter metadata present.
+- Build: build-starter only.
+- Harness: contract only.
+- No-CRS: not-run.
+- With-CRS: not-run.
+- RESPONSE_BODY: not-verified.
+- Local `connectors/envoy/tests`: absent.
+- Promotion: not allowed beyond build-starter/partial.
+
+## Envoy Build-Starter Decision
+
+Question: Can `connectors/envoy` move beyond documentation-only scaffold without
+inventing Envoy API, ModSecurity API, build logic, or runtime results?
+
+Decision: accepted as metadata-only build starter.
+
+Reason: The repository contains connector-neutral `common/` headers and helper
+source plus Apache/NGINX metadata patterns. It does not contain Envoy SDK/API
+headers, proxy-wasm SDK, ext_proc protobuf/gRPC bindings, or an Envoy runtime
+harness. Therefore the only repository-backed build path is compiling local
+Envoy metadata against connector-neutral common code.
+
+Evidence/paths:
+
+- `common/include/msconnector/origin.h`
+- `common/include/msconnector/capabilities.h`
+- `common/src/origin.c`
+- `common/src/capabilities.c`
+- `connectors/envoy/ORIGIN.md`
+- `connectors/envoy/SOURCE_MAP.json`
+- `connectors/envoy/metadata.c`
+- `connectors/envoy/metadata.h`
+- `connectors/envoy/Makefile`
+- `connectors/envoy/build/build_metadata.sh`
+
+Impact: Envoy build status may be reported as `build-starter` only after
+`make -C connectors/envoy build-starter` passes. Runtime status remains
+`not-verified`. RESPONSE_BODY blocking remains `not-verified`. Envoy is not
+`adapter-owned` until real Envoy integration source, dependencies, build logs,
+and harness/runtime evidence are added.
+
+## Envoy Bridge-Starter Decision
+
+Question: Can `connectors/envoy` move beyond metadata-only compilation toward a
+real connector path without faking Envoy or ModSecurity APIs?
+
+Decision: accepted as sidecar/HTTP bridge starter.
+
+Reason: Native Envoy filter, ext_proc, and proxy-wasm paths still lack required
+repository dependencies. A local sidecar/HTTP bridge starter can be built with
+repository-owned C code and connector-neutral `common/` request/intervention
+shapes. This gives Envoy a concrete request-to-decision integration seam without
+claiming Envoy runtime compatibility or ModSecurity rule execution.
+
+Evidence/paths:
+
+- `connectors/envoy/src/envoy_bridge.h`
+- `connectors/envoy/src/envoy_bridge.c`
+- `connectors/envoy/src/envoy_bridge_main.c`
+- `connectors/envoy/Makefile`
+- `connectors/envoy/build/build_metadata.sh`
+- `common/include/msconnector/request.h`
+- `common/include/msconnector/intervention.h`
+- `common/include/msconnector/status.h`
+
+Impact: Envoy may be rated `bridge-starter` after `make -C connectors/envoy
+build-starter` and `make -C connectors/envoy self-test` pass. It is not
+`modsecurity-bridge-starter`, `runtime-smoke-verified`, `crs-verified`, or
+`partial` until real libmodsecurity and Envoy runtime harness evidence exists.
+## Decision 10: HAProxy Uses Shared Gates With Local SPOA Agent Starter
+
+Question: Should the HAProxy connector duplicate global connector gates while
+adding a minimal SPOE/SPOA-oriented next step?
+
+Decision: rejected for duplication; accepted for a local SPOA agent starter.
+
+Reason: The Template coverage matrix and this decision file already define the
+shared status vocabulary, scaffold rules, promotion gates, No-CRS/With-CRS
+separation, RESPONSE_BODY minimum evidence, external framework ownership, and
+runtime-evidence expectations. HAProxy-specific files should reference those
+rules and record only HAProxy-specific status. The repository has reusable
+common request, intervention, status, and origin shapes, so a local starter can
+compile and self-test synthetic request-decision logic without inventing HAProxy
+API ownership or full SPOP frame handling. A separate local libmodsecurity
+binding verifies the local C API and can be exercised by the diagnostic SPOP
+runtime for the scoped `haproxy_phase1_header_block` and
+`haproxy_crs_sqli_anomaly_block` smokes.
+
+HAProxy-specific application:
+
+- `connectors/haproxy` is `spoa-agent-starter`.
+- Runtime status is `runtime-smoke-verified` for
+  `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`.
+- Template alignment is `scaffold-aligned plus local SPOA agent starter`.
+- No local `connectors/haproxy/tests` folder is used.
+- `connectors/haproxy/src/haproxy_spoa_agent_starter.*` and
+  `connectors/haproxy/src/haproxy_spoa_main.c` are repo-authored local starter
+  files, not productive adapter code.
+- `make -C connectors/haproxy build-spoa-starter` may compile the local starter
+  binary only; it does not build HAProxy, a HAProxy module, a complete SPOA
+  service, HAProxy-enforced libmodsecurity integration, or runtime adapter
+  logic.
+- `make -C connectors/haproxy self-test-spoa` may verify local synthetic
+  request allow/block decisions only; it is not a HAProxy runtime smoke.
+- `make -C connectors/haproxy self-test-modsecurity-binding` may verify a
+  local libmodsecurity phase-1 header block self-test only; it may not set
+  `runtime_verified` to true by itself.
+- `make -C connectors/haproxy self-test-modsecurity-binding-crs` may verify a
+  local CRS SQLi binding self-test only; it may not set `runtime_verified` to
+  true by itself.
+- `make smoke-haproxy` may set `runtime_verified: true` only when live HAProxy
+  sends NOTIFY to the diagnostic agent, the agent extracts request arguments,
+  libmodsecurity produces a disruptive 403, the verified set-var ACK is sent,
+  the block probe returns 403, and the clean probe returns 200. CRS may be
+  marked verified only for `haproxy_crs_sqli_anomaly_block` when the local CRS
+  preamble is loaded and the SQLi probe blocks while the pass probe returns
+  200.
+- Productive HAProxy adapter build remains BLOCKED until a full SPOP parser or
+  SPOE/SPOA protocol library, broader HAProxy runtime harness, broader CRS
+  evidence, RESPONSE_BODY evidence, negative/pass-through evidence, audit/log
+  evidence, and full-matrix evidence are selected and recorded.
+- No broader CRS behavior or RESPONSE_BODY blocking result is claimed.
+- Future executable tests remain framework-owned under
+  `modules/ModSecurity-test-Framework/tests/cases/` and runner paths such as
+  `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`.
+- Broader evidence may reference parent targets `make test-no-crs`,
+  `make test-with-crs`, and `make smoke-common` only after an explicit
+  HAProxy runtime scope exists and is executed.
+
+Impact: HAProxy may be documented as a local SPOA agent starter without
+creating duplicated connector-local gates or YAML test cases. Promotion beyond
+partial scoped runtime smoke is not allowed until HAProxy-specific productive
+source origin, runtime build, broader harness, No-CRS, With-CRS, RESPONSE_BODY,
+negative/pass-through, audit/log, and full-matrix evidence is recorded.
+## lighttpd Bridge-Starter Decision
+
+Question: Can `connectors/lighttpd` move beyond metadata/probe build-starter
+without inventing a lighttpd API, FastCGI/SCGI protocol compatibility,
+ModSecurity API integration, or runtime claim?
+
+Decision: accepted as decision-service bridge-starter only.
+
+Reason: The repository has connector-neutral `common/` origin, status,
+intervention, request, and capability helpers and existing Apache/NGINX metadata
+patterns. It does not have selected lighttpd headers/SDK/source, a lighttpd
+module build configuration, FastCGI/SCGI protocol adapter,
+ModSecurity-to-lighttpd integration code, or a lighttpd runtime harness.
+Therefore the only safe concrete next step is a repo-owned local decision
+service bridge starter that proves local compile/self-test behavior, not adapter
+ownership or runtime compatibility.
+
+Evidence/paths:
+
+- `connectors/lighttpd/ORIGIN.md`
+- `connectors/lighttpd/SOURCE_MAP.json`
+- `connectors/lighttpd/metadata.c`
+- `connectors/lighttpd/metadata.h`
+- `connectors/lighttpd/Makefile`
+- `connectors/lighttpd/build/build_starter.sh`
+- `connectors/lighttpd/build/bridge_starter.sh`
+- `connectors/lighttpd/src/lighttpd_build_starter.c`
+- `connectors/lighttpd/src/lighttpd_bridge.h`
+- `connectors/lighttpd/src/lighttpd_bridge.c`
+- `connectors/lighttpd/src/lighttpd_bridge_main.c`
+- `connectors/lighttpd/README.md`
+- `connectors/lighttpd/TODO.md`
+- `connectors/lighttpd/docs/architecture.md`
+- `connectors/lighttpd/docs/build.md`
+- `connectors/lighttpd/docs/validation.md`
+- `connectors/lighttpd/docs/coverage-decision-matrix.md`
+- `connectors/lighttpd/harness/README.md`
+- `connectors/lighttpd/src/README.md`
+- `reports/template-verification-nginx-apache/lighttpd-template-alignment.md`
+- Global matrix: `connectors/_template/docs/coverage-decision-matrix.md`
+- Framework tests: `modules/ModSecurity-test-Framework/tests/cases/`
+- Framework runner: `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+- Public lighttpd references: `modules/ModSecurity-test-Framework/docs/imports/sources.md`
+- Future connector contract: `modules/ModSecurity-test-Framework/docs/future-connectors.md`
+
+Impact on lighttpd: Phase 0 scaffold is OK. Origin/metadata for the bridge
+starter is present. The metadata/probe and bridge-starter compile/self-test
+checks are available. Native lighttpd, FastCGI, and SCGI production integration
+remain blocked until a concrete runtime path and its dependencies are selected.
+Harness, No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, audit/log, and
+promotion gates remain open/not verified until per-connector runtime evidence
+exists. No local `connectors/lighttpd/tests` folder may be used.
+
+Runtime claim: none.
+## Decision 10: Traefik Decision-Service Starter
+
+Question: How should `connectors/traefik` advance beyond compile-time metadata
+without inventing a Traefik API or claiming runtime verification?
+
+Decision: accepted as a local decision-service starter.
+
+Reason: `connectors/traefik` now contains repo-owned metadata, source-map,
+origin, compile-time starter source, and local decision-service starter source
+that builds against connector-neutral `common/` helpers. The repository does not
+contain a selected Traefik plugin API, middleware API, Go module, Traefik runtime
+source, HTTP bridge runtime, or Traefik harness. Therefore the implemented next
+step is a local in-memory request-to-decision model with self-test, not a
+Traefik runtime adapter or verified `forwardAuth` service.
+
+Evidence/paths:
+
+- `connectors/traefik/README.md`
+- `connectors/traefik/TODO.md`
+- `connectors/traefik/ORIGIN.md`
+- `connectors/traefik/SOURCE_MAP.json`
+- `connectors/traefik/metadata.c`
+- `connectors/traefik/metadata.h`
+- `connectors/traefik/Makefile`
+- `connectors/traefik/build/build-starter.sh`
+- `connectors/traefik/src/traefik_build_starter.c`
+- `connectors/traefik/src/traefik_decision_service.h`
+- `connectors/traefik/src/traefik_decision_service.c`
+- `connectors/traefik/src/traefik_decision_service_main.c`
+- `connectors/traefik/docs/coverage-decision-matrix.md`
+- `reports/template-verification-nginx-apache/traefik-template-alignment.md`
+- `connectors/_template/docs/coverage-decision-matrix.md`
+- `common/include/msconnector/`
+- `common/src/`
+- `modules/ModSecurity-test-Framework/tests/cases/`
+- `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
+
+Impact on new connectors: connector-specific starters may model local decision
+logic only when they avoid fake server APIs and make their non-runtime status
+explicit. Runtime claims require executed connector-specific runtime commands and
+evidence.
+
+Follow-up change or needed evidence: Traefik remains not runtime-verified until
+a production integration path, upstream/license evidence, runtime build, harness,
+No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, and audit/log evidence
+are produced and documented.

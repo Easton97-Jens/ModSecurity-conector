@@ -1,36 +1,45 @@
-# HAProxy Scaffold Architecture
+# HAProxy Architecture
 
-## Ziel
+Status: production SPOA runtime, partial and evidence-scoped
 
-Dieses Dokument überträgt den adapter-owned Ansatz als Scaffold auf HAProxy.
-Es beschreibt Optionen und offene Fragen, keine Implementierungszusage.
+The HAProxy connector uses a production SPOA/SPOP process instead of an
+in-process HAProxy module:
 
-## Adapter-owned Grundsatz
+```text
+HTTP client -> HAProxy -> SPOE/SPOP -> haproxy-modsecurity-spoa -> libmodsecurity -> HAProxy response
+```
 
-- HAProxy-spezifische Build-/Runtime-Logik bleibt unter `connectors/haproxy/`.
-- Gemeinsame, connector-neutrale Metadaten dürfen genutzt werden, wo passend.
-- Server-Lifecycle und Runtime-Semantik sind HAProxy-spezifisch und noch zu
-  prüfen.
+## Implemented Path
 
-## HAProxy-Lifecycle (noch zu prüfen)
+- `haproxy-modsecurity-spoa` is built from
+  `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c`.
+- The local libmodsecurity binding is built from
+  `connectors/haproxy/src/haproxy_modsecurity_binding.c`.
+- HAProxy sends request and response data through SPOE/SPOP.
+- The SPOA process returns typed `txn.modsec.*` variables for HAProxy
+  enforcement.
+- Runtime evidence includes `decision.jsonl`, audit-log plumbing, HAProxy logs,
+  SPOA logs, JSONL case results, and generated summaries.
 
-- Start-/Stop-Verhalten in lokalen und CI-Umgebungen
-- Reload-Semantik und Nebenwirkungen
-- Worker-/Process-Modell und Zustandsgrenzen
-- Request-/Response-Hookpunkte für ModSecurity-Entscheidungen
+## Phase Coverage
 
-## Mögliche Integrationsmodelle (Optionen, keine Entscheidung)
+- Request phases 1/2: live runtime evidence.
+- Phase 3 response headers: implemented and live evidenced.
+- Phase 4 / RESPONSE_BODY: bounded strict-abort evidence only.
 
-- SPOE/SPOA-Modell
-- Native Erweiterung/Filtermodell
-- Lua-basierter Ansatz
-- Externer Prüfservice
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.
 
-Hinweis: Diese Optionen sind als Arbeitsliste zu verstehen. Keine Option ist
-hier als entschieden oder funktionsfähig belegt.
+## Current Evidence
 
-## Klare Nicht-Zusagen
+| Evidence set | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Default HAProxy smoke | 55 | 55 | 0 | 0 | 0 |
+| HAProxy force-all | 133 | 104 | 23 | 0 | 6 |
 
-- Apache-/NGINX-Runtime-Code darf nicht ungeprüft kopiert werden.
-- Es wird keine Runtime-Parität mit Apache/NGINX behauptet.
-- Response-Body-/Streaming-Verhalten ist noch zu prüfen.
+## Boundaries
+
+There is no synthetic matrix writer. Generated HAProxy reports consume live
+runtime summaries and the runtime validation snapshot. Full-body guarantees,
+arbitrary dynamic disruptive status mapping, and long-running production
+hardening remain open before promotion beyond partial status.

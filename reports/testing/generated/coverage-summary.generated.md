@@ -13,10 +13,14 @@ Generated file — do not edit manually.
 - nginx: 7
 - unknown: 0
 
+## By source
+- ModSecurity-apache PR: 4
+- owasp-modsecurity/ModSecurity-apache#78: 3
+- unknown: 134
+
 ## By status
 - active: 8
-- imported: 53
-- xfail: 80
+- imported: 133
 
 ## By variable/collection
 - `RESPONSE_BODY`: 20
@@ -72,4 +76,4 @@ Generated file — do not edit manually.
 ## Verification note
 - Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.
 - RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.
-- RESPONSE_BODY pass-through evidence only; not proof of response-body blocking/inspection.
+- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
