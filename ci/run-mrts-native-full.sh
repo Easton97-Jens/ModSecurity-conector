@@ -31,6 +31,7 @@ validate_runtime_paths() {
     assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
     assert_safe_runtime_path "$MRTS_NATIVE_ROOT" MRTS_NATIVE_ROOT || exit 77
     assert_not_system_path_for_write "$CONNECTOR_ROOT/reports/testing/generated" MRTS_NATIVE_REPORT_DIR || exit 77
+    return 0
 }
 
 validate_runtime_paths
@@ -42,6 +43,7 @@ import json
 import sys
 print(json.dumps(sys.argv[1]))
 PY
+    return $?
 }
 
 write_job_json() {
@@ -71,6 +73,7 @@ data = {
 }
 path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
+    return $?
 }
 
 require_path() {
@@ -108,6 +111,7 @@ join_library_path() {
         fi
     done
     printf '%s\n' "$result"
+    return 0
 }
 
 command_available() {
@@ -116,6 +120,7 @@ command_available() {
         */*) [ -x "$cmd" ] ;;
         *) command -v "$cmd" >/dev/null 2>&1 ;;
     esac
+    return $?
 }
 
 append_missing_dep() {
@@ -127,6 +132,7 @@ append_missing_dep() {
     else
         printf '%s (set %s)' "$binary" "$env_var"
     fi
+    return 0
 }
 
 replace_loadmodule_paths() {
@@ -151,6 +157,7 @@ if path.name == "security2.load" and apache_module:
     )
 path.write_text(text, encoding="utf-8")
 PY
+    return $?
 }
 
 replace_file_text() {
@@ -167,6 +174,7 @@ new = sys.argv[3]
 text = path.read_text(encoding="utf-8")
 path.write_text(text.replace(old, new), encoding="utf-8")
 PY
+    return $?
 }
 
 write_apache_modsecurity_conf() {
@@ -184,6 +192,7 @@ write_apache_modsecurity_conf() {
     modsecurity_phase4_body_limit 1048576
 </IfModule>
 EOF
+    return 0
 }
 
 patch_modsecurity_v3_rules_config() {
@@ -201,6 +210,7 @@ for line in path.read_text(encoding="utf-8").splitlines():
         lines.append(line)
 path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
+    return $?
 }
 
 write_native_apache_load_if_present() {
@@ -211,6 +221,7 @@ write_native_apache_load_if_present() {
     if [ -f "$modules_dir/$module_file" ]; then
         printf 'LoadModule %s_module %s/%s\n' "$module_name" "$modules_dir" "$module_file" > "$load_dir/native-$module_name.load"
     fi
+    return 0
 }
 
 disable_nginx_system_module_file() {
@@ -229,6 +240,7 @@ for line in path.read_text(encoding="utf-8").splitlines():
         lines.append(line)
 path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
+    return $?
 }
 
 prepare_mrts_outputs() {
@@ -236,6 +248,7 @@ prepare_mrts_outputs() {
     MRTS_RULES_OUT="$MRTS_BUILD_ROOT/upstream-config-tests/rules" \
     MRTS_LOAD_FILE="$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load" \
         sh "$FRAMEWORK_ROOT/ci/write-mrts-load.sh" >/dev/null
+    return $?
 }
 
 patch_common_ftw_config() {
@@ -245,6 +258,7 @@ patch_common_ftw_config() {
         assert_not_system_path_for_write "$config" "native FTW config" || return 77
         sed -i "s#^logfile:.*#logfile: '$(printf '%s' "$logfile" | sed 's#[\\&#]#\\\\&#g')'#" "$config"
     fi
+    return 0
 }
 
 patch_ftw_dest_ports() {
@@ -275,6 +289,7 @@ for path in sorted(root.rglob("*.yaml")):
     patch(data)
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 PY
+    return $?
 }
 
 stage_apache() {
@@ -334,6 +349,7 @@ EOF
     fi
     patch_common_ftw_config "$stage/ftw.mrts.config.yaml" "$stage/infra/log/error.log"
     printf '%s\n' "$stage"
+    return 0
 }
 
 stage_nginx() {
@@ -373,6 +389,7 @@ stage_nginx() {
     fi
     patch_common_ftw_config "$stage/ftw.mrts.config.yaml" "$stage/infra/log/error.log"
     printf '%s\n' "$stage"
+    return 0
 }
 
 native_target_deps() {
@@ -412,6 +429,10 @@ native_target_deps() {
             if [ -n "$nginx_lib_dir" ] && [ ! -f "$nginx_lib_dir/libmodsecurity.so" ]; then
                 common_missing=$(append_missing_dep "$common_missing" "libmodsecurity.so" "MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR")
             fi
+            ;;
+        *)
+            printf 'unsupported MRTS native target: %s\n' "$target"
+            return 2
             ;;
     esac
     if [ -n "$common_missing" ]; then
@@ -485,6 +506,14 @@ run_native_target() {
                 return "$rc"
             }
             ;;
+        *)
+            rc=2
+            reason="unsupported MRTS native target"
+            printf '%s\n' "$rc" > "$exit_code_file"
+            write_job_json "$job_json" "$target" "FAIL" "$reason" "$rc" 0 "$run_log" "$summary_path"
+            echo "mrts-native: target=$target FAIL: $reason"
+            return "$rc"
+            ;;
     esac
 
     deps=$(native_target_deps "$target" || true)
@@ -504,6 +533,7 @@ run_native_target() {
             kill "$backend_pid" >/dev/null 2>&1 || true
         fi
         "$PYTHON" "$stage/stop.py" >> "$run_log" 2>&1 || true
+        return 0
     }
     trap cleanup EXIT INT TERM
 
@@ -521,6 +551,14 @@ run_native_target() {
                 LD_LIBRARY_PATH="$nginx_ld_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
                 export LD_LIBRARY_PATH
             fi
+            ;;
+        *)
+            rc=2
+            reason="unsupported MRTS native target"
+            printf '%s\n' "$rc" > "$exit_code_file"
+            write_job_json "$job_json" "$target" "FAIL" "$reason" "$rc" 0 "$run_log" "$summary_path"
+            echo "mrts-native: target=$target FAIL: $reason"
+            return "$rc"
             ;;
     esac
 
