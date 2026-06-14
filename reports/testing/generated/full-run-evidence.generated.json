@@ -91,10 +91,12 @@
     }
   },
   "body_processor_analysis_report": {
-    "active_after_report_sync": 0,
     "analysis": "reports/testing/generated/body-processor-analysis.generated.md",
     "json": "reports/testing/generated/body-processor-analysis.generated.json",
-    "urlencoded_form_subcluster_count": 18
+    "urlencoded_active_after_report_sync": 0,
+    "urlencoded_form_subcluster_count": 18,
+    "xml_activation_missing_subcluster_count": 24,
+    "xml_active_after_report_sync": 0
   },
   "expat": {
     "actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",

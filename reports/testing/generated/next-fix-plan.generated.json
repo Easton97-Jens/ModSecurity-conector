@@ -1,21 +1,34 @@
 {
-  "generated_at": "2026-06-14T10:14:04Z",
+  "generated_at": "2026-06-14T10:36:29Z",
   "priority_plan": {
     "P0": [],
-    "P1": [],
+    "P1": [
+      {
+        "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
+        "connector": "apache, nginx, haproxy",
+        "count": 6,
+        "likely_change": "verify whether audit-log expectation is correct for nolog and classify/report accordingly",
+        "risk": "low to medium",
+        "tests": [
+          "targeted smoke for v3_action_nolog_pass_no_audit",
+          "make lint quick-check"
+        ],
+        "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics"
+      }
+    ],
     "P2": [
       {
-        "cluster_name": "request_body_processor / multipart_files / xml_processor",
+        "cluster_name": "multipart_files",
         "connector": "apache, nginx, haproxy",
-        "count": 36,
-        "likely_change": "split by body type first; avoid one broad fix",
-        "risk": "medium to high",
+        "count": 12,
+        "likely_change": "compare multipart variable population across connectors with one representative request",
+        "risk": "medium",
         "tests": [
-          "targeted body processor cases",
+          "targeted multipart cases",
           "connector smoke for touched connector",
           "full matrix if parser behavior changes"
         ],
-        "why": "high combined volume, but likely multiple true processor gaps"
+        "why": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits"
       }
     ],
     "P3": [
@@ -82,12 +95,16 @@
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
       },
       {
+        "cluster": "xml_processor_activation_missing",
+        "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
+      },
+      {
         "cluster": "collection_name_normalization_semantics",
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
-    "reason": "high combined volume, but likely multiple true processor gaps",
-    "recommended_next_fix_cluster": "request_body_processor / multipart_files / xml_processor"
+    "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
+    "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
   },
   "report_kind": "next-fix-plan"
 }

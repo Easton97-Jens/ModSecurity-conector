@@ -1,6 +1,6 @@
 # No-MRTS Intervention No-Match Analysis
 
-- Generated at: `2026-06-14T10:14:02Z`
+- Generated at: `2026-06-14T10:36:27Z`
 - no-MRTS expected `403` / actual `200` rows with loaded rule and no match: **105**
 - Unique cases: **18**
 - Rule not loaded: **0**
@@ -15,7 +15,7 @@
 |---|---|---|---|---|---|
 | Transformation/request literal does not expose expected token | 36 | The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur. | not safe as a harness fix; changing the request token would change test semantics | high | sqli_like_keyword_spacing_probe, sqli_like_quote_encoding_runtime_difference, unicode_double_encoded_uri_runtime_difference, unicode_whitespace_normalization_gap, xss_like_encoded_angles_normalization_probe, xss_like_mixed_case_script_token_gap |
 | Collection-name normalization semantics | 30 | Header, cookie, or query-name normalization differs from the rule target expectation. | requires native/libmodsecurity comparison before changing harness or connector code | medium to high | duplicate_args_encoded_separator_edge, duplicate_header_case_normalization_gap, edge_semicolon_query_args_names, v3_request_cookies_names_case_runtime_difference, v3_request_headers_names_lowercase_runtime_difference |
-| XML/body processor collection semantics | 24 | XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value. | not a small safe fix; belongs with body processor evidence work | medium to high | parser_xml_partial_body_future_target, xml_deep_nesting_future_target, xml_namespace_edge_connector_gap, xml_request_body_malformed_connector_gap |
+| XML processor activation missing | 24 | The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML. | metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior | low if kept report-only; high if treated as connector XML parser evidence | parser_xml_partial_body_future_target, xml_deep_nesting_future_target, xml_namespace_edge_connector_gap, xml_request_body_malformed_connector_gap |
 | Multipart collection semantics | 12 | Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token. | not a small safe fix; belongs with multipart/body processor evidence work | medium | files_names_mixed_case_filename_gap, multipart_duplicate_field_names_gap |
 | Phase 1 request-body unavailable or empty | 3 | The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token. | not safe to fix by changing the body; that would change the test definition | low to medium | phase1_vs_phase2_request_body_gap |
 
@@ -81,7 +81,7 @@
 |---|---|
 | transformation_request_literal_no_match | 36 |
 | collection_name_normalization_semantics | 30 |
-| xml_body_processor_collection_semantics | 24 |
+| xml_processor_activation_missing | 24 |
 | multipart_collection_semantics | 12 |
 | phase1_request_body_unavailable | 3 |
 
@@ -90,7 +90,7 @@
 |---|---|
 | transformation_semantics | 36 |
 | collection_semantics | 30 |
-| xml_processor | 24 |
+| classification_only | 24 |
 | multipart_files | 12 |
 | request_body_processor | 3 |
 
@@ -98,7 +98,8 @@
 | Value | Count |
 |---|---|
 | P3 | 69 |
-| P2 | 36 |
+| report_only | 24 |
+| P2 | 12 |
 
 ## Native Comparator
 
@@ -136,7 +137,7 @@
 | edge_semicolon_query_args_names | apache | no-crs/no-mrts | 4513 | 2 | ARGS_NAMES | @contains b | GET /?a=1;b=2 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
 | files_names_mixed_case_filename_gap | apache | no-crs/no-mrts | 4705 | 2 | FILES_NAMES | @contains MiXeD.TXT | POST /?- | MiXeD.TXT | multipart_collection_semantics | multipart_files | P2 | multipart_collection_semantics |
 | multipart_duplicate_field_names_gap | apache | no-crs/no-mrts | 4703 | 2 | ARGS_NAMES | @contains upload | POST /?- | upload | multipart_collection_semantics | multipart_files | P2 | multipart_collection_semantics |
-| parser_xml_partial_body_future_target | apache | no-crs/no-mrts | 4610 | 2 | XML | @contains root | POST /?- | root | xml_body_processor_collection_semantics | xml_processor | P2 | xml_body_processor_collection_semantics |
+| parser_xml_partial_body_future_target | apache | no-crs/no-mrts | 4610 | 2 | XML | @contains root | POST /?- | root | xml_processor_activation_missing | classification_only | report_only | xml_processor_activation_missing |
 | phase1_vs_phase2_request_body_gap | apache | no-crs/no-mrts | 4511 | 1 | REQUEST_BODY | @contains bodyhit | POST /?- | bodyhit | phase1_request_body_unavailable | request_body_processor | P3 | phase1_request_body_unavailable_or_empty_body |
 | sqli_like_keyword_spacing_probe | apache | no-crs/no-mrts | 4715 | 2 | ARGS:q | @contains select from | GET /?q=SAFE | select from | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
 | sqli_like_quote_encoding_runtime_difference | apache | no-crs/no-mrts | 4716 | 2 | ARGS:q | @contains a'b | GET /?q=SAFE | a'b | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
@@ -144,9 +145,9 @@
 | unicode_whitespace_normalization_gap | apache | no-crs/no-mrts | 4708 | 2 | ARGS:q | @streq a b | GET /?q=SAFE | a b | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
 | v3_request_cookies_names_case_runtime_difference | apache | no-crs/no-mrts | 4403 | 1 | REQUEST_COOKIES_NAMES | @contains user_token | GET /?- | user_token | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
 | v3_request_headers_names_lowercase_runtime_difference | apache | no-crs/no-mrts | 4401 | 1 | REQUEST_HEADERS_NAMES | @contains x-smoke-header | GET /?- | x-smoke-header | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
-| xml_deep_nesting_future_target | apache | no-crs/no-mrts | 4712 | 2 | XML | @contains deepnode | POST /?- | deepnode | xml_body_processor_collection_semantics | xml_processor | P2 | xml_body_processor_collection_semantics |
-| xml_namespace_edge_connector_gap | apache | no-crs/no-mrts | 4711 | 2 | XML | @contains ns:root | POST /?- | ns:root | xml_body_processor_collection_semantics | xml_processor | P2 | xml_body_processor_collection_semantics |
-| xml_request_body_malformed_connector_gap | apache | no-crs/no-mrts | 4408 | 2 | XML | @contains broken | POST /?- | broken | xml_body_processor_collection_semantics | xml_processor | P2 | xml_body_processor_collection_semantics |
+| xml_deep_nesting_future_target | apache | no-crs/no-mrts | 4712 | 2 | XML | @contains deepnode | POST /?- | deepnode | xml_processor_activation_missing | classification_only | report_only | xml_processor_activation_missing |
+| xml_namespace_edge_connector_gap | apache | no-crs/no-mrts | 4711 | 2 | XML | @contains ns:root | POST /?- | ns:root | xml_processor_activation_missing | classification_only | report_only | xml_processor_activation_missing |
+| xml_request_body_malformed_connector_gap | apache | no-crs/no-mrts | 4408 | 2 | XML | @contains broken | POST /?- | broken | xml_processor_activation_missing | classification_only | report_only | xml_processor_activation_missing |
 | xss_like_encoded_angles_normalization_probe | apache | no-crs/no-mrts | 4713 | 2 | ARGS:q | @contains <tag> | GET /?q=SAFE | <tag> | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
 | xss_like_mixed_case_script_token_gap | apache | no-crs/no-mrts | 4714 | 2 | ARGS:q | @contains script | GET /?q=SAFE | script | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
 | duplicate_args_encoded_separator_edge | nginx | no-crs/no-mrts | 4608 | 2 | ARGS_NAMES | @contains b | GET /?a=1%3Bb=2&a=3 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
@@ -154,7 +155,7 @@
 | edge_semicolon_query_args_names | nginx | no-crs/no-mrts | 4513 | 2 | ARGS_NAMES | @contains b | GET /?a=1;b=2 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
 | files_names_mixed_case_filename_gap | nginx | no-crs/no-mrts | 4705 | 2 | FILES_NAMES | @contains MiXeD.TXT | POST /?- | MiXeD.TXT | multipart_collection_semantics | multipart_files | P2 | multipart_collection_semantics |
 | multipart_duplicate_field_names_gap | nginx | no-crs/no-mrts | 4703 | 2 | ARGS_NAMES | @contains upload | POST /?- | upload | multipart_collection_semantics | multipart_files | P2 | multipart_collection_semantics |
-| parser_xml_partial_body_future_target | nginx | no-crs/no-mrts | 4610 | 2 | XML | @contains root | POST /?- | root | xml_body_processor_collection_semantics | xml_processor | P2 | xml_body_processor_collection_semantics |
+| parser_xml_partial_body_future_target | nginx | no-crs/no-mrts | 4610 | 2 | XML | @contains root | POST /?- | root | xml_processor_activation_missing | classification_only | report_only | xml_processor_activation_missing |
 
 ## Guardrails
 

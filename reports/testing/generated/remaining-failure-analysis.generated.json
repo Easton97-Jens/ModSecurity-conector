@@ -7,7 +7,7 @@
         "haproxy",
         "nginx"
       ],
-      "count": 490,
+      "count": 550,
       "fixable": "classification-only; with-MRTS DetectionOnly overlay makes disruptive request-side rules non-blocking",
       "recommended_next_step": "keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases",
       "risk": "low; report-only and not a connector blocking bug",
@@ -155,86 +155,6 @@
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "response_body_non_promoted"
-          ]
-        }
-      ]
-    },
-    {
-      "category": "response_header_mrts_detection_only",
-      "connectors": [
-        "apache",
-        "haproxy",
-        "nginx"
-      ],
-      "count": 60,
-      "fixable": "classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action",
-      "recommended_next_step": "keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence",
-      "risk": "low; report-only if kept separate from PASS promotion",
-      "typical_examples": [
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_content_type_charset_gap",
-          "classification": "response-header-mrts-detection-only",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "3",
-          "query": "-",
-          "rule_id": "4902",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Content-Type",
-          "variant": "no-crs/with-mrts",
-          "work_direction": [
-            "response_header_mrts_detection_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-          "classification": "response-header-mrts-detection-only",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "3",
-          "query": "-",
-          "rule_id": "4803",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Set-Cookie",
-          "variant": "no-crs/with-mrts",
-          "work_direction": [
-            "response_header_mrts_detection_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase3_response_headers_encoded_value_future_target",
-          "classification": "response-header-mrts-detection-only",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "3",
-          "query": "-",
-          "rule_id": "4804",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_HEADERS:Location",
-          "variant": "no-crs/with-mrts",
-          "work_direction": [
-            "response_header_mrts_detection_only"
           ]
         }
       ]
@@ -480,21 +400,21 @@
       ]
     },
     {
-      "category": "xml_processor",
+      "category": "xml_processor_activation_missing",
       "connectors": [
         "apache",
         "haproxy",
         "nginx"
       ],
       "count": 24,
-      "fixable": "possibly fixable, but high risk without XML processor parity checks",
-      "recommended_next_step": "verify XML processor enablement and malformed XML semantics",
-      "risk": "medium to high",
+      "fixable": "classification-only; XML body exists but the fixture does not enable the XML request body processor",
+      "recommended_next_step": "keep XML processor activation-missing rows report-only; do not change rules or Expected statuses",
+      "risk": "low if kept report-only; high if treated as connector runtime evidence",
       "typical_examples": [
         {
           "actual_status": 200,
           "case_id": "parser_xml_partial_body_future_target",
-          "classification": "xml_body_processor_collection_semantics",
+          "classification": "xml_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -510,13 +430,13 @@
           "variable": "XML",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "xml_processor"
+            "classification_only"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "xml_deep_nesting_future_target",
-          "classification": "xml_body_processor_collection_semantics",
+          "classification": "xml_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -532,13 +452,13 @@
           "variable": "XML",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "xml_processor"
+            "classification_only"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "xml_namespace_edge_connector_gap",
-          "classification": "xml_body_processor_collection_semantics",
+          "classification": "xml_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -554,7 +474,7 @@
           "variable": "XML",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "xml_processor"
+            "classification_only"
           ]
         }
       ]
@@ -618,21 +538,21 @@
       ]
     },
     {
-      "category": "nolog_expected_no_audit",
+      "category": "audit_log_evidence",
       "connectors": [
         "apache",
         "haproxy",
         "nginx"
       ],
       "count": 6,
-      "fixable": "classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated",
-      "recommended_next_step": "keep as classification-only evidence; do not add artificial audit logs",
-      "risk": "low; no runtime or expected-status change",
+      "fixable": "fixable if audit-log assertion path is wrong; otherwise report/classification-only",
+      "recommended_next_step": "inspect `v3_action_nolog_pass_no_audit` audit expectation and report classification",
+      "risk": "low to medium",
       "typical_examples": [
         {
           "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
-          "classification": "nolog-expected-no-audit",
+          "classification": "runtime-difference",
           "connector": "apache",
           "expected_status": 200,
           "failure_pattern": [
@@ -648,7 +568,7 @@
           "variable": "ARGS:foo",
           "variant": "with-crs/no-mrts",
           "work_direction": [
-            "classification_only"
+            "audit_log_evidence"
           ]
         }
       ]
@@ -826,15 +746,6 @@
       ]
     },
     {
-      "category": "audit_log_evidence",
-      "connectors": [],
-      "count": 0,
-      "fixable": "fixable if audit-log assertion path is wrong; otherwise report/classification-only",
-      "recommended_next_step": "inspect `v3_action_nolog_pass_no_audit` audit expectation and report classification",
-      "risk": "low to medium",
-      "typical_examples": []
-    },
-    {
       "category": "classification_only",
       "connectors": [],
       "count": 0,
@@ -859,6 +770,15 @@
       "fixable": "unknown; review required",
       "recommended_next_step": "manual review",
       "risk": "unknown",
+      "typical_examples": []
+    },
+    {
+      "category": "nolog_expected_no_audit",
+      "connectors": [],
+      "count": 0,
+      "fixable": "classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated",
+      "recommended_next_step": "keep as classification-only evidence; do not add artificial audit logs",
+      "risk": "low; no runtime or expected-status change",
       "typical_examples": []
     },
     {
@@ -943,6 +863,15 @@
       "typical_examples": []
     },
     {
+      "category": "response_header_mrts_detection_only",
+      "connectors": [],
+      "count": 0,
+      "fixable": "classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action",
+      "recommended_next_step": "keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence",
+      "risk": "low; report-only if kept separate from PASS promotion",
+      "typical_examples": []
+    },
+    {
       "category": "response_header_multi_value_gap",
       "connectors": [],
       "count": 0,
@@ -968,9 +897,18 @@
       "recommended_next_step": "manual review",
       "risk": "unknown",
       "typical_examples": []
+    },
+    {
+      "category": "xml_processor",
+      "connectors": [],
+      "count": 0,
+      "fixable": "possibly fixable, but high risk without XML processor parity checks",
+      "recommended_next_step": "verify XML processor enablement and malformed XML semantics",
+      "risk": "medium to high",
+      "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-14T10:14:04Z",
+  "generated_at": "2026-06-14T10:36:29Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -1030,20 +968,33 @@
   },
   "priority_plan": {
     "P0": [],
-    "P1": [],
+    "P1": [
+      {
+        "cluster_name": "audit_log_evidence / v3_action_nolog_pass_no_audit",
+        "connector": "apache, nginx, haproxy",
+        "count": 6,
+        "likely_change": "verify whether audit-log expectation is correct for nolog and classify/report accordingly",
+        "risk": "low to medium",
+        "tests": [
+          "targeted smoke for v3_action_nolog_pass_no_audit",
+          "make lint quick-check"
+        ],
+        "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics"
+      }
+    ],
     "P2": [
       {
-        "cluster_name": "request_body_processor / multipart_files / xml_processor",
+        "cluster_name": "multipart_files",
         "connector": "apache, nginx, haproxy",
-        "count": 36,
-        "likely_change": "split by body type first; avoid one broad fix",
-        "risk": "medium to high",
+        "count": 12,
+        "likely_change": "compare multipart variable population across connectors with one representative request",
+        "risk": "medium",
         "tests": [
-          "targeted body processor cases",
+          "targeted multipart cases",
           "connector smoke for touched connector",
           "full matrix if parser behavior changes"
         ],
-        "why": "high combined volume, but likely multiple true processor gaps"
+        "why": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits"
       }
     ],
     "P3": [
@@ -1110,12 +1061,16 @@
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
       },
       {
+        "cluster": "xml_processor_activation_missing",
+        "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
+      },
+      {
         "cluster": "collection_name_normalization_semantics",
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
-    "reason": "high combined volume, but likely multiple true processor gaps",
-    "recommended_next_fix_cluster": "request_body_processor / multipart_files / xml_processor"
+    "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
+    "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
   },
   "regression_checks": {
     "apache_expected_200_actual_404": {
@@ -1151,13 +1106,13 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-14T10:13:54Z",
+    "connector_work_queue": "2026-06-14T10:36:26Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
     "full_runtime_matrix": "2026-06-13T20:27:13Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-14T10:13:57Z",
+    "phase_work_queue": "2026-06-14T10:36:26Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {
@@ -1354,9 +1309,9 @@
         ]
       },
       {
-        "category": "response_header_mrts_detection_only",
-        "classification": "response-header-mrts-detection-only",
-        "cluster_name": "apache / response_header_mrts_detection_only / response-headers / phase:3 / 403\u2192200",
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "apache / with_mrts_detection_only_non_disruptive / response-headers / phase:3 / 403\u2192200",
         "connectors": [
           "apache"
         ],
@@ -1366,7 +1321,7 @@
           {
             "actual_status": 200,
             "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "response-header-mrts-detection-only",
+            "classification": "with_mrts_detection_only_non_disruptive",
             "connector": "apache",
             "expected_status": 403,
             "failure_pattern": [
@@ -1382,7 +1337,7 @@
             "variable": "RESPONSE_HEADERS:Content-Type",
             "variant": "no-crs/with-mrts",
             "work_direction": [
-              "response_header_mrts_detection_only"
+              "classification_only"
             ]
           }
         ],
@@ -1395,7 +1350,7 @@
           "with-crs/with-mrts"
         ],
         "work_direction": [
-          "response_header_mrts_detection_only"
+          "classification_only"
         ]
       },
       {
@@ -2093,7 +2048,7 @@
       },
       {
         "case_id": "parser_xml_partial_body_future_target",
-        "category": "xml_processor",
+        "category": "xml_processor_activation_missing",
         "connectors": [
           "apache",
           "haproxy",
@@ -2103,7 +2058,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "parser_xml_partial_body_future_target",
-          "classification": "xml_body_processor_collection_semantics",
+          "classification": "xml_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2119,7 +2074,7 @@
           "variable": "XML",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "xml_processor"
+            "classification_only"
           ]
         },
         "status_pairs": {
@@ -2479,9 +2434,9 @@
         ]
       },
       {
-        "category": "response_header_mrts_detection_only",
-        "classification": "response-header-mrts-detection-only",
-        "cluster_name": "haproxy / response_header_mrts_detection_only / response-headers / phase:3 / 403\u2192200",
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "haproxy / with_mrts_detection_only_non_disruptive / response-headers / phase:3 / 403\u2192200",
         "connectors": [
           "haproxy"
         ],
@@ -2491,7 +2446,7 @@
           {
             "actual_status": 200,
             "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "response-header-mrts-detection-only",
+            "classification": "with_mrts_detection_only_non_disruptive",
             "connector": "haproxy",
             "expected_status": 403,
             "failure_pattern": [
@@ -2507,7 +2462,7 @@
             "variable": "RESPONSE_HEADERS:Content-Type",
             "variant": "no-crs/with-mrts",
             "work_direction": [
-              "response_header_mrts_detection_only"
+              "classification_only"
             ]
           }
         ],
@@ -2520,7 +2475,7 @@
           "with-crs/with-mrts"
         ],
         "work_direction": [
-          "response_header_mrts_detection_only"
+          "classification_only"
         ]
       },
       {
@@ -2941,9 +2896,9 @@
         ]
       },
       {
-        "category": "response_header_mrts_detection_only",
-        "classification": "response-header-mrts-detection-only",
-        "cluster_name": "response_header_mrts_detection_only / response-headers / phase:3 / 403\u2192200",
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "with_mrts_detection_only_non_disruptive / response-headers / phase:3 / 403\u2192200",
         "connectors": [
           "apache",
           "haproxy",
@@ -2955,7 +2910,7 @@
           {
             "actual_status": 200,
             "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "response-header-mrts-detection-only",
+            "classification": "with_mrts_detection_only_non_disruptive",
             "connector": "apache",
             "expected_status": 403,
             "failure_pattern": [
@@ -2971,7 +2926,7 @@
             "variable": "RESPONSE_HEADERS:Content-Type",
             "variant": "no-crs/with-mrts",
             "work_direction": [
-              "response_header_mrts_detection_only"
+              "classification_only"
             ]
           }
         ],
@@ -2984,7 +2939,7 @@
           "with-crs/with-mrts"
         ],
         "work_direction": [
-          "response_header_mrts_detection_only"
+          "classification_only"
         ]
       },
       {
@@ -3501,9 +3456,9 @@
         ]
       },
       {
-        "category": "response_header_mrts_detection_only",
-        "classification": "response-header-mrts-detection-only",
-        "cluster_name": "nginx / response_header_mrts_detection_only / response-headers / phase:3 / 403\u2192200",
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "nginx / with_mrts_detection_only_non_disruptive / response-headers / phase:3 / 403\u2192200",
         "connectors": [
           "nginx"
         ],
@@ -3513,7 +3468,7 @@
           {
             "actual_status": 200,
             "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "response-header-mrts-detection-only",
+            "classification": "with_mrts_detection_only_non_disruptive",
             "connector": "nginx",
             "expected_status": 403,
             "failure_pattern": [
@@ -3529,7 +3484,7 @@
             "variable": "RESPONSE_HEADERS:Content-Type",
             "variant": "no-crs/with-mrts",
             "work_direction": [
-              "response_header_mrts_detection_only"
+              "classification_only"
             ]
           }
         ],
@@ -3542,7 +3497,7 @@
           "with-crs/with-mrts"
         ],
         "work_direction": [
-          "response_header_mrts_detection_only"
+          "classification_only"
         ]
       },
       {
@@ -3871,9 +3826,9 @@
         ]
       },
       {
-        "category": "response_header_mrts_detection_only",
-        "classification": "response-header-mrts-detection-only",
-        "cluster_name": "response_header_mrts_detection_only / response-headers / phase:3 / 403\u2192200",
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "with_mrts_detection_only_non_disruptive / response-headers / phase:3 / 403\u2192200",
         "connectors": [
           "apache",
           "haproxy",
@@ -3885,7 +3840,7 @@
           {
             "actual_status": 200,
             "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "response-header-mrts-detection-only",
+            "classification": "with_mrts_detection_only_non_disruptive",
             "connector": "apache",
             "expected_status": 403,
             "failure_pattern": [
@@ -3901,7 +3856,7 @@
             "variable": "RESPONSE_HEADERS:Content-Type",
             "variant": "no-crs/with-mrts",
             "work_direction": [
-              "response_header_mrts_detection_only"
+              "classification_only"
             ]
           }
         ],
@@ -3914,7 +3869,7 @@
           "with-crs/with-mrts"
         ],
         "work_direction": [
-          "response_header_mrts_detection_only"
+          "classification_only"
         ]
       },
       {
@@ -4344,9 +4299,9 @@
         ]
       },
       {
-        "category": "response_header_mrts_detection_only",
-        "classification": "response-header-mrts-detection-only",
-        "cluster_name": "response_header_mrts_detection_only / response-headers / phase:3 / 403\u2192200",
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "with_mrts_detection_only_non_disruptive / response-headers / phase:3 / 403\u2192200",
         "connectors": [
           "apache",
           "haproxy",
@@ -4358,7 +4313,7 @@
           {
             "actual_status": 200,
             "case_id": "phase3_response_headers_content_type_charset_gap",
-            "classification": "response-header-mrts-detection-only",
+            "classification": "with_mrts_detection_only_non_disruptive",
             "connector": "apache",
             "expected_status": 403,
             "failure_pattern": [
@@ -4374,7 +4329,7 @@
             "variable": "RESPONSE_HEADERS:Content-Type",
             "variant": "no-crs/with-mrts",
             "work_direction": [
-              "response_header_mrts_detection_only"
+              "classification_only"
             ]
           }
         ],
@@ -4387,7 +4342,7 @@
           "with-crs/with-mrts"
         ],
         "work_direction": [
-          "response_header_mrts_detection_only"
+          "classification_only"
         ]
       },
       {

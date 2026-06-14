@@ -33,11 +33,11 @@ CAUSE_DETAILS = {
         "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
         "risk": "medium to high",
     },
-    "xml_body_processor_collection_semantics": {
-        "label": "XML/body processor collection semantics",
-        "suspected_cause": "XML collection population or malformed/deep/namespaced XML behavior is not proven to expose the expected value.",
-        "safe_fixability": "not a small safe fix; belongs with body processor evidence work",
-        "risk": "medium to high",
+    "xml_processor_activation_missing": {
+        "label": "XML processor activation missing",
+        "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML.",
+        "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
+        "risk": "low if kept report-only; high if treated as connector XML parser evidence",
     },
     "multipart_collection_semantics": {
         "label": "Multipart collection semantics",
@@ -221,7 +221,7 @@ def classify_cause(record: dict[str, Any], case: dict[str, Any], request: dict[s
     if category == "collections":
         return "collection_name_normalization_semantics"
     if category == "body-processors":
-        return "xml_body_processor_collection_semantics"
+        return "xml_processor_activation_missing"
     if category == "multipart":
         return "multipart_collection_semantics"
     if not literal_contains_token:
@@ -313,15 +313,16 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         evidence = evidence_summary(queue_entry)
         cause = classify_cause(item, case, request)
         details = CAUSE_DETAILS[cause]
+        queue_or_item = queue_entry or item
         record = {
             "case_id": item.get("case_id", "-"),
             "connector": item.get("connector", "-"),
             "variant": item.get("variant", "-"),
-            "classification": item.get("classification", "-"),
-            "work_direction": as_list(item.get("work_direction")),
-            "priority": item.get("priority", "-"),
-            "source_kind": item.get("source_kind", "-"),
-            "source_category": item.get("source_category", "-"),
+            "classification": queue_or_item.get("classification", "-"),
+            "work_direction": as_list(queue_or_item.get("work_direction")),
+            "priority": queue_or_item.get("priority", "-"),
+            "source_kind": queue_or_item.get("source_kind", item.get("source_kind", "-")),
+            "source_category": queue_or_item.get("category", item.get("source_category", "-")),
             "case_path": display_case_path(case_path, framework_root),
             "rule_id": item.get("rule_id", "-"),
             "phase": item.get("phase", "-"),

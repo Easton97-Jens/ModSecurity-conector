@@ -32,6 +32,7 @@ FAILURE_CATEGORIES = (
     "audit_log_evidence",
     "request_body_processor",
     "xml_processor",
+    "xml_processor_activation_missing",
     "multipart_files",
     "transformation_semantics",
     "rule_chain_semantics",
@@ -50,6 +51,7 @@ NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS = {
     "transformation_request_literal_no_match",
     "collection_name_normalization_semantics",
     "xml_body_processor_collection_semantics",
+    "xml_processor_activation_missing",
     "multipart_collection_semantics",
     "phase1_request_body_unavailable",
 }
@@ -186,6 +188,8 @@ def failure_category(entry: dict[str, Any]) -> str:
 
     if classification == "with_mrts_detection_only_non_disruptive":
         return "with_mrts_detection_only_non_disruptive"
+    if classification == "xml_processor_activation_missing":
+        return "xml_processor_activation_missing"
     if classification == "collection_name_normalization_semantics":
         return "collection_name_normalization_semantics"
     if is_phase4_entry(entry):
@@ -495,6 +499,7 @@ def fixability(category: str) -> str:
         "audit_log_evidence": "fixable if audit-log assertion path is wrong; otherwise report/classification-only",
         "request_body_processor": "possibly fixable after processor-specific triage",
         "xml_processor": "possibly fixable, but high risk without XML processor parity checks",
+        "xml_processor_activation_missing": "classification-only; XML body exists but the fixture does not enable the XML request body processor",
         "multipart_files": "possibly fixable; likely connector/body parser evidence work",
         "transformation_semantics": "not a harness quick win; needs semantic comparison against libmodsecurity expectations",
         "rule_chain_semantics": "small but semantic; requires focused rule-chain evidence",
@@ -519,6 +524,7 @@ def risk(category: str) -> str:
         "request_body_processor": "medium",
         "multipart_files": "medium",
         "xml_processor": "medium to high",
+        "xml_processor_activation_missing": "low if kept report-only; high if treated as connector runtime evidence",
         "intervention_blocking": "medium to high",
         "collection_name_normalization_semantics": "medium to high",
         "transformation_semantics": "high",
@@ -548,6 +554,7 @@ def recommended_step(category: str) -> str:
         "request_body_processor": "split JSON, URL-encoded, and XML body processor cases before code changes",
         "multipart_files": "compare multipart variable population across connectors with one representative request",
         "xml_processor": "verify XML processor enablement and malformed XML semantics",
+        "xml_processor_activation_missing": "keep XML processor activation-missing rows report-only; do not change rules or Expected statuses",
         "intervention_blocking": "sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation",
         "transformation_semantics": "compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes",
         "phase4_hard_abort_supported": "keep as context/control evidence",
@@ -622,13 +629,13 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
                 "tests": ["targeted HAProxy Set-Cookie response-header cases", "make smoke-haproxy"],
             },
             {
-                "cluster_name": "request_body_processor / multipart_files / xml_processor",
-                "count": sum(next((item["count"] for item in categories if item["category"] == category), 0) for category in ("request_body_processor", "multipart_files", "xml_processor")),
+                "cluster_name": "multipart_files",
+                "count": next((item["count"] for item in categories if item["category"] == "multipart_files"), 0),
                 "connector": "apache, nginx, haproxy",
-                "why": "high combined volume, but likely multiple true processor gaps",
-                "likely_change": "split by body type first; avoid one broad fix",
-                "risk": "medium to high",
-                "tests": ["targeted body processor cases", "connector smoke for touched connector", "full matrix if parser behavior changes"],
+                "why": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits",
+                "likely_change": "compare multipart variable population across connectors with one representative request",
+                "risk": "medium",
+                "tests": ["targeted multipart cases", "connector smoke for touched connector", "full matrix if parser behavior changes"],
             },
         ]
     )
@@ -777,6 +784,10 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
             {
                 "cluster": "with_mrts_detection_only_non_disruptive",
                 "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action",
+            },
+            {
+                "cluster": "xml_processor_activation_missing",
+                "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML",
             },
             {
                 "cluster": "collection_name_normalization_semantics",

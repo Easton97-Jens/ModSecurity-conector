@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import re
@@ -22,6 +23,7 @@ TARGET_CATEGORIES = {"request_body_processor", "multipart_files", "xml_processor
 SELECTED_CONNECTOR_GAP_CASE = "phase1_vs_phase2_request_body_gap"
 URLENCODED_FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
 URLENCODED_FORM_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
+XML_ACTIVATION_MISSING_CLASSIFICATION = "xml_processor_activation_missing"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
 
 
@@ -231,6 +233,24 @@ def generated_body_length(config_path: Path | None, request: dict[str, Any]) -> 
     return len(str(request.get("body") or "").encode())
 
 
+def request_body_bytes(config_path: Path | None, request: dict[str, Any]) -> bytes:
+    if config_path:
+        request_body = config_path.parent / "request-body.bin"
+        if request_body.is_file():
+            try:
+                return request_body.read_bytes()
+            except OSError:
+                pass
+    if isinstance(request.get("multipart"), dict):
+        return b""
+    return str(request.get("body") or "").encode()
+
+
+def body_preview(body: bytes) -> str:
+    text = body.decode("utf-8", errors="replace").replace("\n", "\\n")
+    return text[:80]
+
+
 def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> dict[str, Any]:
     case_path = Path(str(evidence.get("path") or ""))
     raw = read_text(case_path) if case_path.is_file() else ""
@@ -260,6 +280,7 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
     xml_processor = "yes" if "ctl:requestBodyProcessor=XML" in config else "unknown"
     rule_id = str(rule["rule_id"])
     matched = rule_logged(logs, rule_id)
+    body = request_body_bytes(config_path, request)
     return {
         "case_path": display_case_path(case_path, framework_root),
         "method": str(request.get("method") or "-"),
@@ -267,7 +288,9 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
         "query": query,
         "content_type": content_type,
         "body_kind": body_kind(request, content_type),
-        "body_length": generated_body_length(config_path, request),
+        "body_length": len(body) if body else generated_body_length(config_path, request),
+        "body_sha256": hashlib.sha256(body).hexdigest() if body else "-",
+        "body_preview": body_preview(body) if body else "-",
         "rule_id": rule_id,
         "phase": str(rule["phase"] if rule["phase"] != "-" else entry.get("phase") or "-"),
         "target": str(rule["target"] or "-"),
@@ -288,18 +311,20 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
 
 def build_records(
     connector_root: Path, framework_root: Path
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     remaining = import_script(connector_root / "ci/generate-remaining-failure-analysis.py", "remaining_failure_analysis")
     queue = read_json(connector_root / REPORT_DIR / "connector-work-queue.generated.json")
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict) and entry.get("runtime_status") == "FAIL"]
     target_records: list[dict[str, Any]] = []
     selected_gap_records: list[dict[str, Any]] = []
     urlencoded_form_records: list[dict[str, Any]] = []
+    xml_activation_missing_records: list[dict[str, Any]] = []
     for entry in entries:
         category = remaining.failure_category(entry)
         is_selected_gap = entry.get("case_id") == SELECTED_CONNECTOR_GAP_CASE
         is_candidate_urlencoded = entry.get("classification") == URLENCODED_FORM_CLASSIFICATION
-        if category not in TARGET_CATEGORIES and not is_selected_gap and not is_candidate_urlencoded:
+        is_candidate_xml_activation = entry.get("classification") == XML_ACTIVATION_MISSING_CLASSIFICATION
+        if category not in TARGET_CATEGORIES and not is_selected_gap and not is_candidate_urlencoded and not is_candidate_xml_activation:
             continue
         evidence = read_json(Path(str(entry.get("evidence") or "")))
         meta = case_metadata(entry, evidence, framework_root)
@@ -324,11 +349,13 @@ def build_records(
         }
         if is_urlencoded_form_detection_only(record):
             urlencoded_form_records.append(record)
+        if is_xml_activation_missing(record):
+            xml_activation_missing_records.append(record)
         if is_selected_gap:
             selected_gap_records.append(record)
         elif category in TARGET_CATEGORIES:
             target_records.append(record)
-    return target_records, selected_gap_records, urlencoded_form_records
+    return target_records, selected_gap_records, urlencoded_form_records, xml_activation_missing_records
 
 
 def is_urlencoded_form_detection_only(record: dict[str, Any]) -> bool:
@@ -337,6 +364,15 @@ def is_urlencoded_form_detection_only(record: dict[str, Any]) -> bool:
         and record.get("mrts_variant") == "with-mrts"
         and record.get("body_kind") == "form"
         and normalized_content_type(record.get("content_type")) == URLENCODED_FORM_CONTENT_TYPE
+    )
+
+
+def is_xml_activation_missing(record: dict[str, Any]) -> bool:
+    return (
+        record.get("classification") == XML_ACTIVATION_MISSING_CLASSIFICATION
+        and record.get("body_kind") == "xml"
+        and record.get("target") == "XML"
+        and normalized_content_type(record.get("content_type")) in {"application/xml", "text/xml"}
     )
 
 
@@ -429,6 +465,43 @@ def summarize_urlencoded_form(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def summarize_xml_activation_missing(records: list[dict[str, Any]]) -> dict[str, Any]:
+    body_sent = sum(1 for record in records if int(record.get("body_length") or 0) > 0)
+    content_type_correct = sum(
+        1 for record in records if normalized_content_type(record.get("content_type")) in {"application/xml", "text/xml"}
+    )
+    return {
+        "count": len(records),
+        "active_xml_processor_before_report_sync": len(records),
+        "active_xml_processor_after_report_sync": 0,
+        "classification": XML_ACTIVATION_MISSING_CLASSIFICATION,
+        "work_direction": "classification_only",
+        "priority": "report_only",
+        "connectors": counter_dict(records, "connector"),
+        "variants": counter_dict(records, "variant"),
+        "case_ids": counter_dict(records, "case_id"),
+        "rule_ids": counter_dict(records, "rule_id"),
+        "targets": counter_dict(records, "target"),
+        "operators": counter_dict(records, "operator"),
+        "content_types": counter_dict(records, "content_type"),
+        "body_lengths": counter_dict(records, "body_length"),
+        "body_hashes": counter_dict(records, "body_sha256"),
+        "request_body_seen": counter_dict(records, "request_body_seen"),
+        "body_sent_count": body_sent,
+        "content_type_correct_count": content_type_correct,
+        "request_body_access_on_count": sum(1 for record in records if record["request_body_access"] == "yes"),
+        "xml_processor_active_count": sum(1 for record in records if record["xml_processor"] == "yes"),
+        "rule_loaded_count": sum(1 for record in records if record["rule_in_loadfile"]),
+        "rule_matched_count": sum(1 for record in records if record["rule_matched"]),
+        "xml_collection_evidence_count": sum(1 for record in records if record["collection_evidence"] == "yes"),
+        "backend_reached_count": sum(1 for record in records if record["backend_reached"]),
+        "root_cause": "The XML bodies and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML, so XML collection population is not expected evidence.",
+        "fix": "metadata/report-only; no XML body, rule, Expected status, connector-core behavior, or PASS/FAIL value changed",
+        "risk": "low when kept report-only; high if treated as a connector XML parser failure without processor activation",
+        "examples": records[:9],
+    }
+
+
 def suspected_cause(example: dict[str, Any], items: list[dict[str, Any]]) -> str:
     if example["failure_category"] == "request_body_processor" and example["body_kind"] == "json":
         return "JSON/raw REQUEST_BODY rows need processor-specific semantics review; with-MRTS rows may be non-blocking due DetectionOnly overlay."
@@ -460,16 +533,17 @@ def fixability_for(example: dict[str, Any]) -> str:
 
 
 def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
-    records, selected_gap_records, urlencoded_form_records = build_records(connector_root, framework_root)
+    records, selected_gap_records, urlencoded_form_records, xml_activation_missing_records = build_records(connector_root, framework_root)
     category_counts = Counter(record["failure_category"] for record in records)
     selected_count = len(selected_gap_records)
     urlencoded_form_summary = summarize_urlencoded_form(urlencoded_form_records)
+    xml_activation_summary = summarize_xml_activation_missing(xml_activation_missing_records)
     summary = {
         "before_metadata_fix": {
             "request_body_processor": category_counts.get("request_body_processor", 0) + selected_count,
             "multipart_files": category_counts.get("multipart_files", 0),
-            "xml_processor": category_counts.get("xml_processor", 0),
-            "combined": len(records) + selected_count,
+            "xml_processor": category_counts.get("xml_processor", 0) + xml_activation_summary["count"],
+            "combined": len(records) + selected_count + xml_activation_summary["count"],
         },
         "after_metadata_fix": {
             "request_body_processor": category_counts.get("request_body_processor", 0),
@@ -480,6 +554,8 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "selected_subcluster_count": selected_count,
         "urlencoded_form_subcluster_count": urlencoded_form_summary["count"],
         "urlencoded_form_active_after_report_sync": urlencoded_form_summary["active_request_body_processor_after_report_sync"],
+        "xml_activation_missing_subcluster_count": xml_activation_summary["count"],
+        "xml_processor_active_after_report_sync": xml_activation_summary["active_xml_processor_after_report_sync"],
         "rule_loaded": sum(1 for record in records + selected_gap_records if record["rule_in_loadfile"]),
         "rule_matched": sum(1 for record in records + selected_gap_records if record["rule_matched"]),
         "backend_reached": sum(1 for record in records + selected_gap_records if record["backend_reached"]),
@@ -518,6 +594,7 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
             "examples": selected_gap_records[:9],
         },
         "urlencoded_form_subcluster": urlencoded_form_summary,
+        "xml_activation_missing_subcluster": xml_activation_summary,
         "groups": grouped_records(records),
         "records": records,
         "next_fix_plan": {
@@ -536,6 +613,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     before = summary["before_metadata_fix"]
     after = summary["after_metadata_fix"]
     urlencoded = report["urlencoded_form_subcluster"]
+    xml_activation = report["xml_activation_missing_subcluster"]
     lines = [
         "# Body Processor Failure Analysis",
         "",
@@ -544,6 +622,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- After selected metadata fix: request_body_processor **{after['request_body_processor']}**, multipart_files **{after['multipart_files']}**, xml_processor **{after['xml_processor']}**, combined **{after['combined']}**.",
         f"- Selected subcluster rows: **{summary['selected_subcluster_count']}**",
         f"- URL-encoded form rows moved out of active body-processor work: **{summary['urlencoded_form_subcluster_count']}** -> **{summary['urlencoded_form_active_after_report_sync']}**.",
+        f"- XML processor activation-missing rows moved out of active xml_processor work: **{summary['xml_activation_missing_subcluster_count']}** -> **{summary['xml_processor_active_after_report_sync']}**.",
         f"- Rule loaded evidence rows: **{summary['rule_loaded']}**",
         f"- Target rule matched rows: **{summary['rule_matched']}**",
         f"- Backend reached rows: **{summary['backend_reached']}**",
@@ -589,7 +668,37 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "## Distributions",
+            "## XML Processor Activation-Missing Subcluster",
+            "",
+            f"- Count: **{xml_activation['count']}**",
+            f"- Active xml_processor rows before report sync: **{xml_activation['active_xml_processor_before_report_sync']}**",
+            f"- Active xml_processor rows after report sync: **{xml_activation['active_xml_processor_after_report_sync']}**",
+            f"- Classification: `{xml_activation['classification']}`",
+            f"- Work direction: `{xml_activation['work_direction']}`",
+            f"- Priority: `{xml_activation['priority']}`",
+            f"- Body sent rows: **{xml_activation['body_sent_count']}**",
+            f"- Correct XML Content-Type rows: **{xml_activation['content_type_correct_count']}**",
+            f"- SecRequestBodyAccess On rows: **{xml_activation['request_body_access_on_count']}**",
+            f"- XML processor active rows: **{xml_activation['xml_processor_active_count']}**",
+            f"- Rule loaded rows: **{xml_activation['rule_loaded_count']}**",
+            f"- Rule matched rows: **{xml_activation['rule_matched_count']}**",
+            f"- XML collection evidence rows: **{xml_activation['xml_collection_evidence_count']}**",
+            f"- Backend reached rows: **{xml_activation['backend_reached_count']}**",
+            f"- Root cause: {xml_activation['root_cause']}",
+            f"- Fix: {xml_activation['fix']}",
+            f"- Risk: {xml_activation['risk']}",
+            "",
+            "| field | distribution |",
+            "| --- | --- |",
+        ]
+    )
+    for key in ("connectors", "variants", "case_ids", "rule_ids", "targets", "operators", "content_types", "body_lengths", "body_hashes", "request_body_seen"):
+        values = ", ".join(f"`{sanitize_report_text(name)}`: {count}" for name, count in xml_activation[key].items()) or "-"
+        lines.append(f"| {key} | {values} |")
+    lines.append("")
+    lines.extend(
+        [
+            "## Active Body Processor Distributions",
             "",
         ]
     )
@@ -646,7 +755,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             "- No Expected statuses, testcase rules, request bodies, MRTS definitions, or PASS/FAIL values are changed by this analysis.",
             "- The selected subcluster is metadata-only and remains a runtime FAIL; it is no longer counted as body-processor work.",
             "- URL-encoded/form rows are report-only with-MRTS DetectionOnly overlay evidence; no harness or connector-core change is made for them.",
-            "- Remaining Body/XML/Multipart rows need narrower connector/native comparisons before connector-core changes.",
+            "- XML rows in the activation-missing subcluster are report-only because their fixtures do not enable the XML request body processor.",
+            "- Remaining active body-processor rows are multipart-only after the URL-encoded and XML metadata splits.",
             "",
         ]
     )
@@ -669,7 +779,9 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
             "analysis": "reports/testing/generated/body-processor-analysis.generated.md",
             "json": "reports/testing/generated/body-processor-analysis.generated.json",
             "urlencoded_form_subcluster_count": report["summary"]["urlencoded_form_subcluster_count"],
-            "active_after_report_sync": report["summary"]["urlencoded_form_active_after_report_sync"],
+            "urlencoded_active_after_report_sync": report["summary"]["urlencoded_form_active_after_report_sync"],
+            "xml_activation_missing_subcluster_count": report["summary"]["xml_activation_missing_subcluster_count"],
+            "xml_active_after_report_sync": report["summary"]["xml_processor_active_after_report_sync"],
         }
         reports = data.get("reports")
         if isinstance(reports, list):
@@ -690,7 +802,9 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
                 "## Body Processor Analysis",
                 "- Body processor analysis: `reports/testing/generated/body-processor-analysis.generated.md`",
                 f"- URL-encoded/form rows: **{report['summary']['urlencoded_form_subcluster_count']}** -> **{report['summary']['urlencoded_form_active_after_report_sync']}** active request_body_processor rows after report sync.",
+                f"- XML processor activation-missing rows: **{report['summary']['xml_activation_missing_subcluster_count']}** -> **{report['summary']['xml_processor_active_after_report_sync']}** active xml_processor rows after report sync.",
                 "- The URL-encoded rows have body and Content-Type evidence and are kept as report-only with-MRTS DetectionOnly overlay cases.",
+                "- The XML rows have body and XML Content-Type evidence, but their fixtures do not enable the XML request body processor.",
             ]
         )
         updated = replace_marked_section(
