@@ -37,6 +37,7 @@ FAILURE_CATEGORIES = (
     "response_header_backend_setup",
     "response_header_multi_value_gap",
     "response_header_mrts_detection_only",
+    "with_mrts_detection_only_non_disruptive",
     "response_header_hook",
     "request_routing",
     "harness_evidence_issue",
@@ -175,6 +176,8 @@ def failure_category(entry: dict[str, Any]) -> str:
     classification = str(entry.get("classification") or "")
     evidence_classification = str(entry.get("evidence_classification") or "")
 
+    if classification == "with_mrts_detection_only_non_disruptive":
+        return "with_mrts_detection_only_non_disruptive"
     if is_phase4_entry(entry):
         return phase4_detail_category(entry)
     if (
@@ -487,6 +490,7 @@ def fixability(category: str) -> str:
         "response_header_backend_setup": "likely harness/backend fix; add deterministic target response headers before judging connector parity",
         "response_header_multi_value_gap": "connector/hook gap; HAProxy Set-Cookie multi-value exposure needs focused evidence or implementation work",
         "response_header_mrts_detection_only": "classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action",
+        "with_mrts_detection_only_non_disruptive": "classification-only; with-MRTS DetectionOnly overlay makes disruptive request-side rules non-blocking",
         "response_header_hook": "possible connector/hook work; start with response-header capture evidence",
         "harness_evidence_issue": "likely quick win if evidence files/log matching are missing",
     }.get(category, "unknown; review required")
@@ -499,6 +503,7 @@ def risk(category: str) -> str:
         "response_header_backend_setup": "low to medium",
         "response_header_multi_value_gap": "medium",
         "response_header_mrts_detection_only": "low; report-only if kept separate from PASS promotion",
+        "with_mrts_detection_only_non_disruptive": "low; report-only and not a connector blocking bug",
         "response_header_hook": "medium",
         "request_body_processor": "medium",
         "multipart_files": "medium",
@@ -525,6 +530,7 @@ def recommended_step(category: str) -> str:
         "response_header_backend_setup": "add deterministic response headers to the Apache/NGINX harness/backend probes, then rerun targeted Phase 3 response-header cases",
         "response_header_multi_value_gap": "triage HAProxy Set-Cookie multi-value exposure through SPOE response-header evidence",
         "response_header_mrts_detection_only": "keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence",
+        "with_mrts_detection_only_non_disruptive": "keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases",
         "response_header_hook": "triage response-header phase 3 capture on Apache/NGINX first, then HAProxy",
         "request_body_processor": "split JSON, URL-encoded, and XML body processor cases before code changes",
         "multipart_files": "compare multipart variable population across connectors with one representative request",
@@ -754,6 +760,10 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
             {
                 "cluster": "response_header_mrts_detection_only",
                 "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action",
+            },
+            {
+                "cluster": "with_mrts_detection_only_non_disruptive",
+                "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action",
             },
         ],
     }

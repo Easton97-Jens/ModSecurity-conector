@@ -21,6 +21,7 @@ STRICT_LOAD_ERROR_RE = re.compile(
     r"Rules error|Error parsing|Failed to load|Invalid input|AH00526|modsecurity_rules_file.*failed|Could not open",
     re.IGNORECASE,
 )
+WITH_MRTS_DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 
 
 GROUPS = {
@@ -323,7 +324,7 @@ def classify_record(record: dict[str, Any]) -> tuple[str, str, str, str]:
             "fixable if generated loadfile path is wrong",
             "low to medium",
         )
-    if record["mrts_variant"] == "with-mrts":
+    if record["classification"] == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION or record["mrts_variant"] == "with-mrts":
         return (
             "F",
             "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -366,7 +367,10 @@ def build_records(connector_root: Path, framework_root: Path) -> list[dict[str, 
     selected = [
         entry
         for entry in entries
-        if "intervention_blocking" in as_list(entry.get("work_direction"))
+        if (
+            "intervention_blocking" in as_list(entry.get("work_direction"))
+            or entry.get("classification") == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION
+        )
         and entry.get("expected_status") == 403
         and entry.get("actual_status") == 200
     ]
@@ -527,13 +531,23 @@ def next_recommendation(connector_root: Path) -> dict[str, Any]:
 def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
     records = build_records(connector_root, framework_root)
     group_summary = grouped_summary(records)
+    detection_only_records = [item for item in records if item["classification"] == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION]
+    true_candidates = [
+        item
+        for item in records
+        if "intervention_blocking" in item["work_direction"]
+        and item["classification"] != WITH_MRTS_DETECTION_ONLY_CLASSIFICATION
+    ]
     summary = {
-        "intervention_blocking_403_to_200": len(records),
+        "expected_403_actual_200_total": len(records),
+        "intervention_blocking_true_candidates": len(true_candidates),
+        "detection_only_overlay_non_disruptive": len(detection_only_records),
         "rule_in_loadfile": sum(1 for item in records if item["rule_in_loadfile"]),
         "strict_rule_load_errors": sum(1 for item in records if item["strict_load_errors"]),
         "rule_loaded": sum(1 for item in records if item["rule_loaded"]),
         "rule_matched": sum(1 for item in records if item["rule_matched"]),
         "intervention_created": sum(1 for item in records if item["intervention_created"]),
+        "connector_lost_intervention": sum(1 for item in records if item["intervention_created"] and not item["connector_set_403"]),
         "connector_set_403": sum(1 for item in records if item["connector_set_403"]),
         "backend_reached": sum(1 for item in records if item["backend_reached"]),
         "with_mrts_detection_only_overlay": sum(1 for item in records if item["mrts_variant"] == "with-mrts"),
@@ -556,6 +570,8 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "distribution": {
             "connectors": top_counts(records, "connector"),
             "variants": top_counts(records, "variant"),
+            "detection_only_connectors": top_counts(detection_only_records, "connector"),
+            "detection_only_variants": top_counts(detection_only_records, "variant"),
             "source_categories": top_counts(records, "source_category"),
             "phases": top_counts(records, "phase"),
             "targets": top_counts(records, "target"),
@@ -577,11 +593,14 @@ def render_markdown(report: dict[str, Any]) -> str:
         "# Intervention Blocking Analysis",
         "",
         f"- Generated at: `{report['generated_at']}`",
-        f"- Target rows: **{summary['intervention_blocking_403_to_200']}** `intervention_blocking` rows with expected `403` and actual `200`.",
+        f"- Expected `403` / actual `200` rows under review: **{summary['expected_403_actual_200_total']}**.",
+        f"- Intervention-blocking true candidates: **{summary['intervention_blocking_true_candidates']}** no-MRTS no-match rows.",
+        f"- DetectionOnly overlay non-disruptive rows: **{summary['detection_only_overlay_non_disruptive']}** report-only rows.",
         f"- Rule in generated loadfile: **{summary['rule_in_loadfile']}**",
         f"- Strict rule-load errors: **{summary['strict_rule_load_errors']}**",
         f"- Rule matched: **{summary['rule_matched']}**",
         f"- Disruptive intervention evidence: **{summary['intervention_created']}**",
+        f"- Connector lost intervention evidence: **{summary['connector_lost_intervention']}**",
         f"- Connector returned 403 from that evidence: **{summary['connector_set_403']}**",
         f"- Backend/client 200 reached: **{summary['backend_reached']}**",
         "",
@@ -658,7 +677,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             "",
             "- This report does not change Expected statuses, testcase rules, MRTS definitions, or PASS/FAIL values.",
             "- No row currently proves a disruptive intervention that was later lost by connector or runner.",
-            "- Treat the with-MRTS group as classification/report-only unless the MRTS overlay policy is intentionally changed.",
+            "- The with-MRTS group is classification/report-only unless the MRTS overlay policy is intentionally changed.",
             "- Treat the no-MRTS group as semantic/native-comparison work, not as an intervention-forwarding fix.",
             "",
         ]

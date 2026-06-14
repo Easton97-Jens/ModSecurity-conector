@@ -1,11 +1,14 @@
 # Intervention Blocking Analysis
 
-- Generated at: `2026-06-13T20:39:52Z`
-- Target rows: **595** `intervention_blocking` rows with expected `403` and actual `200`.
+- Generated at: `2026-06-14T08:58:53Z`
+- Expected `403` / actual `200` rows under review: **595**.
+- Intervention-blocking true candidates: **105** no-MRTS no-match rows.
+- DetectionOnly overlay non-disruptive rows: **490** report-only rows.
 - Rule in generated loadfile: **595**
 - Strict rule-load errors: **0**
 - Rule matched: **298**
 - Disruptive intervention evidence: **0**
+- Connector lost intervention evidence: **0**
 - Connector returned 403 from that evidence: **0**
 - Backend/client 200 reached: **595**
 
@@ -73,5 +76,5 @@
 
 - This report does not change Expected statuses, testcase rules, MRTS definitions, or PASS/FAIL values.
 - No row currently proves a disruptive intervention that was later lost by connector or runner.
-- Treat the with-MRTS group as classification/report-only unless the MRTS overlay policy is intentionally changed.
+- The with-MRTS group is classification/report-only unless the MRTS overlay policy is intentionally changed.
 - Treat the no-MRTS group as semantic/native-comparison work, not as an intervention-forwarding fix.

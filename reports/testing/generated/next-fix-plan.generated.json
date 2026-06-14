@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-14T08:46:07Z",
+  "generated_at": "2026-06-14T08:58:55Z",
   "priority_plan": {
     "P0": [],
     "P1": [],
@@ -7,7 +7,7 @@
       {
         "cluster_name": "request_body_processor / multipart_files / xml_processor",
         "connector": "apache, nginx, haproxy",
-        "count": 180,
+        "count": 36,
         "likely_change": "split by body type first; avoid one broad fix",
         "risk": "medium to high",
         "tests": [
@@ -35,7 +35,7 @@
       {
         "cluster_name": "transformation_semantics",
         "connector": "apache, nginx, haproxy",
-        "count": 144,
+        "count": 36,
         "likely_change": "deeper semantic evidence, not harness routing",
         "risk": "high",
         "tests": [
@@ -49,7 +49,7 @@
       {
         "cluster_name": "rule_chain_semantics and small single-connector leftovers",
         "connector": "mostly nginx for connector-only leftovers",
-        "count": 13,
+        "count": 7,
         "likely_change": "focused per-case triage",
         "risk": "low to medium",
         "tests": [
@@ -76,6 +76,10 @@
       {
         "cluster": "response_header_mrts_detection_only",
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action"
+      },
+      {
+        "cluster": "with_mrts_detection_only_non_disruptive",
+        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
       }
     ],
     "reason": "high combined volume, but likely multiple true processor gaps",
