@@ -1686,6 +1686,7 @@ static int mode_enforces(const agent_config *config) {
 }
 
 static void json_write_string(FILE *file, const char *value) {
+    const unsigned char *cursor;
     size_t value_len;
 
     fputc('"', file);
@@ -1693,8 +1694,13 @@ static void json_write_string(FILE *file, const char *value) {
         fputc('"', file);
         return;
     }
-    for (size_t i = 0; i < value_len; ++i) {
-        unsigned char ch = (unsigned char)value[i];
+    if (*value == '\0') {
+        fputc('"', file);
+        return;
+    }
+    cursor = (const unsigned char *)value;
+    for (size_t remaining = value_len; remaining > 0U; --remaining) {
+        unsigned char ch = *cursor++;
         switch (ch) {
             case '\\':
                 fputs("\\\\", file);
