@@ -1,0 +1,1301 @@
+{
+  "albedo": {
+    "actual_head": "3f7d0238b32d1f98059f5c70e0ffcafad514952c",
+    "binary": "/src/ModSecurity-conector-cache/bin/albedo",
+    "blocker_reason": "",
+    "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/albedo-build.log",
+    "build_package": "github.com/coreruleset/albedo",
+    "can_build_locally": true,
+    "dependency": "albedo",
+    "env_override": "ALBEDO_BIN",
+    "expected_prompt_latest": "v0.3.0",
+    "expected_ref": "v0.3.0",
+    "git_fsck": "PASS",
+    "go_version": "go version go1.26.0 linux/amd64",
+    "known_ref": "v0.3.0",
+    "known_source": "https://github.com/coreruleset/albedo",
+    "known_source_url": "https://github.com/coreruleset/albedo",
+    "name": "albedo",
+    "path": "/src/ModSecurity-conector-cache/bin/albedo",
+    "recursive_submodule_status": "",
+    "recursive_submodules": true,
+    "release_tag": "v0.3.0",
+    "release_tag_deviation": false,
+    "release_tag_deviation_note": "",
+    "release_url": "https://github.com/coreruleset/albedo/releases/tag/v0.3.0",
+    "searched_paths": [
+      "/src/ModSecurity-conector-cache/bin/albedo"
+    ],
+    "source": "https://github.com/coreruleset/albedo",
+    "source_path": "/src/ModSecurity-conector-cache/git/albedo",
+    "status": "present",
+    "submodule_status_clean": true
+  },
+  "apache_httpd": {
+    "apachectl_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apachectl-mrts",
+    "aprutil_libs": "-lcrypt",
+    "apxs_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apxs",
+    "blocker_reason": "",
+    "build_path": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build",
+    "cache_path": "/src/ModSecurity-conector-cache/archives/apache",
+    "connector": "apache",
+    "connector_build_id": "58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d",
+    "cppflags": "-I/src/ModSecurity-conector-cache/prefix/expat/include",
+    "crypt_config_cache": "-lcrypt",
+    "crypt_h_path": "/usr/include/crypt.h",
+    "crypt_h_status": "present",
+    "crypt_lib": "-lcrypt",
+    "crypt_link_mode": "compiler:-lcrypt",
+    "env_override": "APACHECTL_BIN",
+    "expat_actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
+    "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
+    "expat_lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
+    "expat_prefix": "/src/ModSecurity-conector-cache/prefix/expat",
+    "expat_release_tag": "R_2_8_1",
+    "expat_source": "https://github.com/libexpat/libexpat",
+    "expected_ref": "2.4.67",
+    "httpd_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+    "httpd_prefix": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd",
+    "ldflags": "-L/src/ModSecurity-conector-cache/prefix/expat/lib",
+    "libcrypt_paths": [
+      "/usr/lib/x86_64-linux-gnu/libcrypt.so",
+      "/lib/x86_64-linux-gnu/libcrypt.so",
+      "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
+      "/lib/x86_64-linux-gnu/libcrypt.so.1"
+    ],
+    "libcrypt_status": "present",
+    "libs": "-lcrypt",
+    "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+    "modsecurity_lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+    "module_file": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so",
+    "output_paths": {
+      "binary": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+      "config": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/conf/httpd.conf",
+      "module": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so"
+    },
+    "pcre2_prefix": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/pcre2",
+    "pkg_config_path": "/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig",
+    "searched_paths": [
+      "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+      "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apxs",
+      "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so",
+      "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so"
+    ],
+    "source": "connector-local-build",
+    "status": "reused",
+    "tree": {
+      "exists": true,
+      "file_count": 13724,
+      "sha256_manifest": "a9cf7d3a0ac9b1a7814850263b22a76316f7ffde441ebcb3fca476511679abe7",
+      "total_size": 1925237516
+    }
+  },
+  "body_processor_analysis_report": {
+    "analysis": "reports/testing/generated/body-processor-analysis.generated.md",
+    "json": "reports/testing/generated/body-processor-analysis.generated.json",
+    "multipart_activation_missing_subcluster_count": 8,
+    "multipart_active_after_report_sync": 0,
+    "urlencoded_active_after_report_sync": 0,
+    "urlencoded_form_subcluster_count": 12,
+    "xml_activation_missing_subcluster_count": 16,
+    "xml_active_after_report_sync": 0
+  },
+  "expat": {
+    "actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
+    "blocker_reason": "",
+    "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/expat-build.log",
+    "build_path": "/src/ModSecurity-conector-cache/build/expat",
+    "build_source_copy": "/src/ModSecurity-conector-cache/build/expat-source",
+    "build_system": "autotools",
+    "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
+    "expected_ref": "R_2_8_1",
+    "git_fsck": "PASS",
+    "include": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
+    "lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
+    "libraries": [
+      "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.a",
+      "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.la",
+      "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.so",
+      "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.so.1",
+      "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.so.1.12.1"
+    ],
+    "library": "/src/ModSecurity-conector-cache/prefix/expat/lib",
+    "name": "expat",
+    "path": "/src/ModSecurity-conector-cache/git/libexpat",
+    "prefix": "/src/ModSecurity-conector-cache/prefix/expat",
+    "recursive_submodule_status": "",
+    "recursive_submodules": true,
+    "release_tag": "R_2_8_1",
+    "source": "https://github.com/libexpat/libexpat",
+    "status": "present",
+    "submodule_status_clean": true,
+    "url": "https://github.com/libexpat/libexpat"
+  },
+  "final_consistency_audit_report": {
+    "analysis": "reports/testing/generated/final-consistency-audit.generated.md",
+    "full_matrix_summary": {
+      "attempted": 3928,
+      "blocked": 0,
+      "fail": 782,
+      "not_executable": 72,
+      "pass": 3074,
+      "pending": 2298
+    },
+    "json": "reports/testing/generated/final-consistency-audit.generated.json",
+    "recommended_next_fix_cluster": "none",
+    "release_readiness": "ready_with_known_reported_gaps"
+  },
+  "fixes": [
+    "Allowed connector runtime/log/result roots under the requested BUILD_ROOT for isolated /tmp full-matrix jobs while preserving SOURCE_ROOT guardrails.",
+    "Switched pinned Apache source download default to archive.apache.org after downloads.apache.org returned 404 for the pinned httpd release.",
+    "Added Apache expat.h and HAProxy crypt.h preflight checks with clear local CPPFLAGS/LDFLAGS remediation instead of late compile failure.",
+    "Made full-matrix HAProxy jobs reuse shared build artifacts while keeping per-job tmp/log/result roots isolated.",
+    "Added GO_FTW_BIN and ALBEDO_BIN support plus native report remediation metadata for missing native tools."
+  ],
+  "full_matrix": {
+    "build_root": "/tmp/modsec-full-run",
+    "by_connector": {
+      "apache": {
+        "attempted": 0,
+        "blocked": 4,
+        "fail": 0,
+        "jobs": 4,
+        "logs": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/apache/run.log",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/apache/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/apache/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/apache/run.log"
+        ],
+        "not_executable": 0,
+        "outcomes": {
+          "BLOCKED": 4
+        },
+        "pass": 0,
+        "pending": 0,
+        "summaries": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/apache/results/apache-summary.json",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/apache/results/apache-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/apache/results/apache-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/apache/results/apache-summary.json"
+        ]
+      },
+      "haproxy": {
+        "attempted": 1300,
+        "blocked": 1300,
+        "fail": 0,
+        "jobs": 4,
+        "logs": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/haproxy/run.log",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/haproxy/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/haproxy/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/haproxy/run.log"
+        ],
+        "not_executable": 0,
+        "outcomes": {
+          "FAIL": 4
+        },
+        "pass": 0,
+        "pending": 766,
+        "summaries": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json"
+        ]
+      },
+      "nginx": {
+        "attempted": 1328,
+        "blocked": 0,
+        "fail": 304,
+        "jobs": 4,
+        "logs": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/nginx/run.log",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/nginx/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/nginx/run.log",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/nginx/run.log"
+        ],
+        "not_executable": 24,
+        "outcomes": {
+          "FAIL": 4
+        },
+        "pass": 1000,
+        "pending": 766,
+        "summaries": [
+          "/tmp/modsec-full-run/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
+          "/tmp/modsec-full-run/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
+          "/tmp/modsec-full-run/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json"
+        ]
+      }
+    },
+    "command": "FRAMEWORK_ROOT=/root/git/ModSecurity-test-Framework SOURCE_ROOT=/src BUILD_ROOT=/tmp/modsec-full-run MATRIX_ROOT=/tmp/modsec-full-run/full-matrix PYTHONDONTWRITEBYTECODE=1 make full-matrix-parallel",
+    "external_blockers": [
+      {
+        "connector": "apache",
+        "dependency": "expat.h",
+        "reason": "missing development header for Apache httpd source build",
+        "remediation": "Provide local CPPFLAGS/LDFLAGS for expat headers/libs or install the matching system development package outside this run.",
+        "scope": "connector full matrix Apache jobs"
+      },
+      {
+        "connector": "haproxy",
+        "dependency": "crypt.h",
+        "reason": "missing development header for HAProxy source build",
+        "remediation": "Provide local CPPFLAGS/LDFLAGS for crypt headers/libs or install the matching system development package outside this run.",
+        "scope": "connector full matrix HAProxy jobs"
+      }
+    ],
+    "generated_at": "2026-06-09T18:28:41Z",
+    "make_exit_code": 2,
+    "manifest": "/tmp/modsec-full-run/full-matrix/full-runtime-matrix-runs.jsonl",
+    "matrix_root": "/tmp/modsec-full-run/full-matrix",
+    "mrts_build_root": "/tmp/modsec-full-run/mrts",
+    "report_json": "reports/testing/generated/full-runtime-matrix.generated.json",
+    "report_md": "reports/testing/generated/full-runtime-matrix.generated.md",
+    "top_work_queue_patterns": {
+      "apache": {
+        "classification": [
+          {
+            "count": 4,
+            "value": "harness-incompatibility"
+          }
+        ],
+        "failure_pattern": [
+          {
+            "count": 4,
+            "value": "no_runtime_evidence"
+          }
+        ],
+        "priority": [
+          {
+            "count": 4,
+            "value": "P1"
+          }
+        ],
+        "runtime_status": [
+          {
+            "count": 4,
+            "value": "BLOCKED"
+          }
+        ],
+        "work_direction": [
+          {
+            "count": 4,
+            "value": "harness_incompatibility"
+          }
+        ]
+      },
+      "haproxy": {
+        "classification": [
+          {
+            "count": 1016,
+            "value": "harness-incompatibility"
+          },
+          {
+            "count": 284,
+            "value": "response-body-non-promoted"
+          }
+        ],
+        "failure_pattern": [
+          {
+            "count": 1300,
+            "value": "no_runtime_evidence"
+          }
+        ],
+        "priority": [
+          {
+            "count": 848,
+            "value": "P1"
+          },
+          {
+            "count": 284,
+            "value": "P3"
+          },
+          {
+            "count": 168,
+            "value": "P2"
+          }
+        ],
+        "runtime_status": [
+          {
+            "count": 1300,
+            "value": "BLOCKED"
+          }
+        ],
+        "work_direction": [
+          {
+            "count": 1016,
+            "value": "harness_incompatibility"
+          },
+          {
+            "count": 284,
+            "value": "response_body_non_promoted"
+          }
+        ]
+      },
+      "nginx": {
+        "classification": [
+          {
+            "count": 764,
+            "value": "pass"
+          },
+          {
+            "count": 300,
+            "value": "response-body-non-promoted"
+          },
+          {
+            "count": 244,
+            "value": "runtime-difference"
+          },
+          {
+            "count": 20,
+            "value": "pending"
+          }
+        ],
+        "failure_pattern": [
+          {
+            "count": 1000,
+            "value": "<empty>"
+          },
+          {
+            "count": 292,
+            "value": "expected_block_got_200"
+          },
+          {
+            "count": 24,
+            "value": "not_executable"
+          },
+          {
+            "count": 8,
+            "value": "expected_pass_but_evidence_missing"
+          },
+          {
+            "count": 4,
+            "value": "expected_200_got_0"
+          }
+        ],
+        "priority": [
+          {
+            "count": 1084,
+            "value": "P3"
+          },
+          {
+            "count": 244,
+            "value": "P1"
+          }
+        ],
+        "runtime_status": [
+          {
+            "count": 1000,
+            "value": "PASS"
+          },
+          {
+            "count": 304,
+            "value": "FAIL"
+          },
+          {
+            "count": 24,
+            "value": "NOT_EXECUTABLE"
+          }
+        ],
+        "work_direction": [
+          {
+            "count": 578,
+            "value": "operator_semantics"
+          },
+          {
+            "count": 300,
+            "value": "response_body_non_promoted"
+          },
+          {
+            "count": 238,
+            "value": "intervention_blocking"
+          },
+          {
+            "count": 108,
+            "value": "runtime_difference"
+          },
+          {
+            "count": 36,
+            "value": "transformation_semantics"
+          },
+          {
+            "count": 24,
+            "value": "harness_incompatibility"
+          },
+          {
+            "count": 14,
+            "value": "multipart_files"
+          },
+          {
+            "count": 12,
+            "value": "json_processor"
+          },
+          {
+            "count": 10,
+            "value": "response_header_hook"
+          },
+          {
+            "count": 6,
+            "value": "xml_processor"
+          }
+        ]
+      }
+    },
+    "totals": {
+      "attempted": 2628,
+      "blocked": 1304,
+      "fail": 304,
+      "not_executable": 24,
+      "pass": 1000,
+      "pending": 1532
+    }
+  },
+  "generated_at": "2026-06-09T18:40:47Z",
+  "go_ftw": {
+    "actual_head": "23db497e3a6133888fcd5e087b8cf456556df041",
+    "binary": "/src/ModSecurity-conector-cache/bin/go-ftw",
+    "blocker_reason": "",
+    "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/go-ftw-build.log",
+    "build_package": "github.com/coreruleset/go-ftw/v2",
+    "can_build_locally": true,
+    "dependency": "go-ftw",
+    "env_override": "GO_FTW_BIN",
+    "expected_prompt_latest": "v2.2.0",
+    "expected_ref": "v2.4.0",
+    "git_fsck": "PASS",
+    "go_version": "go version go1.26.0 linux/amd64",
+    "known_ref": "v2.4.0",
+    "known_source": "https://github.com/coreruleset/go-ftw",
+    "known_source_url": "https://github.com/coreruleset/go-ftw",
+    "name": "go-ftw",
+    "path": "/src/ModSecurity-conector-cache/bin/go-ftw",
+    "recursive_submodule_status": "",
+    "recursive_submodules": true,
+    "release_tag": "v2.4.0",
+    "release_tag_deviation": true,
+    "release_tag_deviation_note": "prompt_expected_latest=v2.2.0; current_latest=v2.4.0",
+    "release_url": "https://github.com/coreruleset/go-ftw/releases/tag/v2.4.0",
+    "searched_paths": [
+      "/src/ModSecurity-conector-cache/bin/go-ftw"
+    ],
+    "source": "https://github.com/coreruleset/go-ftw",
+    "source_path": "/src/ModSecurity-conector-cache/git/go-ftw",
+    "status": "present",
+    "submodule_status_clean": true
+  },
+  "guardrails": {
+    "generated_mrts_artifacts_not_committed": true,
+    "mrts_definitions_unchanged": true,
+    "no_push": true,
+    "runtime_pass_fail_not_manually_changed": true,
+    "tmp_src_build_outputs_not_committed": true,
+    "tools_mrts_unchanged": true
+  },
+  "haproxy": {
+    "blocker_reason": "",
+    "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"\", \"CXXFLAGS\": \"\", \"HAPROXY_VERSION\": \"3.2.19\", \"HTTPD_VERSION\": \"2.4.67\", \"LDFLAGS\": \"\", \"LIBS\": \"\", \"NGINX_RELEASE_TAG\": \"latest\", \"NGINX_SOURCE_GIT_REF\": \"latest\"}",
+    "build_path": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d",
+    "connector": "haproxy",
+    "connector_build_id": "51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d",
+    "haproxy_bin": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy/sbin/haproxy",
+    "haproxy_runtime_build_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime-build",
+    "haproxy_runtime_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy",
+    "modsecurity_binding_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding",
+    "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+    "output_paths": {
+      "binary": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy/sbin/haproxy",
+      "config": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding/paths.env",
+      "module": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
+    },
+    "paths_env": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding/paths.env",
+    "source_hash": "d8d8ae6efdc57905d0707b9275e16a1b17fe80c14150b98587c6f72f7fe174ad",
+    "spoa_runtime_bin": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+    "status": "reused",
+    "tree": {
+      "exists": true,
+      "file_count": 1559,
+      "sha256_manifest": "4886f590000ab49a45814c3be4ce8f9ffcf5657cca84a4cb40082f1963525f54",
+      "total_size": 99145962
+    }
+  },
+  "local_tool_availability": {
+    "albedo": null,
+    "apachectl": null,
+    "go-ftw": null,
+    "nginx": null,
+    "ngx_http_modsecurity_module.so_search": []
+  },
+  "modsecurity": {
+    "actual_sha": "2fd49292d751fc383b8faf7da6a8d480904774d0",
+    "blocker_reason": "",
+    "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"-I/src/ModSecurity-conector-cache/prefix/expat/include\", \"CXXFLAGS\": \"\", \"LDFLAGS\": \"-L/src/ModSecurity-conector-cache/prefix/expat/lib\", \"LIBS\": \"\", \"PKG_CONFIG_PATH\": \"/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig\", \"configure_args\": \"\"}",
+    "build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+    "build_root": "/src/ModSecurity-conector-cache/builds/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+    "compiler": {
+      "cc": "/usr/bin/cc",
+      "cc_version": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+      "cxx": "/usr/bin/c++",
+      "cxx_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0"
+    },
+    "component": "modsecurity",
+    "dependency_hash": "8ef54119a5e6bdf71d774d1799c72bdb8de3094bd8d11ef67b65126995c3e57a",
+    "generated_at": "2026-06-13T08:29:34Z",
+    "include_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/include",
+    "lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+    "lib_file": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so",
+    "lock": "/src/ModSecurity-conector-cache/locks/modsecurity-3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c.lock",
+    "manifest": "/src/ModSecurity-conector-cache/builds/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/manifest.json",
+    "name": "modsecurity",
+    "pkg_config_path": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/pkgconfig",
+    "prefix": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+    "source_ref": "v3/master",
+    "source_url": "https://github.com/owasp-modsecurity/ModSecurity.git",
+    "status": "reused",
+    "submodule_status": "bc625d5bb0bac6a64bcce8dc9902208612399348 bindings/python (bc625d5)\n 211782219663f889f471650150df12b623c5766e others/libinjection (v4.0.0)\n 0fe989b6b514192783c469039edd325fd0989806 others/mbedtls (v4.1.0)\n dff9da04438d712f7647fd995bc90fadd0c0e2ce others/mbedtls/framework (mbedtls-4.1.0_tf-psa-crypto-1.1.0)\n 29160dd877d29658279fd683b2ae57b320ddcf09 others/mbedtls/tf-psa-crypto (v1.1.0)\n 5772b4f4a0105694b1203abb582273f78fa951b7 others/mbedtls/tf-psa-crypto/drivers/pqcp/mldsa-native (remotes/origin/main-53-g5772b4f)\n dff9da04438d712f7647fd995bc90fadd0c0e2ce others/mbedtls/tf-psa-crypto/framework (mbedtls-4.1.0_tf-psa-crypto-1.1.0)\n a3d4405e5a2c90488c387e589c5534974575e35b test/test-cases/secrules-language-tests (a3d4405)",
+    "submodules_recursive": true,
+    "tree": {
+      "exists": true,
+      "file_count": 28,
+      "sha256_manifest": "efd6f687f11c9fd9584298bcdd12dfde3d178d50d4b7e49f77734f3572a0d4fa",
+      "total_size": 180369331
+    }
+  },
+  "mrts_native": {
+    "build_root": "/tmp/modsec-native-full-run",
+    "command": "FRAMEWORK_ROOT=/root/git/ModSecurity-test-Framework BUILD_ROOT=/tmp/modsec-native-full-run MRTS_NATIVE_TARGETS=\"apache2_ubuntu nginx-pr24\" PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run",
+    "generated_at": "2026-06-13T11:32:41Z",
+    "make_exit_code": 2,
+    "mrts_build_root": "/tmp/modsec-native-full-run/mrts",
+    "mrts_native_root": "/tmp/modsec-native-full-run/mrts-native",
+    "report_json": "reports/testing/generated/mrts-native-full.generated.json",
+    "report_md": "reports/testing/generated/mrts-native-full.generated.md",
+    "reports": {
+      "apache": "reports/testing/generated/mrts-native-apache.generated.md",
+      "combined": "reports/testing/generated/mrts-native-full.generated.md",
+      "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
+      "summary": "reports/testing/generated/mrts-native-summary.generated.md"
+    },
+    "summary": {
+      "FAIL": 2
+    },
+    "target_script_exit_code": 2,
+    "targets": {
+      "apache2_ubuntu": {
+        "counts": {
+          "attempted": 13,
+          "blocked": 0,
+          "fail": 1,
+          "failed_cases": [
+            "100003-1"
+          ],
+          "not_executable": 0,
+          "pass": 12
+        },
+        "duration_seconds": 12,
+        "exit_code": 1,
+        "first_failing_cases": [
+          {
+            "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+            "case_id": "100003-1",
+            "classification": "native_modsecurity_semantics",
+            "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+            "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+            "phase": "4",
+            "request": "POST /?foo=attack",
+            "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+            "rule_id": "100003",
+            "secondary_classification": "phase4_native_limitation",
+            "target": "ARGS",
+            "variable": "ARGS"
+          }
+        ],
+        "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
+        "known_limitations": [
+          "phase4_native_limitation",
+          "RESPONSE_BODY non-promoted"
+        ],
+        "paths": {
+          "job_json_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+          "run_log_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+          "staged_infra_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra"
+        },
+        "reason": "native MRTS go-ftw run failed",
+        "remediation": [],
+        "run_log": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+        "status": "FAIL",
+        "summary_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "target": "apache2_ubuntu"
+      },
+      "nginx-pr24": {
+        "counts": {
+          "attempted": 13,
+          "blocked": 0,
+          "fail": 1,
+          "failed_cases": [
+            "100003-1"
+          ],
+          "not_executable": 0,
+          "pass": 12
+        },
+        "duration_seconds": 6,
+        "exit_code": 1,
+        "first_failing_cases": [
+          {
+            "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+            "case_id": "100003-1",
+            "classification": "native_modsecurity_semantics",
+            "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+            "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+            "phase": "4",
+            "request": "POST /?foo=attack",
+            "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+            "rule_id": "100003",
+            "secondary_classification": "phase4_native_limitation",
+            "target": "ARGS",
+            "variable": "ARGS"
+          }
+        ],
+        "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",
+        "known_limitations": [
+          "phase4_native_limitation",
+          "RESPONSE_BODY non-promoted"
+        ],
+        "paths": {
+          "job_json_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+          "run_log_path": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+          "staged_infra_path": "$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra"
+        },
+        "reason": "native MRTS go-ftw run failed",
+        "remediation": [],
+        "run_log": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+        "status": "FAIL",
+        "summary_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "target": "nginx-pr24"
+      }
+    }
+  },
+  "mrts_native_reports": {
+    "apache": "reports/testing/generated/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native-summary.generated.md"
+  },
+  "nginx": {
+    "blocker_reason": "",
+    "build_path": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/build",
+    "cache_path": "/src/ModSecurity-conector-cache/archives/nginx",
+    "connector": "nginx",
+    "connector_build_id": "60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8",
+    "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
+    "expected_ref": "latest",
+    "local_module_file": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+    "local_nginx_bin": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+    "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+    "modsecurity_lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+    "module_dir": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules",
+    "module_file": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+    "nginx_bin": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+    "nginx_prefix": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx",
+    "output_paths": {
+      "binary": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+      "config": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/conf/nginx.conf",
+      "module": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so"
+    },
+    "searched_paths": [
+      "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+      "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+      "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so"
+    ],
+    "source": "connector-local-build",
+    "status": "reused",
+    "tree": {
+      "exists": true,
+      "file_count": 7616,
+      "sha256_manifest": "2304de497010135b1222446875348e1eec26e98c27cb03108371512ba78912f4",
+      "total_size": 1778164186
+    }
+  },
+  "no_mrts_intervention_nomatch_analysis_report": {
+    "analysis": "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md",
+    "json": "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json"
+  },
+  "nolog_audit_evidence_report": {
+    "analysis": "reports/testing/generated/nolog-audit-evidence.generated.md",
+    "case_id": "v3_action_nolog_pass_no_audit",
+    "classification": "nolog_expected_no_audit",
+    "json": "reports/testing/generated/nolog-audit-evidence.generated.json"
+  },
+  "phase4_hard_abort_capability": {
+    "connector_summary": {
+      "apache": {
+        "capability_status": "implementation_path_present_no_runtime_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 260,
+        "hard_abort_evidence_rows": 0
+      },
+      "haproxy": {
+        "capability_status": "connector_gap_no_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 284,
+        "hard_abort_evidence_rows": 0
+      },
+      "nginx": {
+        "capability_status": "connector_gap_no_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 294,
+        "hard_abort_evidence_rows": 0
+      }
+    },
+    "json": "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+    "report": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+    "summary": {
+      "category_counts": {
+        "phase4_connector_gap": 76,
+        "phase4_log_only_no_abort": 6,
+        "phase4_missing_abort_evidence": 102,
+        "phase4_no_hard_abort_required": 684
+      },
+      "connection_aborted_rows": 0,
+      "full_delivery_without_abort_rows": 838,
+      "hard_abort_evidence_rows": 0,
+      "log_evidence_rows": 304,
+      "log_only_not_hard_abort_rows": 6,
+      "no_hard_abort_required_rows": 684,
+      "rows": 868,
+      "runtime_status": {
+        "FAIL": 116,
+        "NOT_EXECUTABLE": 12,
+        "PASS": 740
+      },
+      "sensitive_log_leak_rows": 0,
+      "status_200_without_abort_rows": 806,
+      "truncated_not_hard_abort_rows": 0
+    }
+  },
+  "post_libcrypt_native_rerun": {
+    "apache_counts": {},
+    "apache_module": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so",
+    "apache_result": "-",
+    "apachectl_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apachectl-mrts",
+    "build_root": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d",
+    "nginx_bin": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+    "nginx_counts": {},
+    "nginx_module": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+    "nginx_result": "-"
+  },
+  "remaining_failure_analysis_reports": {
+    "analysis": "reports/testing/generated/remaining-failure-analysis.generated.md",
+    "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md",
+    "nolog_audit_evidence": "reports/testing/generated/nolog-audit-evidence.generated.md",
+    "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+    "response_header_hook_analysis": "reports/testing/generated/response-header-hook-analysis.generated.md"
+  },
+  "reports": [
+    "reports/testing/generated/full-runtime-matrix.generated.json",
+    "reports/testing/generated/full-runtime-matrix.generated.md",
+    "reports/testing/generated/connector-work-queue.generated.json",
+    "reports/testing/generated/connector-work-queue.generated.md",
+    "reports/testing/generated/phase-work-queue.generated.json",
+    "reports/testing/generated/phase-work-queue.generated.md",
+    "reports/testing/generated/mrts-native-full.generated.json",
+    "reports/testing/generated/mrts-native-full.generated.md",
+    "reports/testing/generated/full-run-evidence.generated.json",
+    "reports/testing/generated/full-run-evidence.generated.md",
+    "reports/testing/generated/mrts-native-apache.generated.json",
+    "reports/testing/generated/mrts-native-apache.generated.md",
+    "reports/testing/generated/mrts-native-nginx.generated.json",
+    "reports/testing/generated/mrts-native-nginx.generated.md",
+    "reports/testing/generated/mrts-native-summary.generated.json",
+    "reports/testing/generated/mrts-native-summary.generated.md",
+    "reports/testing/generated/remaining-failure-analysis.generated.json",
+    "reports/testing/generated/remaining-failure-analysis.generated.md",
+    "reports/testing/generated/next-fix-plan.generated.json",
+    "reports/testing/generated/next-fix-plan.generated.md",
+    "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+    "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+    "reports/testing/generated/nolog-audit-evidence.generated.json",
+    "reports/testing/generated/nolog-audit-evidence.generated.md",
+    "reports/testing/generated/response-header-hook-analysis.generated.json",
+    "reports/testing/generated/response-header-hook-analysis.generated.md",
+    "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json",
+    "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md",
+    "reports/testing/generated/body-processor-analysis.generated.json",
+    "reports/testing/generated/body-processor-analysis.generated.md",
+    "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
+    "reports/testing/generated/rule-chain-semantics-analysis.generated.md",
+    "reports/testing/generated/final-consistency-audit.generated.json",
+    "reports/testing/generated/final-consistency-audit.generated.md"
+  ],
+  "response_header_hook_analysis_report": {
+    "analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",
+    "classification": "response_header_hook_split",
+    "json": "reports/testing/generated/response-header-hook-analysis.generated.json"
+  },
+  "rule_chain_semantics_analysis": {
+    "json": "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
+    "report": "reports/testing/generated/rule-chain-semantics-analysis.generated.md",
+    "summary": {
+      "chain_child_matched_rows": 2,
+      "chain_named_non_rule_chain_groups": 1,
+      "chain_named_non_rule_chain_rows": 6,
+      "chain_parent_matched_rows": 3,
+      "connectors": {
+        "apache": 2,
+        "haproxy": 2,
+        "nginx": 2
+      },
+      "evidence_parser_missing_full_chain_rows": 0,
+      "full_chain_disruptive_rows": 0,
+      "full_chain_matched_rows": 3,
+      "full_chain_non_disruptive_detection_only_rows": 6,
+      "report_only_items": 13,
+      "rule_chain_case_groups": 1,
+      "rule_chain_failure_rows": 6,
+      "runtime_fixable_candidates": 0,
+      "single_connector_classifications": {
+        "phase4_not_next_single_connector_leftover": 4,
+        "with_mrts_detection_only_single_connector_non_disruptive": 3
+      },
+      "single_connector_connectors": {
+        "nginx": 7
+      },
+      "small_single_connector_failure_groups": 7,
+      "small_single_connector_failure_rows": 14
+    }
+  },
+  "runtime_build_cache": {
+    "build_reuse_summary": {
+      "blocked_count": 0,
+      "blocker_reason": "",
+      "modsecurity_build_id_mismatches": [],
+      "modsecurity_build_status": "reused",
+      "rebuilt_count": 0,
+      "reused_count": 3,
+      "saved_rebuilds_estimate": 3,
+      "status": "ok"
+    },
+    "connector_builds": [
+      {
+        "apachectl_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apachectl-mrts",
+        "aprutil_libs": "-lcrypt",
+        "apxs_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apxs",
+        "blocker_reason": "",
+        "build_path": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build",
+        "cache_path": "/src/ModSecurity-conector-cache/archives/apache",
+        "connector": "apache",
+        "connector_build_id": "58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d",
+        "cppflags": "-I/src/ModSecurity-conector-cache/prefix/expat/include",
+        "crypt_config_cache": "-lcrypt",
+        "crypt_h_path": "/usr/include/crypt.h",
+        "crypt_h_status": "present",
+        "crypt_lib": "-lcrypt",
+        "crypt_link_mode": "compiler:-lcrypt",
+        "env_override": "APACHECTL_BIN",
+        "expat_actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
+        "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
+        "expat_lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
+        "expat_prefix": "/src/ModSecurity-conector-cache/prefix/expat",
+        "expat_release_tag": "R_2_8_1",
+        "expat_source": "https://github.com/libexpat/libexpat",
+        "expected_ref": "2.4.67",
+        "httpd_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+        "httpd_prefix": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd",
+        "ldflags": "-L/src/ModSecurity-conector-cache/prefix/expat/lib",
+        "libcrypt_paths": [
+          "/usr/lib/x86_64-linux-gnu/libcrypt.so",
+          "/lib/x86_64-linux-gnu/libcrypt.so",
+          "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
+          "/lib/x86_64-linux-gnu/libcrypt.so.1"
+        ],
+        "libcrypt_status": "present",
+        "libs": "-lcrypt",
+        "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+        "modsecurity_lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+        "module_file": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so",
+        "output_paths": {
+          "binary": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+          "config": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/conf/httpd.conf",
+          "module": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so"
+        },
+        "pcre2_prefix": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/pcre2",
+        "pkg_config_path": "/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig",
+        "searched_paths": [
+          "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+          "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apxs",
+          "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so",
+          "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so"
+        ],
+        "source": "connector-local-build",
+        "status": "reused",
+        "tree": {
+          "exists": true,
+          "file_count": 13724,
+          "sha256_manifest": "a9cf7d3a0ac9b1a7814850263b22a76316f7ffde441ebcb3fca476511679abe7",
+          "total_size": 1925237516
+        }
+      },
+      {
+        "blocker_reason": "",
+        "build_path": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/build",
+        "cache_path": "/src/ModSecurity-conector-cache/archives/nginx",
+        "connector": "nginx",
+        "connector_build_id": "60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8",
+        "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
+        "expected_ref": "latest",
+        "local_module_file": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+        "local_nginx_bin": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+        "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+        "modsecurity_lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+        "module_dir": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules",
+        "module_file": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+        "nginx_bin": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+        "nginx_prefix": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx",
+        "output_paths": {
+          "binary": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+          "config": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/conf/nginx.conf",
+          "module": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so"
+        },
+        "searched_paths": [
+          "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+          "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+          "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so"
+        ],
+        "source": "connector-local-build",
+        "status": "reused",
+        "tree": {
+          "exists": true,
+          "file_count": 7616,
+          "sha256_manifest": "2304de497010135b1222446875348e1eec26e98c27cb03108371512ba78912f4",
+          "total_size": 1778164186
+        }
+      },
+      {
+        "blocker_reason": "",
+        "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"\", \"CXXFLAGS\": \"\", \"HAPROXY_VERSION\": \"3.2.19\", \"HTTPD_VERSION\": \"2.4.67\", \"LDFLAGS\": \"\", \"LIBS\": \"\", \"NGINX_RELEASE_TAG\": \"latest\", \"NGINX_SOURCE_GIT_REF\": \"latest\"}",
+        "build_path": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d",
+        "connector": "haproxy",
+        "connector_build_id": "51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d",
+        "haproxy_bin": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy/sbin/haproxy",
+        "haproxy_runtime_build_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime-build",
+        "haproxy_runtime_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy",
+        "modsecurity_binding_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding",
+        "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+        "output_paths": {
+          "binary": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy/sbin/haproxy",
+          "config": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding/paths.env",
+          "module": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
+        },
+        "paths_env": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding/paths.env",
+        "source_hash": "d8d8ae6efdc57905d0707b9275e16a1b17fe80c14150b98587c6f72f7fe174ad",
+        "spoa_runtime_bin": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+        "status": "reused",
+        "tree": {
+          "exists": true,
+          "file_count": 1559,
+          "sha256_manifest": "4886f590000ab49a45814c3be4ce8f9ffcf5657cca84a4cb40082f1963525f54",
+          "total_size": 99145962
+        }
+      }
+    ],
+    "generated_at": "2026-06-13T08:29:38Z",
+    "shared_modsecurity_build": {
+      "actual_sha": "2fd49292d751fc383b8faf7da6a8d480904774d0",
+      "blocker_reason": "",
+      "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"-I/src/ModSecurity-conector-cache/prefix/expat/include\", \"CXXFLAGS\": \"\", \"LDFLAGS\": \"-L/src/ModSecurity-conector-cache/prefix/expat/lib\", \"LIBS\": \"\", \"PKG_CONFIG_PATH\": \"/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig\", \"configure_args\": \"\"}",
+      "build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "build_root": "/src/ModSecurity-conector-cache/builds/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "compiler": {
+        "cc": "/usr/bin/cc",
+        "cc_version": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+        "cxx": "/usr/bin/c++",
+        "cxx_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0"
+      },
+      "component": "modsecurity",
+      "dependency_hash": "8ef54119a5e6bdf71d774d1799c72bdb8de3094bd8d11ef67b65126995c3e57a",
+      "generated_at": "2026-06-13T08:29:34Z",
+      "include_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/include",
+      "lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+      "lib_file": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so",
+      "lock": "/src/ModSecurity-conector-cache/locks/modsecurity-3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c.lock",
+      "manifest": "/src/ModSecurity-conector-cache/builds/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/manifest.json",
+      "name": "modsecurity",
+      "pkg_config_path": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/pkgconfig",
+      "prefix": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "source_ref": "v3/master",
+      "source_url": "https://github.com/owasp-modsecurity/ModSecurity.git",
+      "status": "reused",
+      "submodule_status": "bc625d5bb0bac6a64bcce8dc9902208612399348 bindings/python (bc625d5)\n 211782219663f889f471650150df12b623c5766e others/libinjection (v4.0.0)\n 0fe989b6b514192783c469039edd325fd0989806 others/mbedtls (v4.1.0)\n dff9da04438d712f7647fd995bc90fadd0c0e2ce others/mbedtls/framework (mbedtls-4.1.0_tf-psa-crypto-1.1.0)\n 29160dd877d29658279fd683b2ae57b320ddcf09 others/mbedtls/tf-psa-crypto (v1.1.0)\n 5772b4f4a0105694b1203abb582273f78fa951b7 others/mbedtls/tf-psa-crypto/drivers/pqcp/mldsa-native (remotes/origin/main-53-g5772b4f)\n dff9da04438d712f7647fd995bc90fadd0c0e2ce others/mbedtls/tf-psa-crypto/framework (mbedtls-4.1.0_tf-psa-crypto-1.1.0)\n a3d4405e5a2c90488c387e589c5534974575e35b test/test-cases/secrules-language-tests (a3d4405)",
+      "submodules_recursive": true,
+      "tree": {
+        "exists": true,
+        "file_count": 28,
+        "sha256_manifest": "efd6f687f11c9fd9584298bcdd12dfde3d178d50d4b7e49f77734f3572a0d4fa",
+        "total_size": 180369331
+      }
+    }
+  },
+  "runtime_components": {
+    "albedo": {
+      "actual_head": "3f7d0238b32d1f98059f5c70e0ffcafad514952c",
+      "binary": "/src/ModSecurity-conector-cache/bin/albedo",
+      "blocker_reason": "",
+      "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/albedo-build.log",
+      "build_package": "github.com/coreruleset/albedo",
+      "can_build_locally": true,
+      "dependency": "albedo",
+      "env_override": "ALBEDO_BIN",
+      "expected_prompt_latest": "v0.3.0",
+      "expected_ref": "v0.3.0",
+      "git_fsck": "PASS",
+      "go_version": "go version go1.26.0 linux/amd64",
+      "known_ref": "v0.3.0",
+      "known_source": "https://github.com/coreruleset/albedo",
+      "known_source_url": "https://github.com/coreruleset/albedo",
+      "name": "albedo",
+      "path": "/src/ModSecurity-conector-cache/bin/albedo",
+      "recursive_submodule_status": "",
+      "recursive_submodules": true,
+      "release_tag": "v0.3.0",
+      "release_tag_deviation": false,
+      "release_tag_deviation_note": "",
+      "release_url": "https://github.com/coreruleset/albedo/releases/tag/v0.3.0",
+      "searched_paths": [
+        "/src/ModSecurity-conector-cache/bin/albedo"
+      ],
+      "source": "https://github.com/coreruleset/albedo",
+      "source_path": "/src/ModSecurity-conector-cache/git/albedo",
+      "status": "present",
+      "submodule_status_clean": true
+    },
+    "apache_httpd": {
+      "apachectl_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apachectl-mrts",
+      "aprutil_libs": "-lcrypt",
+      "apxs_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apxs",
+      "blocker_reason": "",
+      "build_path": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build",
+      "cache_path": "/src/ModSecurity-conector-cache/archives/apache",
+      "connector": "apache",
+      "connector_build_id": "58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d",
+      "cppflags": "-I/src/ModSecurity-conector-cache/prefix/expat/include",
+      "crypt_config_cache": "-lcrypt",
+      "crypt_h_path": "/usr/include/crypt.h",
+      "crypt_h_status": "present",
+      "crypt_lib": "-lcrypt",
+      "crypt_link_mode": "compiler:-lcrypt",
+      "env_override": "APACHECTL_BIN",
+      "expat_actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
+      "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
+      "expat_lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
+      "expat_prefix": "/src/ModSecurity-conector-cache/prefix/expat",
+      "expat_release_tag": "R_2_8_1",
+      "expat_source": "https://github.com/libexpat/libexpat",
+      "expected_ref": "2.4.67",
+      "httpd_bin": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+      "httpd_prefix": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd",
+      "ldflags": "-L/src/ModSecurity-conector-cache/prefix/expat/lib",
+      "libcrypt_paths": [
+        "/usr/lib/x86_64-linux-gnu/libcrypt.so",
+        "/lib/x86_64-linux-gnu/libcrypt.so",
+        "/usr/lib/x86_64-linux-gnu/libcrypt.so.1",
+        "/lib/x86_64-linux-gnu/libcrypt.so.1"
+      ],
+      "libcrypt_status": "present",
+      "libs": "-lcrypt",
+      "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "modsecurity_lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+      "module_file": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so",
+      "output_paths": {
+        "binary": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+        "config": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/conf/httpd.conf",
+        "module": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so"
+      },
+      "pcre2_prefix": "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/pcre2",
+      "pkg_config_path": "/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig",
+      "searched_paths": [
+        "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/httpd",
+        "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/httpd/bin/apxs",
+        "/src/ModSecurity-conector-cache/builds/connectors/apache/58c954452223f16d5838aa48a8e7210e020be124368f3cb24d299287387f315d/build/output/apache/mod_security3.so",
+        "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so"
+      ],
+      "source": "connector-local-build",
+      "status": "reused",
+      "tree": {
+        "exists": true,
+        "file_count": 13724,
+        "sha256_manifest": "a9cf7d3a0ac9b1a7814850263b22a76316f7ffde441ebcb3fca476511679abe7",
+        "total_size": 1925237516
+      }
+    },
+    "expat": {
+      "actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
+      "blocker_reason": "",
+      "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/expat-build.log",
+      "build_path": "/src/ModSecurity-conector-cache/build/expat",
+      "build_source_copy": "/src/ModSecurity-conector-cache/build/expat-source",
+      "build_system": "autotools",
+      "expat_h": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
+      "expected_ref": "R_2_8_1",
+      "git_fsck": "PASS",
+      "include": "/src/ModSecurity-conector-cache/prefix/expat/include/expat.h",
+      "lib_dir": "/src/ModSecurity-conector-cache/prefix/expat/lib",
+      "libraries": [
+        "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.a",
+        "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.la",
+        "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.so",
+        "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.so.1",
+        "/src/ModSecurity-conector-cache/prefix/expat/lib/libexpat.so.1.12.1"
+      ],
+      "library": "/src/ModSecurity-conector-cache/prefix/expat/lib",
+      "name": "expat",
+      "path": "/src/ModSecurity-conector-cache/git/libexpat",
+      "prefix": "/src/ModSecurity-conector-cache/prefix/expat",
+      "recursive_submodule_status": "",
+      "recursive_submodules": true,
+      "release_tag": "R_2_8_1",
+      "source": "https://github.com/libexpat/libexpat",
+      "status": "present",
+      "submodule_status_clean": true,
+      "url": "https://github.com/libexpat/libexpat"
+    },
+    "go_ftw": {
+      "actual_head": "23db497e3a6133888fcd5e087b8cf456556df041",
+      "binary": "/src/ModSecurity-conector-cache/bin/go-ftw",
+      "blocker_reason": "",
+      "build_log": "/root/.local/state/ModSecurity-conector-build/logs/runtime-components/go-ftw-build.log",
+      "build_package": "github.com/coreruleset/go-ftw/v2",
+      "can_build_locally": true,
+      "dependency": "go-ftw",
+      "env_override": "GO_FTW_BIN",
+      "expected_prompt_latest": "v2.2.0",
+      "expected_ref": "v2.4.0",
+      "git_fsck": "PASS",
+      "go_version": "go version go1.26.0 linux/amd64",
+      "known_ref": "v2.4.0",
+      "known_source": "https://github.com/coreruleset/go-ftw",
+      "known_source_url": "https://github.com/coreruleset/go-ftw",
+      "name": "go-ftw",
+      "path": "/src/ModSecurity-conector-cache/bin/go-ftw",
+      "recursive_submodule_status": "",
+      "recursive_submodules": true,
+      "release_tag": "v2.4.0",
+      "release_tag_deviation": true,
+      "release_tag_deviation_note": "prompt_expected_latest=v2.2.0; current_latest=v2.4.0",
+      "release_url": "https://github.com/coreruleset/go-ftw/releases/tag/v2.4.0",
+      "searched_paths": [
+        "/src/ModSecurity-conector-cache/bin/go-ftw"
+      ],
+      "source": "https://github.com/coreruleset/go-ftw",
+      "source_path": "/src/ModSecurity-conector-cache/git/go-ftw",
+      "status": "present",
+      "submodule_status_clean": true
+    },
+    "haproxy": {
+      "blocker_reason": "",
+      "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"\", \"CXXFLAGS\": \"\", \"HAPROXY_VERSION\": \"3.2.19\", \"HTTPD_VERSION\": \"2.4.67\", \"LDFLAGS\": \"\", \"LIBS\": \"\", \"NGINX_RELEASE_TAG\": \"latest\", \"NGINX_SOURCE_GIT_REF\": \"latest\"}",
+      "build_path": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d",
+      "connector": "haproxy",
+      "connector_build_id": "51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d",
+      "haproxy_bin": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy/sbin/haproxy",
+      "haproxy_runtime_build_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime-build",
+      "haproxy_runtime_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy",
+      "modsecurity_binding_dir": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding",
+      "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "output_paths": {
+        "binary": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-runtime/haproxy/sbin/haproxy",
+        "config": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding/paths.env",
+        "module": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
+      },
+      "paths_env": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-modsecurity-binding/paths.env",
+      "source_hash": "d8d8ae6efdc57905d0707b9275e16a1b17fe80c14150b98587c6f72f7fe174ad",
+      "spoa_runtime_bin": "/src/ModSecurity-conector-cache/builds/connectors/haproxy/51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+      "status": "reused",
+      "tree": {
+        "exists": true,
+        "file_count": 1559,
+        "sha256_manifest": "4886f590000ab49a45814c3be4ce8f9ffcf5657cca84a4cb40082f1963525f54",
+        "total_size": 99145962
+      }
+    },
+    "modsecurity": {
+      "actual_sha": "2fd49292d751fc383b8faf7da6a8d480904774d0",
+      "blocker_reason": "",
+      "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"-I/src/ModSecurity-conector-cache/prefix/expat/include\", \"CXXFLAGS\": \"\", \"LDFLAGS\": \"-L/src/ModSecurity-conector-cache/prefix/expat/lib\", \"LIBS\": \"\", \"PKG_CONFIG_PATH\": \"/src/ModSecurity-conector-cache/prefix/expat/lib/pkgconfig\", \"configure_args\": \"\"}",
+      "build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "build_root": "/src/ModSecurity-conector-cache/builds/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "compiler": {
+        "cc": "/usr/bin/cc",
+        "cc_version": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+        "cxx": "/usr/bin/c++",
+        "cxx_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0"
+      },
+      "component": "modsecurity",
+      "dependency_hash": "8ef54119a5e6bdf71d774d1799c72bdb8de3094bd8d11ef67b65126995c3e57a",
+      "generated_at": "2026-06-13T08:29:34Z",
+      "include_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/include",
+      "lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+      "lib_file": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so",
+      "lock": "/src/ModSecurity-conector-cache/locks/modsecurity-3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c.lock",
+      "manifest": "/src/ModSecurity-conector-cache/builds/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/manifest.json",
+      "name": "modsecurity",
+      "pkg_config_path": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/pkgconfig",
+      "prefix": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "source_ref": "v3/master",
+      "source_url": "https://github.com/owasp-modsecurity/ModSecurity.git",
+      "status": "reused",
+      "submodule_status": "bc625d5bb0bac6a64bcce8dc9902208612399348 bindings/python (bc625d5)\n 211782219663f889f471650150df12b623c5766e others/libinjection (v4.0.0)\n 0fe989b6b514192783c469039edd325fd0989806 others/mbedtls (v4.1.0)\n dff9da04438d712f7647fd995bc90fadd0c0e2ce others/mbedtls/framework (mbedtls-4.1.0_tf-psa-crypto-1.1.0)\n 29160dd877d29658279fd683b2ae57b320ddcf09 others/mbedtls/tf-psa-crypto (v1.1.0)\n 5772b4f4a0105694b1203abb582273f78fa951b7 others/mbedtls/tf-psa-crypto/drivers/pqcp/mldsa-native (remotes/origin/main-53-g5772b4f)\n dff9da04438d712f7647fd995bc90fadd0c0e2ce others/mbedtls/tf-psa-crypto/framework (mbedtls-4.1.0_tf-psa-crypto-1.1.0)\n a3d4405e5a2c90488c387e589c5534974575e35b test/test-cases/secrules-language-tests (a3d4405)",
+      "submodules_recursive": true,
+      "tree": {
+        "exists": true,
+        "file_count": 28,
+        "sha256_manifest": "efd6f687f11c9fd9584298bcdd12dfde3d178d50d4b7e49f77734f3572a0d4fa",
+        "total_size": 180369331
+      }
+    },
+    "nginx": {
+      "blocker_reason": "",
+      "build_path": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/build",
+      "cache_path": "/src/ModSecurity-conector-cache/archives/nginx",
+      "connector": "nginx",
+      "connector_build_id": "60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8",
+      "env_override": "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR",
+      "expected_ref": "latest",
+      "local_module_file": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+      "local_nginx_bin": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+      "modsecurity_build_id": "3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c",
+      "modsecurity_lib_dir": "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib",
+      "module_dir": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules",
+      "module_file": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+      "nginx_bin": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+      "nginx_prefix": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx",
+      "output_paths": {
+        "binary": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+        "config": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/conf/nginx.conf",
+        "module": "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so"
+      },
+      "searched_paths": [
+        "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/sbin/nginx",
+        "/src/ModSecurity-conector-cache/builds/connectors/nginx/60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8/nginx/modules/ngx_http_modsecurity_module.so",
+        "/src/ModSecurity-conector-cache/prefix/modsecurity/3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c/lib/libmodsecurity.so"
+      ],
+      "source": "connector-local-build",
+      "status": "reused",
+      "tree": {
+        "exists": true,
+        "file_count": 7616,
+        "sha256_manifest": "2304de497010135b1222446875348e1eec26e98c27cb03108371512ba78912f4",
+        "total_size": 1778164186
+      }
+    }
+  },
+  "runtime_diagnostics": {},
+  "source_state_at_report_generation": {
+    "connector_framework_gitlink": "d467034cdf3fb28cea5329f90d97eedc22e630cc",
+    "connector_recursive_submodules": [
+      "+d467034cdf3fb28cea5329f90d97eedc22e630cc modules/ModSecurity-test-Framework (remotes/origin/HEAD-2-gd467034)",
+      " 13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main)"
+    ],
+    "connector_sha": "a9969f91ebe908d2440bd8ba296532b924189f62",
+    "framework_mrts_submodule_sha": "13aa91291adea12d5c607fdd165d010fcfb1da78",
+    "framework_sha": "d467034cdf3fb28cea5329f90d97eedc22e630cc"
+  }
+}

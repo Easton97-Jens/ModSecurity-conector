@@ -102,3 +102,118 @@ still need evidence. Full decision details are in
   default `BUILD_ROOT`/`SOURCE_ROOT`, or provide a valid
   `MODSECURITY_SOURCE_DIR`/`MODSECURITY_V3_SOURCE_DIR`, then rerun
   `make smoke-common` and record the result.
+
+## Envoy Open Gates
+
+Envoy bridge-starter work uses the existing global/shared connector gates rather
+than copying them into Envoy-specific files. The following Envoy gates remain
+open:
+
+- Production upstream origin/license selection beyond local bridge starter.
+- libmodsecurity headers/libs and Envoy bridge integration build/runtime logs.
+- Harness implementation and evidence paths.
+- Separate No-CRS and With-CRS runtime evidence.
+- RESPONSE_BODY blocking evidence.
+- Negative/pass-through and audit/log evidence.
+- Promotion beyond bridge-starter.
+
+## Envoy Build-Starter Open Dependencies
+
+The bridge starter is available, but productive Envoy integration is
+still blocked until one path supplies real dependencies:
+
+- native Envoy HTTP filter: Envoy C++ SDK/API headers and build integration;
+- external processing: ext_proc protobuf/gRPC generated code and service deps;
+- proxy-wasm: proxy-wasm SDK and WASM build toolchain;
+- sidecar/bridge: documented protocol, process contract, and runtime harness.
+
+## Envoy Bridge-Starter Open Gates
+
+- Define a real Envoy runtime integration point: sidecar HTTP route, ext_authz,
+  ext_proc, native filter, or proxy-wasm.
+- Add real libmodsecurity headers/libs and implement transaction lifecycle.
+- Produce framework-owned No-CRS and With-CRS result JSON with PASS/FAIL/BLOCKED
+  counts.
+- Prove CRS loaded/effective behavior for Envoy.
+- Keep RESPONSE_BODY as a separate unverified gate until a blocking runtime case
+  passes.
+## HAProxy Open Items
+
+- Expand or replace the minimal diagnostic SPOP handshake subset with a full
+  SPOA agent implementation before claiming HAProxy runtime compatibility.
+- Convert currently BLOCKED HAProxy matrix rows into live-executed PASS/FAIL
+  rows before claiming broader framework coverage.
+- Keep the diagnostic HAProxy-to-agent subset separate from full adapter
+  promotion; current `spoe_runtime_status` is
+  `diagnostic-enforcement-verified` only for the scoped header-block and CRS
+  SQLi anomaly smokes.
+- Add runtime evidence for broader No-CRS live YAML execution, broader With-CRS
+  live YAML execution beyond `crs_sqli_anomaly_block`, RESPONSE_BODY blocking,
+  negative/pass-through behavior, audit/log artifacts, and full matrix
+  promotion.
+- Promote beyond `spoa-agent-starter` only after productive adapter build and
+  runtime evidence are recorded.
+## lighttpd Open Gates
+
+The lighttpd bridge-starter is created/checked, but adapter and runtime gates
+remain open or not verified:
+
+- Upstream lighttpd source/version and a concrete integration path are not
+  selected.
+- Real native-module build is blocked by missing lighttpd headers/SDK/source.
+- Real FastCGI/SCGI bridge is blocked by missing protocol adapter and lighttpd
+  runtime configuration.
+- ModSecurity integration code for lighttpd is not implemented.
+- Harness currently has a blocked runtime-smoke entrypoint only.
+- No-CRS and With-CRS runtime have not been run for lighttpd.
+- RESPONSE_BODY blocking, negative/pass-through, and audit/log evidence are not
+  verified for lighttpd.
+- Promotion beyond bridge-starter/partial is not allowed without per-connector
+  runtime evidence.
+## Traefik Open Questions
+
+- Which production Traefik integration approach, if any, will be implemented
+  remains open.
+- Traefik upstream origin/license, production build, harness, No-CRS, With-CRS,
+  RESPONSE_BODY, negative/pass-through, and audit/log evidence remain open.
+- The current decision-service starter does not select a Traefik plugin,
+  middleware, sidecar/proxy, custom module, or Go-service path; `forwardAuth`
+  remains starter-only without HTTP/Traefik runtime evidence.
+- Traefik must not be promoted beyond decision-service-starter until connector-
+  specific runtime evidence is produced and documented.
+
+## Connector-Starter Open Gates
+
+The framework connector-starter runner closes only local build/self-test
+starter evidence for Envoy, HAProxy, lighttpd, and Traefik. These runtime gates
+remain open for Envoy, lighttpd, and Traefik, and remain open for HAProxy beyond
+`haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`:
+
+- A real server/proxy harness.
+- broader No-CRS and With-CRS runtime execution.
+- broader CRS effective blocking evidence.
+- RESPONSE_BODY blocking evidence.
+- Negative/pass-through and audit/log evidence.
+- Promotion beyond starter status.
+
+## Runtime-Smoke Open Gates
+
+The new runtime-smoke entrypoints are present, but these gates remain open for
+Envoy, lighttpd, and Traefik, and for HAProxy beyond the single header-block
+and CRS SQLi anomaly smokes:
+
+- Implement a real executable server/proxy harness under the connector harness
+  contract, replacing the current blocked `run_<name>_smoke.sh` entrypoints.
+- Run framework-owned YAML cases through that harness.
+- Produce broader No-CRS and With-CRS runtime results.
+- Prove broader CRS effective blocking where claimed.
+- Prove RESPONSE_BODY blocking with a real runtime test before changing
+  RESPONSE_BODY status.
+- Keep build/self-test starter evidence separate from runtime-smoke evidence.
+
+For HAProxy specifically, framework-owned local HAProxy source acquisition,
+binary preparation, diagnostic SPOP contact, verified set-var ACK encoding, and
+the two scoped live ModSecurity enforcement paths are no longer open gates. The
+remaining open HAProxy runtime gates are live PASS/FAIL execution for currently
+BLOCKED framework rows, broader CRS coverage, RESPONSE_BODY,
+negative/pass-through behavior, audit/log evidence, and full-matrix promotion.

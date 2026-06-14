@@ -30,9 +30,9 @@ Not implemented:
 - No full NGINX regression suite.
 - No runtime pass is claimed beyond environments where the NGINX smoke runner
   observes the YAML-expected real HTTP behavior for the shared YAML cases.
-- No response-body blocking pass is claimed. PR #377 source has been reviewed
-  and applied where it builds, but `RESPONSE_BODY` stays xfail/mapped-only until
-  stable real HTTP 403 behavior is proven and separately promoted.
+- Full response-body promotion is not claimed. Phase 4 / RESPONSE_BODY remains
+  non-promoted; bounded strict-abort evidence is documented/reported as runtime
+  evidence only.
 
 ## Supported Directives
 
@@ -49,8 +49,9 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_phase4_log <path>`
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
-per-request variables. The phase-4 directives remain NGINX-specific runtime
-controls; Apache parity for them is intentionally not documented as available.
+per-request variables. The Phase 4 directives are bounded runtime controls.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.
 
 Primary local reference: `/root/conecter/ModSecurity-nginx`.
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx.
@@ -97,28 +98,19 @@ Relevant framework paths:
 - `modules/ModSecurity-test-Framework/tests/cases/connector-specific/nginx/`
 - `modules/ModSecurity-test-Framework/tests/runners/case_cli.py`
 
-Current repository evidence keeps NGINX `partial`: `phase1_header_block` has
-post-fix runtime-smoke evidence with HTTP 403, and NGINX-specific YAML cases
-exist in the framework path, but broad runtime coverage and `RESPONSE_BODY`
-blocking remain not verified.
+Current generated evidence keeps NGINX `partial`:
 
-Current `/src` CRS-variant evidence is documented in
-`reports/template-verification-nginx-apache/verified-runtime-run.md`:
-
-- `make test-no-crs`: NGINX PASS, 60 PASS, 0 FAIL, 0 BLOCKED.
-- `make test-with-crs`: NGINX FAIL, 60 PASS, 1 FAIL, 0 BLOCKED.
-- With-CRS `crs_sqli_anomaly_block`: PASS, expected 403, actual 403.
-- With-CRS failing case: `action_status_401_phase1_block`, expected 401,
-  actual 403.
+- Default runtime smoke: `60/60 PASS`.
+- Force-all runtime evidence: `140 attempted / 95 PASS / 39 FAIL /
+  0 BLOCKED / 6 NOT_EXECUTABLE`.
 
 ## Coverage / Runtime Decision Matrix
 
 See `docs/coverage-decision-matrix.md`.
 
-NGINX currently remains `partial`: `/src phase1_header_block`, all-scope, and
-No-CRS are documented as PASS for their executed scope, but the current
-With-CRS target has one FAIL, generated coverage reporting is not automatic
-runtime promotion, and `RESPONSE_BODY` blocking remains not verified.
+NGINX currently remains `partial`: default smoke is clean, force-all evidence
+still records FAIL and NOT_EXECUTABLE rows, generated coverage reporting is not
+automatic runtime promotion, and RESPONSE_BODY remains non-promoted.
 
 See `docs/connectors/directive-parity.md` for the current Apache/NGINX
 directive matrix.

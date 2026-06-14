@@ -1,97 +1,40 @@
 # HAProxy Evidence Findings
 
-## Status
+Status: current runtime evidence
 
-evidence_status: initial
-decision_status: undecided
-implementation_status: not_started
-runtime_verified: false
+## Finding Summary
 
-## Quellen
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| SPOE/SPOP integration path | selected and implemented for current scope | HAProxy examples, harness, production SPOA runtime |
+| Production SPOA binary | implemented | `haproxy-modsecurity-spoa` |
+| libmodsecurity binding | implemented | build and self-test targets |
+| Request phases 1/2 | live evidenced | default smoke and matrix summaries |
+| Phase 3 response headers | implemented, live evidenced | response SPOE group and decision logs |
+| Decision log | implemented | `decision.jsonl` |
+| Audit-log plumbing | implemented | `audit.log` paths and live artifacts |
+| Phase 4 / RESPONSE_BODY | bounded strict-abort evidence only | phase4 HAProxy example and runtime evidence |
+| Synthetic matrix writer | not used | generated reports consume runtime summaries and snapshots |
 
-- Extern belegt: HAProxy Configuration Manual (inkl. SPOE-Filter-Direktive `filter spoe [engine <name>] config <file>`), URL: https://docs.haproxy.org/ , Abrufdatum: 2026-05-24.
-- Extern belegt: HAProxy SPOE/SPOP Dokumentation, URL: https://raw.githubusercontent.com/haproxy/haproxy/master/doc/SPOE.txt , Abrufdatum: 2026-05-24.
-- Extern belegt: HAProxy Lua-Direktiven (`lua-load`, `lua-load-per-thread`) im HAProxy Manual, URL: https://docs.haproxy.org/ , Abrufdatum: 2026-05-24.
-- Belegt durch Repository: HAProxy-Scaffold ist nicht implementiert, URL: `connectors/haproxy/README.md`, Abrufdatum: 2026-05-24.
-- Belegt durch Repository: offene HAProxy-Fragen zu Integrationsstrategie/Request-Response/Intervention/Build, URL: `connectors/haproxy/TODO.md`, Abrufdatum: 2026-05-24.
-- Belegt durch Repository: standardisierter Fragenkatalog, URL: `connectors/haproxy/docs/evidence-questionnaire.md`, Abrufdatum: 2026-05-24.
-- Belegt durch Repository: Integrationsentscheidung bleibt unentschieden, URL: `connectors/haproxy/docs/integration-decision.md`, Abrufdatum: 2026-05-24.
+## Current Counts
 
-## Kurzfazit
+- Default HAProxy smoke: `55/55 PASS`.
+- HAProxy force-all: `133 attempted / 104 PASS / 23 FAIL / 0 BLOCKED /
+  6 NOT_EXECUTABLE`.
 
-SPOE/SPOA und Lua sind in HAProxy dokumentiert (Extern belegt), aber die
-ModSecurity-relevanten Detailfragen bleiben offen (Noch zu prüfen). Native
-Filter und Sidecar bleiben ebenfalls Prüfspuren (Noch zu prüfen). Keine Option
-ist entschieden (Belegt durch Repository).
+## External Basis
 
-## Findings by Option
+HAProxy documents SPOE/SPOP as the mechanism used to communicate with external
+stream-processing agents. The repository implements that path with a local SPOA
+runtime that loads libmodsecurity and returns HAProxy transaction variables.
 
-### 1. SPOE / SPOA-Agent
+## Remaining Findings
 
-| Frage | Status | Evidenz | Offene Punkte |
-|---|---|---|---|
-| Ist SPOE als Integrationsmechanismus in HAProxy dokumentiert? | Extern belegt | HAProxy dokumentiert `filter spoe [engine <name>] config <file>`. | Keine im Repository aufgelöste Implementierungsableitung; Extern zu verifizieren. |
-| Kommuniziert SPOE mit externen Komponenten? | Extern belegt | SPOE wird als Filter mit externer Kommunikation beschrieben. | Konkrete Connector-Architektur für dieses Projekt: Noch zu prüfen. |
-| Nutzt SPOE das SPOP-Protokoll? | Extern belegt | SPOE-Doku beschreibt Stream Processing Offload Protocol (SPOP). | Für ModSecurity-Fall benötigte Felder/Vollständigkeit: Noch zu prüfen. |
-| Sind alle für ModSecurity nötigen Request-Daten verfügbar? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Ist Response Header Inspection vollständig möglich? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Ist Response Body Inspection möglich/sinnvoll? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Ist vollständiges Intervention-Mapping (deny/block/redirect) möglich? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Welche SPOA-Artefakte sind konkret nötig? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
+- Full-body RESPONSE_BODY support is not proven.
+- Multi-worker, long-running cache pressure, and packaging remain production
+  hardening tasks.
+- Dynamic disruptive status mapping beyond the current HAProxy rules remains
+  limited.
 
-### 2. Native Filter / Native Extension
-
-| Frage | Status | Evidenz | Offene Punkte |
-|---|---|---|---|
-| Sind offiziell unterstützte Filter in HAProxy dokumentiert? | Extern belegt | HAProxy-Dokumentation führt Filterkonzepte/-nutzung auf. | Welche davon für ModSecurity geeignet sind: Noch zu prüfen. |
-| Ist ein eigener nativer Filter für dieses Projekt realistisch? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Welche HAProxy-Entwickler-APIs wären nötig? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Ist Neukompilierung oder Modulmechanik nötig? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Ist vollständiges Intervention-Mapping möglich? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-
-### 3. Lua
-
-| Frage | Status | Evidenz | Offene Punkte |
-|---|---|---|---|
-| Ist Lua-Integration in HAProxy dokumentiert? | Extern belegt | HAProxy unterstützt `lua-load` und `lua-load-per-thread`. | Konkrete Eignung für ModSecurity-Lifecycle: Noch zu prüfen. |
-| Lädt `lua-load` ein Lua-Programm in gemeinsamen Kontext? | Extern belegt | In HAProxy-Doku als gemeinsamer Kontext beschrieben. | Projektkonkrete Nutzung: Noch zu prüfen. |
-| Lädt `lua-load-per-thread` eine Kopie je Thread? | Extern belegt | In HAProxy-Doku als per-thread Kopie beschrieben. | Auswirkungen auf Konsistenz/State: Extern zu verifizieren. |
-| Hat Lua Zugriff auf alle nötigen Request-/Response-/Body-Daten? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Ist Lua für Blocking/Intervention geeignet? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Ist Lua für Performance/Produktionsbetrieb realistisch? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-
-### 4. Externer HTTP-Service / Sidecar
-
-| Frage | Status | Evidenz | Offene Punkte |
-|---|---|---|---|
-| Kann HAProxy Requests/Responses in nötiger Form an externen HTTP-Service übergeben? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Sind Sidecar-Latenz und Fehlerverhalten akzeptabel? | Noch zu prüfen | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-| Deckt Sidecar vollständige ModSecurity-Semantik ab? | Nicht belegbar | Nicht belegbar aus dem aktuellen Repository. | Extern zu verifizieren. |
-
-## Auswirkungen auf die Entscheidung
-
-- Keine finale Entscheidung. (Belegt durch Repository)
-- SPOE/SPOA ist weiter ein starker Kandidat für Prüfung, weil HAProxy SPOE als
-  Filter für externe Komponenten dokumentiert. (Extern belegt)
-- Lua ist dokumentiert, aber weiterhin unbewiesen für vollständige
-  ModSecurity-Semantik. (Extern belegt + Noch zu prüfen)
-- Native Filter bleibt technisch möglich zu prüfen, aber offen. (Extern belegt
-  + Noch zu prüfen)
-- Sidecar bleibt offen und nicht ausreichend belegt. (Nicht belegbar aus dem
-  aktuellen Repository.)
-
-## Nicht belegbar / Noch zu prüfen
-
-- vollständige Request-Body-Verfügbarkeit (Noch zu prüfen)
-- Response-Header-Inspection (Noch zu prüfen)
-- Response-Body-Inspection (Noch zu prüfen)
-- Intervention-Mapping (Noch zu prüfen)
-- Build-Artefakte (Noch zu prüfen)
-- Runtime-Harness (Noch zu prüfen)
-- Performance/Latenz (Noch zu prüfen)
-- Fehlerverhalten (Noch zu prüfen)
-
-## Nächster Schritt
-
-Für SPOE/SPOA einen minimalen Proof-of-Concept-Plan als Dokument erstellen,
-ohne Code zu schreiben.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

@@ -20,8 +20,12 @@ connector trees:
   `connectors/apache/src/`.
 - `connectors/nginx/` contains the NGINX connector adapter, module `config`,
   harness files, metadata, and productive source under `connectors/nginx/src/`.
-- `connectors/{envoy,haproxy,lighttpd,traefik}/` are scaffolded future
-  connector areas with documentation and TODOs.
+- `connectors/haproxy/` contains a production SPOA/SPOP runtime path,
+  examples, harness files, metadata, and productive source under
+  `connectors/haproxy/src/`.
+- `connectors/{envoy,lighttpd}/` are scaffolded future connector areas with
+  documentation and TODOs; `connectors/traefik/` adds a local decision-service
+  starter without runtime verification.
 
 Connector source is repo-local. Apache and NGINX connector repositories are not
 fetched as runtime defaults.
@@ -32,17 +36,44 @@ fetched as runtime defaults.
 | --- | --- | --- |
 | Apache | adapter-owned source tree with real-world smoke harness; evidence-scoped, not blanket stable | `connectors/apache/` |
 | NGINX | adapter-owned source tree with real-world smoke harness; evidence-scoped, not blanket stable | `connectors/nginx/` |
+| HAProxy | production SPOA/SPOP runtime with live HAProxy smoke evidence; evidence-scoped and partial | `connectors/haproxy/` |
 | Envoy | deferred placeholder scaffold | `connectors/envoy/` |
-| HAProxy | deferred placeholder scaffold | `connectors/haproxy/` |
 | Lighttpd | deferred placeholder scaffold | `connectors/lighttpd/` |
-| Traefik | deferred placeholder scaffold | `connectors/traefik/` |
+| Traefik | local decision-service starter; runtime not verified | `connectors/traefik/` |
 
-Apache and NGINX pass claims must be tied to a specific smoke result. The
-current local `$BUILD_ROOT/results/connector-summary.json` can record default
-real-world connector PASS evidence, while the tracked force-all runtime matrix
-still records expected FAIL classes for xfail, future, connector-gap,
-runtime-difference, and response-body cases. API-only smokes are not connector
-proof.
+Apache, NGINX, and HAProxy pass claims must be tied to a specific smoke result.
+Current generated default runtime evidence is Apache `54/54 PASS`, NGINX
+`60/60 PASS`, and HAProxy `55/55 PASS`. Force-all runtime evidence remains
+separate: Apache `133 attempted / 100 PASS / 27 FAIL / 0 BLOCKED /
+6 NOT_EXECUTABLE`, NGINX `140 attempted / 95 PASS / 39 FAIL / 0 BLOCKED /
+6 NOT_EXECUTABLE`, and HAProxy `133 attempted / 104 PASS / 23 FAIL /
+0 BLOCKED / 6 NOT_EXECUTABLE`. API-only smokes are not connector proof.
+
+## Merge Readiness / Current Status
+
+Current merge-readiness evidence for PR #13:
+
+- SonarCloud Quality Gate: `OK`
+- SonarCloud ratings: Reliability `A`, Security `A`
+- SonarCloud Bugs/Vulnerabilities: `0`
+- SonarCloud Security Hotspots: `0 open / 100% reviewed`
+- Full-Matrix: `3074 PASS / 782 FAIL / 0 BLOCKED`
+- Final consistency audit: `recommended_next_fix_cluster: none`
+- Active runtime-fixable clusters: none
+- Reports refreshed through the Make/generator targets
+- Framework and MRTS submodules: clean
+
+The 782 Full-Matrix failures are not ignored and are not manually flipped. They
+remain classified in the generated work queues and analysis reports as semantic
+differences, capability gaps, report-only cases, or `not_next` areas that should
+not be solved by changing Expected statuses or PASS/FAIL values. The canonical
+merge-readiness reports are:
+
+- [Full runtime matrix](./reports/testing/generated/full-runtime-matrix.generated.md)
+- [Final consistency audit](./reports/testing/generated/final-consistency-audit.generated.md)
+- [Next fix plan](./reports/testing/generated/next-fix-plan.generated.md)
+- [Remaining failure analysis](./reports/testing/generated/remaining-failure-analysis.generated.md)
+- [Testing report index](./reports/testing/README.md)
 
 ## Connector Feature Status
 
@@ -62,7 +93,7 @@ describe the current implemented state only.
 | Error-log forwarding policy | Supported | Supported | <code>modsecurity_use_error_log on&#124;off</code>; default is on. Audit logs, interventions, and request/response handling are unchanged. |
 | Rule-load stats metadata | Supported | Supported | Common data shape in `common/include/msconnector/rule_load_stats.h`; metadata only. |
 | Common directive metadata | Used | Used | Shared directive-name constants are used by both connectors. |
-| Common option metadata | Partial | Partial | Apache uses common bool/default metadata for error-log policy. NGINX uses common defaults for enablement, error-log forwarding, and phase-4 mode. |
+| Common option metadata | Partial | Partial | Apache and NGINX use common defaults for enablement, error-log forwarding, and bounded phase-4 options where implemented. |
 
 ### Apache
 
@@ -76,6 +107,10 @@ The Apache connector is an adapter-owned Apache module under
 - `modsecurity_use_error_log on|off`
 - `modsecurity_transaction_id <string>`
 - `modsecurity_transaction_id_expr <apache-expression>`
+- `modsecurity_phase4_mode minimal|safe|strict`
+- `modsecurity_phase4_content_types_file <path>`
+- `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_body_limit <bytes>`
 
 `modsecurity_transaction_id` keeps the existing static-string semantics.
 `modsecurity_transaction_id_expr` is an opt-in Apache string expression, for
@@ -92,8 +127,8 @@ interventions, hooks, filters, buckets, transaction ownership, or request and
 response handling.
 
 Apache tracks rule-load stats internally in `msc_conf_t`. It does not currently
-report those stats in the post-config log. Apache does not implement NGINX
-phase-4 parity yet.
+report those stats in the post-config log. Apache bounded Phase 4 support is
+evidence-scoped and does not promote full RESPONSE_BODY behavior.
 
 ### NGINX
 
@@ -115,16 +150,39 @@ per-request NGINX variables. NGINX exposes rule-load stats in its existing
 startup log through the common rule-load-stats helper without changing the log
 text, format, level, or order.
 
-The phase-4 directives are NGINX-specific runtime controls. They are not a
-common connector contract and are not implemented by Apache.
+The phase-4 directives are bounded runtime controls. They are not a common
+promotion contract and do not promote full RESPONSE_BODY behavior.
+
+### HAProxy
+
+The HAProxy connector uses a production SPOA/SPOP path under
+`connectors/haproxy/`. It currently supports:
+
+- `haproxy-modsecurity-spoa`
+- HAProxy SPOE/SPOP integration
+- libmodsecurity rule loading and decision processing
+- `decision.jsonl` runtime decision evidence
+- audit-log plumbing
+- request phases 1/2
+- implemented phase 3 response-header evidence
+- bounded Phase 4 strict-abort evidence
+
+HAProxy is configured through HAProxy, SPOE, and SPOA-agent configuration files,
+not Apache/NGINX-style `modsecurity_*` directives. There is no synthetic matrix
+writer; generated HAProxy reports consume live runtime summaries and the runtime
+validation snapshot.
+
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.
 
 ### Known Differences And Deferred Areas
 
 | Area | Current state |
 | --- | --- |
 | Transaction ID mapping | Apache supports static strings plus opt-in Apache string expressions through `modsecurity_transaction_id_expr`; NGINX supports complex values through `modsecurity_transaction_id`. |
-| Apache phase-4 directives | `modsecurity_phase4_mode`, `modsecurity_phase4_content_types_file`, and `modsecurity_phase4_log` are not implemented for Apache. |
-| Apache response body behavior | Not promoted; `RESPONSE_BODY` remains non-verified and non-promoted. |
+| Phase-4 directives | Apache and NGINX implement bounded phase-4 controls; full RESPONSE_BODY behavior remains non-promoted. |
+| HAProxy directive model | HAProxy uses HAProxy config, SPOE config, and `haproxy-modsecurity-spoa` agent config rather than `modsecurity_*` server directives. |
+| RESPONSE_BODY behavior | Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is documented/reported as runtime evidence only. |
 | Apache bucket/filter/intervention paths | Intentionally not refactored in this common-metadata work. |
 | Common layer | Contains connector-neutral metadata and data shapes only; it does not own Apache or NGINX runtime APIs. |
 | Rule-load stats reporting | NGINX reports via its existing startup log; Apache keeps stats as internal metadata until display aggregation and merge semantics are explicitly designed. |
@@ -159,7 +217,9 @@ make runtime-matrix-all
 make smoke-common
 make smoke-apache
 make smoke-nginx
+make smoke-haproxy
 make smoke-all
+make runtime-matrix-haproxy
 ```
 
 CRS variants are available through the framework module:
@@ -174,6 +234,76 @@ make test
 fetches/prepares OWASP CRS using the central pin in
 `modules/ModSecurity-test-Framework/ci/common.sh` and loads CRS before the
 local case rules. `test` runs both variants.
+
+## MRTS Tests
+
+MRTS is integrated in the framework as a required framework submodule. The
+connector repository does not copy MRTS generator logic; these targets delegate
+to `FRAMEWORK_ROOT`.
+
+Initialize connector submodules recursively so the nested framework MRTS
+submodule is available:
+
+```sh
+git submodule update --init --recursive
+```
+
+The delegated targets use `modules/ModSecurity-test-Framework/tools/MRTS` by
+default. You can still point at a separate checkout:
+
+```sh
+MRTS_ROOT=/path/to/MRTS make mrts-generate
+```
+
+Delegated targets:
+
+```sh
+make mrts-generate
+make test-no-mrts
+make test-with-mrts
+make test-with-mrts-feature-demo
+make test-mrts-matrix
+make mrts-ftw
+```
+
+The framework reads upstream MRTS inputs directly from `$MRTS_ROOT`, writes
+generated rules, go-ftw YAML, framework cases, and `mrts.load` under
+`$MRTS_BUILD_ROOT`, and uses `upstream-config-tests` as the default runnable
+MRTS corpus. Feature-demo tests are reported as optional/demo coverage and can
+be attempted only through the explicit opt-in target or
+`MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`. Golden references under the MRTS
+submodule are drift/report inputs only and are never runtime inputs.
+
+Native MRTS infrastructure evidence is separate from connector smoke evidence:
+
+```sh
+make mrts-upstream-infra-check
+make mrts-native-apache-full
+make mrts-native-nginx-pr24-full
+make mrts-native-full-run
+```
+
+Native outputs are staged under `$MRTS_NATIVE_ROOT` and reported as separate
+native infrastructure evidence:
+
+- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`
+- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`
+- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`
+- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`
+
+These native MRTS reports are separate from connector full-matrix evidence.
+Missing local dependencies such as `go-ftw`, `albedo`, `apachectl`, `nginx`, or
+the NGINX ModSecurity module are reported as `BLOCKED`; nothing is installed
+globally.
+
+MRTS/CRS result paths are separated by variant:
+
+```text
+$BUILD_ROOT/results/no-crs/no-mrts
+$BUILD_ROOT/results/no-crs/with-mrts
+$BUILD_ROOT/results/with-crs/no-mrts
+$BUILD_ROOT/results/with-crs/with-mrts
+```
 
 Source-build variables remain configurable:
 
@@ -212,11 +342,36 @@ FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make runtime-matrix-all
 The framework owns YAML cases, runners, normalizers, runtime-matrix logic,
 coverage generation, v3 API smoke helpers, and reusable testing documentation.
 Connector-specific generated evidence is written in this repository under
-`reports/testing/`, with a generated root copy at `TEST-COVERAGE-SUMMARY.md`.
+`reports/testing/`. The root coverage summary is framework-owned at
+`modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`; the parent
+repository does not maintain a separate coverage-summary source of truth.
+
+## Report Refresh
+
+Generated reports must be updated through their generators, not patched by hand.
+The connector refresh target updates the connector-owned report catalog,
+including the full runtime matrix, work queues, remaining-failure analysis,
+capability/gap reports, and the final consistency audit:
+
+```sh
+FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework make refresh-all-reports
+```
+
+The framework refresh target updates framework-owned generated documentation:
+
+```sh
+make -C modules/ModSecurity-test-Framework refresh-framework-reports
+```
+
+Before merge, rerun the lint and quick checks in both repositories, then verify
+that the generated report manifest and final consistency audit agree with the
+current branch state. Runtime caches, generated MRTS rules, FTW YAML, load
+files, and temporary job output are local artifacts and must not be committed.
 
 ## Documentation Links
 
-- Build docs: [Compile Nginx](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md)
+- Build docs: [Compile NGINX](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md), [Compile HAProxy](./COMPILE_HAPROXY.md)
+- Example configs: [Apache examples](./examples/apache/README.md), [NGINX examples](./examples/nginx/README.md), [HAProxy examples](./examples/haproxy/README.md)
 - Shared connector feature docs: [Shared Features](./SHARED_FEATURES.md)
 - Roadmap: [docs/roadmap/roadmap.md](./docs/roadmap/roadmap.md)
 - Architecture docs: [docs/architecture/](./docs/architecture/)
@@ -228,13 +383,19 @@ Connector-specific generated evidence is written in this repository under
 - YAML schema notes: [modules/ModSecurity-test-Framework/docs/imports/common/schema.md](./modules/ModSecurity-test-Framework/docs/imports/common/schema.md)
 - Shared fixtures: [modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md](./modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md)
 - Smoke target semantics: [modules/ModSecurity-test-Framework/docs/testing/fast-checks.md](./modules/ModSecurity-test-Framework/docs/testing/fast-checks.md)
+- Testing report index: [reports/testing/README.md](./reports/testing/README.md)
 - Real-world connector validation: [reports/testing/real-world-connector-validation.md](./reports/testing/real-world-connector-validation.md)
+- HAProxy PoC evidence: [reports/testing/haproxy-poc.md](./reports/testing/haproxy-poc.md)
+- Full runtime matrix: [reports/testing/generated/full-runtime-matrix.generated.md](./reports/testing/generated/full-runtime-matrix.generated.md)
+- Final consistency audit: [reports/testing/generated/final-consistency-audit.generated.md](./reports/testing/generated/final-consistency-audit.generated.md)
+- Next fix plan: [reports/testing/generated/next-fix-plan.generated.md](./reports/testing/generated/next-fix-plan.generated.md)
+- Remaining failure analysis: [reports/testing/generated/remaining-failure-analysis.generated.md](./reports/testing/generated/remaining-failure-analysis.generated.md)
 - Case matrix reports: [reports/testing/case-matrix.md](./reports/testing/case-matrix.md), [reports/testing/generated/case-matrix.generated.md](./reports/testing/generated/case-matrix.generated.md)
 - PR/source evidence: [reports/testing/evidence/pr-evidence-summary.md](./reports/testing/evidence/pr-evidence-summary.md), [reports/testing/evidence/raw-args-pr3564.md](./reports/testing/evidence/raw-args-pr3564.md)
 - Licensing and origin index: [docs/licensing/license-and-origin.md](./docs/licensing/license-and-origin.md)
 - Framework docs: `modules/ModSecurity-test-Framework/README.md`
 - Connector test evidence: `reports/testing/`
-- Generated coverage summary: `TEST-COVERAGE-SUMMARY.md`
+- Framework-owned coverage summary: `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 
 ## Local Development
 
@@ -252,4 +413,5 @@ make check-test-matrix
 Runtime and coverage evidence must not be inferred from generated metadata
 alone. XFAIL, pending, future, connector-gap, and runtime-difference cases stay
 evidence classes until explicitly promoted by documented runtime proof.
-RESPONSE_BODY remains non-verified and non-promoted.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

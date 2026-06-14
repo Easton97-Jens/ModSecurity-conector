@@ -53,7 +53,7 @@ int main(void) {
     assert(msconnector_status_from_result("pass") == MSCONNECTOR_STATUS_OK);
     assert(msconnector_status_from_result("fail") == MSCONNECTOR_STATUS_ERROR);
     assert(msconnector_status_from_result("blocked") == MSCONNECTOR_STATUS_BLOCKED);
-    assert(msconnector_status_from_result("xfail") == MSCONNECTOR_STATUS_UNSUPPORTED);
+    assert(msconnector_status_from_result("not_executable") == MSCONNECTOR_STATUS_UNSUPPORTED);
     assert(msconnector_status_from_result("skipped") == MSCONNECTOR_STATUS_UNSUPPORTED);
 
     intervention = msconnector_intervention_make(1, 403, 0, "blocked");
@@ -84,6 +84,8 @@ int main(void) {
     assert(!msconnector_capabilities_has(&capabilities, MSCONNECTOR_CAPABILITY_RESPONSE_HEADERS));
     assert(strcmp(msconnector_capability_name(MSCONNECTOR_CAPABILITY_REQUEST_HEADERS), "request-headers") == 0);
     assert(msconnector_capability_from_name("request-headers") == MSCONNECTOR_CAPABILITY_REQUEST_HEADERS);
+    assert(strcmp(msconnector_capability_name(MSCONNECTOR_CAPABILITY_PHASE4_HARD_ABORT), "phase4-hard-abort") == 0);
+    assert(msconnector_capability_from_name("phase4-hard-abort") == MSCONNECTOR_CAPABILITY_PHASE4_HARD_ABORT);
     assert(msconnector_capability_from_name("does-not-exist") == MSCONNECTOR_CAPABILITY_NONE);
     assert(rule_stats.inline_rules == 1);
     assert(rule_stats.file_rules == 2);

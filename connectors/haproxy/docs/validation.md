@@ -1,41 +1,50 @@
-# HAProxy Runtime Validation Requirements
+# HAProxy Validation
 
-## Grundsatz
+Status: production SPOA runtime, evidence-scoped
 
-Strukturchecks allein reichen nicht. Für HAProxy sind echte Runtime-Nachweise
-mit reproduzierbaren Artefakten erforderlich.
+`make smoke-haproxy` verifies framework YAML cases by materializing each case,
+starting HAProxy, starting `haproxy-modsecurity-spoa`, starting a backend,
+sending the case request through HAProxy, and asserting the observed status.
 
-No tests are stored in this connector repository.
+`make runtime-matrix-haproxy` records rows from live summary evidence. PASS and
+FAIL are used only for live HAProxy execution. Generated artifacts may differ by
+environment and case inventory, but no HAProxy PASS/FAIL may be fabricated from
+synthetic matrix rows.
 
-All test definitions, test execution, runners, and generated reports belong to
-Easton97-Jens/ModSecurity-test-Framework.
+## Commands
 
-## Mindestanforderungen (Runtime Evidence)
+```bash
+git submodule update --init --recursive
+make -C connectors/haproxy build-modsecurity-binding
+make -C connectors/haproxy build-spoa-runtime
+make smoke-haproxy
+make runtime-matrix-haproxy
+FORCE_ALL_CASES=1 make runtime-matrix-haproxy
+make generate-test-matrix
+make check-test-matrix
+```
 
-Für einen neuen Connector sind mindestens folgende Nachweise erforderlich
-(Framework-seitig):
+## Current Evidence
 
-1. **HAProxy startet mit Testkonfiguration**
-   - Konfiguration lädt ohne kritische Fehler.
-2. **Connector-Komponente startet**
-   - Alle erforderlichen Komponenten laufen stabil.
-3. **Request wird geprüft**
-   - Ein realer Request durchläuft den vorgesehenen Prüfpfad.
-4. **Block/Allow wird nachweisbar gemappt**
-   - Interventionen werden korrekt in HAProxy-Actions umgesetzt.
-5. **Logs werden erzeugt**
-   - Relevante HAProxy-/Connector-/Audit-Logs sind vorhanden.
-6. **Report wird generiert**
-   - Ergebnisbericht/JSON im erwarteten Schema liegt vor.
+| Evidence set | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Default HAProxy smoke | 55 | 55 | 0 | 0 | 0 |
+| HAProxy force-all | 133 | 104 | 23 | 0 | 6 |
 
-## Ergänzende Prüfungen (noch zu prüfen)
+Evidence is recorded in:
 
-- Streaming-/Buffering-Randfälle
-- Fehlerpfade bei Ausfall einzelner Komponenten
-- Wiederholbarkeit über mehrere Durchläufe
+- `/src/ModSecurity-conector-build/results/with-crs/haproxy-summary.json`
+- `/src/ModSecurity-conector-build/results/force-all/haproxy-summary.json`
+- `reports/testing/generated/haproxy-runtime-results.generated.md`
+- `reports/testing/haproxy-poc.md`
+- `reports/testing/runtime-validation-snapshot.json`
 
-## Nicht ausreichend
+## Not Claimed
 
-- Nur Datei-/Ordner-Existenztests
-- Nur Lint/Syntaxchecks ohne reale Request-Ausführung
-- Unbelegte Funktionsbehauptungen
+- Force-all FAIL rows are not hidden by default smoke.
+- Full-body RESPONSE_BODY support is not promoted.
+- A build self-test alone is not runtime verification.
+- There is no synthetic matrix writer.
+
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

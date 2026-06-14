@@ -52,7 +52,7 @@ filter logic:
 - No NGINX body/header filter changes.
 - No server-specific configuration parsing changes.
 - No libmodsecurity transaction ownership abstraction.
-- No response-body blocking promotion; `RESPONSE_BODY` remains xfail/mapped-only.
+- No response-body blocking promotion; `RESPONSE_BODY` remains former expected-failure/mapped-only.
 
 ## Acceptance For This Phase
 

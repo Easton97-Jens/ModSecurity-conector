@@ -1,0 +1,96 @@
+{
+  "connector": "haproxy",
+  "status": "live-yaml-spoa-runtime-partial",
+  "runtime_status": "live-request-side-yaml:no-crs=46-pass-0-fail-8-blocked,with-crs=48-pass-0-fail-7-blocked",
+  "upstream_source": "not selected",
+  "imported_productive_source_files": [],
+  "repo_authored_files": [
+    {
+      "path": "connectors/haproxy/metadata.c",
+      "purpose": "metadata for the HAProxy starter; no HAProxy API or runtime adapter logic"
+    },
+    {
+      "path": "connectors/haproxy/metadata.h",
+      "purpose": "metadata declarations for the HAProxy starter"
+    },
+    {
+      "path": "connectors/haproxy/Makefile",
+      "purpose": "compile the metadata object, local SPOA agent starter, and diagnostic SPOP subset"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_spoa_agent_starter.c",
+      "purpose": "local request-decision starter logic; no SPOP frame parser and no HAProxy runtime handling"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_spoa_agent_starter.h",
+      "purpose": "local request-decision starter declarations"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_spoa_main.c",
+      "purpose": "CLI entry point for --describe and --self-test only"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "purpose": "request-side SPOP runtime that parses live HAProxy method, uri, req.hdrs_bin/req.hdrs, and req.body SPOE arguments, then returns set-var ACK enforcement for 403 disruptive decisions; not a full SPOA agent implementation"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+      "purpose": "local libmodsecurity binding used by self-tests and live HAProxy YAML request-side runtime; loads materialized rules and processes URI, headers, request body bytes, and CRS SQLi cases"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_modsecurity_binding.h",
+      "purpose": "request/evaluation declarations for the local ModSecurity binding self-tests and SPOP runtime"
+    },
+    {
+      "path": "connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c",
+      "purpose": "CLI entry point for the local ModSecurity binding self-tests"
+    }
+  ],
+  "shared_inputs": [
+    {
+      "path": "common/include/msconnector/origin.h",
+      "purpose": "connector-neutral origin metadata shape"
+    },
+    {
+      "path": "common/include/msconnector/request.h",
+      "purpose": "connector-neutral request shape used by the local starter self-test"
+    },
+    {
+      "path": "common/include/msconnector/intervention.h",
+      "purpose": "connector-neutral intervention shape used by the local starter self-test"
+    },
+    {
+      "path": "common/include/msconnector/status.h",
+      "purpose": "connector-neutral status values used by the local starter self-test"
+    },
+    {
+      "path": "common/src/intervention.c",
+      "purpose": "connector-neutral intervention helper linked into the local starter binary"
+    }
+  ],
+  "starter_capabilities": [
+    "compile local SPOA agent starter binary",
+    "run local self-test for synthetic request allow/block decisions",
+    "print explicit limitations via --describe",
+    "compile and self-test SPOP HELLO/ACK/DISCONNECT handling",
+    "compile and self-test local libmodsecurity phase-1 header and request-body transactions",
+    "verify live HAProxy enforcement for shared request-side YAML cases",
+    "verify live HAProxy With-CRS enforcement for crs_sqli_anomaly_block",
+    "verify REQUEST_URI, REQUEST_HEADERS, REQUEST_HEADERS_NAMES, ARGS, ARGS_NAMES, REQUEST_COOKIES, REQUEST_COOKIES_NAMES, REQUEST_BODY, FILES, and XML request-side variables"
+  ],
+  "blocked_dependencies": [
+    "full production SPOA/SPOP implementation beyond the request-side runtime subset",
+    "response header/body phase runtime evidence",
+    "audit/log assertion runtime evidence",
+    "non-403 disruptive status and redirect mapping evidence",
+    "RESPONSE_BODY runtime evidence"
+  ],
+  "claims_not_made": [
+    "full HAProxy adapter implementation",
+    "SPOE/SPOA protocol compatibility beyond the request-side runtime subset",
+    "response phase support",
+    "audit/log assertion support",
+    "non-403 disruptive status support",
+    "RESPONSE_BODY blocking"
+  ]
+}

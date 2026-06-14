@@ -1,6 +1,14 @@
 # Apache Connector Open Items Status
 
-Stand: 2026-05-24. Diese Analyse basiert auf den aktuell offenen GitHub-Issues und -Pull-Requests in `owasp-modsecurity/ModSecurity-apache`, den lokalen Quellen in `ModSecurity-conector` und den vorhandenen Test-/Runtime-Artefakten in `ModSecurity-test-Framework`. Es wurden keine Produktivcodeänderungen vorgenommen und keine neuen Smoke-Runs gestartet.
+Status: historical issue/PR analysis snapshot.
+
+Stand: 2026-05-24. Diese Analyse basiert auf den damals offenen GitHub-Issues und -Pull-Requests in `owasp-modsecurity/ModSecurity-apache`, den lokalen Quellen in `ModSecurity-conector` und den damals vorhandenen Test-/Runtime-Artefakten in `ModSecurity-test-Framework`. Es wurden keine Produktivcodeänderungen vorgenommen und keine neuen Smoke-Runs gestartet.
+
+Aktueller Merge-Readiness-Status, Full-Matrix-Zahlen und der kanonische nächste
+Fix-Plan stehen in [reports/testing/README.md](../reports/testing/README.md)
+und
+[final-consistency-audit.generated.md](../reports/testing/generated/final-consistency-audit.generated.md).
+Diese Datei bleibt als historischer Apache-Open-Items-Abgleich erhalten.
 
 ## Quelle
 
@@ -30,7 +38,7 @@ Wichtigste technische Lücken:
 | Typ | Nummer | Titel | Status | Relevanz für ModSecurity-conector | Relevanz für Test-Framework | Nachweis im Code/Test | Nächste Schritte |
 |---|---:|---|---|---|---|---|---|
 | Issue | 12 | Having the exactly same results for apache version 2 and version 3 while running the OWASP CRS | Teilweise umgesetzt | V2/v3-Parität und CRS-Verhalten | Hoch, aber nur als Teilmenge vorhanden | `docs/testing/generated/apache-runtime-results.generated.md`, `docs/testing/generated/connector-gap-summary.generated.md`, `docs/testing/v2-vs-v3-compatibility.md` | Vollständigen CRS-Lauf mit Log-Parser und v2/v3-Diff ergänzen |
-| Issue | 15 | Have all the phases correctly attached to Apache | Teilweise umgesetzt | Apache-Hooks, Filter, Phase 1 bis 5 | Hoch | `connectors/apache/src/mod_security3.c`: `hook_request_late`, `hook_insert_filter`, `hook_log_transaction`; PR-70-Tests phase 1 bis 3 PASS, phase 4 xfail | Phase 4 stabilisieren und Phase-5-Test ergänzen |
+| Issue | 15 | Have all the phases correctly attached to Apache | Teilweise umgesetzt | Apache-Hooks, Filter, Phase 1 bis 5 | Hoch | `connectors/apache/src/mod_security3.c`: `hook_request_late`, `hook_insert_filter`, `hook_log_transaction`; PR-70-Tests phase 1 bis 3 PASS, phase 4 former expected-failure | Phase 4 stabilisieren und Phase-5-Test ergänzen |
 | Issue | 17 | Implement the logging callback | Umgesetzt | libmodsecurity-Logcallback in Apache | Mittel, dedizierter Logcallback-Test fehlt | `modsecurity_log_cb`, `msc_set_log_cb`, `modsecurity_use_error_log` in `connectors/apache/src/mod_security3.c` und `connectors/apache/src/msc_config.c` | Regression für error-log-Forwarding bei `log,deny` ergänzen |
 | Issue | 23 | Configuration merge is not working as expected | Teilweise umgesetzt | Directory/Location-Merge, Ruleset-Merge, Enable/Disable | Hoch | `msc_hook_merge_config_directory`; `ci/check-apache-directive-config.sh` testet `modsecurity off` in `Location` | Merge-Reihenfolge und Directory-vs-Location-Regelvererbung testen |
 | Issue | 24 | Module name should be investigated | Nicht umgesetzt | Modulname und LoadModule-Kompatibilität | Niedrig | Modul bleibt `mod_security3.so` und `security3_module` in `connectors/apache/Makefile.am`, `COMPILE_APACHE.md` | Entscheidung dokumentieren oder Alias-/Installationsstrategie entwerfen |
@@ -57,7 +65,7 @@ Wichtigste technische Lücken:
 | Issue | 90 | Is it possible to change the SecAuditLogStorageDir variable so that the logs are sorted by vhost? | Nicht umgesetzt | Audit-Log-Konfiguration pro vhost | Niedrig bis mittel | Keine vhostbasierte `SecAuditLogStorageDir`-Erweiterung gefunden | Prüfen, ob libmodsecurity-Variable/Apache-Ausdruck sinnvoll integrierbar ist |
 | PR | 56 | Smallfixes | Teilweise umgesetzt | Request-Body-Verarbeitung, Format-String, Filterentfernung | Hoch | Format-String durch PR #86 erledigt; `ap_remove_input_filter` durch PR #65 erledigt; `hook_request_late` verarbeitet Body weiterhin | PR in Teiländerungen aufteilen; Body-Duplikation und Empty-Body-Fall testen |
 | PR | 65 | Removing the input filter using the corresponding API | Umgesetzt | Input-Filter-Fehlerpfad | Mittel | `connectors/apache/src/msc_filters.c` nutzt `ap_remove_input_filter` in `input_filter` | Regression für Intervention im Input-Filter ergänzen |
-| PR | 70 | Enable audit log and add 00-phases tests | Teilweise umgesetzt | Audit-Log-Phase-Tests | Hoch | `pr70_phase1_audit_request_header`, `pr70_phase2_audit_urlencoded_body`, `pr70_phase3_audit_response_header` PASS; `pr70_phase4_response_body_audit_xfail` xfail | Phase 4 stabilisieren und Phase-5-Test importieren |
+| PR | 70 | Enable audit log and add 00-phases tests | Teilweise umgesetzt | Audit-Log-Phase-Tests | Hoch | `pr70_phase1_audit_request_header`, `pr70_phase2_audit_urlencoded_body`, `pr70_phase3_audit_response_header` PASS; `pr70_phase4_response_body_audit_xfail` former expected-failure | Phase 4 stabilisieren und Phase-5-Test importieren |
 | PR | 86 | Fix logging format string | Umgesetzt | Sicherheitsfix im Logcallback | Hoch | `modsecurity_log_cb` nutzt feste Formatzeichenkette `"%s"` | Dedizierten `%`-Payload-Test ergänzen |
 
 ## Details pro Issue/PR
@@ -82,7 +90,7 @@ Wichtigste technische Lücken:
 - Kurzbeschreibung: Alle libmodsecurity-Phasen sollen korrekt an Apache-Hooks und Filter angebunden sein.
 - Relevante Dateien im ModSecurity-conector: `connectors/apache/src/mod_security3.c` mit `hook_request_late`, `hook_insert_filter`, `hook_log_transaction`, `process_request_headers`; `connectors/apache/src/msc_filters.c` mit `input_filter` und `output_filter`.
 - Relevante Tests im ModSecurity-test-Framework: `tests/cases/audit-log/pr70-phases/pr70_phase1_audit_request_header.yaml`, `pr70_phase2_audit_urlencoded_body.yaml`, `pr70_phase3_audit_response_header.yaml`, `pr70_phase4_response_body_audit_xfail.yaml`, `docs/testing/generated/apache-runtime-results.generated.md`.
-- Bewertung: Phase 1 bis 3 sind durch PR-70-Derivate belegt; Phase 4 bleibt xfail und Phase 5 hat keinen vergleichbaren PR-70-Test.
+- Bewertung: Phase 1 bis 3 sind durch PR-70-Derivate belegt; Phase 4 bleibt former expected-failure und Phase 5 hat keinen vergleichbaren PR-70-Test.
 - Fehlende Umsetzung: Stabiles Response-Body-Blocking, vollständige Audit-Assertions für Phase 4 und dedizierter Phase-5-Logging-Test.
 - Empfohlene nächste Schritte: Guard/State im `output_filter` ergänzen, `msc_process_response_body` nur einmal pro Transaktion verifizieren, Phase-5-YAML aus PR #70 ableiten. Vermuteter Aufwand: hoch.
 
@@ -406,7 +414,7 @@ Wichtigste technische Lücken:
 - Kurzbeschreibung: PR aktiviert Audit-Log-Auswertung in Apache::Test und ergänzt Phase-Tests.
 - Relevante Dateien im ModSecurity-conector: Keine direkte Codeänderung nötig; relevant sind `connectors/apache/src/mod_security3.c` und `connectors/apache/src/msc_filters.c`.
 - Relevante Tests im ModSecurity-test-Framework: `tests/cases/audit-log/pr70-phases/pr70_phase1_audit_request_header.yaml`, `pr70_phase2_audit_urlencoded_body.yaml`, `pr70_phase3_audit_response_header.yaml`, `pr70_phase4_response_body_audit_xfail.yaml`, `docs/testing/pr70-audit-phase-coverage-plan.md`.
-- Bewertung: Phase 1 bis 3 wurden als portable YAML-Fälle importiert und laufen laut Runtime-Snapshot PASS. Phase 4 bleibt xfail; Phase 5 ist nicht importiert.
+- Bewertung: Phase 1 bis 3 wurden als portable YAML-Fälle importiert und laufen laut Runtime-Snapshot PASS. Phase 4 bleibt former expected-failure; Phase 5 ist nicht importiert.
 - Fehlende Umsetzung: Stabile Phase-4-Response-Body-Assertions und Phase-5-Audit-/Logging-Test.
 - Empfohlene nächste Schritte: Phase-5-Fall aus PR #70 ableiten, Response-Body-Pfad zuerst reparieren. Vermuteter Aufwand: mittel bis hoch.
 

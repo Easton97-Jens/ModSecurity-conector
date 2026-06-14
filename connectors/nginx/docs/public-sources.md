@@ -1,13 +1,15 @@
 # NGINX Public Sources
 
-Status: scaffolded
+Status: current references
 
-Source references used for this scaffold:
+Repository-owned NGINX connector source lives under `connectors/nginx/`.
+External references are used for provenance, comparison, and optional
+read-only rebuilds:
 
-- Local reference: `/root/conecter/ModSecurity-nginx`
-- Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
+- Upstream ModSecurity-nginx source:
+  https://github.com/owasp-modsecurity/ModSecurity-nginx
 - NGINX Open Source: https://github.com/nginx/nginx
+- NGINX configure documentation: https://nginx.org/en/docs/configure.html
 
-Tracked follow-up: document official NGINX module development and dynamic
-module references before any maintained NGINX adapter rewrite. See
-`modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`.
+Source pins and generated build roots for clean-clone runtime validation are
+documented in `COMPILE_NGINX.md` and the framework `ci/common.sh` helpers.

@@ -153,16 +153,15 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     for (; chain != NULL; chain = chain->next)
     {
         u_char *data = chain->buf->pos;
+        size_t len = chain->buf->last >= chain->buf->pos
+            ? (size_t) (chain->buf->last - chain->buf->pos)
+            : 0;
         int ret;
 
-        msc_append_response_body(ctx->modsec_transaction, data, chain->buf->last - data);
-        ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);
-        if (ret > 0) {
-            return ngx_http_filter_finalize_request(r,
-                &ngx_http_modsecurity_module, ret);
-        } else if (ret < 0) {
-            ret = ngx_http_modsecurity_phase4_handle_intervention(r, mcf);
-            if (ret == NGX_ERROR) return NGX_ERROR;
+        if (len > 0) {
+            ctx->response_body_seen = 1;
+            ctx->response_body_bytes_seen += len;
+            msc_append_response_body(ctx->modsec_transaction, data, len);
         }
 
 /* XXX: chain->buf->last_buf || chain->buf->last_in_chain */
@@ -171,6 +170,12 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         if (!is_request_processed) {
             continue;
         }
+
+        if (ctx->phase4_processed) {
+            continue;
+        }
+        ctx->phase4_processed = 1;
+        ctx->response_committed = r->header_sent ? 1 : 0;
 
         {
             ngx_pool_t *old_pool;
@@ -183,6 +188,8 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
    XXX: body we can proceed to adjust body size (content-length).  see xslt_body_filter() for example */
             ret = ngx_http_modsecurity_process_intervention(ctx->modsec_transaction, r, 0);
             if (ret > 0) {
+                ctx->phase4_intervention = 1;
+                ctx->response_committed = r->header_sent ? 1 : 0;
                 if (!ctx->phase4_headers_checked) {
                     ngx_http_modsecurity_phase4_log_event(r, mcf, "deny", "deny_status", "headers_not_sent");
                     ctx->phase4_headers_checked = 1;
@@ -190,6 +197,8 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                 return ret;
             }
             if (ret < 0) {
+                ctx->phase4_intervention = 1;
+                ctx->response_committed = r->header_sent ? 1 : 0;
                 ret = ngx_http_modsecurity_phase4_handle_intervention(r, mcf);
                 if (ret == NGX_ERROR) {
                     return NGX_ERROR;
@@ -218,12 +227,19 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
     }
     if (ctx && ctx->phase4_headers_checked) return NGX_OK;
     if (ctx) ctx->phase4_headers_checked = 1;
+    if (ctx) {
+        ctx->phase4_intervention = 1;
+        ctx->response_committed = r->header_sent ? 1 : 0;
+    }
 
     if (in_scope == 0) {
         ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, "log_only", r->headers_out.content_type.len ? "content_type_not_in_scope" : "content_type_missing");
         return NGX_OK;
     }
     if (mcf->phase4_mode == NGX_HTTP_MODSEC_PHASE4_MODE_STRICT) {
+        if (ctx) {
+            ctx->phase4_strict_abort = 1;
+        }
         ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, "connection_abort", "headers_already_sent");
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "modsecurity phase4 intervention after headers sent, action=connection_abort, uri=\"%V\"", &r->uri);
@@ -267,6 +283,13 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     ngx_str_t slog;
     const char *mode = "safe";
     const char *header_sent = r->header_sent ? "true" : "false";
+    const char *response_headers_seen = "false";
+    const char *response_body_seen = "false";
+    const char *response_body_truncated = "false";
+    const char *response_committed = header_sent;
+    const char *intervention_seen = "false";
+    const char *strict_abort = "false";
+    const char *transport = "http_status";
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
     if (mcf->phase4_log_file == NULL || mcf->phase4_log_file->fd == NGX_INVALID_FILE) return NGX_OK;
     ngx_http_modsecurity_json_escape(r->pool, &r->uri, &euri);
@@ -285,15 +308,26 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     }
     if (mcf->phase4_mode == NGX_HTTP_MODSEC_PHASE4_MODE_MINIMAL) mode = "minimal";
     else if (mcf->phase4_mode == NGX_HTTP_MODSEC_PHASE4_MODE_STRICT) mode = "strict";
-    size_t need = 256 + euri.len + emethod.len + ect.len + elog.len + erule.len + ngx_strlen(mode) + ngx_strlen(wanted) + ngx_strlen(actual) + ngx_strlen(reason);
+    if (ctx) {
+        response_headers_seen = ctx->response_headers_seen ? "true" : "false";
+        response_body_seen = ctx->response_body_seen ? "true" : "false";
+        response_body_truncated = ctx->response_body_truncated ? "true" : "false";
+        response_committed = ctx->response_committed ? "true" : header_sent;
+        intervention_seen = ctx->phase4_intervention ? "true" : "false";
+        strict_abort = ctx->phase4_strict_abort ? "true" : "false";
+        if (ctx->phase4_strict_abort) {
+            transport = "connection_aborted";
+        }
+    }
+    size_t need = 512 + euri.len + emethod.len + ect.len + elog.len + erule.len + ngx_strlen(mode) + ngx_strlen(wanted) + ngx_strlen(actual) + ngx_strlen(reason);
     u_char *dbuf = ngx_pnalloc(r->pool, need);
     if (dbuf == NULL) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "modsecurity phase4 log allocation failed");
         return NGX_ERROR;
     }
     p = ngx_snprintf(dbuf, need,
-        "{\"event\":\"phase4_intervention\",\"uri\":\"%V\",\"method\":\"%V\",\"response_status\":%ui,\"waf_status\":%i,\"content_type\":\"%V\",\"header_sent\":%s,\"mode\":\"%s\",\"wanted_action\":\"%s\",\"actual_action\":\"%s\",\"reason\":\"%s\",\"intervention\":\"%V\",\"rule_id\":\"%V\"}\n",
-        &euri,&emethod,(ngx_uint_t)r->headers_out.status,ctx ? (int) ctx->last_intervention_status : 0,&ect,header_sent,mode,wanted,actual,reason,&elog,&erule);
+        "{\"event\":\"phase4_intervention\",\"phase\":4,\"uri\":\"%V\",\"method\":\"%V\",\"response_status\":%ui,\"waf_status\":%i,\"content_type\":\"%V\",\"header_sent\":%s,\"response_headers_seen\":%s,\"response_body_seen\":%s,\"response_body_truncated\":%s,\"response_committed\":%s,\"intervention\":%s,\"strict_abort\":%s,\"observed_transport_result\":\"%s\",\"mode\":\"%s\",\"wanted_action\":\"%s\",\"actual_action\":\"%s\",\"reason\":\"%s\",\"body_bytes_seen\":%uz,\"intervention_log\":\"%V\",\"rule_id\":\"%V\"}\n",
+        &euri,&emethod,(ngx_uint_t)r->headers_out.status,ctx ? (int) ctx->last_intervention_status : 0,&ect,header_sent,response_headers_seen,response_body_seen,response_body_truncated,response_committed,intervention_seen,strict_abort,transport,mode,wanted,actual,reason,ctx ? ctx->response_body_bytes_seen : (size_t)0,&elog,&erule);
     ssize_t n = ngx_write_fd(mcf->phase4_log_file->fd, dbuf, p - dbuf);
     if (n < 0 || (size_t) n != (size_t) (p - dbuf)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, ngx_errno,

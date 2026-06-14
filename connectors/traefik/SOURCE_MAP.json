@@ -1,0 +1,52 @@
+{
+  "connector": "traefik",
+  "status": "decision-service-starter",
+  "runtime_status": "not-verified",
+  "upstream": {
+    "traefik_source": "not selected",
+    "traefik_version": "not selected",
+    "integration_api": "not selected",
+    "license": "not documented"
+  },
+  "imported_upstream_files": [],
+  "repo_owned_files": [
+    {
+      "path": "connectors/traefik/metadata.c",
+      "purpose": "compile-time metadata starter"
+    },
+    {
+      "path": "connectors/traefik/metadata.h",
+      "purpose": "compile-time metadata declarations"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_build_starter.c",
+      "purpose": "compile-time build-starter smoke source"
+    },
+    {
+      "path": "connectors/traefik/build/build-starter.sh",
+      "purpose": "compile-time build-starter command"
+    },
+    {
+      "path": "connectors/traefik/Makefile",
+      "purpose": "connector-local build and self-test targets"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_decision_service.h",
+      "purpose": "local decision-service starter declarations"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_decision_service.c",
+      "purpose": "local decision-service starter logic"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_decision_service_main.c",
+      "purpose": "local decision-service starter CLI and self-test entry point"
+    }
+  ],
+  "runtime_evidence": {
+    "no_crs": "not run",
+    "with_crs": "not run",
+    "response_body_blocking": "not verified",
+    "decision_service_self_test": "pass (local only)"
+  }
+}

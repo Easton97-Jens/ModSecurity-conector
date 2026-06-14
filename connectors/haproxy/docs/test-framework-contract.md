@@ -1,31 +1,37 @@
 # HAProxy Test Framework Contract
 
-Status: documentation only
+Status: current ownership boundary
 
-No tests are stored in this connector repository.
+Executable cases, matrix generation, runtime snapshots, and generated reports
+are framework-owned. The HAProxy connector owns source, examples, and the
+runtime harness that the framework invokes.
 
-All test definitions, test execution, runners, and generated reports belong to
-Easton97-Jens/ModSecurity-test-Framework.
+## Connector-Owned
 
-This repository may only document the contract expected by the central
-framework.
+- `connectors/haproxy/src/`
+- `connectors/haproxy/Makefile`
+- `connectors/haproxy/harness/run_haproxy_smoke.sh`
+- `examples/haproxy/`
+- connector metadata and origin files
 
-runtime_verified must remain false in this repository until external framework
-evidence is produced.
+## Framework-Owned
 
-## Contract Surface (documentation only)
+- YAML cases under `modules/ModSecurity-test-Framework/tests/cases/`
+- case selection and normalization helpers
+- runtime matrix orchestration
+- runtime validation snapshot generation
+- generated report rendering
 
-The HAProxy connector area may provide only non-test artifacts for framework
-consumption, for example:
+## Reporting Contract
 
-- connector metadata and status documentation
-- example-only configuration placeholders
-- harness contract documentation (no runner implementation)
-- evidence notes and open questions
+- Default HAProxy smoke reports the supported non-former-XFAIL subset:
+  `55/55 PASS`.
+- Force-all HAProxy evidence remains separate:
+  `133 attempted / 104 PASS / 23 FAIL / 0 BLOCKED / 6 NOT_EXECUTABLE`.
+- Root summaries are connector-neutral.
+- Row-level HAProxy details stay in
+  `reports/testing/generated/haproxy-runtime-results.generated.md`.
+- There is no synthetic matrix writer.
 
-## Explicit Ownership Boundary
-
-- Connector repo: no test cases, no local test plans, no test runners, no test
-  implementations, no generated reports.
-- Central framework repo: owns all executable tests, test plans, runners,
-  orchestration, and generated report outputs.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
+documented/reported as runtime evidence only.

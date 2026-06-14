@@ -9,16 +9,16 @@ source into `connectors/apache/src/` and removed the former
 and smoke run passed. Phase 12 removed duplicate attribution/history files from
 the active source tree; this directory is now the durable home for those files.
 
-Local reference: `/root/conecter/ModSecurity-apache`
+Repo-local reference: `connectors/apache/`, `licenses/apache/`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
 Source branch: `master`
 Source commit: `0488c77f69669584324b70460614a382224b4883`
 Source describe: `v0.0.9-beta1-26-g0488c77`
 License: Apache-2.0
 
-| Repository | Local reference | Upstream | Observed commit | Observed version/tag | License |
+| Repository | Repo-local reference | Upstream | Observed commit | Observed version/tag | License |
 | --- | --- | --- | --- | --- | --- |
-| ModSecurity-apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+| ModSecurity-apache | `connectors/apache/`, `licenses/apache/` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
 
 ## Files
 
