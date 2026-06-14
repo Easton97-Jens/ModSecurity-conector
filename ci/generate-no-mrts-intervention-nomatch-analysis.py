@@ -39,11 +39,11 @@ CAUSE_DETAILS = {
         "safe_fixability": "metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior",
         "risk": "low if kept report-only; high if treated as connector XML parser evidence",
     },
-    "multipart_collection_semantics": {
-        "label": "Multipart collection semantics",
-        "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
-        "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
-        "risk": "medium",
+    "multipart_processor_activation_missing": {
+        "label": "Multipart processor activation missing",
+        "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
+        "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
+        "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
     },
     "phase1_request_body_unavailable_or_empty_body": {
         "label": "Phase 1 request-body unavailable or empty",
@@ -223,7 +223,7 @@ def classify_cause(record: dict[str, Any], case: dict[str, Any], request: dict[s
     if category == "body-processors":
         return "xml_processor_activation_missing"
     if category == "multipart":
-        return "multipart_collection_semantics"
+        return "multipart_processor_activation_missing"
     if not literal_contains_token:
         return "transformation_request_value_absent_or_semantic_gap"
     return "unknown_no_match"

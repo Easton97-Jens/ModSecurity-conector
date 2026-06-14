@@ -93,6 +93,8 @@
   "body_processor_analysis_report": {
     "analysis": "reports/testing/generated/body-processor-analysis.generated.md",
     "json": "reports/testing/generated/body-processor-analysis.generated.json",
+    "multipart_activation_missing_subcluster_count": 12,
+    "multipart_active_after_report_sync": 0,
     "urlencoded_active_after_report_sync": 0,
     "urlencoded_form_subcluster_count": 18,
     "xml_activation_missing_subcluster_count": 24,

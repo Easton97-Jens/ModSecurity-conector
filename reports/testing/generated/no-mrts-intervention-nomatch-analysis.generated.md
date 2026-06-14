@@ -1,6 +1,6 @@
 # No-MRTS Intervention No-Match Analysis
 
-- Generated at: `2026-06-14T10:36:27Z`
+- Generated at: `2026-06-14T10:46:39Z`
 - no-MRTS expected `403` / actual `200` rows with loaded rule and no match: **105**
 - Unique cases: **18**
 - Rule not loaded: **0**
@@ -16,7 +16,7 @@
 | Transformation/request literal does not expose expected token | 36 | The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur. | not safe as a harness fix; changing the request token would change test semantics | high | sqli_like_keyword_spacing_probe, sqli_like_quote_encoding_runtime_difference, unicode_double_encoded_uri_runtime_difference, unicode_whitespace_normalization_gap, xss_like_encoded_angles_normalization_probe, xss_like_mixed_case_script_token_gap |
 | Collection-name normalization semantics | 30 | Header, cookie, or query-name normalization differs from the rule target expectation. | requires native/libmodsecurity comparison before changing harness or connector code | medium to high | duplicate_args_encoded_separator_edge, duplicate_header_case_normalization_gap, edge_semicolon_query_args_names, v3_request_cookies_names_case_runtime_difference, v3_request_headers_names_lowercase_runtime_difference |
 | XML processor activation missing | 24 | The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML. | metadata/report-only; do not change XML body, rules, Expected status, or connector-core behavior | low if kept report-only; high if treated as connector XML parser evidence | parser_xml_partial_body_future_target, xml_deep_nesting_future_target, xml_namespace_edge_connector_gap, xml_request_body_malformed_connector_gap |
-| Multipart collection semantics | 12 | Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token. | not a small safe fix; belongs with multipart/body processor evidence work | medium | files_names_mixed_case_filename_gap, multipart_duplicate_field_names_gap |
+| Multipart processor activation missing | 12 | The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections. | metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior | low if kept report-only; high if treated as connector multipart parser evidence | files_names_mixed_case_filename_gap, multipart_duplicate_field_names_gap |
 | Phase 1 request-body unavailable or empty | 3 | The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token. | not safe to fix by changing the body; that would change the test definition | low to medium | phase1_vs_phase2_request_body_gap |
 
 ## Connector / Phase / Target / Operator
@@ -82,24 +82,22 @@
 | transformation_request_literal_no_match | 36 |
 | collection_name_normalization_semantics | 30 |
 | xml_processor_activation_missing | 24 |
-| multipart_collection_semantics | 12 |
+| multipart_processor_activation_missing | 12 |
 | phase1_request_body_unavailable | 3 |
 
 ### Work directions
 | Value | Count |
 |---|---|
+| classification_only | 36 |
 | transformation_semantics | 36 |
 | collection_semantics | 30 |
-| classification_only | 24 |
-| multipart_files | 12 |
 | request_body_processor | 3 |
 
 ### Priorities
 | Value | Count |
 |---|---|
 | P3 | 69 |
-| report_only | 24 |
-| P2 | 12 |
+| report_only | 36 |
 
 ## Native Comparator
 
@@ -135,8 +133,8 @@
 | duplicate_args_encoded_separator_edge | apache | no-crs/no-mrts | 4608 | 2 | ARGS_NAMES | @contains b | GET /?a=1%3Bb=2&a=3 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
 | duplicate_header_case_normalization_gap | apache | no-crs/no-mrts | 4607 | 1 | REQUEST_HEADERS_NAMES | @contains x-demo | GET /?- | x-demo | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
 | edge_semicolon_query_args_names | apache | no-crs/no-mrts | 4513 | 2 | ARGS_NAMES | @contains b | GET /?a=1;b=2 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
-| files_names_mixed_case_filename_gap | apache | no-crs/no-mrts | 4705 | 2 | FILES_NAMES | @contains MiXeD.TXT | POST /?- | MiXeD.TXT | multipart_collection_semantics | multipart_files | P2 | multipart_collection_semantics |
-| multipart_duplicate_field_names_gap | apache | no-crs/no-mrts | 4703 | 2 | ARGS_NAMES | @contains upload | POST /?- | upload | multipart_collection_semantics | multipart_files | P2 | multipart_collection_semantics |
+| files_names_mixed_case_filename_gap | apache | no-crs/no-mrts | 4705 | 2 | FILES_NAMES | @contains MiXeD.TXT | POST /?- | MiXeD.TXT | multipart_processor_activation_missing | classification_only | report_only | multipart_processor_activation_missing |
+| multipart_duplicate_field_names_gap | apache | no-crs/no-mrts | 4703 | 2 | ARGS_NAMES | @contains upload | POST /?- | upload | multipart_processor_activation_missing | classification_only | report_only | multipart_processor_activation_missing |
 | parser_xml_partial_body_future_target | apache | no-crs/no-mrts | 4610 | 2 | XML | @contains root | POST /?- | root | xml_processor_activation_missing | classification_only | report_only | xml_processor_activation_missing |
 | phase1_vs_phase2_request_body_gap | apache | no-crs/no-mrts | 4511 | 1 | REQUEST_BODY | @contains bodyhit | POST /?- | bodyhit | phase1_request_body_unavailable | request_body_processor | P3 | phase1_request_body_unavailable_or_empty_body |
 | sqli_like_keyword_spacing_probe | apache | no-crs/no-mrts | 4715 | 2 | ARGS:q | @contains select from | GET /?q=SAFE | select from | transformation_request_literal_no_match | transformation_semantics | P3 | transformation_request_value_absent_or_semantic_gap |
@@ -153,8 +151,8 @@
 | duplicate_args_encoded_separator_edge | nginx | no-crs/no-mrts | 4608 | 2 | ARGS_NAMES | @contains b | GET /?a=1%3Bb=2&a=3 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
 | duplicate_header_case_normalization_gap | nginx | no-crs/no-mrts | 4607 | 1 | REQUEST_HEADERS_NAMES | @contains x-demo | GET /?- | x-demo | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
 | edge_semicolon_query_args_names | nginx | no-crs/no-mrts | 4513 | 2 | ARGS_NAMES | @contains b | GET /?a=1;b=2 | b | collection_name_normalization_semantics | collection_semantics | P3 | collection_name_normalization_semantics |
-| files_names_mixed_case_filename_gap | nginx | no-crs/no-mrts | 4705 | 2 | FILES_NAMES | @contains MiXeD.TXT | POST /?- | MiXeD.TXT | multipart_collection_semantics | multipart_files | P2 | multipart_collection_semantics |
-| multipart_duplicate_field_names_gap | nginx | no-crs/no-mrts | 4703 | 2 | ARGS_NAMES | @contains upload | POST /?- | upload | multipart_collection_semantics | multipart_files | P2 | multipart_collection_semantics |
+| files_names_mixed_case_filename_gap | nginx | no-crs/no-mrts | 4705 | 2 | FILES_NAMES | @contains MiXeD.TXT | POST /?- | MiXeD.TXT | multipart_processor_activation_missing | classification_only | report_only | multipart_processor_activation_missing |
+| multipart_duplicate_field_names_gap | nginx | no-crs/no-mrts | 4703 | 2 | ARGS_NAMES | @contains upload | POST /?- | upload | multipart_processor_activation_missing | classification_only | report_only | multipart_processor_activation_missing |
 | parser_xml_partial_body_future_target | nginx | no-crs/no-mrts | 4610 | 2 | XML | @contains root | POST /?- | root | xml_processor_activation_missing | classification_only | report_only | xml_processor_activation_missing |
 
 ## Guardrails

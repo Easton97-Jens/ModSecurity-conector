@@ -1,6 +1,6 @@
 # Next Fix Plan
 
-Generated at: `2026-06-14T10:36:29Z`
+Generated at: `2026-06-14T10:46:41Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -13,9 +13,7 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 | audit_log_evidence / v3_action_nolog_pass_no_audit | 6 | apache, nginx, haproxy | HTTP behavior passes; remaining failure is evidence/assertion semantics | verify whether audit-log expectation is correct for nolog and classify/report accordingly | low to medium | targeted smoke for v3_action_nolog_pass_no_audit, make lint quick-check |
 
 ## P2
-| Cluster | Count | Connector | Why | Likely change | Risk | Tests |
-|---|---|---|---|---|---|---|
-| multipart_files | 12 | apache, nginx, haproxy | remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits | compare multipart variable population across connectors with one representative request | medium | targeted multipart cases, connector smoke for touched connector, full matrix if parser behavior changes |
+- None.
 
 ## P3
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |

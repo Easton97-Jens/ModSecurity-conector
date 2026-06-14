@@ -33,6 +33,7 @@ FAILURE_CATEGORIES = (
     "request_body_processor",
     "xml_processor",
     "xml_processor_activation_missing",
+    "multipart_processor_activation_missing",
     "multipart_files",
     "transformation_semantics",
     "rule_chain_semantics",
@@ -52,7 +53,7 @@ NO_MRTS_NOMATCH_SEMANTIC_CLASSIFICATIONS = {
     "collection_name_normalization_semantics",
     "xml_body_processor_collection_semantics",
     "xml_processor_activation_missing",
-    "multipart_collection_semantics",
+    "multipart_processor_activation_missing",
     "phase1_request_body_unavailable",
 }
 PHASE4_HARD_ABORT_CATEGORIES = {
@@ -190,6 +191,8 @@ def failure_category(entry: dict[str, Any]) -> str:
         return "with_mrts_detection_only_non_disruptive"
     if classification == "xml_processor_activation_missing":
         return "xml_processor_activation_missing"
+    if classification == "multipart_processor_activation_missing":
+        return "multipart_processor_activation_missing"
     if classification == "collection_name_normalization_semantics":
         return "collection_name_normalization_semantics"
     if is_phase4_entry(entry):
@@ -500,6 +503,7 @@ def fixability(category: str) -> str:
         "request_body_processor": "possibly fixable after processor-specific triage",
         "xml_processor": "possibly fixable, but high risk without XML processor parity checks",
         "xml_processor_activation_missing": "classification-only; XML body exists but the fixture does not enable the XML request body processor",
+        "multipart_processor_activation_missing": "classification-only; multipart body and boundary exist but the fixture does not enable request body access before expecting FILES/ARGS_NAMES collections",
         "multipart_files": "possibly fixable; likely connector/body parser evidence work",
         "transformation_semantics": "not a harness quick win; needs semantic comparison against libmodsecurity expectations",
         "rule_chain_semantics": "small but semantic; requires focused rule-chain evidence",
@@ -525,6 +529,7 @@ def risk(category: str) -> str:
         "multipart_files": "medium",
         "xml_processor": "medium to high",
         "xml_processor_activation_missing": "low if kept report-only; high if treated as connector runtime evidence",
+        "multipart_processor_activation_missing": "low if kept report-only; high if treated as connector multipart runtime evidence",
         "intervention_blocking": "medium to high",
         "collection_name_normalization_semantics": "medium to high",
         "transformation_semantics": "high",
@@ -555,6 +560,7 @@ def recommended_step(category: str) -> str:
         "multipart_files": "compare multipart variable population across connectors with one representative request",
         "xml_processor": "verify XML processor enablement and malformed XML semantics",
         "xml_processor_activation_missing": "keep XML processor activation-missing rows report-only; do not change rules or Expected statuses",
+        "multipart_processor_activation_missing": "keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses",
         "intervention_blocking": "sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation",
         "transformation_semantics": "compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes",
         "phase4_hard_abort_supported": "keep as context/control evidence",
@@ -788,6 +794,10 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
             {
                 "cluster": "xml_processor_activation_missing",
                 "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML",
+            },
+            {
+                "cluster": "multipart_processor_activation_missing",
+                "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections",
             },
             {
                 "cluster": "collection_name_normalization_semantics",

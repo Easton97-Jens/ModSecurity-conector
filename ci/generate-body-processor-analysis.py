@@ -24,6 +24,7 @@ SELECTED_CONNECTOR_GAP_CASE = "phase1_vs_phase2_request_body_gap"
 URLENCODED_FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
 URLENCODED_FORM_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 XML_ACTIVATION_MISSING_CLASSIFICATION = "xml_processor_activation_missing"
+MULTIPART_ACTIVATION_MISSING_CLASSIFICATION = "multipart_processor_activation_missing"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
 
 
@@ -251,6 +252,55 @@ def body_preview(body: bytes) -> str:
     return text[:80]
 
 
+def multipart_boundary(content_type: str) -> str:
+    match = re.search(r'boundary="?([^";]+)"?', content_type, re.IGNORECASE)
+    return match.group(1).strip() if match else "-"
+
+
+def multipart_details(content_type: str, body: bytes) -> dict[str, Any]:
+    boundary = multipart_boundary(content_type)
+    details: dict[str, Any] = {
+        "boundary": boundary,
+        "boundary_status": "missing",
+        "part_count": 0,
+        "field_names": [],
+        "filenames": [],
+    }
+    if boundary == "-" or not body:
+        return details
+    marker = ("--" + boundary).encode()
+    closing = ("--" + boundary + "--").encode()
+    details["boundary_status"] = "valid" if marker in body and closing in body else "mismatch"
+    text = body.decode("utf-8", errors="replace").replace("\r\n", "\n")
+    fields: list[str] = []
+    filenames: list[str] = []
+    parts = 0
+    for raw_part in text.split("--" + boundary):
+        part = raw_part.strip("\n")
+        if not part or part == "--":
+            continue
+        part = part.removesuffix("--").strip("\n")
+        headers, _, _payload = part.partition("\n\n")
+        disposition = ""
+        for line in headers.splitlines():
+            if line.lower().startswith("content-disposition:"):
+                disposition = line
+                break
+        if not disposition:
+            continue
+        parts += 1
+        name_match = re.search(r'name="([^"]*)"', disposition)
+        filename_match = re.search(r'filename="([^"]*)"', disposition)
+        if name_match:
+            fields.append(name_match.group(1))
+        if filename_match:
+            filenames.append(filename_match.group(1))
+    details["part_count"] = parts
+    details["field_names"] = fields
+    details["filenames"] = filenames
+    return details
+
+
 def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> dict[str, Any]:
     case_path = Path(str(evidence.get("path") or ""))
     raw = read_text(case_path) if case_path.is_file() else ""
@@ -281,6 +331,7 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
     rule_id = str(rule["rule_id"])
     matched = rule_logged(logs, rule_id)
     body = request_body_bytes(config_path, request)
+    multipart = multipart_details(content_type, body) if body_kind(request, content_type) == "multipart" else {}
     return {
         "case_path": display_case_path(case_path, framework_root),
         "method": str(request.get("method") or "-"),
@@ -291,6 +342,11 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
         "body_length": len(body) if body else generated_body_length(config_path, request),
         "body_sha256": hashlib.sha256(body).hexdigest() if body else "-",
         "body_preview": body_preview(body) if body else "-",
+        "multipart_boundary": multipart.get("boundary", "-"),
+        "multipart_boundary_status": multipart.get("boundary_status", "not_applicable"),
+        "multipart_part_count": multipart.get("part_count", 0),
+        "multipart_field_names": multipart.get("field_names", []),
+        "multipart_filenames": multipart.get("filenames", []),
         "rule_id": rule_id,
         "phase": str(rule["phase"] if rule["phase"] != "-" else entry.get("phase") or "-"),
         "target": str(rule["target"] or "-"),
@@ -300,6 +356,7 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
         "rule_in_loadfile": bool(rule_id != "-" and rule_id in config),
         "request_body_access": request_body_access,
         "xml_processor": xml_processor,
+        "multipart_parser": "yes" if request_body_access == "yes" and body_kind(request, content_type) == "multipart" else "unknown",
         "request_body_seen": request_body_seen(logs),
         "rule_matched": matched,
         "collection_evidence": "yes" if matched else "no",
@@ -311,7 +368,13 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
 
 def build_records(
     connector_root: Path, framework_root: Path
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
     remaining = import_script(connector_root / "ci/generate-remaining-failure-analysis.py", "remaining_failure_analysis")
     queue = read_json(connector_root / REPORT_DIR / "connector-work-queue.generated.json")
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict) and entry.get("runtime_status") == "FAIL"]
@@ -319,12 +382,20 @@ def build_records(
     selected_gap_records: list[dict[str, Any]] = []
     urlencoded_form_records: list[dict[str, Any]] = []
     xml_activation_missing_records: list[dict[str, Any]] = []
+    multipart_activation_missing_records: list[dict[str, Any]] = []
     for entry in entries:
         category = remaining.failure_category(entry)
         is_selected_gap = entry.get("case_id") == SELECTED_CONNECTOR_GAP_CASE
         is_candidate_urlencoded = entry.get("classification") == URLENCODED_FORM_CLASSIFICATION
         is_candidate_xml_activation = entry.get("classification") == XML_ACTIVATION_MISSING_CLASSIFICATION
-        if category not in TARGET_CATEGORIES and not is_selected_gap and not is_candidate_urlencoded and not is_candidate_xml_activation:
+        is_candidate_multipart_activation = entry.get("classification") == MULTIPART_ACTIVATION_MISSING_CLASSIFICATION
+        if (
+            category not in TARGET_CATEGORIES
+            and not is_selected_gap
+            and not is_candidate_urlencoded
+            and not is_candidate_xml_activation
+            and not is_candidate_multipart_activation
+        ):
             continue
         evidence = read_json(Path(str(entry.get("evidence") or "")))
         meta = case_metadata(entry, evidence, framework_root)
@@ -351,11 +422,19 @@ def build_records(
             urlencoded_form_records.append(record)
         if is_xml_activation_missing(record):
             xml_activation_missing_records.append(record)
+        if is_multipart_activation_missing(record):
+            multipart_activation_missing_records.append(record)
         if is_selected_gap:
             selected_gap_records.append(record)
         elif category in TARGET_CATEGORIES:
             target_records.append(record)
-    return target_records, selected_gap_records, urlencoded_form_records, xml_activation_missing_records
+    return (
+        target_records,
+        selected_gap_records,
+        urlencoded_form_records,
+        xml_activation_missing_records,
+        multipart_activation_missing_records,
+    )
 
 
 def is_urlencoded_form_detection_only(record: dict[str, Any]) -> bool:
@@ -373,6 +452,15 @@ def is_xml_activation_missing(record: dict[str, Any]) -> bool:
         and record.get("body_kind") == "xml"
         and record.get("target") == "XML"
         and normalized_content_type(record.get("content_type")) in {"application/xml", "text/xml"}
+    )
+
+
+def is_multipart_activation_missing(record: dict[str, Any]) -> bool:
+    return (
+        record.get("classification") == MULTIPART_ACTIVATION_MISSING_CLASSIFICATION
+        and record.get("body_kind") == "multipart"
+        and normalized_content_type(record.get("content_type")) == "multipart/form-data"
+        and record.get("multipart_boundary_status") == "valid"
     )
 
 
@@ -502,6 +590,60 @@ def summarize_xml_activation_missing(records: list[dict[str, Any]]) -> dict[str,
     }
 
 
+def summarize_multipart_activation_missing(records: list[dict[str, Any]]) -> dict[str, Any]:
+    body_sent = sum(1 for record in records if int(record.get("body_length") or 0) > 0)
+    content_type_correct = sum(
+        1 for record in records if normalized_content_type(record.get("content_type")) == "multipart/form-data"
+    )
+    boundary_valid = sum(1 for record in records if record.get("multipart_boundary_status") == "valid")
+    return {
+        "count": len(records),
+        "active_multipart_files_before_report_sync": len(records),
+        "active_multipart_files_after_report_sync": 0,
+        "classification": MULTIPART_ACTIVATION_MISSING_CLASSIFICATION,
+        "work_direction": "classification_only",
+        "priority": "report_only",
+        "connectors": counter_dict(records, "connector"),
+        "variants": counter_dict(records, "variant"),
+        "case_ids": counter_dict(records, "case_id"),
+        "rule_ids": counter_dict(records, "rule_id"),
+        "targets": counter_dict(records, "target"),
+        "operators": counter_dict(records, "operator"),
+        "content_types": counter_dict(records, "content_type"),
+        "boundaries": counter_dict(records, "multipart_boundary"),
+        "boundary_status": counter_dict(records, "multipart_boundary_status"),
+        "part_counts": counter_dict(records, "multipart_part_count"),
+        "field_names": dict(Counter(name for record in records for name in record.get("multipart_field_names", [])).most_common()),
+        "filenames": dict(Counter(name for record in records for name in record.get("multipart_filenames", [])).most_common()),
+        "body_lengths": counter_dict(records, "body_length"),
+        "body_hashes": counter_dict(records, "body_sha256"),
+        "request_body_seen": counter_dict(records, "request_body_seen"),
+        "body_sent_count": body_sent,
+        "content_type_correct_count": content_type_correct,
+        "boundary_valid_count": boundary_valid,
+        "request_body_access_on_count": sum(1 for record in records if record["request_body_access"] == "yes"),
+        "multipart_parser_active_count": sum(1 for record in records if record["multipart_parser"] == "yes"),
+        "rule_loaded_count": sum(1 for record in records if record["rule_in_loadfile"]),
+        "rule_matched_count": sum(1 for record in records if record["rule_matched"]),
+        "files_collection_evidence_count": sum(
+            1
+            for record in records
+            if str(record.get("target") or "").startswith("FILES") and record["collection_evidence"] == "yes"
+        ),
+        "args_collection_evidence_count": sum(
+            1
+            for record in records
+            if str(record.get("target") or "").startswith("ARGS") and record["collection_evidence"] == "yes"
+        ),
+        "collection_evidence_count": sum(1 for record in records if record["collection_evidence"] == "yes"),
+        "backend_reached_count": sum(1 for record in records if record["backend_reached"]),
+        "root_cause": "The multipart bodies, Content-Type, boundaries, field names, and filenames are present, but these fixtures do not enable SecRequestBodyAccess before expecting FILES/ARGS_NAMES collection evidence.",
+        "fix": "metadata/report-only; no multipart body, Content-Type, boundary, rule, Expected status, connector-core behavior, or PASS/FAIL value changed",
+        "risk": "low when kept report-only; high if treated as a connector multipart parser failure without request body activation",
+        "examples": records[:9],
+    }
+
+
 def suspected_cause(example: dict[str, Any], items: list[dict[str, Any]]) -> str:
     if example["failure_category"] == "request_body_processor" and example["body_kind"] == "json":
         return "JSON/raw REQUEST_BODY rows need processor-specific semantics review; with-MRTS rows may be non-blocking due DetectionOnly overlay."
@@ -533,17 +675,24 @@ def fixability_for(example: dict[str, Any]) -> str:
 
 
 def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
-    records, selected_gap_records, urlencoded_form_records, xml_activation_missing_records = build_records(connector_root, framework_root)
+    (
+        records,
+        selected_gap_records,
+        urlencoded_form_records,
+        xml_activation_missing_records,
+        multipart_activation_missing_records,
+    ) = build_records(connector_root, framework_root)
     category_counts = Counter(record["failure_category"] for record in records)
     selected_count = len(selected_gap_records)
     urlencoded_form_summary = summarize_urlencoded_form(urlencoded_form_records)
     xml_activation_summary = summarize_xml_activation_missing(xml_activation_missing_records)
+    multipart_activation_summary = summarize_multipart_activation_missing(multipart_activation_missing_records)
     summary = {
         "before_metadata_fix": {
             "request_body_processor": category_counts.get("request_body_processor", 0) + selected_count,
-            "multipart_files": category_counts.get("multipart_files", 0),
+            "multipart_files": category_counts.get("multipart_files", 0) + multipart_activation_summary["count"],
             "xml_processor": category_counts.get("xml_processor", 0) + xml_activation_summary["count"],
-            "combined": len(records) + selected_count + xml_activation_summary["count"],
+            "combined": len(records) + selected_count + xml_activation_summary["count"] + multipart_activation_summary["count"],
         },
         "after_metadata_fix": {
             "request_body_processor": category_counts.get("request_body_processor", 0),
@@ -556,6 +705,8 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "urlencoded_form_active_after_report_sync": urlencoded_form_summary["active_request_body_processor_after_report_sync"],
         "xml_activation_missing_subcluster_count": xml_activation_summary["count"],
         "xml_processor_active_after_report_sync": xml_activation_summary["active_xml_processor_after_report_sync"],
+        "multipart_activation_missing_subcluster_count": multipart_activation_summary["count"],
+        "multipart_files_active_after_report_sync": multipart_activation_summary["active_multipart_files_after_report_sync"],
         "rule_loaded": sum(1 for record in records + selected_gap_records if record["rule_in_loadfile"]),
         "rule_matched": sum(1 for record in records + selected_gap_records if record["rule_matched"]),
         "backend_reached": sum(1 for record in records + selected_gap_records if record["backend_reached"]),
@@ -595,6 +746,7 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         },
         "urlencoded_form_subcluster": urlencoded_form_summary,
         "xml_activation_missing_subcluster": xml_activation_summary,
+        "multipart_activation_missing_subcluster": multipart_activation_summary,
         "groups": grouped_records(records),
         "records": records,
         "next_fix_plan": {
@@ -614,6 +766,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     after = summary["after_metadata_fix"]
     urlencoded = report["urlencoded_form_subcluster"]
     xml_activation = report["xml_activation_missing_subcluster"]
+    multipart_activation = report["multipart_activation_missing_subcluster"]
     lines = [
         "# Body Processor Failure Analysis",
         "",
@@ -623,6 +776,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Selected subcluster rows: **{summary['selected_subcluster_count']}**",
         f"- URL-encoded form rows moved out of active body-processor work: **{summary['urlencoded_form_subcluster_count']}** -> **{summary['urlencoded_form_active_after_report_sync']}**.",
         f"- XML processor activation-missing rows moved out of active xml_processor work: **{summary['xml_activation_missing_subcluster_count']}** -> **{summary['xml_processor_active_after_report_sync']}**.",
+        f"- Multipart processor activation-missing rows moved out of active multipart_files work: **{summary['multipart_activation_missing_subcluster_count']}** -> **{summary['multipart_files_active_after_report_sync']}**.",
         f"- Rule loaded evidence rows: **{summary['rule_loaded']}**",
         f"- Target rule matched rows: **{summary['rule_matched']}**",
         f"- Backend reached rows: **{summary['backend_reached']}**",
@@ -698,6 +852,57 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
     lines.extend(
         [
+            "## Multipart Processor Activation-Missing Subcluster",
+            "",
+            f"- Count: **{multipart_activation['count']}**",
+            f"- Active multipart_files rows before report sync: **{multipart_activation['active_multipart_files_before_report_sync']}**",
+            f"- Active multipart_files rows after report sync: **{multipart_activation['active_multipart_files_after_report_sync']}**",
+            f"- Classification: `{multipart_activation['classification']}`",
+            f"- Work direction: `{multipart_activation['work_direction']}`",
+            f"- Priority: `{multipart_activation['priority']}`",
+            f"- Body sent rows: **{multipart_activation['body_sent_count']}**",
+            f"- Correct Multipart Content-Type rows: **{multipart_activation['content_type_correct_count']}**",
+            f"- Boundary valid rows: **{multipart_activation['boundary_valid_count']}**",
+            f"- SecRequestBodyAccess On rows: **{multipart_activation['request_body_access_on_count']}**",
+            f"- Multipart parser active rows: **{multipart_activation['multipart_parser_active_count']}**",
+            f"- Rule loaded rows: **{multipart_activation['rule_loaded_count']}**",
+            f"- Rule matched rows: **{multipart_activation['rule_matched_count']}**",
+            f"- FILES/FILES_NAMES evidence rows: **{multipart_activation['files_collection_evidence_count']}**",
+            f"- ARGS/ARGS_NAMES evidence rows: **{multipart_activation['args_collection_evidence_count']}**",
+            f"- Collection/target evidence rows: **{multipart_activation['collection_evidence_count']}**",
+            f"- Backend reached rows: **{multipart_activation['backend_reached_count']}**",
+            f"- Root cause: {multipart_activation['root_cause']}",
+            f"- Fix: {multipart_activation['fix']}",
+            f"- Risk: {multipart_activation['risk']}",
+            "",
+            "| field | distribution |",
+            "| --- | --- |",
+        ]
+    )
+    for key in (
+        "connectors",
+        "variants",
+        "case_ids",
+        "rule_ids",
+        "targets",
+        "operators",
+        "content_types",
+        "boundaries",
+        "boundary_status",
+        "part_counts",
+        "field_names",
+        "filenames",
+        "body_lengths",
+        "body_hashes",
+        "request_body_seen",
+    ):
+        values = ", ".join(
+            f"`{sanitize_report_text(name)}`: {count}" for name, count in multipart_activation[key].items()
+        ) or "-"
+        lines.append(f"| {key} | {values} |")
+    lines.append("")
+    lines.extend(
+        [
             "## Active Body Processor Distributions",
             "",
         ]
@@ -756,7 +961,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             "- The selected subcluster is metadata-only and remains a runtime FAIL; it is no longer counted as body-processor work.",
             "- URL-encoded/form rows are report-only with-MRTS DetectionOnly overlay evidence; no harness or connector-core change is made for them.",
             "- XML rows in the activation-missing subcluster are report-only because their fixtures do not enable the XML request body processor.",
-            "- Remaining active body-processor rows are multipart-only after the URL-encoded and XML metadata splits.",
+            "- Multipart rows in the activation-missing subcluster are report-only because their fixtures do not enable request body access before expecting FILES/ARGS_NAMES collection evidence.",
+            "- Remaining active body-processor rows are zero after the URL-encoded, XML, and Multipart metadata splits.",
             "",
         ]
     )
@@ -782,6 +988,8 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
             "urlencoded_active_after_report_sync": report["summary"]["urlencoded_form_active_after_report_sync"],
             "xml_activation_missing_subcluster_count": report["summary"]["xml_activation_missing_subcluster_count"],
             "xml_active_after_report_sync": report["summary"]["xml_processor_active_after_report_sync"],
+            "multipart_activation_missing_subcluster_count": report["summary"]["multipart_activation_missing_subcluster_count"],
+            "multipart_active_after_report_sync": report["summary"]["multipart_files_active_after_report_sync"],
         }
         reports = data.get("reports")
         if isinstance(reports, list):
@@ -803,8 +1011,10 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
                 "- Body processor analysis: `reports/testing/generated/body-processor-analysis.generated.md`",
                 f"- URL-encoded/form rows: **{report['summary']['urlencoded_form_subcluster_count']}** -> **{report['summary']['urlencoded_form_active_after_report_sync']}** active request_body_processor rows after report sync.",
                 f"- XML processor activation-missing rows: **{report['summary']['xml_activation_missing_subcluster_count']}** -> **{report['summary']['xml_processor_active_after_report_sync']}** active xml_processor rows after report sync.",
+                f"- Multipart processor activation-missing rows: **{report['summary']['multipart_activation_missing_subcluster_count']}** -> **{report['summary']['multipart_files_active_after_report_sync']}** active multipart_files rows after report sync.",
                 "- The URL-encoded rows have body and Content-Type evidence and are kept as report-only with-MRTS DetectionOnly overlay cases.",
                 "- The XML rows have body and XML Content-Type evidence, but their fixtures do not enable the XML request body processor.",
+                "- The Multipart rows have body, Content-Type, and boundary evidence, but their fixtures do not enable request body access before expecting FILES/ARGS_NAMES collection evidence.",
             ]
         )
         updated = replace_marked_section(

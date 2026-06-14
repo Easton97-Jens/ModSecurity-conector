@@ -36,10 +36,10 @@
             "not_executable": 12
           },
           "top_work_directions": {
-            "classification_only": 119,
+            "classification_only": 123,
             "collection_semantics": 4,
             "json_processor": 4,
-            "multipart_files": 12,
+            "multipart_files": 8,
             "transformation_semantics": 10
           }
         },
@@ -83,7 +83,7 @@
       "top_3_next_work": [
         "response_body_non_promoted",
         "classification_only",
-        "multipart_files"
+        "transformation_semantics"
       ],
       "top_failure_patterns": {
         "expected_block_got_200": 246,
@@ -91,12 +91,12 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "classification_only": 190,
+        "classification_only": 194,
         "collection_mapping": 2,
         "collection_semantics": 10,
         "intervention_blocking": 1,
         "json_processor": 4,
-        "multipart_files": 12,
+        "multipart_files": 8,
         "request_uri_mapping": 4,
         "response_body_non_promoted": 284,
         "response_header_hook": 4,
@@ -138,10 +138,10 @@
             "not_executable": 12
           },
           "top_work_directions": {
-            "classification_only": 119,
+            "classification_only": 123,
             "collection_semantics": 4,
             "json_processor": 4,
-            "multipart_files": 12,
+            "multipart_files": 8,
             "transformation_semantics": 10
           }
         },
@@ -193,12 +193,12 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "classification_only": 190,
+        "classification_only": 194,
         "collection_mapping": 2,
         "collection_semantics": 10,
         "intervention_blocking": 1,
         "json_processor": 4,
-        "multipart_files": 12,
+        "multipart_files": 8,
         "request_uri_mapping": 4,
         "response_body_non_promoted": 284,
         "response_header_hook": 4,
@@ -240,10 +240,10 @@
             "not_executable": 12
           },
           "top_work_directions": {
-            "classification_only": 123,
+            "classification_only": 127,
             "collection_semantics": 4,
             "json_processor": 4,
-            "multipart_files": 12,
+            "multipart_files": 8,
             "transformation_semantics": 10
           }
         },
@@ -296,12 +296,12 @@
         "not_executable": 24
       },
       "top_work_directions": {
-        "classification_only": 194,
+        "classification_only": 198,
         "collection_mapping": 2,
         "collection_semantics": 10,
         "intervention_blocking": 3,
         "json_processor": 4,
-        "multipart_files": 12,
+        "multipart_files": 8,
         "request_uri_mapping": 4,
         "response_body_non_promoted": 300,
         "response_header_hook": 4,
@@ -310,7 +310,7 @@
     }
   },
   "framework_root": "/root/git/ModSecurity-test-Framework",
-  "generated_at": "2026-06-14T10:36:26Z",
+  "generated_at": "2026-06-14T10:46:38Z",
   "guardrails": {
     "classification_is_explanatory_only": true,
     "feature_demo_runtime_cases": 0,
@@ -7009,7 +7009,7 @@
     "2": {
       "classification": {
         "collection_name_normalization_semantics": 12,
-        "multipart_collection_semantics": 12,
+        "multipart_processor_activation_missing": 12,
         "pending": 36,
         "transformation_request_literal_no_match": 30,
         "with_mrts_detection_only_non_disruptive": 337,
@@ -7042,431 +7042,10 @@
       "focus": "ARGS, ARGS_NAMES, REQUEST_BODY, JSON, XML, Multipart/FILES, operators, and transformations",
       "goal": "Treat Phase 2 as the largest coverage lever, but split body/XML/multipart work into separate clusters.",
       "priority": {
-        "P2": 12,
         "P3": 78,
-        "report_only": 361
+        "report_only": 373
       },
       "queue": [
-        {
-          "actual_status": 200,
-          "case_id": "files_names_mixed_case_filename_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "files_names_mixed_case_filename_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "multipart_duplicate_field_names_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "args_names",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "ARGS_NAMES",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "multipart_duplicate_field_names_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "apache",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "args_names",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "ARGS_NAMES",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "files_names_mixed_case_filename_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "files_names_mixed_case_filename_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "multipart_duplicate_field_names_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "args_names",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "ARGS_NAMES",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "multipart_duplicate_field_names_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "haproxy",
-          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "args_names",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "ARGS_NAMES",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "files_names_mixed_case_filename_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/files_names_mixed_case_filename_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "files_names_mixed_case_filename_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/files_names_mixed_case_filename_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "multipart_duplicate_field_names_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/multipart_duplicate_field_names_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "args_names",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "ARGS_NAMES",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "multipart_duplicate_field_names_gap",
-          "category": "multipart",
-          "classification": "multipart_collection_semantics",
-          "connector": "nginx",
-          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/multipart_duplicate_field_names_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "args_names",
-            "multipart_files",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "ARGS_NAMES",
-            "FILES",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "multipart_files"
-          ]
-        },
         {
           "actual_status": 200,
           "case_id": "duplicate_args_encoded_separator_edge",
@@ -10522,6 +10101,39 @@
           "actual_status": 200,
           "case_id": "files_names_mixed_case_filename_gap",
           "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "files_names_mixed_case_filename_gap",
+          "category": "multipart",
           "classification": "with_mrts_detection_only_non_disruptive",
           "connector": "apache",
           "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
@@ -10542,6 +10154,39 @@
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "files_names_mixed_case_filename_gap",
+          "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
           "variable_or_collection": [
             "INTERVENTION",
             "FILES",
@@ -10856,6 +10501,43 @@
           "actual_status": 200,
           "case_id": "multipart_duplicate_field_names_gap",
           "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "args_names",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "ARGS_NAMES",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "multipart_duplicate_field_names_gap",
+          "category": "multipart",
           "classification": "with_mrts_detection_only_non_disruptive",
           "connector": "apache",
           "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
@@ -10878,6 +10560,43 @@
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "ARGS_NAMES",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "multipart_duplicate_field_names_gap",
+          "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "apache",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "args_names",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
@@ -14443,6 +14162,39 @@
           "actual_status": 200,
           "case_id": "files_names_mixed_case_filename_gap",
           "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "expected HTTP 403; observed HTTP 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "files_names_mixed_case_filename_gap",
+          "category": "multipart",
           "classification": "with_mrts_detection_only_non_disruptive",
           "connector": "haproxy",
           "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
@@ -14463,6 +14215,39 @@
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "files_names_mixed_case_filename_gap",
+          "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "expected HTTP 403; observed HTTP 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
           "variable_or_collection": [
             "INTERVENTION",
             "FILES",
@@ -14777,6 +14562,43 @@
           "actual_status": 200,
           "case_id": "multipart_duplicate_field_names_gap",
           "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "args_names",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "expected HTTP 403; observed HTTP 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "ARGS_NAMES",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "multipart_duplicate_field_names_gap",
+          "category": "multipart",
           "classification": "with_mrts_detection_only_non_disruptive",
           "connector": "haproxy",
           "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
@@ -14799,6 +14621,43 @@
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "ARGS_NAMES",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "multipart_duplicate_field_names_gap",
+          "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "haproxy",
+          "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "args_names",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "expected HTTP 403; observed HTTP 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
@@ -18364,6 +18223,39 @@
           "actual_status": 200,
           "case_id": "files_names_mixed_case_filename_gap",
           "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/files_names_mixed_case_filename_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "files_names_mixed_case_filename_gap",
+          "category": "multipart",
           "classification": "with_mrts_detection_only_non_disruptive",
           "connector": "nginx",
           "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/files_names_mixed_case_filename_gap/result.json",
@@ -18384,6 +18276,39 @@
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "files_names_mixed_case_filename_gap",
+          "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/files_names_mixed_case_filename_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
           "variable_or_collection": [
             "INTERVENTION",
             "FILES",
@@ -18698,6 +18623,43 @@
           "actual_status": 200,
           "case_id": "multipart_duplicate_field_names_gap",
           "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/multipart_duplicate_field_names_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "args_names",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "ARGS_NAMES",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "multipart_duplicate_field_names_gap",
+          "category": "multipart",
           "classification": "with_mrts_detection_only_non_disruptive",
           "connector": "nginx",
           "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/multipart_duplicate_field_names_gap/result.json",
@@ -18720,6 +18682,43 @@
           "runtime_status": "FAIL",
           "source_kind": "framework-owned",
           "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "ARGS",
+            "ARGS_NAMES",
+            "FILES",
+            "REQUEST_BODY"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "multipart_duplicate_field_names_gap",
+          "category": "multipart",
+          "classification": "multipart_processor_activation_missing",
+          "connector": "nginx",
+          "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/multipart_duplicate_field_names_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "args",
+            "args_names",
+            "multipart_files",
+            "request_body_urlencoded"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "no-mrts",
+          "phase": "2",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
           "variable_or_collection": [
             "INTERVENTION",
             "ARGS",
@@ -21940,426 +21939,6 @@
           "queue": [
             {
               "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "apache",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "apache",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "apache",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "apache",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "haproxy",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "haproxy",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "haproxy",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "haproxy",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "nginx",
-              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "nginx",
-              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "nginx",
-              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "nginx",
-              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
               "case_id": "duplicate_args_encoded_separator_edge",
               "category": "collections",
               "classification": "collection_name_normalization_semantics",
@@ -25355,6 +24934,39 @@
               "actual_status": 200,
               "case_id": "files_names_mixed_case_filename_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "apache",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "apache",
               "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
@@ -25375,6 +24987,39 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "apache",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "FILES",
@@ -25689,6 +25334,43 @@
               "actual_status": 200,
               "case_id": "multipart_duplicate_field_names_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "apache",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "apache",
               "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
@@ -25711,6 +25393,43 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "apache",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "ARGS",
@@ -29156,6 +28875,39 @@
               "actual_status": 200,
               "case_id": "files_names_mixed_case_filename_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "haproxy",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "expected HTTP 403; observed HTTP 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "haproxy",
               "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
@@ -29176,6 +28928,39 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "haproxy",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "expected HTTP 403; observed HTTP 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "FILES",
@@ -29490,6 +29275,43 @@
               "actual_status": 200,
               "case_id": "multipart_duplicate_field_names_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "haproxy",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "expected HTTP 403; observed HTTP 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "haproxy",
               "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
@@ -29512,6 +29334,43 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "haproxy",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "expected HTTP 403; observed HTTP 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "ARGS",
@@ -32957,6 +32816,39 @@
               "actual_status": 200,
               "case_id": "files_names_mixed_case_filename_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "nginx",
+              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "nginx",
               "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/files_names_mixed_case_filename_gap/result.json",
@@ -32977,6 +32869,39 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "nginx",
+              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "FILES",
@@ -33291,6 +33216,43 @@
               "actual_status": 200,
               "case_id": "multipart_duplicate_field_names_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "nginx",
+              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "nginx",
               "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/multipart_duplicate_field_names_gap/result.json",
@@ -33313,6 +33275,43 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "nginx",
+              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "ARGS",
@@ -36473,10 +36472,10 @@
             "not_executable": 36
           },
           "top_work_directions": {
-            "classification_only": 349,
+            "classification_only": 361,
             "collection_semantics": 12,
             "json_processor": 12,
-            "multipart_files": 36,
+            "multipart_files": 24,
             "transformation_semantics": 30
           }
         },
@@ -38087,426 +38086,6 @@
         "multipart": {
           "queue": [
             {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "apache",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "apache",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "apache",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "apache",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "haproxy",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "haproxy",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "haproxy",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "haproxy",
-              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "nginx",
-              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "files_names_mixed_case_filename_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "nginx",
-              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/files_names_mixed_case_filename_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "nginx",
-              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "multipart_duplicate_field_names_gap",
-              "category": "multipart",
-              "classification": "multipart_collection_semantics",
-              "connector": "nginx",
-              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/multipart_duplicate_field_names_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "args_names",
-                "multipart_files",
-                "request_body_urlencoded"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "ARGS_NAMES",
-                "FILES",
-                "REQUEST_BODY"
-              ],
-              "work_direction": [
-                "multipart_files"
-              ]
-            },
-            {
               "actual_status": null,
               "case_id": "files_empty_part_future_compatibility",
               "category": "multipart",
@@ -39302,6 +38881,39 @@
               "actual_status": 200,
               "case_id": "files_names_mixed_case_filename_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "apache",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "apache",
               "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
@@ -39322,6 +38934,39 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "apache",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "FILES",
@@ -39438,6 +39083,43 @@
               "actual_status": 200,
               "case_id": "multipart_duplicate_field_names_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "apache",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "apache",
               "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
@@ -39460,6 +39142,43 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "apache",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "ARGS",
@@ -39908,6 +39627,39 @@
               "actual_status": 200,
               "case_id": "files_names_mixed_case_filename_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "haproxy",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "expected HTTP 403; observed HTTP 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "haproxy",
               "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
@@ -39928,6 +39680,39 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "haproxy",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "expected HTTP 403; observed HTTP 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "FILES",
@@ -40044,6 +39829,43 @@
               "actual_status": 200,
               "case_id": "multipart_duplicate_field_names_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "haproxy",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "expected HTTP 403; observed HTTP 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "haproxy",
               "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
@@ -40066,6 +39888,43 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "haproxy",
+              "evidence": "/tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "expected HTTP 403; observed HTTP 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "ARGS",
@@ -40514,6 +40373,39 @@
               "actual_status": 200,
               "case_id": "files_names_mixed_case_filename_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "nginx",
+              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "nginx",
               "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/files_names_mixed_case_filename_gap/result.json",
@@ -40534,6 +40426,39 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "files_names_mixed_case_filename_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "nginx",
+              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/files_names_mixed_case_filename_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "FILES",
@@ -40650,6 +40575,43 @@
               "actual_status": 200,
               "case_id": "multipart_duplicate_field_names_gap",
               "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "nginx",
+              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
               "classification": "with_mrts_detection_only_non_disruptive",
               "connector": "nginx",
               "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/multipart_duplicate_field_names_gap/result.json",
@@ -40672,6 +40634,43 @@
               "runtime_status": "FAIL",
               "source_kind": "framework-owned",
               "test_variant": "no-crs",
+              "variable_or_collection": [
+                "INTERVENTION",
+                "ARGS",
+                "ARGS_NAMES",
+                "FILES",
+                "REQUEST_BODY"
+              ],
+              "work_direction": [
+                "classification_only"
+              ]
+            },
+            {
+              "actual_status": 200,
+              "case_id": "multipart_duplicate_field_names_gap",
+              "category": "multipart",
+              "classification": "multipart_processor_activation_missing",
+              "connector": "nginx",
+              "evidence": "/src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/multipart_duplicate_field_names_gap/result.json",
+              "expected_status": 403,
+              "failure_pattern": [
+                "expected_block_got_200"
+              ],
+              "functional_area": [
+                "action_intervention",
+                "args",
+                "args_names",
+                "multipart_files",
+                "request_body_urlencoded"
+              ],
+              "mrts_corpus": "none",
+              "mrts_variant": "no-mrts",
+              "phase": "2",
+              "priority": "report_only",
+              "reason": "fail: expected HTTP 403, observed 200",
+              "runtime_status": "FAIL",
+              "source_kind": "framework-owned",
+              "test_variant": "with-crs",
               "variable_or_collection": [
                 "INTERVENTION",
                 "ARGS",
@@ -41130,8 +41129,8 @@
             "not_executable": 24
           },
           "top_work_directions": {
-            "classification_only": 54,
-            "multipart_files": 36
+            "classification_only": 66,
+            "multipart_files": 24
           }
         },
         "operators": {
@@ -47751,10 +47750,10 @@
         "not_executable": 36
       },
       "top_work_directions": {
-        "classification_only": 361,
+        "classification_only": 373,
         "collection_semantics": 12,
         "json_processor": 12,
-        "multipart_files": 36,
+        "multipart_files": 24,
         "transformation_semantics": 30
       },
       "unique_runtime_cases": 176

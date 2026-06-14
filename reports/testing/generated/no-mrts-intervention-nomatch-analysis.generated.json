@@ -47,16 +47,16 @@
         "suspected_cause": "The XML body and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML."
       },
       {
-        "cause": "multipart_collection_semantics",
+        "cause": "multipart_processor_activation_missing",
         "count": 12,
         "example_cases": [
           "files_names_mixed_case_filename_gap",
           "multipart_duplicate_field_names_gap"
         ],
-        "label": "Multipart collection semantics",
-        "risk": "medium",
-        "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
-        "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token."
+        "label": "Multipart processor activation missing",
+        "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
+        "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
+        "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections."
       },
       {
         "cause": "phase1_request_body_unavailable_or_empty_body",
@@ -85,7 +85,7 @@
       },
       {
         "count": 12,
-        "value": "multipart_collection_semantics"
+        "value": "multipart_processor_activation_missing"
       },
       {
         "count": 3,
@@ -192,12 +192,8 @@
         "value": "P3"
       },
       {
-        "count": 24,
+        "count": 36,
         "value": "report_only"
-      },
-      {
-        "count": 12,
-        "value": "P2"
       }
     ],
     "source_categories": [
@@ -299,6 +295,10 @@
     "work_directions": [
       {
         "count": 36,
+        "value": "classification_only"
+      },
+      {
+        "count": 36,
         "value": "transformation_semantics"
       },
       {
@@ -306,20 +306,12 @@
         "value": "collection_semantics"
       },
       {
-        "count": 24,
-        "value": "classification_only"
-      },
-      {
-        "count": 12,
-        "value": "multipart_files"
-      },
-      {
         "count": 3,
         "value": "request_body_processor"
       }
     ]
   },
-  "generated_at": "2026-06-14T10:36:27Z",
+  "generated_at": "2026-06-14T10:46:39Z",
   "groups": {
     "by_cause": [
       {
@@ -525,7 +517,7 @@
             "value": "ARGS_NAMES"
           }
         ],
-        "value": "multipart_collection_semantics"
+        "value": "multipart_processor_activation_missing"
       },
       {
         "connectors": [
@@ -2212,8 +2204,8 @@
       "backend_reached": true,
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2229,7 +2221,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -2242,19 +2234,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4705",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "FILES_NAMES",
       "transformations": [],
       "variant": "no-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -2268,8 +2260,8 @@
       "backend_reached": true,
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -2285,7 +2277,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -2298,19 +2290,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4703",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "ARGS_NAMES",
       "transformations": [],
       "variant": "no-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -3223,8 +3215,8 @@
       "backend_reached": true,
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3240,7 +3232,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -3253,19 +3245,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4705",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "FILES_NAMES",
       "transformations": [],
       "variant": "no-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -3279,8 +3271,8 @@
       "backend_reached": true,
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -3296,7 +3288,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -3309,19 +3301,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4703",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "ARGS_NAMES",
       "transformations": [],
       "variant": "no-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -4234,8 +4226,8 @@
       "backend_reached": true,
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4251,7 +4243,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -4264,19 +4256,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4705",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "FILES_NAMES",
       "transformations": [],
       "variant": "no-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -4290,8 +4282,8 @@
       "backend_reached": true,
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -4307,7 +4299,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -4320,19 +4312,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4703",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "ARGS_NAMES",
       "transformations": [],
       "variant": "no-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -5245,8 +5237,8 @@
       "backend_reached": true,
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5262,7 +5254,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -5275,19 +5267,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4705",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "FILES_NAMES",
       "transformations": [],
       "variant": "with-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -5301,8 +5293,8 @@
       "backend_reached": true,
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "apache",
       "evidence": {
         "audit_log_present": "no",
@@ -5318,7 +5310,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -5331,19 +5323,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4703",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "ARGS_NAMES",
       "transformations": [],
       "variant": "with-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -6200,8 +6192,8 @@
       "backend_reached": true,
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6217,7 +6209,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -6230,19 +6222,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4705",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "FILES_NAMES",
       "transformations": [],
       "variant": "with-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -6256,8 +6248,8 @@
       "backend_reached": true,
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "nginx",
       "evidence": {
         "audit_log_present": "no",
@@ -6273,7 +6265,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -6286,19 +6278,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4703",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "ARGS_NAMES",
       "transformations": [],
       "variant": "with-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -7155,8 +7147,8 @@
       "backend_reached": true,
       "case_id": "files_names_mixed_case_filename_gap",
       "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7172,7 +7164,7 @@
       ],
       "operator": "@contains MiXeD.TXT",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 130,
@@ -7185,19 +7177,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4705",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "FILES_NAMES",
       "transformations": [],
       "variant": "with-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {
@@ -7211,8 +7203,8 @@
       "backend_reached": true,
       "case_id": "multipart_duplicate_field_names_gap",
       "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "cause": "multipart_collection_semantics",
-      "classification": "multipart_collection_semantics",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "multipart_processor_activation_missing",
       "connector": "haproxy",
       "evidence": {
         "audit_log_present": "no",
@@ -7228,7 +7220,7 @@
       ],
       "operator": "@contains upload",
       "phase": "2",
-      "priority": "P2",
+      "priority": "report_only",
       "raw_request_contains_expected_value": true,
       "request": {
         "body_length": 175,
@@ -7241,19 +7233,19 @@
         "path": "/",
         "query": "-"
       },
-      "risk": "medium",
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
       "rule_id": "4703",
       "rule_loaded": true,
       "rule_matched": false,
-      "safe_fixability": "not a small safe fix; belongs with multipart/body processor evidence work",
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
       "source_category": "multipart",
       "source_kind": "framework-owned",
-      "suspected_cause": "Multipart FILES/ARGS_NAMES population does not expose the expected field or filename token.",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
       "target": "ARGS_NAMES",
       "transformations": [],
       "variant": "with-crs/no-mrts",
       "work_direction": [
-        "multipart_files"
+        "classification_only"
       ]
     },
     {

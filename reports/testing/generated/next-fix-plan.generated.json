@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-14T10:36:29Z",
+  "generated_at": "2026-06-14T10:46:41Z",
   "priority_plan": {
     "P0": [],
     "P1": [
@@ -16,21 +16,7 @@
         "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics"
       }
     ],
-    "P2": [
-      {
-        "cluster_name": "multipart_files",
-        "connector": "apache, nginx, haproxy",
-        "count": 12,
-        "likely_change": "compare multipart variable population across connectors with one representative request",
-        "risk": "medium",
-        "tests": [
-          "targeted multipart cases",
-          "connector smoke for touched connector",
-          "full matrix if parser behavior changes"
-        ],
-        "why": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits"
-      }
-    ],
+    "P2": [],
     "P3": [
       {
         "cluster_name": "phase4_hard_abort_capability",
@@ -97,6 +83,10 @@
       {
         "cluster": "xml_processor_activation_missing",
         "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
+      },
+      {
+        "cluster": "multipart_processor_activation_missing",
+        "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections"
       },
       {
         "cluster": "collection_name_normalization_semantics",

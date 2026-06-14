@@ -1,6 +1,6 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-14T10:36:29Z`
+Generated at: `2026-06-14T10:46:41Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -33,7 +33,7 @@ Generated at: `2026-06-14T10:36:29Z`
 | transformation_semantics | 36 | apache, haproxy, nginx | not a harness quick win; needs semantic comparison against libmodsecurity expectations | high | compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes |
 | collection_name_normalization_semantics | 30 | apache, haproxy, nginx | metadata-only semantic split; needs native/libmodsecurity comparison before any fix | medium to high | compare collection-name normalization semantics against native/libmodsecurity before treating as a runtime fix |
 | xml_processor_activation_missing | 24 | apache, haproxy, nginx | classification-only; XML body exists but the fixture does not enable the XML request body processor | low if kept report-only; high if treated as connector runtime evidence | keep XML processor activation-missing rows report-only; do not change rules or Expected statuses |
-| multipart_files | 12 | apache, haproxy, nginx | possibly fixable; likely connector/body parser evidence work | medium | compare multipart variable population across connectors with one representative request |
+| multipart_processor_activation_missing | 12 | apache, haproxy, nginx | classification-only; multipart body and boundary exist but the fixture does not enable request body access before expecting FILES/ARGS_NAMES collections | low if kept report-only; high if treated as connector multipart runtime evidence | keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses |
 | audit_log_evidence | 6 | apache, haproxy, nginx | fixable if audit-log assertion path is wrong; otherwise report/classification-only | low to medium | inspect `v3_action_nolog_pass_no_audit` audit expectation and report classification |
 | phase4_log_only_no_abort | 6 | nginx | report-only unless the case is meant to exercise strict hard abort | low if reported honestly, high if promoted as hard abort | keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence |
 | intervention_blocking | 5 | apache, haproxy, nginx | partly fixable; first split true connector gaps from future/native semantic cases | medium to high | sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation |
@@ -141,8 +141,8 @@ Generated at: `2026-06-14T10:36:29Z`
 | 12 | duplicate_args_encoded_separator_edge | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | collection_name_normalization_semantics | {'403→200': 12} | 4608 | ARGS_NAMES |
 | 12 | duplicate_header_case_normalization_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | collection_name_normalization_semantics | {'403→200': 12} | 4607 | REQUEST_HEADERS_NAMES |
 | 12 | edge_semicolon_query_args_names | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | collection_name_normalization_semantics | {'403→200': 12} | 4513 | ARGS_NAMES |
-| 12 | files_names_mixed_case_filename_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | multipart_files | {'403→200': 12} | 4705 | FILES_NAMES |
-| 12 | multipart_duplicate_field_names_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | multipart_files | {'403→200': 12} | 4703 | ARGS_NAMES |
+| 12 | files_names_mixed_case_filename_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | multipart_processor_activation_missing | {'403→200': 12} | 4705 | FILES_NAMES |
+| 12 | multipart_duplicate_field_names_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | multipart_processor_activation_missing | {'403→200': 12} | 4703 | ARGS_NAMES |
 | 12 | parser_xml_partial_body_future_target | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | xml_processor_activation_missing | {'403→200': 12} | 4610 | XML |
 | 12 | phase4_auditlog_outbound_multiline_section_gap | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | phase4_missing_abort_evidence | {'403→200': 12} | 4910 | RESPONSE_BODY |
 | 12 | sqli_like_keyword_spacing_probe | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | transformation_semantics | {'403→200': 12} | 4715 | ARGS:q |
@@ -169,4 +169,5 @@ Generated at: `2026-06-14T10:36:29Z`
 - Nicht als nächstes bearbeiten: `response_header_mrts_detection_only`, weil classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action.
 - Nicht als nächstes bearbeiten: `with_mrts_detection_only_non_disruptive`, weil classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action.
 - Nicht als nächstes bearbeiten: `xml_processor_activation_missing`, weil classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML.
+- Nicht als nächstes bearbeiten: `multipart_processor_activation_missing`, weil classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections.
 - Nicht als nächstes bearbeiten: `collection_name_normalization_semantics`, weil metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes.

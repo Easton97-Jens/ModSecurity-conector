@@ -1,14 +1,15 @@
 # Body Processor Failure Analysis
 
-- Generated at: `2026-06-14T10:37:11Z`
+- Generated at: `2026-06-14T10:46:47Z`
 - Before selected metadata fix: request_body_processor **9**, multipart_files **12**, xml_processor **24**, combined **45**.
-- After selected metadata fix: request_body_processor **0**, multipart_files **12**, xml_processor **0**, combined **12**.
+- After selected metadata fix: request_body_processor **0**, multipart_files **0**, xml_processor **0**, combined **0**.
 - Selected subcluster rows: **9**
 - URL-encoded form rows moved out of active body-processor work: **18** -> **0**.
 - XML processor activation-missing rows moved out of active xml_processor work: **24** -> **0**.
-- Rule loaded evidence rows: **21**
+- Multipart processor activation-missing rows moved out of active multipart_files work: **12** -> **0**.
+- Rule loaded evidence rows: **9**
 - Target rule matched rows: **0**
-- Backend reached rows: **21**
+- Backend reached rows: **9**
 - Request body access explicitly on: **0**
 - Collection/target evidence rows: **0**
 
@@ -86,58 +87,83 @@
 | body_hashes | `a1cbdf58569b7f77dd47ef83641e48fe830098618b019034b88563050b12eb06`: 6, `9aab1567b5d32b5a5a60ad9f5f6f8f8cf485dbf9aa938905e71a0e88b009f011`: 6, `7eebe35c1d4703c2ed4df34cea9d4149c8aa61bbc104d7c2db81978128ae96e4`: 6, `0c13b76b5721981c5ae77b5629399200d777a7e3b54e6c6d1dbbd43b0d5b75d6`: 6 |
 | request_body_seen | `unknown`: 16, `yes`: 8 |
 
+## Multipart Processor Activation-Missing Subcluster
+
+- Count: **12**
+- Active multipart_files rows before report sync: **12**
+- Active multipart_files rows after report sync: **0**
+- Classification: `multipart_processor_activation_missing`
+- Work direction: `classification_only`
+- Priority: `report_only`
+- Body sent rows: **12**
+- Correct Multipart Content-Type rows: **12**
+- Boundary valid rows: **12**
+- SecRequestBodyAccess On rows: **0**
+- Multipart parser active rows: **0**
+- Rule loaded rows: **12**
+- Rule matched rows: **0**
+- FILES/FILES_NAMES evidence rows: **0**
+- ARGS/ARGS_NAMES evidence rows: **0**
+- Collection/target evidence rows: **0**
+- Backend reached rows: **12**
+- Root cause: The multipart bodies, Content-Type, boundaries, field names, and filenames are present, but these fixtures do not enable SecRequestBodyAccess before expecting FILES/ARGS_NAMES collection evidence.
+- Fix: metadata/report-only; no multipart body, Content-Type, boundary, rule, Expected status, connector-core behavior, or PASS/FAIL value changed
+- Risk: low when kept report-only; high if treated as a connector multipart parser failure without request body activation
+
+| field | distribution |
+| --- | --- |
+| connectors | `apache`: 4, `nginx`: 4, `haproxy`: 4 |
+| variants | `no-crs/no-mrts`: 6, `with-crs/no-mrts`: 6 |
+| case_ids | `files_names_mixed_case_filename_gap`: 6, `multipart_duplicate_field_names_gap`: 6 |
+| rule_ids | `4705`: 6, `4703`: 6 |
+| targets | `FILES_NAMES`: 6, `ARGS_NAMES`: 6 |
+| operators | `@contains MiXeD.TXT`: 6, `@contains upload`: 6 |
+| content_types | `multipart/form-data; boundary=----AaB03x`: 12 |
+| boundaries | `----AaB03x`: 12 |
+| boundary_status | `valid`: 12 |
+| part_counts | `1`: 6, `2`: 6 |
+| field_names | `upload`: 18 |
+| filenames | `MiXeD.TXT`: 6, `a.txt`: 6, `b.txt`: 6 |
+| body_lengths | `130`: 6, `175`: 6 |
+| body_hashes | `c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de`: 6, `fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a`: 6 |
+| request_body_seen | `unknown`: 8, `yes`: 4 |
+
 ## Active Body Processor Distributions
 
 ### Connectors
 
 | value | count |
 | --- | ---: |
-| `apache` | 4 |
-| `nginx` | 4 |
-| `haproxy` | 4 |
 
 ### Variants
 
 | value | count |
 | --- | ---: |
-| `no-crs/no-mrts` | 6 |
-| `with-crs/no-mrts` | 6 |
 
 ### Body Kinds
 
 | value | count |
 | --- | ---: |
-| `multipart` | 12 |
 
 ### Content Types
 
 | value | count |
 | --- | ---: |
-| `multipart/form-data; boundary=----AaB03x` | 12 |
 
 ### Targets
 
 | value | count |
 | --- | ---: |
-| `FILES_NAMES` | 6 |
-| `ARGS_NAMES` | 6 |
 
 ### Failure Categories
 
 | value | count |
 | --- | ---: |
-| `multipart_files` | 12 |
 
 ## Grouped Rows
 
 | count | connector | body kind | content-type | phase | target | status | category | variants | matched | cause | fixability |
 | ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- | --- |
-| 2 | apache | multipart | `multipart/form-data; boundary=----AaB03x` | 2 | `ARGS_NAMES` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
-| 2 | apache | multipart | `multipart/form-data; boundary=----AaB03x` | 2 | `FILES_NAMES` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
-| 2 | haproxy | multipart | `multipart/form-data; boundary=----AaB03x` | 2 | `ARGS_NAMES` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
-| 2 | haproxy | multipart | `multipart/form-data; boundary=----AaB03x` | 2 | `FILES_NAMES` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
-| 2 | nginx | multipart | `multipart/form-data; boundary=----AaB03x` | 2 | `ARGS_NAMES` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
-| 2 | nginx | multipart | `multipart/form-data; boundary=----AaB03x` | 2 | `FILES_NAMES` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
 
 ## Current Next Fix Plan
 
@@ -150,4 +176,5 @@
 - The selected subcluster is metadata-only and remains a runtime FAIL; it is no longer counted as body-processor work.
 - URL-encoded/form rows are report-only with-MRTS DetectionOnly overlay evidence; no harness or connector-core change is made for them.
 - XML rows in the activation-missing subcluster are report-only because their fixtures do not enable the XML request body processor.
-- Remaining active body-processor rows are multipart-only after the URL-encoded and XML metadata splits.
+- Multipart rows in the activation-missing subcluster are report-only because their fixtures do not enable request body access before expecting FILES/ARGS_NAMES collection evidence.
+- Remaining active body-processor rows are zero after the URL-encoded, XML, and Multipart metadata splits.

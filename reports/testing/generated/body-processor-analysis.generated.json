@@ -1,961 +1,738 @@
 {
   "distribution": {
-    "body_kinds": [
-      {
-        "count": 12,
-        "value": "multipart"
-      }
-    ],
-    "connectors": [
-      {
-        "count": 4,
-        "value": "apache"
-      },
-      {
-        "count": 4,
-        "value": "nginx"
-      },
-      {
-        "count": 4,
-        "value": "haproxy"
-      }
-    ],
-    "content_types": [
-      {
-        "count": 12,
-        "value": "multipart/form-data; boundary=----AaB03x"
-      }
-    ],
-    "failure_categories": [
-      {
-        "count": 12,
-        "value": "multipart_files"
-      }
-    ],
-    "targets": [
-      {
-        "count": 6,
-        "value": "FILES_NAMES"
-      },
-      {
-        "count": 6,
-        "value": "ARGS_NAMES"
-      }
-    ],
-    "variants": [
-      {
-        "count": 6,
-        "value": "no-crs/no-mrts"
-      },
-      {
-        "count": 6,
-        "value": "with-crs/no-mrts"
-      }
-    ]
+    "body_kinds": [],
+    "connectors": [],
+    "content_types": [],
+    "failure_categories": [],
+    "targets": [],
+    "variants": []
   },
-  "generated_at": "2026-06-14T10:37:11Z",
-  "groups": [
-    {
-      "body_kind": "multipart",
-      "body_seen": [
-        "unknown"
-      ],
-      "collection_evidence_count": 0,
-      "connector": "apache",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "count": 2,
-      "example_cases": [
-        "multipart_duplicate_field_names_gap"
-      ],
-      "failure_category": "multipart_files",
-      "fixability": "requires targeted native/connector comparison before code changes",
-      "phase": "2",
-      "request_body_access": [
-        "unknown"
-      ],
-      "risk": "medium",
-      "rule_matched_count": 0,
-      "source_kind": "framework-owned",
-      "status_pair": "403->200",
-      "suspected_cause": "Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence.",
-      "target": "ARGS_NAMES",
-      "variants": [
-        "no-crs/no-mrts",
-        "with-crs/no-mrts"
-      ]
+  "generated_at": "2026-06-14T10:46:47Z",
+  "groups": [],
+  "multipart_activation_missing_subcluster": {
+    "active_multipart_files_after_report_sync": 0,
+    "active_multipart_files_before_report_sync": 12,
+    "args_collection_evidence_count": 0,
+    "backend_reached_count": 12,
+    "body_hashes": {
+      "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de": 6,
+      "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a": 6
     },
-    {
-      "body_kind": "multipart",
-      "body_seen": [
-        "unknown"
-      ],
-      "collection_evidence_count": 0,
-      "connector": "apache",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "count": 2,
-      "example_cases": [
-        "files_names_mixed_case_filename_gap"
-      ],
-      "failure_category": "multipart_files",
-      "fixability": "requires targeted native/connector comparison before code changes",
-      "phase": "2",
-      "request_body_access": [
-        "unknown"
-      ],
-      "risk": "medium",
-      "rule_matched_count": 0,
-      "source_kind": "framework-owned",
-      "status_pair": "403->200",
-      "suspected_cause": "Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence.",
-      "target": "FILES_NAMES",
-      "variants": [
-        "no-crs/no-mrts",
-        "with-crs/no-mrts"
-      ]
+    "body_lengths": {
+      "130": 6,
+      "175": 6
     },
-    {
-      "body_kind": "multipart",
-      "body_seen": [
-        "yes"
-      ],
-      "collection_evidence_count": 0,
-      "connector": "haproxy",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "count": 2,
-      "example_cases": [
-        "multipart_duplicate_field_names_gap"
-      ],
-      "failure_category": "multipart_files",
-      "fixability": "requires targeted native/connector comparison before code changes",
-      "phase": "2",
-      "request_body_access": [
-        "unknown"
-      ],
-      "risk": "medium",
-      "rule_matched_count": 0,
-      "source_kind": "framework-owned",
-      "status_pair": "403->200",
-      "suspected_cause": "Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence.",
-      "target": "ARGS_NAMES",
-      "variants": [
-        "no-crs/no-mrts",
-        "with-crs/no-mrts"
-      ]
+    "body_sent_count": 12,
+    "boundaries": {
+      "----AaB03x": 12
     },
-    {
-      "body_kind": "multipart",
-      "body_seen": [
-        "yes"
-      ],
-      "collection_evidence_count": 0,
-      "connector": "haproxy",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "count": 2,
-      "example_cases": [
-        "files_names_mixed_case_filename_gap"
-      ],
-      "failure_category": "multipart_files",
-      "fixability": "requires targeted native/connector comparison before code changes",
-      "phase": "2",
-      "request_body_access": [
-        "unknown"
-      ],
-      "risk": "medium",
-      "rule_matched_count": 0,
-      "source_kind": "framework-owned",
-      "status_pair": "403->200",
-      "suspected_cause": "Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence.",
-      "target": "FILES_NAMES",
-      "variants": [
-        "no-crs/no-mrts",
-        "with-crs/no-mrts"
-      ]
+    "boundary_status": {
+      "valid": 12
     },
-    {
-      "body_kind": "multipart",
-      "body_seen": [
-        "unknown"
-      ],
-      "collection_evidence_count": 0,
-      "connector": "nginx",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "count": 2,
-      "example_cases": [
-        "multipart_duplicate_field_names_gap"
-      ],
-      "failure_category": "multipart_files",
-      "fixability": "requires targeted native/connector comparison before code changes",
-      "phase": "2",
-      "request_body_access": [
-        "unknown"
-      ],
-      "risk": "medium",
-      "rule_matched_count": 0,
-      "source_kind": "framework-owned",
-      "status_pair": "403->200",
-      "suspected_cause": "Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence.",
-      "target": "ARGS_NAMES",
-      "variants": [
-        "no-crs/no-mrts",
-        "with-crs/no-mrts"
-      ]
+    "boundary_valid_count": 12,
+    "case_ids": {
+      "files_names_mixed_case_filename_gap": 6,
+      "multipart_duplicate_field_names_gap": 6
     },
-    {
-      "body_kind": "multipart",
-      "body_seen": [
-        "unknown"
-      ],
-      "collection_evidence_count": 0,
-      "connector": "nginx",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "count": 2,
-      "example_cases": [
-        "files_names_mixed_case_filename_gap"
-      ],
-      "failure_category": "multipart_files",
-      "fixability": "requires targeted native/connector comparison before code changes",
-      "phase": "2",
-      "request_body_access": [
-        "unknown"
-      ],
-      "risk": "medium",
-      "rule_matched_count": 0,
-      "source_kind": "framework-owned",
-      "status_pair": "403->200",
-      "suspected_cause": "Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence.",
-      "target": "FILES_NAMES",
-      "variants": [
-        "no-crs/no-mrts",
-        "with-crs/no-mrts"
-      ]
-    }
-  ],
+    "classification": "multipart_processor_activation_missing",
+    "collection_evidence_count": 0,
+    "connectors": {
+      "apache": 4,
+      "haproxy": 4,
+      "nginx": 4
+    },
+    "content_type_correct_count": 12,
+    "content_types": {
+      "multipart/form-data; boundary=----AaB03x": 12
+    },
+    "count": 12,
+    "examples": [
+      {
+        "actions": [
+          "id:4705",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'FILES_NAMES mixed case gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 130,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
+        "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
+        "case_id": "files_names_mixed_case_filename_gap",
+        "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "apache",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: runtime-difference.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload"
+        ],
+        "multipart_filenames": [
+          "MiXeD.TXT"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 1,
+        "operator": "@contains MiXeD.TXT",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "unknown",
+        "rule_id": "4705",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "FILES_NAMES",
+        "test_variant": "no-crs",
+        "transformations": [],
+        "variant": "no-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4703",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'duplicate multipart field names gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 175,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
+        "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
+        "case_id": "multipart_duplicate_field_names_gap",
+        "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "apache",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "args",
+          "args_names",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: connector-gap.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload",
+          "upload"
+        ],
+        "multipart_filenames": [
+          "a.txt",
+          "b.txt"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 2,
+        "operator": "@contains upload",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "unknown",
+        "rule_id": "4703",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "ARGS_NAMES",
+        "test_variant": "no-crs",
+        "transformations": [],
+        "variant": "no-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4705",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'FILES_NAMES mixed case gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 130,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
+        "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
+        "case_id": "files_names_mixed_case_filename_gap",
+        "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "nginx",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: runtime-difference.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload"
+        ],
+        "multipart_filenames": [
+          "MiXeD.TXT"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 1,
+        "operator": "@contains MiXeD.TXT",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "unknown",
+        "rule_id": "4705",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "FILES_NAMES",
+        "test_variant": "no-crs",
+        "transformations": [],
+        "variant": "no-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4703",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'duplicate multipart field names gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 175,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
+        "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
+        "case_id": "multipart_duplicate_field_names_gap",
+        "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "nginx",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "args",
+          "args_names",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: connector-gap.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload",
+          "upload"
+        ],
+        "multipart_filenames": [
+          "a.txt",
+          "b.txt"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 2,
+        "operator": "@contains upload",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "unknown",
+        "rule_id": "4703",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "ARGS_NAMES",
+        "test_variant": "no-crs",
+        "transformations": [],
+        "variant": "no-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4705",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'FILES_NAMES mixed case gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 130,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
+        "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
+        "case_id": "files_names_mixed_case_filename_gap",
+        "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "haproxy",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: runtime-difference.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload"
+        ],
+        "multipart_filenames": [
+          "MiXeD.TXT"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 1,
+        "operator": "@contains MiXeD.TXT",
+        "parse_error": true,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "yes",
+        "rule_id": "4705",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "FILES_NAMES",
+        "test_variant": "no-crs",
+        "transformations": [],
+        "variant": "no-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4703",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'duplicate multipart field names gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 175,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
+        "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
+        "case_id": "multipart_duplicate_field_names_gap",
+        "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "haproxy",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "args",
+          "args_names",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: connector-gap.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload",
+          "upload"
+        ],
+        "multipart_filenames": [
+          "a.txt",
+          "b.txt"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 2,
+        "operator": "@contains upload",
+        "parse_error": true,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "yes",
+        "rule_id": "4703",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "ARGS_NAMES",
+        "test_variant": "no-crs",
+        "transformations": [],
+        "variant": "no-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4705",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'FILES_NAMES mixed case gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 130,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
+        "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
+        "case_id": "files_names_mixed_case_filename_gap",
+        "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "apache",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: runtime-difference.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload"
+        ],
+        "multipart_filenames": [
+          "MiXeD.TXT"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 1,
+        "operator": "@contains MiXeD.TXT",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "unknown",
+        "rule_id": "4705",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "FILES_NAMES",
+        "test_variant": "with-crs",
+        "transformations": [],
+        "variant": "with-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4703",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'duplicate multipart field names gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 175,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
+        "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
+        "case_id": "multipart_duplicate_field_names_gap",
+        "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "apache",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "args",
+          "args_names",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: connector-gap.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload",
+          "upload"
+        ],
+        "multipart_filenames": [
+          "a.txt",
+          "b.txt"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 2,
+        "operator": "@contains upload",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "unknown",
+        "rule_id": "4703",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "ARGS_NAMES",
+        "test_variant": "with-crs",
+        "transformations": [],
+        "variant": "with-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4705",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'FILES_NAMES mixed case gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "multipart",
+        "body_length": 130,
+        "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
+        "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
+        "case_id": "files_names_mixed_case_filename_gap",
+        "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
+        "classification": "multipart_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "nginx",
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "expected_status": 403,
+        "failure_category": "multipart_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "multipart_files",
+          "request_body_urlencoded"
+        ],
+        "known_limitations": [
+          "Classification: runtime-difference.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "----AaB03x",
+        "multipart_boundary_status": "valid",
+        "multipart_field_names": [
+          "upload"
+        ],
+        "multipart_filenames": [
+          "MiXeD.TXT"
+        ],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 1,
+        "operator": "@contains MiXeD.TXT",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "multipart",
+        "request_body_access": "unknown",
+        "request_body_seen": "unknown",
+        "rule_id": "4705",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "FILES_NAMES",
+        "test_variant": "with-crs",
+        "transformations": [],
+        "variant": "with-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      }
+    ],
+    "field_names": {
+      "upload": 18
+    },
+    "filenames": {
+      "MiXeD.TXT": 6,
+      "a.txt": 6,
+      "b.txt": 6
+    },
+    "files_collection_evidence_count": 0,
+    "fix": "metadata/report-only; no multipart body, Content-Type, boundary, rule, Expected status, connector-core behavior, or PASS/FAIL value changed",
+    "multipart_parser_active_count": 0,
+    "operators": {
+      "@contains MiXeD.TXT": 6,
+      "@contains upload": 6
+    },
+    "part_counts": {
+      "1": 6,
+      "2": 6
+    },
+    "priority": "report_only",
+    "request_body_access_on_count": 0,
+    "request_body_seen": {
+      "unknown": 8,
+      "yes": 4
+    },
+    "risk": "low when kept report-only; high if treated as a connector multipart parser failure without request body activation",
+    "root_cause": "The multipart bodies, Content-Type, boundaries, field names, and filenames are present, but these fixtures do not enable SecRequestBodyAccess before expecting FILES/ARGS_NAMES collection evidence.",
+    "rule_ids": {
+      "4703": 6,
+      "4705": 6
+    },
+    "rule_loaded_count": 12,
+    "rule_matched_count": 0,
+    "targets": {
+      "ARGS_NAMES": 6,
+      "FILES_NAMES": 6
+    },
+    "variants": {
+      "no-crs/no-mrts": 6,
+      "with-crs/no-mrts": 6
+    },
+    "work_direction": "classification_only"
+  },
   "next_fix_plan": {
     "reason": "HTTP behavior passes; remaining failure is evidence/assertion semantics",
     "recommended_next_fix_cluster": "audit_log_evidence / v3_action_nolog_pass_no_audit"
   },
-  "records": [
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 130,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
-      "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "apache",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains MiXeD.TXT",
-      "parse_error": false,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "unknown",
-      "rule_id": "4705",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "FILES_NAMES",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 175,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
-      "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "apache",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "args",
-        "args_names",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains upload",
-      "parse_error": false,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "unknown",
-      "rule_id": "4703",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "ARGS_NAMES",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 130,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
-      "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "nginx",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains MiXeD.TXT",
-      "parse_error": false,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "unknown",
-      "rule_id": "4705",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "FILES_NAMES",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 175,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
-      "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "nginx",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "args",
-        "args_names",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains upload",
-      "parse_error": false,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "unknown",
-      "rule_id": "4703",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "ARGS_NAMES",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 130,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
-      "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "haproxy",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains MiXeD.TXT",
-      "parse_error": true,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "yes",
-      "rule_id": "4705",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "FILES_NAMES",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 175,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
-      "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "haproxy",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "args",
-        "args_names",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains upload",
-      "parse_error": true,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "yes",
-      "rule_id": "4703",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "ARGS_NAMES",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 130,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
-      "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "apache",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains MiXeD.TXT",
-      "parse_error": false,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "unknown",
-      "rule_id": "4705",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "FILES_NAMES",
-      "test_variant": "with-crs",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 175,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
-      "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "apache",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "args",
-        "args_names",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains upload",
-      "parse_error": false,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "unknown",
-      "rule_id": "4703",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "ARGS_NAMES",
-      "test_variant": "with-crs",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 130,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
-      "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "nginx",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains MiXeD.TXT",
-      "parse_error": false,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "unknown",
-      "rule_id": "4705",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "FILES_NAMES",
-      "test_variant": "with-crs",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 175,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
-      "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "nginx",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "args",
-        "args_names",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains upload",
-      "parse_error": false,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "unknown",
-      "rule_id": "4703",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "ARGS_NAMES",
-      "test_variant": "with-crs",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4705",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'FILES_NAMES mixed case gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 130,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"MiXeD.TXT",
-      "body_sha256": "c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de",
-      "case_id": "files_names_mixed_case_filename_gap",
-      "case_path": "framework:tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "haproxy",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains MiXeD.TXT",
-      "parse_error": true,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "yes",
-      "rule_id": "4705",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "FILES_NAMES",
-      "test_variant": "with-crs",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    },
-    {
-      "actions": [
-        "id:4703",
-        "phase:2",
-        "deny",
-        "status:403",
-        "msg:'duplicate multipart field names gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_kind": "multipart",
-      "body_length": 175,
-      "body_preview": "------AaB03x\\nContent-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\\n\\",
-      "body_sha256": "fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a",
-      "case_id": "multipart_duplicate_field_names_gap",
-      "case_path": "framework:tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-      "classification": "multipart_collection_semantics",
-      "collection_evidence": "no",
-      "connector": "haproxy",
-      "content_type": "multipart/form-data; boundary=----AaB03x",
-      "expected_status": 403,
-      "failure_category": "multipart_files",
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "functional_area": [
-        "action_intervention",
-        "args",
-        "args_names",
-        "multipart_files",
-        "request_body_urlencoded"
-      ],
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains upload",
-      "parse_error": true,
-      "path": "/",
-      "phase": "2",
-      "priority": "P2",
-      "query": "-",
-      "queue_category": "multipart",
-      "request_body_access": "unknown",
-      "request_body_seen": "yes",
-      "rule_id": "4703",
-      "rule_in_loadfile": true,
-      "rule_matched": false,
-      "source_corpus": "none",
-      "source_kind": "framework-owned",
-      "target": "ARGS_NAMES",
-      "test_variant": "with-crs",
-      "transformations": [],
-      "variant": "with-crs/no-mrts",
-      "work_direction": [
-        "multipart_files"
-      ],
-      "xml_processor": "unknown"
-    }
-  ],
+  "records": [],
   "report_kind": "body-processor-analysis",
   "selected_subcluster": {
     "action": "metadata-only classification: request_body_processor -> connector_gap",
@@ -999,6 +776,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": false,
         "path": "/",
@@ -1057,6 +840,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": false,
         "path": "/",
@@ -1115,6 +904,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": true,
         "path": "/",
@@ -1173,6 +968,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": false,
         "path": "/",
@@ -1231,6 +1032,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": false,
         "path": "/",
@@ -1289,6 +1096,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": true,
         "path": "/",
@@ -1347,6 +1160,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": false,
         "path": "/",
@@ -1405,6 +1224,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": false,
         "path": "/",
@@ -1463,6 +1288,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains bodyhit",
         "parse_error": true,
         "path": "/",
@@ -1499,12 +1330,12 @@
   },
   "summary": {
     "after_metadata_fix": {
-      "combined": 12,
-      "multipart_files": 12,
+      "combined": 0,
+      "multipart_files": 0,
       "request_body_processor": 0,
       "xml_processor": 0
     },
-    "backend_reached": 21,
+    "backend_reached": 9,
     "before_metadata_fix": {
       "combined": 45,
       "multipart_files": 12,
@@ -1512,8 +1343,10 @@
       "xml_processor": 24
     },
     "collection_evidence": 0,
+    "multipart_activation_missing_subcluster_count": 12,
+    "multipart_files_active_after_report_sync": 0,
     "request_body_access_on": 0,
-    "rule_loaded": 21,
+    "rule_loaded": 9,
     "rule_matched": 0,
     "selected_subcluster_count": 9,
     "urlencoded_form_active_after_report_sync": 0,
@@ -1590,6 +1423,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq pr70phase2",
         "parse_error": false,
         "path": "/",
@@ -1646,6 +1485,12 @@
         "known_limitations": [],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq arg1",
         "parse_error": false,
         "path": "/",
@@ -1701,6 +1546,12 @@
         "known_limitations": [],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq attack",
         "parse_error": false,
         "path": "/",
@@ -1762,6 +1613,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq pr70phase2",
         "parse_error": false,
         "path": "/",
@@ -1818,6 +1675,12 @@
         "known_limitations": [],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq arg1",
         "parse_error": false,
         "path": "/",
@@ -1873,6 +1736,12 @@
         "known_limitations": [],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq attack",
         "parse_error": false,
         "path": "/",
@@ -1934,6 +1803,12 @@
         ],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq pr70phase2",
         "parse_error": false,
         "path": "/",
@@ -1990,6 +1865,12 @@
         "known_limitations": [],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq arg1",
         "parse_error": false,
         "path": "/",
@@ -2045,6 +1926,12 @@
         "known_limitations": [],
         "method": "POST",
         "mrts_variant": "with-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@streq attack",
         "parse_error": false,
         "path": "/",
@@ -2175,6 +2062,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains root",
         "parse_error": false,
         "path": "/",
@@ -2234,6 +2127,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains deepnode",
         "parse_error": false,
         "path": "/",
@@ -2293,6 +2192,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains ns:root",
         "parse_error": false,
         "path": "/",
@@ -2351,6 +2256,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains broken",
         "parse_error": false,
         "path": "/",
@@ -2410,6 +2321,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains root",
         "parse_error": false,
         "path": "/",
@@ -2469,6 +2386,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains deepnode",
         "parse_error": false,
         "path": "/",
@@ -2528,6 +2451,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains ns:root",
         "parse_error": false,
         "path": "/",
@@ -2586,6 +2515,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains broken",
         "parse_error": false,
         "path": "/",
@@ -2645,6 +2580,12 @@
         ],
         "method": "POST",
         "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
         "operator": "@contains root",
         "parse_error": true,
         "path": "/",

@@ -480,21 +480,21 @@
       ]
     },
     {
-      "category": "multipart_files",
+      "category": "multipart_processor_activation_missing",
       "connectors": [
         "apache",
         "haproxy",
         "nginx"
       ],
       "count": 12,
-      "fixable": "possibly fixable; likely connector/body parser evidence work",
-      "recommended_next_step": "compare multipart variable population across connectors with one representative request",
-      "risk": "medium",
+      "fixable": "classification-only; multipart body and boundary exist but the fixture does not enable request body access before expecting FILES/ARGS_NAMES collections",
+      "recommended_next_step": "keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses",
+      "risk": "low if kept report-only; high if treated as connector multipart runtime evidence",
       "typical_examples": [
         {
           "actual_status": 200,
           "case_id": "files_names_mixed_case_filename_gap",
-          "classification": "multipart_collection_semantics",
+          "classification": "multipart_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -510,13 +510,13 @@
           "variable": "FILES_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "multipart_files"
+            "classification_only"
           ]
         },
         {
           "actual_status": 200,
           "case_id": "multipart_duplicate_field_names_gap",
-          "classification": "multipart_collection_semantics",
+          "classification": "multipart_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -532,7 +532,7 @@
           "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "multipart_files"
+            "classification_only"
           ]
         }
       ]
@@ -764,6 +764,15 @@
       "typical_examples": []
     },
     {
+      "category": "multipart_files",
+      "connectors": [],
+      "count": 0,
+      "fixable": "possibly fixable; likely connector/body parser evidence work",
+      "recommended_next_step": "compare multipart variable population across connectors with one representative request",
+      "risk": "medium",
+      "typical_examples": []
+    },
+    {
       "category": "native_modsecurity_semantics",
       "connectors": [],
       "count": 0,
@@ -908,7 +917,7 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-14T10:36:29Z",
+  "generated_at": "2026-06-14T10:46:41Z",
   "native_evidence": {
     "apache": {
       "counts": {
@@ -982,21 +991,7 @@
         "why": "HTTP behavior passes; remaining failure is evidence/assertion semantics"
       }
     ],
-    "P2": [
-      {
-        "cluster_name": "multipart_files",
-        "connector": "apache, nginx, haproxy",
-        "count": 12,
-        "likely_change": "compare multipart variable population across connectors with one representative request",
-        "risk": "medium",
-        "tests": [
-          "targeted multipart cases",
-          "connector smoke for touched connector",
-          "full matrix if parser behavior changes"
-        ],
-        "why": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits"
-      }
-    ],
+    "P2": [],
     "P3": [
       {
         "cluster_name": "phase4_hard_abort_capability",
@@ -1065,6 +1060,10 @@
         "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
       },
       {
+        "cluster": "multipart_processor_activation_missing",
+        "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections"
+      },
+      {
         "cluster": "collection_name_normalization_semantics",
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
@@ -1106,13 +1105,13 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-14T10:36:26Z",
+    "connector_work_queue": "2026-06-14T10:46:38Z",
     "full_run_evidence": "2026-06-09T18:40:47Z",
     "full_runtime_matrix": "2026-06-13T20:27:13Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
     "mrts_native_summary": "2026-06-13T11:32:41Z",
-    "phase_work_queue": "2026-06-14T10:36:26Z",
+    "phase_work_queue": "2026-06-14T10:46:38Z",
     "runtime_build_cache": "2026-06-12T17:55:50Z"
   },
   "summary": {
@@ -1966,7 +1965,7 @@
       },
       {
         "case_id": "files_names_mixed_case_filename_gap",
-        "category": "multipart_files",
+        "category": "multipart_processor_activation_missing",
         "connectors": [
           "apache",
           "haproxy",
@@ -1976,7 +1975,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "files_names_mixed_case_filename_gap",
-          "classification": "multipart_collection_semantics",
+          "classification": "multipart_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -1992,7 +1991,7 @@
           "variable": "FILES_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "multipart_files"
+            "classification_only"
           ]
         },
         "status_pairs": {
@@ -2007,7 +2006,7 @@
       },
       {
         "case_id": "multipart_duplicate_field_names_gap",
-        "category": "multipart_files",
+        "category": "multipart_processor_activation_missing",
         "connectors": [
           "apache",
           "haproxy",
@@ -2017,7 +2016,7 @@
         "example": {
           "actual_status": 200,
           "case_id": "multipart_duplicate_field_names_gap",
-          "classification": "multipart_collection_semantics",
+          "classification": "multipart_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
@@ -2033,7 +2032,7 @@
           "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
-            "multipart_files"
+            "classification_only"
           ]
         },
         "status_pairs": {

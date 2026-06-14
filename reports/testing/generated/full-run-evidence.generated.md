@@ -202,6 +202,8 @@ These native MRTS reports are separate from connector full-matrix evidence.
 - Body processor analysis: `reports/testing/generated/body-processor-analysis.generated.md`
 - URL-encoded/form rows: **18** -> **0** active request_body_processor rows after report sync.
 - XML processor activation-missing rows: **24** -> **0** active xml_processor rows after report sync.
+- Multipart processor activation-missing rows: **12** -> **0** active multipart_files rows after report sync.
 - The URL-encoded rows have body and Content-Type evidence and are kept as report-only with-MRTS DetectionOnly overlay cases.
 - The XML rows have body and XML Content-Type evidence, but their fixtures do not enable the XML request body processor.
+- The Multipart rows have body, Content-Type, and boundary evidence, but their fixtures do not enable request body access before expecting FILES/ARGS_NAMES collection evidence.
 <!-- body-processor-analysis:end -->
