@@ -335,6 +335,7 @@ static const char *msc_config_phase4_content_types_file(cmd_parms *cmd,
         }
         for (end = start; *end != '\0'; end++)
         {
+            /* Advance to the end so trailing whitespace can be trimmed below. */
         }
         while (end > start && apr_isspace(*(end - 1)))
         {

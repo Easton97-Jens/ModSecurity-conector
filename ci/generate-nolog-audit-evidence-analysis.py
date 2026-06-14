@@ -414,7 +414,6 @@ def classify_connector_queue(
     report_dir: Path,
     rows: list[dict[str, Any]],
     framework_root: Path,
-    connector_root: Path,
 ) -> dict[str, int]:
     path = report_dir / "connector-work-queue.generated.json"
     data = read_json(path)
@@ -566,7 +565,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
         text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
     else:
         text = text.rstrip() + "\n\n" + marked + "\n"
-        write_text_file(md_path, text)
+    write_text_file(md_path, text)
 
 
 def build_analysis(connector_root: Path, framework_root: Path) -> dict[str, Any]:
@@ -587,7 +586,7 @@ def build_analysis(connector_root: Path, framework_root: Path) -> dict[str, Any]
         observed_row(entry, case_meta, run_logs, connector_root, framework_root)
         for entry in entries
     ]
-    before_counts = classify_connector_queue(report_dir, rows, framework_root, connector_root)
+    before_counts = classify_connector_queue(report_dir, rows, framework_root)
     render_phase_work_queue(report_dir, framework_root, connector_root)
     update_full_run_evidence(report_dir)
     work_directions = Counter()

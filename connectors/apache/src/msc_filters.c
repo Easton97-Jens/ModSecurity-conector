@@ -128,6 +128,7 @@ static const char *apache_normalized_content_type(apr_pool_t *pool,
     }
     for (end = copy; *end != '\0'; end++)
     {
+        /* Advance to the end so trailing whitespace can be trimmed below. */
     }
     while (end > copy && apr_isspace(*(end - 1)))
     {

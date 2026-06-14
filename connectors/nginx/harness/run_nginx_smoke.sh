@@ -602,7 +602,8 @@ send_case_request() {
 }
 
 quote_request_path() {
-    "$PYTHON_BIN" - "$1" <<'PY'
+    request_path=$1
+    "$PYTHON_BIN" - "$request_path" <<'PY'
 import sys
 from urllib.parse import quote
 

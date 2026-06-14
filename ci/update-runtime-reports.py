@@ -290,6 +290,14 @@ def collect_run_counts(run_text: str) -> dict[str, Any]:
     }
 
 
+def audit_evidence_status(audit_log: Path | None, audit_text: str) -> str:
+    if audit_log is not None and audit_log.is_file() and not audit_text.strip():
+        return "empty"
+    if audit_text:
+        return "present"
+    return "missing"
+
+
 def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, Any]:
     apache = components.get("apache_httpd", {})
     build_path = apache.get("build_path")
@@ -366,7 +374,7 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
         "request_reached_server": request_seen,
         "request_reached_modsecurity": bool(actual_ids),
         "request_reached_albedo": "Received default request to /?foo=attack" in run_text,
-        "audit_evidence": "empty" if audit_log is not None and audit_log.is_file() and not audit_text.strip() else ("present" if audit_text else "missing"),
+        "audit_evidence": audit_evidence_status(audit_log, audit_text),
         "parse_or_phase_warnings": collect_non_match_warnings(error_text),
         "rule_excerpt": rule_block,
         "go_ftw_excerpt": "\n".join(line for line in run_text.splitlines() if "100003-1" in line or "failed" in line),
@@ -449,7 +457,7 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
         "request_reached_server": any('request: "POST /?foo=attack HTTP/1.1"' in line for line in case_lines),
         "request_reached_modsecurity": bool(actual_ids),
         "request_reached_albedo": "Received default request to /?foo=attack" in run_text,
-        "audit_evidence": "empty" if audit_log is not None and audit_log.is_file() and not audit_text.strip() else ("present" if audit_text else "missing"),
+        "audit_evidence": audit_evidence_status(audit_log, audit_text),
         "parse_or_phase_warnings": collect_non_match_warnings(error_text),
         "rule_excerpt": rule_block,
         "go_ftw_excerpt": "\n".join(line for line in run_text.splitlines() if "100003-1" in line or "failed" in line),
@@ -658,7 +666,7 @@ def remove_stale_native_blockers(text: str, report_dir: Path) -> str:
         return text
     lines = []
     for line in text.splitlines():
-        if line.startswith("- apache2_ubuntu:") or line.startswith("- nginx-pr24:"):
+        if line.startswith(("- apache2_ubuntu:", "- nginx-pr24:")):
             continue
         lines.append(line)
     return "\n".join(lines) + "\n"

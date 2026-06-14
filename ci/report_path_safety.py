@@ -30,25 +30,28 @@ def add_safe_roots(*roots: Path | str | None) -> None:
             continue
 
 
+def _add_parent_root(path_value: Any) -> None:
+    if not path_value:
+        return
+    resolved = safe_path(path_value, must_exist=False)
+    if resolved is not None:
+        add_safe_roots(resolved.parent)
+
+
+def _add_run_roots(run: dict[str, Any]) -> None:
+    for key in ("log_path", "runtime_summary_path"):
+        _add_parent_root(run.get(key))
+
+
 def add_full_matrix_roots(full_matrix: dict[str, Any]) -> None:
     for key in ("build_root", "log_root"):
         value = full_matrix.get(key)
         if value:
             add_safe_roots(str(value))
-    manifest = full_matrix.get("manifest")
-    if manifest:
-        manifest_path = safe_path(manifest, must_exist=False)
-        if manifest_path is not None:
-            add_safe_roots(manifest_path.parent)
+    _add_parent_root(full_matrix.get("manifest"))
     for run in full_matrix.get("runs", []):
-        if not isinstance(run, dict):
-            continue
-        for key in ("log_path", "runtime_summary_path"):
-            value = run.get(key)
-            if value:
-                evidence_path = safe_path(value, must_exist=False)
-                if evidence_path is not None:
-                    add_safe_roots(evidence_path.parent)
+        if isinstance(run, dict):
+            _add_run_roots(run)
 
 
 def add_report_roots(report_dir: Path) -> None:

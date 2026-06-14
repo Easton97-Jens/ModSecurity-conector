@@ -38,7 +38,8 @@ validate_runtime_paths
 mkdir -p "$MRTS_NATIVE_ROOT" "$LOG_ROOT"
 
 json_string() {
-    "$PYTHON" - "$1" <<'PY'
+    value=$1
+    "$PYTHON" - "$value" <<'PY'
 import json
 import sys
 print(json.dumps(sys.argv[1]))

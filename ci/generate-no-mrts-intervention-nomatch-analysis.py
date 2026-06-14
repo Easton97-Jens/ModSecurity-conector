@@ -200,7 +200,7 @@ def evidence_summary(queue_entry: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def classify_cause(record: dict[str, Any], case: dict[str, Any], request: dict[str, Any]) -> str:
+def classify_cause(record: dict[str, Any], request: dict[str, Any]) -> str:
     category = str(record.get("source_category") or "")
     target = str(record.get("target") or "")
     phase = str(record.get("phase") or "")
@@ -304,7 +304,7 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         queue_entry = queue.get(key)
         expected_token = operator_expected_token(str(item.get("operator") or ""))
         evidence = evidence_summary(queue_entry)
-        cause = classify_cause(item, case, request)
+        cause = classify_cause(item, request)
         details = CAUSE_DETAILS[cause]
         queue_or_item = queue_entry or item
         record = {

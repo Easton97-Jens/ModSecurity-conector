@@ -493,7 +493,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
         text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
     else:
         text = text.rstrip() + "\n\n" + marked + "\n"
-        write_text_file(md_path, text)
+    write_text_file(md_path, text)
 
 
 def rollup(rows: list[dict[str, Any]], key_fields: tuple[str, ...]) -> list[dict[str, Any]]:

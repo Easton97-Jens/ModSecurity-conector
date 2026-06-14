@@ -247,11 +247,10 @@ def input_freshness(report_dir: Path) -> list[dict[str, Any]]:
     return freshness
 
 
-def build_audit(connector_root: Path, framework_root: Path, output_dir: Path) -> dict[str, Any]:
+def build_audit(connector_root: Path, framework_root: Path) -> dict[str, Any]:
     report_dir = connector_root / REPORT_DIR
     full_matrix = read_json(report_dir / "full-runtime-matrix.generated.json")
     queue = read_json(report_dir / "connector-work-queue.generated.json")
-    phase_queue = read_json(report_dir / "phase-work-queue.generated.json")
     remaining = read_json(report_dir / "remaining-failure-analysis.generated.json")
     next_plan = read_json(report_dir / "next-fix-plan.generated.json")
     native_summary = read_json(report_dir / "mrts-native-summary.generated.json")
@@ -693,7 +692,7 @@ def main() -> int:
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    audit = build_audit(connector_root, framework_root, output_dir)
+    audit = build_audit(connector_root, framework_root)
     write_json(output_dir / "final-consistency-audit.generated.json", audit)
     write_text_file(output_dir / "final-consistency-audit.generated.md", render_markdown(audit))
     update_full_run_evidence(output_dir, audit)

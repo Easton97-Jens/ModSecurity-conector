@@ -505,7 +505,7 @@ def grouped_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "rule_matched_count": sum(1 for item in items if item["rule_matched"]),
                 "collection_evidence_count": sum(1 for item in items if item["collection_evidence"] == "yes"),
                 "body_seen": sorted({str(item["request_body_seen"]) for item in items}),
-                "suspected_cause": suspected_cause(example, items),
+                "suspected_cause": suspected_cause(example),
                 "risk": risk_for(example),
                 "fixability": fixability_for(example),
             }
@@ -645,7 +645,7 @@ def summarize_multipart_activation_missing(records: list[dict[str, Any]]) -> dic
     }
 
 
-def suspected_cause(example: dict[str, Any], items: list[dict[str, Any]]) -> str:
+def suspected_cause(example: dict[str, Any]) -> str:
     if example["failure_category"] == "request_body_processor" and example["body_kind"] == "json":
         return "JSON/raw REQUEST_BODY rows need processor-specific semantics review; with-MRTS rows may be non-blocking due DetectionOnly overlay."
     if example["failure_category"] == "request_body_processor" and example["body_kind"] == "form":
