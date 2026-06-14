@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 try:
     import yaml
 except Exception:  # pragma: no cover - the report still works without YAML metadata.
@@ -130,18 +132,11 @@ def utc_now() -> str:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
+    return read_json_file(path)
 
 
 def read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+    return read_text_file(path)
 
 
 def normalize_list(value: Any) -> list[str]:
@@ -1048,7 +1043,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
                 if report not in reports:
                     reports.append(report)
             data["reports"] = reports
-        json_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_json_file(json_path, data)
 
     md_path = report_dir / "full-run-evidence.generated.md"
     text = read_text(md_path)
@@ -1075,7 +1070,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
             text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
         else:
             text = text.rstrip() + "\n\n" + marked + "\n"
-        md_path.write_text(text, encoding="utf-8")
+        write_text_file(md_path, text)
 
 
 def main() -> int:
@@ -1086,6 +1081,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
+    add_safe_roots(connector_root, output_dir, connector_root / REPORT_DIR)
+    add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     analysis = build_analysis(connector_root)
     plan = {
@@ -1094,10 +1091,10 @@ def main() -> int:
         "priority_plan": analysis["priority_plan"],
         "recommendation": analysis["recommendation"],
     }
-    (output_dir / "remaining-failure-analysis.generated.json").write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_dir / "remaining-failure-analysis.generated.md").write_text(render_analysis_markdown(analysis), encoding="utf-8")
-    (output_dir / "next-fix-plan.generated.json").write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_dir / "next-fix-plan.generated.md").write_text(render_plan_markdown(plan["priority_plan"], plan["generated_at"], plan["recommendation"]), encoding="utf-8")
+    write_json_file(output_dir / "remaining-failure-analysis.generated.json", analysis)
+    write_text_file(output_dir / "remaining-failure-analysis.generated.md", render_analysis_markdown(analysis))
+    write_json_file(output_dir / "next-fix-plan.generated.json", plan)
+    write_text_file(output_dir / "next-fix-plan.generated.md", render_plan_markdown(plan["priority_plan"], plan["generated_at"], plan["recommendation"]))
     update_full_run_evidence(output_dir)
     print(output_dir / "remaining-failure-analysis.generated.md")
     print(output_dir / "next-fix-plan.generated.md")

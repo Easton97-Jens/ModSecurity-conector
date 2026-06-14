@@ -621,6 +621,7 @@ start_response_header_backend() {
     "$PYTHON_BIN" "$REPO_ROOT/ci/response-header-test-backend.py" \
         --port "$RESPONSE_HEADER_BACKEND_PORT" \
         --body-file "$DOCROOT/index.html" \
+        --safe-root "$RUNTIME_ROOT" \
         >"$LOG_DIR/response-header-backend.stdout.log" \
         2>"$LOG_DIR/response-header-backend.stderr.log" &
     RESPONSE_HEADER_BACKEND_PID=$!

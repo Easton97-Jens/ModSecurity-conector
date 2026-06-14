@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 try:
     import yaml
 except Exception:  # pragma: no cover - report generation has a conservative fallback.
@@ -33,24 +35,15 @@ def utc_now() -> str:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
+    return read_json_file(path)
 
 
 def read_text(path: Path | None) -> str:
-    if not path:
-        return ""
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+    return read_text_file(path)
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_file(path, value)
 
 
 def sanitize_report_text(value: Any) -> str:
@@ -119,6 +112,16 @@ def action_parts(action_text: str) -> list[str]:
     return parts
 
 
+def action_value(actions: list[str], name: str) -> str:
+    prefix = f"{name.lower()}:"
+    for action in actions:
+        text = action.strip()
+        lower = text.lower()
+        if lower.startswith(prefix):
+            return text.split(":", 1)[1].strip()
+    return "-"
+
+
 def parse_rules(rules: str) -> list[dict[str, Any]]:
     parsed: list[dict[str, Any]] = []
     rule_re = re.compile(
@@ -129,15 +132,8 @@ def parse_rules(rules: str) -> list[dict[str, Any]]:
     )
     for match in rule_re.finditer(rules):
         actions = action_parts(re.sub(r"\s+", " ", match.group("actions")).strip())
-        action_text = ",".join(actions)
-        rule_id = "-"
-        id_match = re.search(r"\bid\s*:?\s*(\d+)", action_text, re.IGNORECASE)
-        if id_match:
-            rule_id = id_match.group(1)
-        phase = "-"
-        phase_match = re.search(r"\bphase\s*:?\s*(\d+)", action_text, re.IGNORECASE)
-        if phase_match:
-            phase = phase_match.group(1)
+        rule_id = action_value(actions, "id")
+        phase = action_value(actions, "phase")
         parsed.append(
             {
                 "rule_id": rule_id,
@@ -1023,7 +1019,7 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
             "<!-- body-processor-analysis:end -->",
             section,
         )
-        md_path.write_text(updated, encoding="utf-8")
+        write_text_file(md_path, updated)
 
 
 def parse_args() -> argparse.Namespace:
@@ -1039,10 +1035,12 @@ def main() -> int:
     connector_root = args.connector_root.resolve()
     framework_root = (args.framework_root or connector_root / "modules/ModSecurity-test-Framework").resolve()
     output_dir = (args.output_dir or connector_root / REPORT_DIR).resolve()
+    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
     write_json(output_dir / "body-processor-analysis.generated.json", report)
-    (output_dir / "body-processor-analysis.generated.md").write_text(render_markdown(report), encoding="utf-8")
+    write_text_file(output_dir / "body-processor-analysis.generated.md", render_markdown(report))
     update_full_run_evidence(output_dir, report)
     return 0
 

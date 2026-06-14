@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 try:
     import yaml
 except Exception:  # pragma: no cover - report generation keeps working without YAML detail.
@@ -65,24 +67,15 @@ def utc_now() -> str:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return loaded if isinstance(loaded, dict) else {}
+    return read_json_file(path)
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_file(path, value)
 
 
 def read_text(path: Path | None) -> str:
-    if not path:
-        return ""
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+    return read_text_file(path)
 
 
 def sanitize_report_text(value: Any) -> str:
@@ -127,7 +120,7 @@ def load_case(path: Path | None) -> dict[str, Any]:
     if path is None or yaml is None:
         return {}
     try:
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        loaded = yaml.safe_load(read_text(path))
     except Exception:
         return {}
     return loaded if isinstance(loaded, dict) else {}
@@ -631,7 +624,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
             text = f"{prefix.rstrip()}\n\n{marked}\n\n<!-- remaining-failure-analysis:start -->{suffix}".rstrip() + "\n"
         else:
             text = text.rstrip() + "\n\n" + marked + "\n"
-        md_path.write_text(text, encoding="utf-8")
+        write_text_file(md_path, text)
 
 
 def main() -> int:
@@ -644,11 +637,13 @@ def main() -> int:
     connector_root = args.connector_root.resolve()
     framework_root = (args.framework_root or connector_root / "modules/ModSecurity-test-Framework").resolve()
     output_dir = (args.output_dir or connector_root / REPORT_DIR).resolve()
+    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     report = build_report(connector_root, framework_root)
     write_json(output_dir / f"{REPORT_STEM}.json", report)
-    (output_dir / f"{REPORT_STEM}.md").write_text(render_markdown(report), encoding="utf-8")
+    write_text_file(output_dir / f"{REPORT_STEM}.md", render_markdown(report))
     update_full_run_evidence(output_dir)
     print(output_dir / f"{REPORT_STEM}.md")
     return 0

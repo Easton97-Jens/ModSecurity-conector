@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 try:
     import yaml
 except Exception:  # pragma: no cover - regex fallback still renders the report.
@@ -26,24 +28,15 @@ def utc_now() -> str:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return value if isinstance(value, dict) else {}
+    return read_json_file(path)
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_file(path, value)
 
 
 def read_text(path: Path | None) -> str:
-    if not path:
-        return ""
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+    return read_text_file(path)
 
 
 def sanitize_report_text(value: Any) -> str:
@@ -73,7 +66,7 @@ def load_case(path_value: Any) -> dict[str, Any]:
     if not path.is_file() or yaml is None:
         return {}
     try:
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        loaded = yaml.safe_load(read_text(path))
     except Exception:
         return {}
     return loaded if isinstance(loaded, dict) else {}
@@ -99,6 +92,16 @@ def action_parts(action_text: str) -> list[str]:
     return parts
 
 
+def action_value(actions: list[str], name: str) -> str:
+    prefix = f"{name.lower()}:"
+    for action in actions:
+        text = action.strip()
+        lower = text.lower()
+        if lower.startswith(prefix):
+            return text.split(":", 1)[1].strip()
+    return "-"
+
+
 def parse_rules(rules: str) -> list[dict[str, Any]]:
     parsed: list[dict[str, Any]] = []
     rule_re = re.compile(
@@ -107,13 +110,10 @@ def parse_rules(rules: str) -> list[dict[str, Any]]:
     )
     for match in rule_re.finditer(rules):
         actions = action_parts(re.sub(r"\s+", " ", match.group("actions")).strip())
-        action_text = ",".join(actions)
-        id_match = re.search(r"\bid\s*:?\s*(\d+)", action_text, re.IGNORECASE)
-        phase_match = re.search(r"\bphase\s*:?\s*(\d+)", action_text, re.IGNORECASE)
         parsed.append(
             {
-                "rule_id": id_match.group(1) if id_match else "-",
-                "phase": phase_match.group(1) if phase_match else "-",
+                "rule_id": action_value(actions, "id"),
+                "phase": action_value(actions, "phase"),
                 "target": match.group("target") or "-",
                 "operator": match.group("operator") or "-",
                 "actions": actions,
@@ -629,7 +629,7 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
             text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
         else:
             text = text.rstrip() + "\n\n" + marked + "\n"
-        md_path.write_text(text, encoding="utf-8")
+        write_text_file(md_path, text)
 
 
 def main() -> int:
@@ -641,12 +641,14 @@ def main() -> int:
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
+    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
     json_path = output_dir / f"{REPORT_STEM}.json"
     md_path = output_dir / f"{REPORT_STEM}.md"
     write_json(json_path, report)
-    md_path.write_text(render_markdown(report), encoding="utf-8")
+    write_text_file(md_path, render_markdown(report))
     update_full_run_evidence(output_dir, report)
     print(md_path)
     print(json_path)

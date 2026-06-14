@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 
 COMPONENT_KEYS = ("modsecurity", "apache_httpd", "nginx", "haproxy", "go_ftw", "albedo", "expat")
 MARKER_START = "<!-- runtime-components:start -->"
@@ -32,15 +34,11 @@ NATIVE_REPORT_FILES = [
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
+    return read_json_file(path)
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_file(path, data)
 
 
 def component_inventory(report_dir: Path) -> dict[str, Any]:
@@ -88,10 +86,7 @@ def replace_heading_section(text: str, heading: str, section: str, next_heading:
 
 
 def read_text_if_file(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+    return read_text_file(path)
 
 
 def first_match(pattern: str, text: str) -> str:
@@ -120,17 +115,32 @@ def collect_case_lines(log_text: str, case_id: str) -> list[str]:
 def collect_actual_ids(case_lines: list[str]) -> list[str]:
     actual_ids: list[str] = []
     for line in case_lines:
-        for match in re.findall(r'\[id "([0-9]+)"\]', line):
-            if match not in actual_ids:
-                actual_ids.append(match)
+        field = audit_field(line, "id")
+        if field.isdigit() and field not in actual_ids:
+            actual_ids.append(field)
     return actual_ids
 
 
+def audit_field(line: str, field_name: str) -> str:
+    marker = f'[{field_name} "'
+    start = line.find(marker)
+    if start < 0:
+        return ""
+    value_start = start + len(marker)
+    value_end = line.find('"]', value_start)
+    if value_end < 0:
+        return ""
+    return line[value_start:value_end]
+
+
 def collect_phase_hits(case_lines: list[str]) -> list[tuple[str, str]]:
-    return [
-        match
-        for match in re.findall(r"\[id \"([0-9]+)\"].*?\[msg \"([^\"]*phase:[0-9][^\"]*)\"\]", "\n".join(case_lines))
-    ]
+    hits: list[tuple[str, str]] = []
+    for line in case_lines:
+        rule_id = audit_field(line, "id")
+        message = audit_field(line, "msg")
+        if rule_id.isdigit() and "phase:" in message:
+            hits.append((rule_id, message))
+    return hits
 
 
 def collect_yaml_headers(yaml_text: str) -> dict[str, str]:
@@ -138,7 +148,8 @@ def collect_yaml_headers(yaml_text: str) -> dict[str, str]:
     in_headers = False
     header_indent = 0
     for line in yaml_text.splitlines():
-        if re.match(r"^\s+headers:\s*$", line):
+        stripped = line.strip()
+        if stripped == "headers:" and line[: len(line) - len(line.lstrip())]:
             in_headers = True
             header_indent = len(line) - len(line.lstrip())
             continue
@@ -147,9 +158,9 @@ def collect_yaml_headers(yaml_text: str) -> dict[str, str]:
         indent = len(line) - len(line.lstrip())
         if indent <= header_indent and line.strip():
             break
-        match = re.match(r"^\s+([^:]+):\s*(.*)$", line)
-        if match:
-            headers[match.group(1).strip()] = match.group(2).strip().strip("'\"")
+        if ":" in stripped:
+            name, value = stripped.split(":", 1)
+            headers[name.strip()] = value.strip().strip("'\"")
     return headers
 
 
@@ -804,7 +815,7 @@ def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict
 def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[str, Any], build_cache: dict[str, Any]) -> None:
     if not path.is_file():
         return
-    text = path.read_text(encoding="utf-8")
+    text = read_text_file(path)
     if path.name == "mrts-native-full.generated.md":
         text = normalize_native_remediation(text, components)
     if path.name == "full-run-evidence.generated.md":
@@ -822,13 +833,13 @@ def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[s
             NATIVE_EVIDENCE_MARKER_END,
             "## External Blockers",
         )
-        path.write_text(text, encoding="utf-8")
+        write_text_file(path, text)
         return
     section = runtime_components_markdown(components)
     text = replace_marked_section(text, section)
     text = replace_named_section(text, runtime_build_cache_markdown(build_cache), BUILD_CACHE_MARKER_START, BUILD_CACHE_MARKER_END)
     text = replace_named_section(text, diagnostics_markdown(diagnostics), DIAG_MARKER_START, DIAG_MARKER_END)
-    path.write_text(text, encoding="utf-8")
+    write_text_file(path, text)
 
 
 def main() -> int:
@@ -838,6 +849,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     report_dir = connector_root / "reports/testing/generated"
+    add_safe_roots(connector_root, report_dir)
+    add_report_roots(report_dir)
     components = component_inventory(report_dir)
     build_cache = build_cache_inventory(report_dir)
     diagnostics = collect_runtime_diagnostics(components)

@@ -383,7 +383,9 @@ def prepare_archive(name: str, url: str, expected_sha: str, sha_url: str, dest_d
 
 def github_repo_path(url: str) -> str:
     repo = url
-    for prefix in ("https://github.com/", "http://github.com/", "git@github.com:"):
+    if repo.startswith("http://github.com/"):
+        raise RuntimeError(f"insecure GitHub URL is not supported: {url}")
+    for prefix in ("https://github.com/", "git@github.com:"):
         if repo.startswith(prefix):
             repo = repo[len(prefix) :]
             break

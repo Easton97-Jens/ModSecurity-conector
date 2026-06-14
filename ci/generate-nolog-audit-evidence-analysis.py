@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 try:
     import yaml
 except Exception:  # pragma: no cover - report generation has a regex fallback.
@@ -30,24 +32,15 @@ def utc_now() -> str:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
+    return read_json_file(path)
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_file(path, data)
 
 
 def read_text(path: Path | None) -> str:
-    if not path:
-        return ""
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+    return read_text_file(path)
 
 
 def as_list(value: Any) -> list[str]:
@@ -111,6 +104,31 @@ def action_parts(action_text: str) -> list[str]:
     return parts
 
 
+def action_value(actions: list[str], name: str) -> str:
+    prefix = f"{name.lower()}:"
+    for action in actions:
+        text = action.strip()
+        lower = text.lower()
+        if lower.startswith(prefix):
+            return text.split(":", 1)[1].strip()
+    return "-"
+
+
+def first_secrule_parts(rules: str) -> tuple[str, str, str]:
+    for line in rules.splitlines():
+        text = line.strip()
+        if not text.startswith("SecRule "):
+            continue
+        quoted = text.split('"')
+        if len(quoted) < 4:
+            continue
+        before_operator = quoted[0].split()
+        if len(before_operator) < 2:
+            continue
+        return before_operator[1], quoted[1], quoted[3]
+    return "-", "-", ""
+
+
 def parse_case_metadata(case_path: Path) -> dict[str, Any]:
     raw = read_text(case_path)
     parsed: dict[str, Any] = {}
@@ -123,13 +141,8 @@ def parse_case_metadata(case_path: Path) -> dict[str, Any]:
     rules = str(parsed.get("rules") or raw)
     request = parsed.get("request") if isinstance(parsed.get("request"), dict) else {}
     expect = parsed.get("expect") if isinstance(parsed.get("expect"), dict) else {}
-    rule_match = re.search(r"SecRule\s+([^\s]+)\s+\"([^\"]*)\"\s+\\?\s*\"([^\"]+)\"", rules, re.DOTALL)
-    variable = rule_match.group(1) if rule_match else "-"
-    operator = rule_match.group(2) if rule_match else "-"
-    actions = action_parts(rule_match.group(3) if rule_match else "")
-    action_text = ",".join(actions)
-    rule_id_match = re.search(r"\bid:(\d+)", action_text)
-    phase_match = re.search(r"\bphase:(\d+)", action_text)
+    variable, operator, action_text = first_secrule_parts(rules)
+    actions = action_parts(action_text)
     request_path = str(request.get("path") or "-")
     query = "-"
     path = request_path
@@ -140,8 +153,8 @@ def parse_case_metadata(case_path: Path) -> dict[str, Any]:
         "case_id": str(parsed.get("name") or CASE_ID),
         "category": str(parsed.get("category") or "-"),
         "case_path": str(case_path),
-        "rule_id": rule_id_match.group(1) if rule_id_match else TARGET_RULE_ID,
-        "phase": phase_match.group(1) if phase_match else "-",
+        "rule_id": action_value(actions, "id") if action_value(actions, "id") != "-" else TARGET_RULE_ID,
+        "phase": action_value(actions, "phase"),
         "target": variable,
         "operator": operator,
         "actions": actions,
@@ -465,7 +478,7 @@ def render_connector_queue_markdown(report_dir: Path, data: dict[str, Any], fram
         Counter(data.get("runtime_source_counts", {})),
         str(data.get("generated_at") or utc_now()),
     )
-    (report_dir / "connector-work-queue.generated.md").write_text(markdown, encoding="utf-8")
+    write_text_file(report_dir / "connector-work-queue.generated.md", markdown)
 
 
 def render_phase_work_queue(
@@ -505,7 +518,7 @@ def render_phase_work_queue(
         },
     )
     write_json(report_dir / "phase-work-queue.generated.json", payload)
-    (report_dir / "phase-work-queue.generated.md").write_text(module.render_markdown(payload), encoding="utf-8")
+    write_text_file(report_dir / "phase-work-queue.generated.md", module.render_markdown(payload))
 
 
 def update_full_run_evidence(report_dir: Path) -> None:
@@ -550,7 +563,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
         text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
     else:
         text = text.rstrip() + "\n\n" + marked + "\n"
-    md_path.write_text(text, encoding="utf-8")
+        write_text_file(md_path, text)
 
 
 def build_analysis(connector_root: Path, framework_root: Path) -> dict[str, Any]:
@@ -614,10 +627,12 @@ def main() -> int:
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     report_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
+    add_safe_roots(connector_root, framework_root, report_dir, connector_root / REPORT_DIR)
+    add_report_roots(connector_root / REPORT_DIR)
     report_dir.mkdir(parents=True, exist_ok=True)
     analysis = build_analysis(connector_root, framework_root)
     write_json(report_dir / "nolog-audit-evidence.generated.json", analysis)
-    (report_dir / "nolog-audit-evidence.generated.md").write_text(render_analysis_markdown(analysis), encoding="utf-8")
+    write_text_file(report_dir / "nolog-audit-evidence.generated.md", render_analysis_markdown(analysis))
     print(report_dir / "nolog-audit-evidence.generated.md")
     return 0
 

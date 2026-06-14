@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 try:
     import yaml
 except Exception:  # pragma: no cover - report generation has a regex fallback.
@@ -35,24 +37,15 @@ def utc_now() -> str:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
+    return read_json_file(path)
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_file(path, data)
 
 
 def read_text(path: Path | None) -> str:
-    if not path:
-        return ""
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+    return read_text_file(path)
 
 
 def as_list(value: Any) -> list[str]:
@@ -416,7 +409,7 @@ def render_connector_queue_markdown(report_dir: Path, data: dict[str, Any], fram
         Counter(data.get("runtime_source_counts", {})),
         str(data.get("generated_at") or utc_now()),
     )
-    (report_dir / "connector-work-queue.generated.md").write_text(markdown, encoding="utf-8")
+    write_text_file(report_dir / "connector-work-queue.generated.md", markdown)
 
 
 def render_phase_work_queue(report_dir: Path, framework_root: Path, connector_root: Path) -> None:
@@ -454,7 +447,7 @@ def render_phase_work_queue(report_dir: Path, framework_root: Path, connector_ro
         },
     )
     write_json(report_dir / "phase-work-queue.generated.json", payload)
-    (report_dir / "phase-work-queue.generated.md").write_text(module.render_markdown(payload), encoding="utf-8")
+    write_text_file(report_dir / "phase-work-queue.generated.md", module.render_markdown(payload))
 
 
 def update_full_run_evidence(report_dir: Path) -> None:
@@ -498,7 +491,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
         text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
     else:
         text = text.rstrip() + "\n\n" + marked + "\n"
-    md_path.write_text(text, encoding="utf-8")
+        write_text_file(md_path, text)
 
 
 def rollup(rows: list[dict[str, Any]], key_fields: tuple[str, ...]) -> list[dict[str, Any]]:
@@ -666,10 +659,12 @@ def main() -> int:
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     report_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
+    add_safe_roots(connector_root, framework_root, report_dir, connector_root / REPORT_DIR)
+    add_report_roots(connector_root / REPORT_DIR)
     report_dir.mkdir(parents=True, exist_ok=True)
     analysis = build_analysis(connector_root, framework_root)
     write_json(report_dir / "response-header-hook-analysis.generated.json", analysis)
-    (report_dir / "response-header-hook-analysis.generated.md").write_text(render_markdown(analysis), encoding="utf-8")
+    write_text_file(report_dir / "response-header-hook-analysis.generated.md", render_markdown(analysis))
     print(report_dir / "response-header-hook-analysis.generated.md")
     return 0
 

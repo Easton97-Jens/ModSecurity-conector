@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 
 REPORT_DIR = Path("reports/testing/generated")
 REPORT_JSON = "reports/testing/generated/final-consistency-audit.generated.json"
@@ -80,15 +82,11 @@ def utc_now() -> str:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
+    return read_json_file(path)
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_file(path, data)
 
 
 def git_stdout(root: Path, args: list[str]) -> str:
@@ -662,7 +660,7 @@ def update_full_run_evidence(report_dir: Path, audit: dict[str, Any]) -> None:
 
     md_path = report_dir / "full-run-evidence.generated.md"
     if md_path.is_file():
-        text = md_path.read_text(encoding="utf-8")
+        text = read_text_file(md_path)
         section = "\n".join(
             [
                 "## Final Consistency Audit",
@@ -678,7 +676,7 @@ def update_full_run_evidence(report_dir: Path, audit: dict[str, Any]) -> None:
             "<!-- final-consistency-audit:end -->",
             section,
         )
-        md_path.write_text(updated, encoding="utf-8")
+        write_text_file(md_path, updated)
 
 
 def main() -> int:
@@ -691,11 +689,13 @@ def main() -> int:
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
+    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     audit = build_audit(connector_root, framework_root, output_dir)
     write_json(output_dir / "final-consistency-audit.generated.json", audit)
-    (output_dir / "final-consistency-audit.generated.md").write_text(render_markdown(audit), encoding="utf-8")
+    write_text_file(output_dir / "final-consistency-audit.generated.md", render_markdown(audit))
     update_full_run_evidence(output_dir, audit)
     print(output_dir / "final-consistency-audit.generated.md")
     return 0

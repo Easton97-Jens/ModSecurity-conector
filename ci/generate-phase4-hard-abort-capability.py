@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+
 try:
     import yaml
 except Exception:  # pragma: no cover - report generation still works from evidence metadata.
@@ -34,22 +36,15 @@ def utc_now() -> str:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return value if isinstance(value, dict) else {}
+    return read_json_file(path)
 
 
 def read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return ""
+    return read_text_file(path)
 
 
 def write_json(path: Path, value: dict[str, Any]) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_file(path, value)
 
 
 def normalize_list(value: Any) -> list[str]:
@@ -668,7 +663,7 @@ def update_phase_work_queue(report_dir: Path, report: dict[str, Any]) -> None:
             text = f"{prefix}\n\n{marked}\n\n{suffix}".rstrip() + "\n"
         else:
             text = text.rstrip() + "\n\n" + marked + "\n"
-        md_path.write_text(text, encoding="utf-8")
+        write_text_file(md_path, text)
 
 
 def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
@@ -723,7 +718,7 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
             text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
         else:
             text = text.rstrip() + "\n\n" + marked + "\n"
-        md_path.write_text(text, encoding="utf-8")
+        write_text_file(md_path, text)
 
 
 def main() -> int:
@@ -734,12 +729,14 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
+    add_safe_roots(connector_root, output_dir, connector_root / REPORT_DIR)
+    add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root)
     json_path = output_dir / "phase4-hard-abort-capability.generated.json"
     md_path = output_dir / "phase4-hard-abort-capability.generated.md"
     write_json(json_path, report)
-    md_path.write_text(render_markdown(report), encoding="utf-8")
+    write_text_file(md_path, render_markdown(report))
     update_phase_work_queue(output_dir, report)
     update_full_run_evidence(output_dir, report)
     print(md_path)
