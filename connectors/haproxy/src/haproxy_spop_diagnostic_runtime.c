@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -151,6 +152,7 @@ typedef struct agent_state {
 } agent_state;
 
 static volatile sig_atomic_t stop_requested = 0;
+static const unsigned char empty_value[1] = {0};
 
 static void on_signal(int signum) {
     (void)signum;
@@ -178,13 +180,12 @@ static int bounded_cstring_length(const char *value, size_t max_len, size_t *out
     if (value == 0 || out_len == 0 || max_len == 0) {
         return -1;
     }
-    for (len = 0; len < max_len; ++len) {
-        if (value[len] == '\0') {
-            *out_len = len;
-            return 0;
-        }
+    len = strlen(value);
+    if (len >= max_len) {
+        return -1;
     }
-    return -1;
+    *out_len = len;
+    return 0;
 }
 
 static size_t safe_cstring_length(const char *value, size_t max_len) {
@@ -196,17 +197,37 @@ static size_t safe_cstring_length(const char *value, size_t max_len) {
     return len;
 }
 
-static int close_owned_stream(FILE **stream, FILE *standard_stream) {
+static int close_owned_stream(FILE **stream, int owns_stream) {
     int rc = 0;
 
     if (stream == 0 || *stream == 0) {
         return 0;
     }
-    if (*stream != standard_stream) {
+    if (owns_stream) {
         rc = fclose(*stream);
     }
     *stream = 0;
     return rc;
+}
+
+static FILE *open_private_file(const char *path, int append) {
+    int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
+    int fd;
+    FILE *file;
+
+    if (path == 0 || path[0] == '\0') {
+        return 0;
+    }
+    fd = open(path, flags, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        return 0;
+    }
+    file = fdopen(fd, append ? "a" : "w");
+    if (file == 0) {
+        close(fd);
+        return 0;
+    }
+    return file;
 }
 
 static int mkdir_p(const char *path) {
@@ -218,6 +239,9 @@ static int mkdir_p(const char *path) {
         return -1;
     }
     if (bounded_cstring_length(path, sizeof(tmp), &len) != 0) {
+        return -1;
+    }
+    if (len == 0) {
         return -1;
     }
     memcpy(tmp, path, len + 1);
@@ -274,7 +298,7 @@ static int write_text_file(const char *path, const char *fmt, ...) {
     if (dirname_to_buffer(path, dir, sizeof(dir)) != 0 || mkdir_p(dir) != 0) {
         return -1;
     }
-    file = fopen(path, "w");
+    file = open_private_file(path, 0);
     if (file == 0) {
         return -1;
     }
@@ -332,7 +356,10 @@ static int append_byte(spop_buffer *buf, unsigned int value) {
 }
 
 static int append_bytes(spop_buffer *buf, const void *data, size_t len) {
-    if (len > sizeof(buf->data) - buf->len) {
+    if (buf == 0 || (data == 0 && len > 0U)) {
+        return -1;
+    }
+    if (buf->len > sizeof(buf->data) || len > sizeof(buf->data) - buf->len) {
         return -1;
     }
     memcpy(buf->data + buf->len, data, len);
@@ -514,7 +541,7 @@ static int skip_typed_data(const unsigned char *data, size_t len, size_t *pos) {
 static void copy_spop_string(char *out, size_t out_len, const unsigned char *value, size_t value_len) {
     size_t copy_len;
 
-    if (out == 0 || out_len == 0) {
+    if (out == 0 || out_len == 0 || (value == 0 && value_len > 0U)) {
         return;
     }
     copy_len = value_len;
@@ -566,7 +593,7 @@ static char *dup_header_name(const unsigned char *value, size_t value_len) {
 static int copy_bytes(unsigned char **out, size_t *out_len, const unsigned char *value, size_t value_len) {
     unsigned char *copy;
 
-    if (out == 0 || out_len == 0) {
+    if (out == 0 || out_len == 0 || (value == 0 && value_len > 0U)) {
         return -1;
     }
     copy = 0;
@@ -723,7 +750,7 @@ static int read_typed_bytes_ref(
     }
     type = data[(*pos)++] & SPOP_DATA_TYPE_MASK;
     if (type == 0U) {
-        *value = (const unsigned char *)"";
+        *value = empty_value;
         *value_len = 0;
         if (typed_type != 0) {
             *typed_type = type;
@@ -2318,7 +2345,7 @@ static int run_self_test(const char *tmp_root, const char *log_root) {
     snprintf(ready_path, sizeof(ready_path), "%s/spop-diagnostic-runtime.ready", tmp_root);
     snprintf(pid_path, sizeof(pid_path), "%s/spop-diagnostic-runtime.pid", tmp_root);
     snprintf(port_path, sizeof(port_path), "%s/spop-diagnostic-runtime.port", tmp_root);
-    log = fopen(log_path, "w");
+    log = open_private_file(log_path, 0);
     if (log == 0) {
         fprintf(stderr, "failed to open log: %s\n", log_path);
         return 77;
@@ -2375,7 +2402,7 @@ static int run_server(
     unsigned int bound_port;
     FILE *log;
 
-    log = fopen(log_file, "a");
+    log = open_private_file(log_file, 1);
     if (log == 0) {
         fprintf(stderr, "failed to open log: %s\n", log_file);
         return 77;
@@ -2412,7 +2439,7 @@ static FILE *open_append_file_or_standard(const char *path, FILE *standard_file)
     if (dirname_to_buffer(path, dir, sizeof(dir)) != 0 || mkdir_p(dir) != 0) {
         return 0;
     }
-    return fopen(path, "a");
+    return open_private_file(path, 1);
 }
 
 static int run_agent_server(const agent_config *config) {
@@ -2420,6 +2447,8 @@ static int run_agent_server(const agent_config *config) {
     unsigned int bound_port;
     FILE *log;
     FILE *decision_log = 0;
+    int log_owned;
+    int decision_log_owned = 0;
     agent_state state;
     haproxy_modsecurity_engine_config engine_config;
     haproxy_modsecurity_decision decision;
@@ -2432,13 +2461,15 @@ static int run_agent_server(const agent_config *config) {
         fprintf(stderr, "failed to open log: %s\n", config->log_file);
         return 77;
     }
+    log_owned = log != stderr;
     if (config->decision_log[0] != '\0') {
         decision_log = open_append_file_or_standard(config->decision_log, stdout);
         if (decision_log == 0) {
             fprintf(stderr, "failed to open decision log: %s\n", config->decision_log);
-            close_owned_stream(&log, stderr);
+            close_owned_stream(&log, log_owned);
             return 77;
         }
+        decision_log_owned = decision_log != stdout;
     }
     state.log = log;
     state.decision_log = decision_log;
@@ -2452,15 +2483,15 @@ static int run_agent_server(const agent_config *config) {
     if (haproxy_modsecurity_engine_create(&engine_config, &state.engine, &decision) != 0) {
         fprintf(stderr, "failed to initialize ModSecurity engine: %s\n",
             decision.log_message[0] != '\0' ? decision.log_message : "unknown");
-        close_owned_stream(&decision_log, stdout);
-        close_owned_stream(&log, stderr);
+        close_owned_stream(&decision_log, decision_log_owned);
+        close_owned_stream(&log, log_owned);
         return 77;
     }
     if (transaction_cache_init(&state) != 0) {
         fprintf(stderr, "failed to allocate transaction cache\n");
         haproxy_modsecurity_engine_destroy(state.engine);
-        close_owned_stream(&decision_log, stdout);
-        close_owned_stream(&log, stderr);
+        close_owned_stream(&decision_log, decision_log_owned);
+        close_owned_stream(&log, log_owned);
         return 77;
     }
 
@@ -2469,8 +2500,8 @@ static int run_agent_server(const agent_config *config) {
         fprintf(stderr, "failed to bind %s:%u\n", config->host, config->port);
         transaction_cache_destroy(&state);
         haproxy_modsecurity_engine_destroy(state.engine);
-        close_owned_stream(&decision_log, stdout);
-        close_owned_stream(&log, stderr);
+        close_owned_stream(&decision_log, decision_log_owned);
+        close_owned_stream(&log, log_owned);
         return 77;
     }
     if ((config->pid_file[0] != '\0' && write_text_file(config->pid_file, "%ld\n", (long)getpid()) != 0) ||
@@ -2479,8 +2510,8 @@ static int run_agent_server(const agent_config *config) {
         close(listen_fd);
         transaction_cache_destroy(&state);
         haproxy_modsecurity_engine_destroy(state.engine);
-        close_owned_stream(&decision_log, stdout);
-        close_owned_stream(&log, stderr);
+        close_owned_stream(&decision_log, decision_log_owned);
+        close_owned_stream(&log, log_owned);
         return 77;
     }
     log_line(log,
@@ -2493,8 +2524,8 @@ static int run_agent_server(const agent_config *config) {
     close(listen_fd);
     transaction_cache_destroy(&state);
     haproxy_modsecurity_engine_destroy(state.engine);
-    close_owned_stream(&decision_log, stdout);
-    close_owned_stream(&log, stderr);
+    close_owned_stream(&decision_log, decision_log_owned);
+    close_owned_stream(&log, log_owned);
     return rc;
 }
 

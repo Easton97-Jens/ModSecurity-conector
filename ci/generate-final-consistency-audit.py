@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, write_json_file, write_text_file
 
 
 REPORT_DIR = Path("reports/testing/generated")
@@ -688,8 +688,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
-    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
+    add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 

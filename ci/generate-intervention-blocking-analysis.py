@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
     import yaml
@@ -49,7 +49,7 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Any) -> dict[str, Any]:
     return read_json_file(path)
 
 
@@ -76,7 +76,9 @@ def sanitize_report_text(value: Any) -> str:
 def display_case_path(value: Any, framework_root: Path) -> str:
     if not value:
         return "-"
-    path = Path(str(value))
+    path = safe_existing_file(value)
+    if path is None:
+        return sanitize_report_text(str(value).replace("\\", "/").rstrip("/").split("/")[-1] or "-")
     try:
         return "framework:" + str(path.resolve(strict=False).relative_to(framework_root.resolve(strict=False)))
     except ValueError:
@@ -154,8 +156,8 @@ def parse_rule_candidates(rules: str) -> list[dict[str, Any]]:
 
 
 def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> dict[str, Any]:
-    case_path = Path(str(evidence.get("path") or ""))
-    raw = read_text(case_path) if case_path.is_file() else ""
+    case_path = safe_existing_file(evidence.get("path"))
+    raw = read_text(case_path) if case_path is not None and case_path.is_file() else ""
     parsed: dict[str, Any] = {}
     if raw and yaml is not None:
         try:
@@ -223,8 +225,7 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
 
 
 def evidence_path(entry: dict[str, Any]) -> Path | None:
-    value = str(entry.get("evidence") or entry.get("evidence_path") or "")
-    return Path(value) if value else None
+    return safe_existing_file(entry.get("evidence") or entry.get("evidence_path"))
 
 
 def generated_config_path(entry: dict[str, Any], evidence_file: Path | None) -> Path | None:
@@ -260,7 +261,9 @@ def log_paths(evidence: dict[str, Any]) -> list[Path]:
             "spoa_log_path",
             "haproxy_log_path",
         }:
-            paths.append(Path(str(value)))
+            path = safe_existing_file(value)
+            if path is not None:
+                paths.append(path)
     return paths
 
 
@@ -291,7 +294,7 @@ def backend_reached(entry: dict[str, Any], evidence: dict[str, Any]) -> bool:
     if entry.get("actual_status") == 200:
         return True
     body_path = evidence.get("response_body_path")
-    return "TEST-OK-IF-YOU-SEE-THIS" in read_text(Path(str(body_path))) if body_path else False
+    return "TEST-OK-IF-YOU-SEE-THIS" in read_text(body_path) if body_path else False
 
 
 def decision_summary(logs: str) -> dict[str, Any]:
@@ -714,8 +717,8 @@ def main() -> int:
     args = parse_args()
     connector_root = args.connector_root.resolve()
     framework_root = (args.framework_root or connector_root / "modules/ModSecurity-test-Framework").resolve()
-    output_dir = (args.output_dir or connector_root / REPORT_DIR).resolve()
-    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
+    add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)

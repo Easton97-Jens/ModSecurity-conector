@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
     import yaml
@@ -131,11 +131,11 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Any) -> dict[str, Any]:
     return read_json_file(path)
 
 
-def read_text(path: Path) -> str:
+def read_text(path: Any) -> str:
     return read_text_file(path)
 
 
@@ -175,14 +175,14 @@ def is_phase4_entry(entry: dict[str, Any]) -> bool:
 
 
 def phase4_detail_category(entry: dict[str, Any]) -> str:
-    evidence = read_json(Path(str(entry.get("evidence") or "")))
+    evidence = read_json(entry.get("evidence"))
     connector = str(entry.get("connector") or "")
     case_id = str(entry.get("case_id") or "")
     reason = str(entry.get("reason") or evidence.get("reason") or "")
     classification = str(entry.get("classification") or "")
     known_limitations = " ".join(normalize_list(evidence.get("known_limitations"))).lower()
-    phase4_log = read_text(Path(str(evidence.get("connector_phase4_log_path") or "")))
-    decision_log = read_text(Path(str(evidence.get("decision_log_path") or evidence.get("decision_log") or "")))
+    phase4_log = read_text(evidence.get("connector_phase4_log_path"))
+    decision_log = read_text(evidence.get("decision_log_path") or evidence.get("decision_log"))
     expected_action = str(evidence.get("expected_intervention") or "")
     if not expected_action:
         expected_action = "deny" if entry.get("expected_status") in (401, 403, 302) else "pass"
@@ -285,8 +285,8 @@ def failure_category(entry: dict[str, Any]) -> str:
 
 
 def safe_read_evidence(entry: dict[str, Any]) -> dict[str, Any]:
-    path = Path(str(entry.get("evidence") or ""))
-    if not path.is_file():
+    path = safe_existing_file(entry.get("evidence"))
+    if path is None:
         return {}
     return read_json(path)
 
@@ -306,7 +306,7 @@ def first_rule_metadata(text: str) -> dict[str, str]:
 
 def yaml_case_metadata(entry: dict[str, Any]) -> dict[str, Any]:
     evidence = safe_read_evidence(entry)
-    case_path = Path(str(evidence.get("path") or ""))
+    case_path = safe_existing_file(evidence.get("path"))
     metadata: dict[str, Any] = {
         "case_id": entry.get("case_id", "-"),
         "rule_id": "-",
@@ -320,7 +320,7 @@ def yaml_case_metadata(entry: dict[str, Any]) -> dict[str, Any]:
         "pending_or_non_promoted": entry.get("classification") == "response-body-non-promoted" or phase_value(entry) == "4",
         "rule_excerpt": "-",
     }
-    if not case_path.is_file():
+    if case_path is None:
         return metadata
 
     raw = read_text(case_path)
@@ -1080,8 +1080,8 @@ def main() -> int:
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
-    add_safe_roots(connector_root, output_dir, connector_root / REPORT_DIR)
+    output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
+    add_safe_roots(connector_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     analysis = build_analysis(connector_root)

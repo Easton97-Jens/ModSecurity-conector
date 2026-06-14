@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
     import yaml
@@ -66,7 +66,7 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Any) -> dict[str, Any]:
     return read_json_file(path)
 
 
@@ -101,8 +101,8 @@ def case_path_from_record(record: dict[str, Any], framework_root: Path) -> Path 
     value = str(record.get("case_path") or "")
     if value.startswith("framework:"):
         return framework_root / value.split("framework:", 1)[1]
-    path = Path(value)
-    if path.is_file():
+    path = safe_existing_file(value)
+    if path is not None and path.is_file():
         return path
     return None
 
@@ -184,11 +184,11 @@ def evidence_summary(queue_entry: dict[str, Any] | None) -> dict[str, Any]:
             "target_rule_logged": False,
             "backend_reached": "unknown",
         }
-    result_path = Path(str(queue_entry.get("evidence") or ""))
+    result_path = safe_existing_file(queue_entry.get("evidence"))
     result = read_json(result_path)
-    audit_path = Path(str(result.get("audit_log_path") or ""))
+    audit_path = safe_existing_file(result.get("audit_log_path"))
     audit_text = read_text(audit_path)
-    error_text = read_text(Path(str(result.get("apache_error_log_path") or "")))
+    error_text = read_text(result.get("apache_error_log_path"))
     logs = "\n".join([audit_text, error_text])
     rule_id = str(queue_entry.get("rule_id") or "")
     target_rule_logged = bool(rule_id and re.search(r'\[id "' + re.escape(rule_id) + r'"\]', logs))
@@ -636,8 +636,8 @@ def main() -> int:
 
     connector_root = args.connector_root.resolve()
     framework_root = (args.framework_root or connector_root / "modules/ModSecurity-test-Framework").resolve()
-    output_dir = (args.output_dir or connector_root / REPORT_DIR).resolve()
-    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
+    add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
 

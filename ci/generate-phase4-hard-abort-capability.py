@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
     import yaml
@@ -35,11 +35,11 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Any) -> dict[str, Any]:
     return read_json_file(path)
 
 
-def read_text(path: Path) -> str:
+def read_text(path: Any) -> str:
     return read_text_file(path)
 
 
@@ -94,7 +94,7 @@ def first_rule_metadata(text: str) -> dict[str, str]:
 
 
 def case_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
-    path = Path(str(evidence.get("path") or ""))
+    path = safe_existing_file(evidence.get("path"))
     metadata: dict[str, Any] = {
         "case_id": entry.get("case_id", "-"),
         "method": "-",
@@ -110,7 +110,7 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any]) -> dict[str, 
         "content_type_scope": "-",
         "rule_excerpt": "-",
     }
-    raw = read_text(path) if path.is_file() else ""
+    raw = read_text(path) if path is not None and path.is_file() else ""
     parsed: dict[str, Any] = {}
     if raw and yaml is not None:
         try:
@@ -180,8 +180,8 @@ def content_type_scope(parsed: dict[str, Any], raw: str) -> str:
 
 
 def json_lines(path_value: Any) -> list[dict[str, Any]]:
-    path = Path(str(path_value or ""))
-    if not path.is_file():
+    path = safe_existing_file(path_value)
+    if path is None or not path.is_file():
         return []
     rows: list[dict[str, Any]] = []
     for line in read_text(path).splitlines():
@@ -232,8 +232,8 @@ def actual_action(phase4_events: list[dict[str, Any]], decisions: list[dict[str,
 def log_evidence(phase4_events: list[dict[str, Any]], decisions: list[dict[str, Any]], evidence: dict[str, Any]) -> bool:
     if phase4_events or decisions:
         return True
-    audit_path = Path(str(evidence.get("audit_log_path") or ""))
-    return audit_path.is_file() and "phase 4" in read_text(audit_path).lower()
+    audit_path = safe_existing_file(evidence.get("audit_log_path"))
+    return audit_path is not None and audit_path.is_file() and "phase 4" in read_text(audit_path).lower()
 
 
 def response_delivered(entry: dict[str, Any], evidence: dict[str, Any], hard_abort: bool, action: str) -> str:
@@ -299,7 +299,7 @@ def classify_case(
 
 
 def case_row(entry: dict[str, Any]) -> dict[str, Any]:
-    evidence = read_json(Path(str(entry.get("evidence") or "")))
+    evidence = read_json(entry.get("evidence"))
     meta = case_metadata(entry, evidence)
     phase4_events = phase4_log_events(evidence)
     decisions = decision_events(evidence)
@@ -728,8 +728,8 @@ def main() -> int:
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
-    add_safe_roots(connector_root, output_dir, connector_root / REPORT_DIR)
+    output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
+    add_safe_roots(connector_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root)

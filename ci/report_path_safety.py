@@ -37,14 +37,18 @@ def add_full_matrix_roots(full_matrix: dict[str, Any]) -> None:
             add_safe_roots(str(value))
     manifest = full_matrix.get("manifest")
     if manifest:
-        add_safe_roots(Path(str(manifest)).parent)
+        manifest_path = safe_path(manifest, must_exist=False)
+        if manifest_path is not None:
+            add_safe_roots(manifest_path.parent)
     for run in full_matrix.get("runs", []):
         if not isinstance(run, dict):
             continue
         for key in ("log_path", "runtime_summary_path"):
             value = run.get(key)
             if value:
-                add_safe_roots(Path(str(value)).parent)
+                evidence_path = safe_path(value, must_exist=False)
+                if evidence_path is not None:
+                    add_safe_roots(evidence_path.parent)
 
 
 def add_report_roots(report_dir: Path) -> None:
@@ -55,6 +59,17 @@ def add_report_roots(report_dir: Path) -> None:
     matrix = read_json_file(matrix_path)
     if isinstance(matrix, dict):
         add_full_matrix_roots(matrix)
+
+
+def resolve_output_dir(connector_root: Path, output_dir: Path | str | None, report_dir: Path | str) -> Path:
+    connector = Path(connector_root).resolve(strict=False)
+    default_report_dir = (connector / Path(report_dir)).resolve(strict=False)
+    if output_dir is None:
+        return default_report_dir
+    candidate = Path(output_dir).expanduser().resolve(strict=False)
+    if candidate != default_report_dir and not _is_relative_to(candidate, default_report_dir):
+        raise ValueError("output directory must be inside reports/testing/generated")
+    return candidate
 
 
 def safe_path(path: Path | str | None, *, must_exist: bool) -> Path | None:

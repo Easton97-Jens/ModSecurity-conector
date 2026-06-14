@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -45,10 +46,11 @@ class Handler(BaseHTTPRequestHandler):
         self._send_fixture(include_body=True)
 
     def _send_fixture(self, *, include_body: bool) -> None:
-        body = self.body_bytes
+        body = html.escape(self.body_bytes.decode("utf-8", errors="replace")).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Security-Policy", "default-src 'none'; sandbox")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Last-Modified", "Wed, 21 Oct 2015 07:28:00 GMT")
         self.send_header("Location", "/encoded%2Ftarget")
         self.send_header("Set-Cookie", "session=token")

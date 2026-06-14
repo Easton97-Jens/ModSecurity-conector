@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, safe_existing_file, safe_path, write_json_file, write_text_file
 
 
 COMPONENT_KEYS = ("modsecurity", "apache_httpd", "nginx", "haproxy", "go_ftw", "albedo", "expat")
@@ -33,11 +33,11 @@ NATIVE_REPORT_FILES = [
 ]
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Any) -> dict[str, Any]:
     return read_json_file(path)
 
 
-def write_json(path: Path, data: dict[str, Any]) -> None:
+def write_json(path: Any, data: dict[str, Any]) -> None:
     write_json_file(path, data)
 
 
@@ -85,8 +85,19 @@ def replace_heading_section(text: str, heading: str, section: str, next_heading:
     return f"{prefix.rstrip()}\n\n{section}\n"
 
 
-def read_text_if_file(path: Path) -> str:
+def read_text_if_file(path: Any) -> str:
     return read_text_file(path)
+
+
+def safe_runtime_child(root: Path | None, *parts: str) -> Path | None:
+    if root is None:
+        return None
+    return safe_path(root.joinpath(*parts), must_exist=False)
+
+
+def component_build_root(build_path: Any) -> Path | None:
+    build = safe_path(build_path, must_exist=False)
+    return build.parent if build is not None else None
 
 
 def first_match(pattern: str, text: str) -> str:
@@ -258,9 +269,9 @@ def common_100003_conclusion(case_lines: list[str], error_text: str) -> dict[str
     }
 
 
-def single_case_rerun(build_root: Path, target: str) -> dict[str, Any]:
-    log_path = build_root / "single-case" / f"{target}-single.log"
-    if not log_path.is_file():
+def single_case_rerun(build_root: Path | None, target: str) -> dict[str, Any]:
+    log_path = safe_runtime_child(build_root, "single-case", f"{target}-single.log")
+    if log_path is None or not log_path.is_file():
         return {}
     text = read_text_if_file(log_path)
     return {
@@ -284,17 +295,18 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
     build_path = apache.get("build_path")
     if not build_path:
         return {}
-    build_root = Path(build_path).resolve().parent
-    native_root = build_root / "mrts-native"
-    run_log = native_root / "apache2_ubuntu/run.log"
-    error_log = native_root / "apache2_ubuntu/stage/infra/log/error.log"
-    access_log = native_root / "apache2_ubuntu/stage/infra/log/access.log"
-    audit_log = native_root / "apache2_ubuntu/stage/infra/log/modsec_audit.log"
-    ftw_yaml = build_root / "mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml"
-    rule_file = build_root / "mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf"
-    load_file = native_root / "apache2_ubuntu/stage/infra/mrts.load"
-    module_load_file = native_root / "apache2_ubuntu/stage/infra/mods-enabled/security2.load"
-    security_conf = native_root / "apache2_ubuntu/stage/infra/mods-enabled/security2.conf"
+    build_root = component_build_root(build_path)
+    if build_root is None:
+        return {}
+    run_log = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "run.log")
+    error_log = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "log", "error.log")
+    access_log = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "log", "access.log")
+    audit_log = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "log", "modsec_audit.log")
+    ftw_yaml = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "ftw", "100003_MRTS_002_ARGS_A-GET.yaml")
+    rule_file = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "rules", "MRTS_002_ARGS_A-GET.conf")
+    load_file = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "mrts.load")
+    module_load_file = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "mods-enabled", "security2.load")
+    security_conf = safe_runtime_child(build_root, "mrts-native", "apache2_ubuntu", "stage", "infra", "mods-enabled", "security2.conf")
 
     run_text = read_text_if_file(run_log)
     if "100003-1 failed" not in run_text:
@@ -338,7 +350,7 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
         "mrts_load": str(load_file),
         "module_conf": str(module_load_file),
         "module_path": module_path,
-        "module_loaded": bool(module_path and Path(module_path).is_file()),
+        "module_loaded": bool(module_path and safe_existing_file(module_path)),
         "mrts_load_included": str(rule_file) in load_text and str(load_file) in security_text,
         "loaded_includes": [line.strip() for line in load_text.splitlines() if "MRTS_002_ARGS_A-GET.conf" in line or "MRTS_001_INIT.conf" in line or "MRTS_003_ARGS_COMBINED_SIZE.conf" in line or "MRTS_004_ARGS_GET.conf" in line],
         "method": method or "POST",
@@ -354,7 +366,7 @@ def collect_apache_100003_diagnostics(components: dict[str, Any]) -> dict[str, A
         "request_reached_server": request_seen,
         "request_reached_modsecurity": bool(actual_ids),
         "request_reached_albedo": "Received default request to /?foo=attack" in run_text,
-        "audit_evidence": "empty" if audit_log.is_file() and not audit_text.strip() else ("present" if audit_text else "missing"),
+        "audit_evidence": "empty" if audit_log is not None and audit_log.is_file() and not audit_text.strip() else ("present" if audit_text else "missing"),
         "parse_or_phase_warnings": collect_non_match_warnings(error_text),
         "rule_excerpt": rule_block,
         "go_ftw_excerpt": "\n".join(line for line in run_text.splitlines() if "100003-1" in line or "failed" in line),
@@ -368,16 +380,17 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
     build_path = nginx.get("build_path")
     if not build_path:
         return {}
-    build_root = Path(build_path).resolve().parent
-    native_root = build_root / "mrts-native"
-    run_log = native_root / "nginx-pr24/run.log"
-    error_log = native_root / "nginx-pr24/stage/infra/log/error.log"
-    audit_log = native_root / "nginx-pr24/stage/infra/log/modsec_audit.log"
-    ftw_yaml = build_root / "mrts/upstream-config-tests/ftw/100003_MRTS_002_ARGS_A-GET.yaml"
-    rule_file = build_root / "mrts/upstream-config-tests/rules/MRTS_002_ARGS_A-GET.conf"
-    load_file = native_root / "nginx-pr24/stage/infra/mrts.load"
-    main_conf = native_root / "nginx-pr24/stage/infra/modsecurity/main.conf"
-    module_conf = native_root / "nginx-pr24/stage/infra/modules-available/mod-http-modsecurity.conf"
+    build_root = component_build_root(build_path)
+    if build_root is None:
+        return {}
+    run_log = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "run.log")
+    error_log = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "log", "error.log")
+    audit_log = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "log", "modsec_audit.log")
+    ftw_yaml = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "ftw", "100003_MRTS_002_ARGS_A-GET.yaml")
+    rule_file = safe_runtime_child(build_root, "mrts", "upstream-config-tests", "rules", "MRTS_002_ARGS_A-GET.conf")
+    load_file = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "mrts.load")
+    main_conf = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "modsecurity", "main.conf")
+    module_conf = safe_runtime_child(build_root, "mrts-native", "nginx-pr24", "stage", "infra", "modules-available", "mod-http-modsecurity.conf")
 
     run_text = read_text_if_file(run_log)
     if "100003-1 failed" not in run_text:
@@ -420,7 +433,7 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
         "mrts_load": str(load_file),
         "module_conf": str(module_conf),
         "module_path": module_path,
-        "module_loaded": bool(module_path and Path(module_path).is_file()),
+        "module_loaded": bool(module_path and safe_existing_file(module_path)),
         "mrts_load_included": str(rule_file) in load_text and "Include mrts.load" in main_text,
         "loaded_includes": [line.strip() for line in load_text.splitlines() if "MRTS_002_ARGS_A-GET.conf" in line or "MRTS_001_INIT.conf" in line or "MRTS_003_ARGS_COMBINED_SIZE.conf" in line or "MRTS_004_ARGS_GET.conf" in line],
         "method": method or "POST",
@@ -436,7 +449,7 @@ def collect_nginx_100003_diagnostics(components: dict[str, Any]) -> dict[str, An
         "request_reached_server": any('request: "POST /?foo=attack HTTP/1.1"' in line for line in case_lines),
         "request_reached_modsecurity": bool(actual_ids),
         "request_reached_albedo": "Received default request to /?foo=attack" in run_text,
-        "audit_evidence": "empty" if audit_log.is_file() and not audit_text.strip() else ("present" if audit_text else "missing"),
+        "audit_evidence": "empty" if audit_log is not None and audit_log.is_file() and not audit_text.strip() else ("present" if audit_text else "missing"),
         "parse_or_phase_warnings": collect_non_match_warnings(error_text),
         "rule_excerpt": rule_block,
         "go_ftw_excerpt": "\n".join(line for line in run_text.splitlines() if "100003-1" in line or "failed" in line),
@@ -462,7 +475,8 @@ def post_libcrypt_native_summary(components: dict[str, Any], diagnostics: dict[s
     apache_diag = diagnostics.get("apache_100003_1", {})
     nginx_diag = diagnostics.get("nginx_100003_1", {})
     build_path = apache.get("build_path") or nginx.get("build_path") or ""
-    build_root = str(Path(build_path).resolve().parent) if build_path else "-"
+    build_root_path = component_build_root(build_path) if build_path else None
+    build_root = str(build_root_path) if build_root_path else "-"
     return {
         "build_root": build_root,
         "apachectl_bin": apache.get("apachectl_bin") or "-",

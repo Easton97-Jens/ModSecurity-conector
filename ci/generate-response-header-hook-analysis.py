@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
     import yaml
@@ -36,7 +36,7 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Any) -> dict[str, Any]:
     return read_json_file(path)
 
 
@@ -80,7 +80,10 @@ def sanitize_path(value: Any, connector_root: Path, framework_root: Path) -> str
     text = str(value or "")
     if not text:
         return "-"
-    path = Path(text)
+    path = safe_existing_file(text)
+    if path is None:
+        leaf = text.replace("\\", "/").rstrip("/").split("/")[-1] or "-"
+        return f"<runtime-artifact>/{leaf}"
     for root, prefix in ((connector_root, "connector"), (framework_root, "framework")):
         try:
             return f"{prefix}:{path.resolve().relative_to(root.resolve())}"
@@ -157,8 +160,7 @@ def parse_case_metadata(case_path: Path) -> dict[str, Any]:
 
 
 def evidence_path(entry: dict[str, Any]) -> Path | None:
-    path = str(entry.get("evidence") or entry.get("evidence_path") or "")
-    return Path(path) if path else None
+    return safe_existing_file(entry.get("evidence") or entry.get("evidence_path"))
 
 
 def log_text(evidence: dict[str, Any]) -> str:
@@ -173,7 +175,7 @@ def log_text(evidence: dict[str, Any]) -> str:
     ):
         value = evidence.get(key)
         if value:
-            texts.append(read_text(Path(str(value))))
+            texts.append(read_text(value))
     return "\n".join(texts)
 
 
@@ -255,7 +257,7 @@ def build_rows(
     rows: list[dict[str, Any]] = []
     for entry in failure_rows:
         evidence = read_json(evidence_path(entry) or Path())
-        case_path = Path(str(evidence.get("path") or ""))
+        case_path = safe_existing_file(evidence.get("path"))
         meta = parse_case_metadata(case_path)
         logs = log_text(evidence)
         evidence_classification, reason = classify_row(entry, meta, logs, entries)
@@ -304,7 +306,7 @@ def build_rows(
     controls: list[dict[str, Any]] = []
     for entry in pass_rows:
         evidence = read_json(evidence_path(entry) or Path())
-        case_path = Path(str(evidence.get("path") or ""))
+        case_path = safe_existing_file(evidence.get("path"))
         meta = parse_case_metadata(case_path)
         controls.append(
             {
@@ -658,8 +660,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    report_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
-    add_safe_roots(connector_root, framework_root, report_dir, connector_root / REPORT_DIR)
+    report_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
+    add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
     report_dir.mkdir(parents=True, exist_ok=True)
     analysis = build_analysis(connector_root, framework_root)

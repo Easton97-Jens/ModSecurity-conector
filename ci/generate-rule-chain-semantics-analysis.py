@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
     import yaml
@@ -27,7 +27,7 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Any) -> dict[str, Any]:
     return read_json_file(path)
 
 
@@ -54,7 +54,9 @@ def as_list(value: Any) -> list[str]:
 def display_case_path(value: Any, framework_root: Path) -> str:
     if not value:
         return "-"
-    path = Path(str(value))
+    path = safe_existing_file(value)
+    if path is None:
+        return sanitize_report_text(str(value).replace("\\", "/").rstrip("/").split("/")[-1] or "-")
     try:
         return "framework:" + str(path.resolve(strict=False).relative_to(framework_root.resolve(strict=False)))
     except ValueError:
@@ -62,8 +64,8 @@ def display_case_path(value: Any, framework_root: Path) -> str:
 
 
 def load_case(path_value: Any) -> dict[str, Any]:
-    path = Path(str(path_value or ""))
-    if not path.is_file() or yaml is None:
+    path = safe_existing_file(path_value)
+    if path is None or not path.is_file() or yaml is None:
         return {}
     try:
         loaded = yaml.safe_load(read_text(path))
@@ -167,7 +169,9 @@ def log_paths(evidence: dict[str, Any]) -> list[Path]:
         if not value:
             continue
         if key.endswith("_log_path") or key in {"decision_log", "decision_log_path", "spoa_log_path", "haproxy_log_path"}:
-            paths.append(Path(str(value)))
+            path = safe_existing_file(value)
+            if path is not None:
+                paths.append(path)
     return paths
 
 
@@ -232,7 +236,7 @@ def variant(entry: dict[str, Any]) -> str:
 
 
 def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
-    evidence = read_json(Path(str(entry.get("evidence") or "")))
+    evidence = read_json(entry.get("evidence"))
     case = load_case(evidence.get("path"))
     rules = parse_rules(str(case.get("rules") or ""))
     family = chain_family(rules)
@@ -303,7 +307,7 @@ def chain_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
 
 def single_connector_row(case_id: str, entries: list[dict[str, Any]], framework_root: Path) -> dict[str, Any]:
     example = entries[0]
-    evidence = read_json(Path(str(example.get("evidence") or "")))
+    evidence = read_json(example.get("evidence"))
     case = load_case(evidence.get("path"))
     rules = parse_rules(str(case.get("rules") or ""))
     expected_statuses = Counter(str(entry.get("expected_status", "-")) for entry in entries)
@@ -344,7 +348,7 @@ def single_connector_row(case_id: str, entries: list[dict[str, Any]], framework_
 
 
 def chain_named_non_rule_row(entry: dict[str, Any], framework_root: Path) -> dict[str, Any]:
-    evidence = read_json(Path(str(entry.get("evidence") or "")))
+    evidence = read_json(entry.get("evidence"))
     case = load_case(evidence.get("path"))
     rules = parse_rules(str(case.get("rules") or ""))
     return {
@@ -640,8 +644,8 @@ def main() -> int:
     args = parser.parse_args()
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / REPORT_DIR
-    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
+    add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, write_json_file, write_text_file
+from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
     import yaml
@@ -34,7 +34,7 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Any) -> dict[str, Any]:
     return read_json_file(path)
 
 
@@ -73,7 +73,9 @@ def import_script(path: Path, module_name: str) -> Any:
 
 
 def display_case_path(path_value: Any, framework_root: Path) -> str:
-    path = Path(str(path_value or ""))
+    path = safe_existing_file(path_value)
+    if path is None:
+        return sanitize_report_text(str(path_value or "").replace("\\", "/").rstrip("/").split("/")[-1] or "-")
     try:
         return "framework:" + str(path.resolve(strict=False).relative_to(framework_root.resolve(strict=False)))
     except ValueError:
@@ -189,7 +191,9 @@ def log_paths(evidence: dict[str, Any]) -> list[Path]:
             "spoa_log_path",
             "haproxy_log_path",
         }:
-            paths.append(Path(str(value)))
+            path = safe_existing_file(value)
+            if path is not None:
+                paths.append(path)
     return paths
 
 
@@ -298,8 +302,8 @@ def multipart_details(content_type: str, body: bytes) -> dict[str, Any]:
 
 
 def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_root: Path) -> dict[str, Any]:
-    case_path = Path(str(evidence.get("path") or ""))
-    raw = read_text(case_path) if case_path.is_file() else ""
+    case_path = safe_existing_file(evidence.get("path"))
+    raw = read_text(case_path) if case_path is not None and case_path.is_file() else ""
     loaded: dict[str, Any] = {}
     if raw and yaml is not None:
         try:
@@ -319,7 +323,8 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
     expect = loaded.get("expect") if isinstance(loaded.get("expect"), dict) else {}
     rules = parse_rules(str(loaded.get("rules") or raw))
     rule = select_rule(rules, expect.get("rule_id"))
-    config_path = generated_config_path(entry, Path(str(entry.get("evidence") or "")))
+    evidence_path = safe_existing_file(entry.get("evidence"))
+    config_path = generated_config_path(entry, evidence_path) if evidence_path is not None else None
     config = read_text(config_path)
     logs = "\n".join(read_text(path_item) for path_item in log_paths(evidence))
     request_body_access = "yes" if "SecRequestBodyAccess On" in config else "no" if "SecRequestBodyAccess Off" in config else "unknown"
@@ -393,7 +398,7 @@ def build_records(
             and not is_candidate_multipart_activation
         ):
             continue
-        evidence = read_json(Path(str(entry.get("evidence") or "")))
+        evidence = read_json(entry.get("evidence"))
         meta = case_metadata(entry, evidence, framework_root)
         record = {
             "case_id": entry.get("case_id"),
@@ -1034,8 +1039,8 @@ def main() -> int:
     args = parse_args()
     connector_root = args.connector_root.resolve()
     framework_root = (args.framework_root or connector_root / "modules/ModSecurity-test-Framework").resolve()
-    output_dir = (args.output_dir or connector_root / REPORT_DIR).resolve()
-    add_safe_roots(connector_root, framework_root, output_dir, connector_root / REPORT_DIR)
+    output_dir = resolve_output_dir(connector_root, args.output_dir, REPORT_DIR)
+    add_safe_roots(connector_root, framework_root, connector_root / REPORT_DIR)
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
