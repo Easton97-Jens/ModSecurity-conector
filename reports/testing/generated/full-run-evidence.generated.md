@@ -196,3 +196,10 @@ These native MRTS reports are separate from connector full-matrix evidence.
 | nginx | reused | `60761dd3e66ea96c75c56558a47c548c4f42284f90bffed507b63d21ecfd57d8` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
 | haproxy | reused | `51072bb48ca39c69d26183d95707220277293c25f13852b0309cd79bc2038f8d` | `3638197563a475ed5a096b2b87c7d0d6c56e7505bc9a119b4d24a344e900105c` | - |
 <!-- runtime-build-cache:end -->
+
+<!-- body-processor-analysis:start -->
+## Body Processor Analysis
+- Body processor analysis: `reports/testing/generated/body-processor-analysis.generated.md`
+- URL-encoded/form rows: **18** -> **0** active request_body_processor rows after report sync.
+- The URL-encoded rows have body and Content-Type evidence and are kept as report-only with-MRTS DetectionOnly overlay cases.
+<!-- body-processor-analysis:end -->

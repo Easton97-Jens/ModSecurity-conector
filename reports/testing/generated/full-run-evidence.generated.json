@@ -90,6 +90,12 @@
       "total_size": 1925237516
     }
   },
+  "body_processor_analysis_report": {
+    "active_after_report_sync": 0,
+    "analysis": "reports/testing/generated/body-processor-analysis.generated.md",
+    "json": "reports/testing/generated/body-processor-analysis.generated.json",
+    "urlencoded_form_subcluster_count": 18
+  },
   "expat": {
     "actual_head": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
     "blocker_reason": "",
@@ -792,7 +798,9 @@
     "reports/testing/generated/response-header-hook-analysis.generated.json",
     "reports/testing/generated/response-header-hook-analysis.generated.md",
     "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json",
-    "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md"
+    "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md",
+    "reports/testing/generated/body-processor-analysis.generated.json",
+    "reports/testing/generated/body-processor-analysis.generated.md"
   ],
   "response_header_hook_analysis_report": {
     "analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",

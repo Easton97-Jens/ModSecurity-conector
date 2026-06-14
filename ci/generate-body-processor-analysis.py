@@ -20,6 +20,8 @@ except Exception:  # pragma: no cover - report generation has a conservative fal
 REPORT_DIR = Path("reports/testing/generated")
 TARGET_CATEGORIES = {"request_body_processor", "multipart_files", "xml_processor"}
 SELECTED_CONNECTOR_GAP_CASE = "phase1_vs_phase2_request_body_gap"
+URLENCODED_FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
+URLENCODED_FORM_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
 
 
@@ -50,6 +52,10 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
 
 def sanitize_report_text(value: Any) -> str:
     return ABSOLUTE_RUNTIME_PATH_RE.sub("<evidence-path>", str(value or ""))
+
+
+def normalized_content_type(value: Any) -> str:
+    return str(value or "").split(";", 1)[0].strip().lower()
 
 
 def as_list(value: Any) -> list[str]:
@@ -280,15 +286,20 @@ def case_metadata(entry: dict[str, Any], evidence: dict[str, Any], framework_roo
     }
 
 
-def build_records(connector_root: Path, framework_root: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def build_records(
+    connector_root: Path, framework_root: Path
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     remaining = import_script(connector_root / "ci/generate-remaining-failure-analysis.py", "remaining_failure_analysis")
     queue = read_json(connector_root / REPORT_DIR / "connector-work-queue.generated.json")
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict) and entry.get("runtime_status") == "FAIL"]
     target_records: list[dict[str, Any]] = []
     selected_gap_records: list[dict[str, Any]] = []
+    urlencoded_form_records: list[dict[str, Any]] = []
     for entry in entries:
         category = remaining.failure_category(entry)
-        if category not in TARGET_CATEGORIES and entry.get("case_id") != SELECTED_CONNECTOR_GAP_CASE:
+        is_selected_gap = entry.get("case_id") == SELECTED_CONNECTOR_GAP_CASE
+        is_candidate_urlencoded = entry.get("classification") == URLENCODED_FORM_CLASSIFICATION
+        if category not in TARGET_CATEGORIES and not is_selected_gap and not is_candidate_urlencoded:
             continue
         evidence = read_json(Path(str(entry.get("evidence") or "")))
         meta = case_metadata(entry, evidence, framework_root)
@@ -300,6 +311,9 @@ def build_records(connector_root: Path, framework_root: Path) -> tuple[list[dict
             "mrts_variant": entry.get("mrts_variant"),
             "failure_category": category,
             "queue_category": entry.get("category"),
+            "classification": entry.get("classification"),
+            "priority": entry.get("priority"),
+            "functional_area": as_list(entry.get("functional_area")),
             "source_kind": entry.get("source_kind"),
             "source_corpus": entry.get("mrts_corpus"),
             "expected_status": entry.get("expected_status"),
@@ -308,11 +322,22 @@ def build_records(connector_root: Path, framework_root: Path) -> tuple[list[dict
             "work_direction": as_list(entry.get("work_direction")),
             **meta,
         }
-        if entry.get("case_id") == SELECTED_CONNECTOR_GAP_CASE:
+        if is_urlencoded_form_detection_only(record):
+            urlencoded_form_records.append(record)
+        if is_selected_gap:
             selected_gap_records.append(record)
         elif category in TARGET_CATEGORIES:
             target_records.append(record)
-    return target_records, selected_gap_records
+    return target_records, selected_gap_records, urlencoded_form_records
+
+
+def is_urlencoded_form_detection_only(record: dict[str, Any]) -> bool:
+    return (
+        record.get("classification") == URLENCODED_FORM_CLASSIFICATION
+        and record.get("mrts_variant") == "with-mrts"
+        and record.get("body_kind") == "form"
+        and normalized_content_type(record.get("content_type")) == URLENCODED_FORM_CONTENT_TYPE
+    )
 
 
 def count_records(records: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
@@ -363,6 +388,47 @@ def grouped_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(rows, key=lambda item: (-item["count"], item["failure_category"], item["connector"], item["target"]))
 
 
+def counter_dict(records: list[dict[str, Any]], key: str) -> dict[str, int]:
+    return dict(Counter(str(record.get(key) or "-") for record in records).most_common())
+
+
+def summarize_urlencoded_form(records: list[dict[str, Any]]) -> dict[str, Any]:
+    body_sent = sum(1 for record in records if int(record.get("body_length") or 0) > 0)
+    content_type_correct = sum(
+        1 for record in records if normalized_content_type(record.get("content_type")) == URLENCODED_FORM_CONTENT_TYPE
+    )
+    return {
+        "count": len(records),
+        "active_request_body_processor_before_report_sync": len(records),
+        "active_request_body_processor_after_report_sync": 0,
+        "classification": URLENCODED_FORM_CLASSIFICATION,
+        "work_direction": "classification_only",
+        "priority": "report_only",
+        "connectors": counter_dict(records, "connector"),
+        "variants": counter_dict(records, "variant"),
+        "case_ids": counter_dict(records, "case_id"),
+        "rule_ids": counter_dict(records, "rule_id"),
+        "targets": counter_dict(records, "target"),
+        "operators": counter_dict(records, "operator"),
+        "methods": counter_dict(records, "method"),
+        "content_types": counter_dict(records, "content_type"),
+        "body_kinds": counter_dict(records, "body_kind"),
+        "body_lengths": counter_dict(records, "body_length"),
+        "request_body_seen": counter_dict(records, "request_body_seen"),
+        "body_sent_count": body_sent,
+        "content_type_correct_count": content_type_correct,
+        "request_body_access_on_count": sum(1 for record in records if record["request_body_access"] == "yes"),
+        "rule_loaded_count": sum(1 for record in records if record["rule_in_loadfile"]),
+        "rule_matched_count": sum(1 for record in records if record["rule_matched"]),
+        "collection_evidence_count": sum(1 for record in records if record["collection_evidence"] == "yes"),
+        "backend_reached_count": sum(1 for record in records if record["backend_reached"]),
+        "root_cause": "The URL-encoded bodies and Content-Type are present; these rows are with-MRTS DetectionOnly overlay cases, so disruptive actions remain non-blocking and belong to report-only classification.",
+        "fix": "metadata/report-only; no request body, Content-Type, rule, Expected status, or PASS/FAIL value changed",
+        "risk": "low when kept out of active request_body_processor work; high if promoted to PASS without disruptive runtime evidence",
+        "examples": records[:9],
+    }
+
+
 def suspected_cause(example: dict[str, Any], items: list[dict[str, Any]]) -> str:
     if example["failure_category"] == "request_body_processor" and example["body_kind"] == "json":
         return "JSON/raw REQUEST_BODY rows need processor-specific semantics review; with-MRTS rows may be non-blocking due DetectionOnly overlay."
@@ -394,9 +460,10 @@ def fixability_for(example: dict[str, Any]) -> str:
 
 
 def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
-    records, selected_gap_records = build_records(connector_root, framework_root)
+    records, selected_gap_records, urlencoded_form_records = build_records(connector_root, framework_root)
     category_counts = Counter(record["failure_category"] for record in records)
     selected_count = len(selected_gap_records)
+    urlencoded_form_summary = summarize_urlencoded_form(urlencoded_form_records)
     summary = {
         "before_metadata_fix": {
             "request_body_processor": category_counts.get("request_body_processor", 0) + selected_count,
@@ -411,6 +478,8 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
             "combined": len(records),
         },
         "selected_subcluster_count": selected_count,
+        "urlencoded_form_subcluster_count": urlencoded_form_summary["count"],
+        "urlencoded_form_active_after_report_sync": urlencoded_form_summary["active_request_body_processor_after_report_sync"],
         "rule_loaded": sum(1 for record in records + selected_gap_records if record["rule_in_loadfile"]),
         "rule_matched": sum(1 for record in records + selected_gap_records if record["rule_matched"]),
         "backend_reached": sum(1 for record in records + selected_gap_records if record["backend_reached"]),
@@ -448,6 +517,7 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
             "collections_created": "no target rule match evidence",
             "examples": selected_gap_records[:9],
         },
+        "urlencoded_form_subcluster": urlencoded_form_summary,
         "groups": grouped_records(records),
         "records": records,
         "next_fix_plan": {
@@ -465,6 +535,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     summary = report["summary"]
     before = summary["before_metadata_fix"]
     after = summary["after_metadata_fix"]
+    urlencoded = report["urlencoded_form_subcluster"]
     lines = [
         "# Body Processor Failure Analysis",
         "",
@@ -472,6 +543,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Before selected metadata fix: request_body_processor **{before['request_body_processor']}**, multipart_files **{before['multipart_files']}**, xml_processor **{before['xml_processor']}**, combined **{before['combined']}**.",
         f"- After selected metadata fix: request_body_processor **{after['request_body_processor']}**, multipart_files **{after['multipart_files']}**, xml_processor **{after['xml_processor']}**, combined **{after['combined']}**.",
         f"- Selected subcluster rows: **{summary['selected_subcluster_count']}**",
+        f"- URL-encoded form rows moved out of active body-processor work: **{summary['urlencoded_form_subcluster_count']}** -> **{summary['urlencoded_form_active_after_report_sync']}**.",
         f"- Rule loaded evidence rows: **{summary['rule_loaded']}**",
         f"- Target rule matched rows: **{summary['rule_matched']}**",
         f"- Backend reached rows: **{summary['backend_reached']}**",
@@ -489,9 +561,38 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Processor active: {report['selected_subcluster']['processor_active']}",
         f"- Collections created: {report['selected_subcluster']['collections_created']}",
         "",
-        "## Distributions",
+        "## URL-encoded Form Subcluster",
         "",
+        f"- Count: **{urlencoded['count']}**",
+        f"- Active request_body_processor rows before report sync: **{urlencoded['active_request_body_processor_before_report_sync']}**",
+        f"- Active request_body_processor rows after report sync: **{urlencoded['active_request_body_processor_after_report_sync']}**",
+        f"- Classification: `{urlencoded['classification']}`",
+        f"- Work direction: `{urlencoded['work_direction']}`",
+        f"- Priority: `{urlencoded['priority']}`",
+        f"- Body sent rows: **{urlencoded['body_sent_count']}**",
+        f"- Correct Content-Type rows: **{urlencoded['content_type_correct_count']}**",
+        f"- SecRequestBodyAccess On rows: **{urlencoded['request_body_access_on_count']}**",
+        f"- Rule loaded rows: **{urlencoded['rule_loaded_count']}**",
+        f"- Rule matched rows: **{urlencoded['rule_matched_count']}**",
+        f"- Collection/target evidence rows: **{urlencoded['collection_evidence_count']}**",
+        f"- Backend reached rows: **{urlencoded['backend_reached_count']}**",
+        f"- Root cause: {urlencoded['root_cause']}",
+        f"- Fix: {urlencoded['fix']}",
+        f"- Risk: {urlencoded['risk']}",
+        "",
+        "| field | distribution |",
+        "| --- | --- |",
     ]
+    for key in ("connectors", "variants", "case_ids", "rule_ids", "targets", "operators", "body_lengths", "request_body_seen"):
+        values = ", ".join(f"`{sanitize_report_text(name)}`: {count}" for name, count in urlencoded[key].items()) or "-"
+        lines.append(f"| {key} | {values} |")
+    lines.extend(
+        [
+            "",
+            "## Distributions",
+            "",
+        ]
+    )
     for title, key in (
         ("Connectors", "connectors"),
         ("Variants", "variants"),
@@ -544,11 +645,61 @@ def render_markdown(report: dict[str, Any]) -> str:
             "",
             "- No Expected statuses, testcase rules, request bodies, MRTS definitions, or PASS/FAIL values are changed by this analysis.",
             "- The selected subcluster is metadata-only and remains a runtime FAIL; it is no longer counted as body-processor work.",
+            "- URL-encoded/form rows are report-only with-MRTS DetectionOnly overlay evidence; no harness or connector-core change is made for them.",
             "- Remaining Body/XML/Multipart rows need narrower connector/native comparisons before connector-core changes.",
             "",
         ]
     )
     return "\n".join(lines)
+
+
+def replace_marked_section(text: str, start: str, end: str, section: str) -> str:
+    block = f"{start}\n{section}\n{end}"
+    if start in text and end in text:
+        pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
+        return pattern.sub(block, text)
+    return text.rstrip() + "\n\n" + block + "\n"
+
+
+def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
+    json_path = report_dir / "full-run-evidence.generated.json"
+    data = read_json(json_path)
+    if data:
+        data["body_processor_analysis_report"] = {
+            "analysis": "reports/testing/generated/body-processor-analysis.generated.md",
+            "json": "reports/testing/generated/body-processor-analysis.generated.json",
+            "urlencoded_form_subcluster_count": report["summary"]["urlencoded_form_subcluster_count"],
+            "active_after_report_sync": report["summary"]["urlencoded_form_active_after_report_sync"],
+        }
+        reports = data.get("reports")
+        if isinstance(reports, list):
+            for item in (
+                "reports/testing/generated/body-processor-analysis.generated.json",
+                "reports/testing/generated/body-processor-analysis.generated.md",
+            ):
+                if item not in reports:
+                    reports.append(item)
+            data["reports"] = reports
+        write_json(json_path, data)
+
+    md_path = report_dir / "full-run-evidence.generated.md"
+    text = read_text(md_path)
+    if text:
+        section = "\n".join(
+            [
+                "## Body Processor Analysis",
+                "- Body processor analysis: `reports/testing/generated/body-processor-analysis.generated.md`",
+                f"- URL-encoded/form rows: **{report['summary']['urlencoded_form_subcluster_count']}** -> **{report['summary']['urlencoded_form_active_after_report_sync']}** active request_body_processor rows after report sync.",
+                "- The URL-encoded rows have body and Content-Type evidence and are kept as report-only with-MRTS DetectionOnly overlay cases.",
+            ]
+        )
+        updated = replace_marked_section(
+            text,
+            "<!-- body-processor-analysis:start -->",
+            "<!-- body-processor-analysis:end -->",
+            section,
+        )
+        md_path.write_text(updated, encoding="utf-8")
 
 
 def parse_args() -> argparse.Namespace:
@@ -568,6 +719,7 @@ def main() -> int:
     report = build_report(connector_root, framework_root)
     write_json(output_dir / "body-processor-analysis.generated.json", report)
     (output_dir / "body-processor-analysis.generated.md").write_text(render_markdown(report), encoding="utf-8")
+    update_full_run_evidence(output_dir, report)
     return 0
 
 
