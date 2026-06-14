@@ -7,7 +7,7 @@
     "targets": [],
     "variants": []
   },
-  "generated_at": "2026-06-14T11:06:40Z",
+  "generated_at": "2026-06-14T12:41:39Z",
   "groups": [],
   "multipart_activation_missing_subcluster": {
     "active_multipart_files_after_report_sync": 0,
@@ -729,8 +729,8 @@
     "work_direction": "classification_only"
   },
   "next_fix_plan": {
-    "reason": "smaller count; useful after high-signal evidence clusters",
-    "recommended_next_fix_cluster": "rule_chain_semantics and small single-connector leftovers"
+    "reason": "No remaining connector Full-Matrix failures are present in the generated reports.",
+    "recommended_next_fix_cluster": "none"
   },
   "records": [],
   "report_kind": "body-processor-analysis",

@@ -28731,7 +28731,7 @@
       "sensitive_log_leak_rows": 0
     }
   },
-  "generated_at": "2026-06-14T11:07:05Z",
+  "generated_at": "2026-06-14T12:41:45Z",
   "native_mrts_relation": {
     "apache": {
       "counts": {
@@ -28841,11 +28841,11 @@
     ]
   },
   "source_reports": {
-    "connector_work_queue": "2026-06-14T11:06:26Z",
+    "connector_work_queue": "2026-06-14T12:41:25Z",
     "full_runtime_matrix": "2026-06-13T20:27:13Z",
     "mrts_native_apache": "2026-06-13T11:32:41Z",
     "mrts_native_nginx": "2026-06-13T11:32:41Z",
-    "remaining_failure_analysis": "2026-06-14T11:06:30Z"
+    "remaining_failure_analysis": "2026-06-14T12:41:29Z"
   },
   "summary": {
     "category_counts": {

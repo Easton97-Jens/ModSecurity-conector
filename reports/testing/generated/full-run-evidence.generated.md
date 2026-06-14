@@ -85,6 +85,14 @@ These native MRTS reports are separate from connector full-matrix evidence.
 - The former monolithic `response_header_hook` cluster is split into backend header setup, multi-value header, and MRTS DetectionOnly overlay buckets.
 <!-- response-header-hook-analysis:end -->
 
+<!-- rule-chain-semantics-analysis:start -->
+## Rule Chain Semantics Analysis
+- Report: `reports/testing/generated/rule-chain-semantics-analysis.generated.md`
+- Rule-chain failure rows: **6**
+- Runtime-fixable candidates: **0**
+- The report keeps Expected status and runtime PASS/FAIL unchanged while classifying report-only Rule-Chain and single-connector leftovers.
+<!-- rule-chain-semantics-analysis:end -->
+
 ## Reports And Logs
 - Full matrix report: `reports/testing/generated/full-runtime-matrix.generated.md`
 - Connector work queue: `reports/testing/generated/connector-work-queue.generated.md`

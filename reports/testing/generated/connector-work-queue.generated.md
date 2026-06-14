@@ -3,10 +3,10 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-14T11:06:26Z`
+- Generated at: `2026-06-14T12:41:25Z`
 - Total runtime cases analyzed: **3928**
 - Total failures: **782**
-- P0/P1/P2/P3: **3** / **2** / **60** / **263**
+- P0/P1/P2/P3: **0** / **0** / **60** / **263**
 - Source inventory split: framework-owned(141), MRTS imported(383), feature-demo report-only(16), golden-only(0)
 - Runtime source split: framework-owned(1630), MRTS imported(2298), feature-demo report-only(0), golden-only(0), runtime-job(0)
 
@@ -14,20 +14,20 @@ Generated file - do not edit manually.
 ### apache
 - Top failure patterns: expected_block_got_200(246), not_executable(24), expected_pass_but_evidence_missing(2)
 - Top functional areas: action_intervention(268), args(103), request_body_urlencoded(75), transformations(52), audit_log(38)
-- Top work directions: classification_only(176), response_body_non_promoted(32), harness_incompatibility(20), response_header_mrts_detection_only(20), transformation_semantics(12)
-- Recommended next work: classification_only(176)
+- Top work directions: classification_only(177), response_body_non_promoted(32), harness_incompatibility(20), response_header_mrts_detection_only(20), transformation_semantics(12)
+- Recommended next work: classification_only(177)
 
 ### nginx
 - Top failure patterns: expected_block_got_200(278), not_executable(24), expected_pass_but_evidence_missing(8)
 - Top functional areas: action_intervention(300), args(109), request_body_urlencoded(75), response_body(64), transformations(52)
-- Top work directions: classification_only(180), response_body_non_promoted(64), harness_incompatibility(20), response_header_mrts_detection_only(20), transformation_semantics(12)
-- Recommended next work: classification_only(180)
+- Top work directions: classification_only(183), response_body_non_promoted(64), harness_incompatibility(20), response_header_mrts_detection_only(20), transformation_semantics(12)
+- Recommended next work: classification_only(183)
 
 ### haproxy
 - Top failure patterns: expected_block_got_200(246), not_executable(24), expected_pass_but_evidence_missing(2)
 - Top functional areas: action_intervention(268), args(103), request_body_urlencoded(75), transformations(52), audit_log(38)
-- Top work directions: classification_only(176), response_body_non_promoted(32), harness_incompatibility(20), response_header_mrts_detection_only(20), transformation_semantics(12)
-- Recommended next work: classification_only(176)
+- Top work directions: classification_only(177), response_body_non_promoted(32), harness_incompatibility(20), response_header_mrts_detection_only(20), transformation_semantics(12)
+- Recommended next work: classification_only(177)
 
 ## Cross-Connector Comparison
 - all_connectors_fail: **106** - action_deny_phase1, action_deny_phase2, action_status_401_phase1_block, audit_log_empty_sections_future_target, audit_log_matched_var_encoded_value, audit_log_message_presence_connector_gap, audit_log_multiline_message_normalization, audit_log_phase1_block, audit_log_rule_id_presence_runtime_difference, collection_args_combined_size_block
@@ -39,10 +39,9 @@ Generated file - do not edit manually.
 ## Work Direction Summary
 | work_direction | apache | nginx | haproxy | total |
 |---|---|---|---|---|
-| classification_only | 176 | 180 | 176 | 532 |
+| classification_only | 177 | 183 | 177 | 537 |
 | collection_semantics | 10 | 10 | 10 | 30 |
 | harness_incompatibility | 20 | 20 | 20 | 60 |
-| intervention_blocking | 1 | 3 | 1 | 5 |
 | request_body_processor | 1 | 1 | 1 | 3 |
 | response_body_non_promoted | 32 | 64 | 32 | 128 |
 | response_header_mrts_detection_only | 20 | 20 | 20 | 60 |
@@ -58,11 +57,6 @@ Generated file - do not edit manually.
 ## Prioritized Work Queue
 | priority | connector | test_variant | mrts_variant | case | functional_area | failure_pattern | classification | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|
-| P0 | apache | no-crs | with-mrts | action_status_401_phase1_block | action_intervention, args | expected_block_got_200 | runtime-difference | intervention_blocking | fail: expected HTTP 401, observed 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/action_status_401_phase1_block/result.json |
-| P0 | haproxy | no-crs | with-mrts | action_status_401_phase1_block | action_intervention, args | expected_block_got_200 | runtime-difference | intervention_blocking | expected HTTP 401; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/action_status_401_phase1_block/result.json |
-| P0 | nginx | no-crs | with-mrts | action_status_401_phase1_block | action_intervention, args | expected_block_got_200 | runtime-difference | intervention_blocking | fail: expected HTTP 401, observed 200 | /src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/action_status_401_phase1_block/result.json |
-| P1 | nginx | no-crs | with-mrts | nginx_redirect_phase1_302 | action_intervention, args | expected_block_got_200 | runtime-difference | intervention_blocking | fail: expected HTTP 302, observed 200 | /src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_redirect_phase1_302/result.json |
-| P1 | nginx | with-crs | with-mrts | nginx_redirect_phase1_302 | action_intervention, args | expected_block_got_200 | runtime-difference | intervention_blocking | fail: expected HTTP 302, observed 200 | /src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_redirect_phase1_302/result.json |
 | P2 | apache | no-crs | with-mrts | phase3_response_headers_content_type_charset_gap | action_intervention, response_headers | expected_block_got_200 | response-header-mrts-detection-only | response_header_mrts_detection_only | classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json |
 | P2 | apache | with-crs | with-mrts | phase3_response_headers_content_type_charset_gap | action_intervention, response_headers | expected_block_got_200 | response-header-mrts-detection-only | response_header_mrts_detection_only | classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json |
 | P2 | apache | no-crs | with-mrts | phase3_response_headers_duplicate_value_runtime_difference | action_intervention, response_headers | expected_block_got_200 | response-header-mrts-detection-only | response_header_mrts_detection_only | classification-only: with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json |
@@ -258,6 +252,11 @@ Generated file - do not edit manually.
 | P3 | haproxy | no-crs | no-mrts | sqli_like_keyword_spacing_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json |
 | P3 | haproxy | with-crs | no-mrts | sqli_like_keyword_spacing_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json |
 | P3 | haproxy | no-crs | no-mrts | sqli_like_quote_encoding_runtime_difference | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/sqli_like_quote_encoding_runtime_difference/result.json |
+| P3 | haproxy | with-crs | no-mrts | sqli_like_quote_encoding_runtime_difference | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/sqli_like_quote_encoding_runtime_difference/result.json |
+| P3 | haproxy | no-crs | no-mrts | unicode_double_encoded_uri_runtime_difference | action_intervention, request_uri, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json |
+| P3 | haproxy | with-crs | no-mrts | unicode_double_encoded_uri_runtime_difference | action_intervention, request_uri, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json |
+| P3 | haproxy | no-crs | no-mrts | unicode_whitespace_normalization_gap | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json |
+| P3 | haproxy | with-crs | no-mrts | unicode_whitespace_normalization_gap | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json |
 
 ## MRTS-only Section
 | connector | attempted | pass | fail | blocked | top work directions |

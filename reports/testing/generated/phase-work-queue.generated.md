@@ -3,7 +3,7 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-14T11:06:29Z`
+- Generated at: `2026-06-14T12:41:27Z`
 - Runtime evidence rows analyzed: **3928**
 - Queued work rows: **1594**
 - Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **782** / **0** / **72**
@@ -12,7 +12,7 @@ Generated file - do not edit manually.
 
 | phase | coverage cases | runtime rows | PASS/FAIL/BLOCKED/NOT_EXECUTABLE | active/imported/pending | main work direction |
 |---|---|---|---|---|---|
-| 1 | 36 | 826 | PASS:623, FAIL:191, NOT_EXECUTABLE:12 | active:2, imported:34 | classification_only(159) |
+| 1 | 36 | 826 | PASS:623, FAIL:191, NOT_EXECUTABLE:12 | active:2, imported:34 | classification_only(164) |
 | 2 | 74 | 1478 | PASS:1027, FAIL:415, NOT_EXECUTABLE:36 | active:5, imported:69 | classification_only(373) |
 | 3 | 12 | 756 | PASS:684, FAIL:60, NOT_EXECUTABLE:12 | active:1, imported:11 | response_header_mrts_detection_only(60) |
 | 4 | 20 | 844 | PASS:716, FAIL:116, NOT_EXECUTABLE:12 | imported:20 | response_body_non_promoted(844) |
@@ -22,14 +22,9 @@ Generated file - do not edit manually.
 - Directions: intervention_blocking, request_header_mapping, request_uri_mapping, collection_mapping, audit_log_evidence
 - Goal: Stabilize Phase 1 first because it avoids body and multipart complexity.
 - Top failure patterns: expected_block_got_200(185), not_executable(12), expected_pass_but_evidence_missing(6)
-- Top work directions: classification_only(159), collection_semantics(18), request_uri_mapping(12), transformation_semantics(6), intervention_blocking(5), request_body_processor(3)
+- Top work directions: classification_only(164), collection_semantics(18), request_uri_mapping(12), transformation_semantics(6), request_body_processor(3)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| P0 | apache | no-crs/with-mrts | action_status_401_phase1_block | INTERVENTION, ARGS | FAIL | 401 | 200 | expected_block_got_200 | intervention_blocking | fail: expected HTTP 401, observed 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/action_status_401_phase1_block/result.json |
-| P0 | haproxy | no-crs/with-mrts | action_status_401_phase1_block | INTERVENTION, ARGS | FAIL | 401 | 200 | expected_block_got_200 | intervention_blocking | expected HTTP 401; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/action_status_401_phase1_block/result.json |
-| P0 | nginx | no-crs/with-mrts | action_status_401_phase1_block | INTERVENTION, ARGS | FAIL | 401 | 200 | expected_block_got_200 | intervention_blocking | fail: expected HTTP 401, observed 200 | /src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/action_status_401_phase1_block/result.json |
-| P1 | nginx | no-crs/with-mrts | nginx_redirect_phase1_302 | INTERVENTION, ARGS | FAIL | 302 | 200 | expected_block_got_200 | intervention_blocking | fail: expected HTTP 302, observed 200 | /src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_redirect_phase1_302/result.json |
-| P1 | nginx | with-crs/with-mrts | nginx_redirect_phase1_302 | INTERVENTION, ARGS | FAIL | 302 | 200 | expected_block_got_200 | intervention_blocking | fail: expected HTTP 302, observed 200 | /src/ModSecurity-conector-cache/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_redirect_phase1_302/result.json |
 | P3 | apache | no-crs/no-mrts | duplicate_header_case_normalization_gap | INTERVENTION, REQUEST_HEADERS, REQUEST_HEADERS_NAMES | FAIL | 403 | 200 | expected_block_got_200 | collection_semantics | fail: expected HTTP 403, observed 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json |
 | P3 | apache | with-crs/no-mrts | duplicate_header_case_normalization_gap | INTERVENTION, REQUEST_HEADERS, REQUEST_HEADERS_NAMES | FAIL | 403 | 200 | expected_block_got_200 | collection_semantics | fail: expected HTTP 403, observed 200 | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json |
 | P3 | apache | no-crs/no-mrts | phase1_vs_phase2_request_body_gap | INTERVENTION, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | request_body_processor | fail: expected HTTP 403, observed 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase1_vs_phase2_request_body_gap/result.json |
@@ -50,6 +45,11 @@ Generated file - do not edit manually.
 | P3 | haproxy | with-crs/no-mrts | unicode_double_encoded_uri_runtime_difference | INTERVENTION, REQUEST_URI, TRANSFORMATIONS | FAIL | 403 | 200 | expected_block_got_200 | transformation_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json |
 | P3 | haproxy | no-crs/no-mrts | v2_transformation_url_decode_invalid_sequence_mapped_candidate | INTERVENTION, REQUEST_URI, TRANSFORMATIONS | NOT_EXECUTABLE | 403 | - | not_executable | request_uri_mapping | - | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json |
 | P3 | haproxy | no-crs/with-mrts | v2_transformation_url_decode_invalid_sequence_mapped_candidate | INTERVENTION, REQUEST_URI, TRANSFORMATIONS | NOT_EXECUTABLE | 403 | - | not_executable | request_uri_mapping | - | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json |
+| P3 | haproxy | with-crs/no-mrts | v2_transformation_url_decode_invalid_sequence_mapped_candidate | INTERVENTION, REQUEST_URI, TRANSFORMATIONS | NOT_EXECUTABLE | 403 | - | not_executable | request_uri_mapping | - | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json |
+| P3 | haproxy | with-crs/with-mrts | v2_transformation_url_decode_invalid_sequence_mapped_candidate | INTERVENTION, REQUEST_URI, TRANSFORMATIONS | NOT_EXECUTABLE | 403 | - | not_executable | request_uri_mapping | - | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json |
+| P3 | haproxy | no-crs/no-mrts | v3_request_cookies_names_case_runtime_difference | INTERVENTION, REQUEST_COOKIES, REQUEST_COOKIES_NAMES | FAIL | 403 | 200 | expected_block_got_200 | collection_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json |
+| P3 | haproxy | with-crs/no-mrts | v3_request_cookies_names_case_runtime_difference | INTERVENTION, REQUEST_COOKIES, REQUEST_COOKIES_NAMES | FAIL | 403 | 200 | expected_block_got_200 | collection_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json |
+| P3 | haproxy | no-crs/no-mrts | v3_request_headers_names_lowercase_runtime_difference | INTERVENTION, REQUEST_HEADERS, REQUEST_HEADERS_NAMES | FAIL | 403 | 200 | expected_block_got_200 | collection_semantics | expected HTTP 403; observed HTTP 200 | /tmp/modsec-haproxy-setcookie/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json |
 
 ## Phase 2 Work Queue
 - Focus: ARGS, ARGS_NAMES, REQUEST_BODY, JSON, XML, Multipart/FILES, operators, and transformations
@@ -297,9 +297,9 @@ Generated file - do not edit manually.
 ## Per Connector Phase Summary
 | connector | phase 1 top problems | phase 2 top problems | phase 3 top problems | phase 4 non-promoted rows | next sensible fix |
 |---|---|---|---|---|---|
-| apache | classification_only(53), collection_semantics(6), request_uri_mapping(4) | classification_only(123), transformation_semantics(10), multipart_files(8) | response_header_mrts_detection_only(20), response_header_hook(4) | 276 | Start with response_body_non_promoted. |
-| nginx | classification_only(53), collection_semantics(6), request_uri_mapping(4) | classification_only(127), transformation_semantics(10), multipart_files(8) | response_header_mrts_detection_only(20), response_header_hook(4) | 292 | Start with response_body_non_promoted. |
-| haproxy | classification_only(53), collection_semantics(6), request_uri_mapping(4) | classification_only(123), transformation_semantics(10), multipart_files(8) | response_header_mrts_detection_only(20), response_header_hook(4) | 276 | Start with response_body_non_promoted. |
+| apache | classification_only(54), collection_semantics(6), request_uri_mapping(4) | classification_only(123), transformation_semantics(10), multipart_files(8) | response_header_mrts_detection_only(20), response_header_hook(4) | 276 | Start with response_body_non_promoted. |
+| nginx | classification_only(56), collection_semantics(6), request_uri_mapping(4) | classification_only(127), transformation_semantics(10), multipart_files(8) | response_header_mrts_detection_only(20), response_header_hook(4) | 292 | Start with response_body_non_promoted. |
+| haproxy | classification_only(54), collection_semantics(6), request_uri_mapping(4) | classification_only(123), transformation_semantics(10), multipart_files(8) | response_header_mrts_detection_only(20), response_header_hook(4) | 276 | Start with response_body_non_promoted. |
 
 ## Recommended Work Order
 1. Phase 1 - intervention/blocking

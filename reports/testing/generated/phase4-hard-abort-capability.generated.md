@@ -1,6 +1,6 @@
 # Phase 4 Hard Abort Capability
 
-Generated at: `2026-06-14T11:07:05Z`
+Generated at: `2026-06-14T12:41:45Z`
 
 ## Capability Contract
 - Capability: `phase4_hard_abort` / `phase4-hard-abort`.

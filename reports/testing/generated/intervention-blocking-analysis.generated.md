@@ -1,6 +1,6 @@
 # Intervention Blocking Analysis
 
-- Generated at: `2026-06-14T11:06:36Z`
+- Generated at: `2026-06-14T12:41:35Z`
 - Expected `403` / actual `200` rows under review: **559**.
 - Intervention-blocking true candidates: **0** runtime-fixable rows.
 - Remaining P0/P1 intervention-blocking rows: **0**.
@@ -71,8 +71,8 @@
 
 ## Current Next Fix Plan
 
-- Recommended next cluster: `rule_chain_semantics and small single-connector leftovers`
-- Reason: smaller count; useful after high-signal evidence clusters
+- Recommended next cluster: `none`
+- Reason: No remaining connector Full-Matrix failures are present in the generated reports.
 
 ## Guardrail Notes
 

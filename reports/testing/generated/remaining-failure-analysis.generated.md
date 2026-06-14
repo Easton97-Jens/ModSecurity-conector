@@ -1,6 +1,6 @@
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-14T11:06:30Z`
+Generated at: `2026-06-14T12:45:21Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -27,7 +27,7 @@ Generated at: `2026-06-14T11:06:30Z`
 ## Category Rollup
 | Category | Count | Connectors | Fixable | Risk | Next step |
 |---|---|---|---|---|---|
-| with_mrts_detection_only_non_disruptive | 490 | apache, haproxy, nginx | classification-only; with-MRTS DetectionOnly overlay makes disruptive request-side rules non-blocking | low; report-only and not a connector blocking bug | keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases |
+| with_mrts_detection_only_non_disruptive | 495 | apache, haproxy, nginx | classification-only; with-MRTS DetectionOnly overlay makes disruptive request-side rules non-blocking | low; report-only and not a connector blocking bug | keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases |
 | phase4_missing_abort_evidence | 64 | apache, nginx | fixable only through real strict abort/log evidence, not status-only changes | high if promoted without transport proof | add real Phase 4 intervention log plus connection-abort evidence before promotion |
 | response_header_mrts_detection_only | 60 | apache, haproxy, nginx | classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action | low; report-only if kept separate from PASS promotion | keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence |
 | phase4_connector_gap | 46 | apache, haproxy, nginx | connector capability gap unless a real abort mechanism is implemented and evidenced | high if faked; low if reported as gap | document connector gap unless implementation can prove a real hard abort |
@@ -37,7 +37,6 @@ Generated at: `2026-06-14T11:06:30Z`
 | multipart_processor_activation_missing | 12 | apache, haproxy, nginx | classification-only; multipart body and boundary exist but the fixture does not enable request body access before expecting FILES/ARGS_NAMES collections | low if kept report-only; high if treated as connector multipart runtime evidence | keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses |
 | nolog_expected_no_audit | 6 | apache, haproxy, nginx | classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated | low; no runtime or expected-status change | keep as classification-only evidence; do not add artificial audit logs |
 | phase4_log_only_no_abort | 6 | nginx | report-only unless the case is meant to exercise strict hard abort | low if reported honestly, high if promoted as hard abort | keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence |
-| intervention_blocking | 5 | apache, haproxy, nginx | partly fixable; first split true connector gaps from future/native semantic cases | medium to high | sample high-count expected 403 -> actual 200 cases and decide semantic gap vs stale promoted expectation |
 | connector_gap | 3 | apache, haproxy, nginx | unknown; review required | unknown | manual review |
 
 ## Top 10 Overall Failure Clusters
@@ -157,13 +156,13 @@ Generated at: `2026-06-14T11:06:30Z`
 | 2 | nginx_phase4_minimal_log_only | nginx | no-crs/with-mrts, with-crs/with-mrts | phase4_log_only_no_abort | {'200→200': 2} | 910001 | RESPONSE_BODY |
 | 2 | nginx_phase4_safe_log_only | nginx | no-crs/with-mrts, with-crs/with-mrts | phase4_log_only_no_abort | {'200→200': 2} | 910002 | RESPONSE_BODY |
 | 2 | nginx_phase4_strict_connection_abort | nginx | no-crs/with-mrts, with-crs/with-mrts | phase4_missing_abort_evidence | {'403→200': 2} | 910003 | RESPONSE_BODY |
-| 2 | nginx_redirect_phase1_302 | nginx | no-crs/with-mrts, with-crs/with-mrts | intervention_blocking | {'302→200': 2} | 3302 | ARGS |
+| 2 | nginx_redirect_phase1_302 | nginx | no-crs/with-mrts, with-crs/with-mrts | with_mrts_detection_only_non_disruptive | {'302→200': 2} | 3302 | ARGS |
 | 2 | nginx_tx_scoring_absolute_block | nginx | no-crs/with-mrts, with-crs/with-mrts | with_mrts_detection_only_non_disruptive | {'403→200': 2} | 3101 | ARGS |
 | 2 | nginx_tx_scoring_iterative_block | nginx | no-crs/with-mrts, with-crs/with-mrts | with_mrts_detection_only_non_disruptive | {'403→200': 2} | 3201 | ARGS |
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `rule_chain_semantics and small single-connector leftovers`
-- Begründung: smaller count; useful after high-signal evidence clusters
+- Empfohlener nächster Fix-Cluster: `none`
+- Begründung: No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.
 - Nicht als nächstes bearbeiten: `phase4_hard_abort_capability`, weil requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.

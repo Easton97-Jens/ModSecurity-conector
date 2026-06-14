@@ -1,12 +1,12 @@
 # Next Fix Plan
 
-Generated at: `2026-06-14T11:06:30Z`
+Generated at: `2026-06-14T12:45:21Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `rule_chain_semantics and small single-connector leftovers`
-- Begründung: smaller count; useful after high-signal evidence clusters
+- Empfohlener nächster Fix-Cluster: `none`
+- Begründung: No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.
 - Nicht als nächstes bearbeiten: `phase4_hard_abort_capability`, weil requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.
@@ -32,6 +32,4 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 | transformation_semantics | 36 | apache, nginx, haproxy | largest semantic cluster; likely needs native/libmodsecurity comparison before any fix | deeper semantic evidence, not harness routing | high | targeted transformation cases, native comparison where available |
 
 ## P4
-| Cluster | Count | Connector | Why | Likely change | Risk | Tests |
-|---|---|---|---|---|---|---|
-| rule_chain_semantics and small single-connector leftovers | 7 | mostly nginx for connector-only leftovers | smaller count; useful after high-signal evidence clusters | focused per-case triage | low to medium | targeted single-case smokes |
+- None.

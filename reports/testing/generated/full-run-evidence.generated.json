@@ -808,12 +808,46 @@
     "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json",
     "reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md",
     "reports/testing/generated/body-processor-analysis.generated.json",
-    "reports/testing/generated/body-processor-analysis.generated.md"
+    "reports/testing/generated/body-processor-analysis.generated.md",
+    "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
+    "reports/testing/generated/rule-chain-semantics-analysis.generated.md"
   ],
   "response_header_hook_analysis_report": {
     "analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",
     "classification": "response_header_hook_split",
     "json": "reports/testing/generated/response-header-hook-analysis.generated.json"
+  },
+  "rule_chain_semantics_analysis": {
+    "json": "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
+    "report": "reports/testing/generated/rule-chain-semantics-analysis.generated.md",
+    "summary": {
+      "chain_child_matched_rows": 4,
+      "chain_named_non_rule_chain_groups": 1,
+      "chain_named_non_rule_chain_rows": 6,
+      "chain_parent_matched_rows": 5,
+      "connectors": {
+        "apache": 2,
+        "haproxy": 2,
+        "nginx": 2
+      },
+      "evidence_parser_missing_full_chain_rows": 0,
+      "full_chain_disruptive_rows": 0,
+      "full_chain_matched_rows": 5,
+      "full_chain_non_disruptive_detection_only_rows": 6,
+      "report_only_items": 13,
+      "rule_chain_case_groups": 1,
+      "rule_chain_failure_rows": 6,
+      "runtime_fixable_candidates": 0,
+      "single_connector_classifications": {
+        "phase4_not_next_single_connector_leftover": 4,
+        "with_mrts_detection_only_single_connector_non_disruptive": 3
+      },
+      "single_connector_connectors": {
+        "nginx": 7
+      },
+      "small_single_connector_failure_groups": 7,
+      "small_single_connector_failure_rows": 14
+    }
   },
   "runtime_build_cache": {
     "build_reuse_summary": {

@@ -191,6 +191,11 @@ BODY_PROCESSOR_OUTPUTS = (
     "reports/testing/generated/body-processor-analysis.generated.md",
 )
 
+RULE_CHAIN_OUTPUTS = (
+    "reports/testing/generated/rule-chain-semantics-analysis.generated.json",
+    "reports/testing/generated/rule-chain-semantics-analysis.generated.md",
+)
+
 REMAINING_OUTPUTS = (
     "reports/testing/generated/remaining-failure-analysis.generated.json",
     "reports/testing/generated/remaining-failure-analysis.generated.md",
@@ -509,6 +514,31 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
             command=(
                 python,
                 "ci/generate-body-processor-analysis.py",
+                "--connector-root",
+                str(connector_root),
+                "--framework-root",
+                str(framework_root),
+                "--output-dir",
+                str(report_dir),
+            ),
+            requires_runtime=True,
+            requires_full_matrix=True,
+        ),
+        ReportSpec(
+            name="rule_chain_semantics_analysis",
+            owner="connector",
+            generator="ci/generate-rule-chain-semantics-analysis.py",
+            make_target="generate-rule-chain-semantics-analysis",
+            inputs=(
+                "reports/testing/generated/connector-work-queue.generated.json",
+                "reports/testing/generated/remaining-failure-analysis.generated.json",
+                "reports/testing/generated/next-fix-plan.generated.json",
+                "reports/testing/generated/full-runtime-matrix.generated.json",
+            ),
+            outputs=RULE_CHAIN_OUTPUTS + FULL_RUN_EVIDENCE_OUTPUTS,
+            command=(
+                python,
+                "ci/generate-rule-chain-semantics-analysis.py",
                 "--connector-root",
                 str(connector_root),
                 "--framework-root",

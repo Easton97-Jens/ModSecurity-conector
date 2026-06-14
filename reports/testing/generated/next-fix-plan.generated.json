@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-14T11:06:30Z",
+  "generated_at": "2026-06-14T12:45:21Z",
   "priority_plan": {
     "P0": [],
     "P1": [],
@@ -31,19 +31,7 @@
         "why": "largest semantic cluster; likely needs native/libmodsecurity comparison before any fix"
       }
     ],
-    "P4": [
-      {
-        "cluster_name": "rule_chain_semantics and small single-connector leftovers",
-        "connector": "mostly nginx for connector-only leftovers",
-        "count": 7,
-        "likely_change": "focused per-case triage",
-        "risk": "low to medium",
-        "tests": [
-          "targeted single-case smokes"
-        ],
-        "why": "smaller count; useful after high-signal evidence clusters"
-      }
-    ]
+    "P4": []
   },
   "recommendation": {
     "not_next": [
@@ -80,8 +68,8 @@
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
-    "reason": "smaller count; useful after high-signal evidence clusters",
-    "recommended_next_fix_cluster": "rule_chain_semantics and small single-connector leftovers"
+    "reason": "No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.",
+    "recommended_next_fix_cluster": "none"
   },
   "report_kind": "next-fix-plan"
 }

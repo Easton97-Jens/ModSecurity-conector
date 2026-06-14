@@ -76,6 +76,19 @@ OLD_CLUSTER_CHECKS = (
 BODY_PROCESSOR_CONNECTOR_GAP_CASES = {
     "phase1_vs_phase2_request_body_gap",
 }
+REPORT_ONLY_SINGLE_CONNECTOR_CATEGORIES = {
+    "with_mrts_detection_only_non_disruptive",
+    "response_header_mrts_detection_only",
+    "phase4_missing_abort_evidence",
+    "phase4_connector_gap",
+    "phase4_log_only_no_abort",
+    "phase4_truncated_not_accepted",
+    "phase4_native_semantics",
+    "nolog_expected_no_audit",
+    "xml_processor_activation_missing",
+    "multipart_processor_activation_missing",
+    "collection_name_normalization_semantics",
+}
 NOT_NEXT_RECOMMENDATIONS = (
     {
         "cluster": "phase4_hard_abort_capability",
@@ -473,6 +486,26 @@ def top_case_groups(entries: list[dict[str, Any]], *, cross_connector: bool | No
     return summaries[:limit]
 
 
+def runtime_fixable_single_connector_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    eligible = []
+    for entry in entries:
+        category = failure_category(entry)
+        if category in REPORT_ONLY_SINGLE_CONNECTOR_CATEGORIES:
+            continue
+        if category in PHASE4_HARD_ABORT_CATEGORIES:
+            continue
+        if "classification_only" in set(normalize_list(entry.get("work_direction"))):
+            continue
+        eligible.append(entry)
+    grouped = case_groups(eligible)
+    allowed_cases = {
+        case_id
+        for case_id, grouped_entries in grouped.items()
+        if len({entry.get("connector") for entry in grouped_entries}) == 1
+    }
+    return [entry for entry in eligible if entry.get("case_id") in allowed_cases]
+
+
 def old_cluster_regressions(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     checks = {
         "blocked_any": [entry for entry in entries if entry.get("runtime_status") == "BLOCKED"],
@@ -612,6 +645,7 @@ def recommended_step(category: str) -> str:
 
 def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     regressions = old_cluster_regressions(entries)
+    single_connector_runtime_fixable = runtime_fixable_single_connector_entries(entries)
     plan: dict[str, list[dict[str, Any]]] = {"P0": [], "P1": [], "P2": [], "P3": [], "P4": []}
     for name, data in regressions.items():
         if data["count"]:
@@ -704,10 +738,10 @@ def priority_plan(entries: list[dict[str, Any]], categories: list[dict[str, Any]
     plan["P4"].append(
         {
             "cluster_name": "rule_chain_semantics and small single-connector leftovers",
-            "count": next((item["count"] for item in categories if item["category"] == "rule_chain_semantics"), 0) + len(top_case_groups(entries, cross_connector=False, limit=100)),
+            "count": next((item["count"] for item in categories if item["category"] == "rule_chain_semantics"), 0) + len(top_case_groups(single_connector_runtime_fixable, cross_connector=False, limit=100)),
             "connector": "mostly nginx for connector-only leftovers",
-            "why": "smaller count; useful after high-signal evidence clusters",
-            "likely_change": "focused per-case triage",
+            "why": "small connector-only leftovers after report-only and not-next groups are excluded",
+            "likely_change": "focused per-case triage only when runtime-fixable evidence remains",
             "risk": "low to medium",
             "tests": ["targeted single-case smokes"],
         }
@@ -809,7 +843,7 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
     )
     analysis["recommendation"] = {
         "recommended_next_fix_cluster": recommended.get("cluster_name") if recommended else "none",
-        "reason": recommended.get("why") if recommended else "No remaining connector Full-Matrix failures are present in the generated reports.",
+        "reason": recommended.get("why") if recommended else "No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.",
         "not_next": not_next,
     }
     return analysis
