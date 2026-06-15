@@ -1,0 +1,165 @@
+{
+  "connector_root": "$CONNECTOR_ROOT",
+  "framework_root": "$FRAMEWORK_ROOT",
+  "generated_at": "2026-06-15T10:39:57Z",
+  "metadata": {
+    "category": "mrts-native",
+    "commit_policy": "optional-generated",
+    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "data_kind": "evidence",
+    "data_origin": "mrts",
+    "empty_inputs": [],
+    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-15T10:39:57Z",
+    "generated_by": "framework:ci/generate-mrts-native-report.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "missing",
+    "inputs": [
+      {
+        "notes": "input file missing",
+        "path": "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
+        "status": "missing"
+      },
+      {
+        "notes": "input file missing",
+        "path": "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json",
+        "status": "missing"
+      }
+    ],
+    "make_target": "mrts-native-full-run",
+    "missing_inputs": [
+      "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
+      "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+    ],
+    "owner": "mrts",
+    "report_key": "mrts_native_apache",
+    "schema_version": 1,
+    "severity": "optional",
+    "unknown_inputs": [],
+    "working_tree_dirty": "dirty"
+  },
+  "native_root": "$MRTS_NATIVE_ROOT",
+  "nginx_pr24_overlay": {
+    "adopted_files": [
+      "ftw.mrts.config.yaml",
+      "infra/fastcgi.conf",
+      "infra/fastcgi_params",
+      "infra/koi-utf",
+      "infra/koi-win",
+      "infra/log/access.log",
+      "infra/log/error.log",
+      "infra/log/modsec_audit.log",
+      "infra/mime.types",
+      "infra/modsecurity/main.conf",
+      "infra/modsecurity/modsecurity.conf",
+      "infra/modsecurity/unicode.mapping",
+      "infra/modules-available/mod-http-geoip2.conf",
+      "infra/modules-available/mod-http-headers-more-filter.conf",
+      "infra/modules-available/mod-http-image-filter.conf",
+      "infra/modules-available/mod-http-modsecurity.conf",
+      "infra/modules-available/mod-http-xslt-filter.conf",
+      "infra/modules-available/mod-mail.conf",
+      "infra/modules-available/mod-stream-geoip2.conf",
+      "infra/modules-available/mod-stream.conf",
+      "infra/modules-enabled/mod-http-geoip2.conf",
+      "infra/modules-enabled/mod-http-headers-more-filter.conf",
+      "infra/modules-enabled/mod-http-image-filter.conf",
+      "infra/modules-enabled/mod-http-modsecurity.conf",
+      "infra/modules-enabled/mod-http-xslt-filter.conf",
+      "infra/modules-enabled/mod-mail.conf",
+      "infra/modules-enabled/mod-stream-geoip2.conf",
+      "infra/modules-enabled/mod-stream.conf",
+      "infra/nginx.conf",
+      "infra/proxy_params",
+      "infra/run/.gitignore",
+      "infra/scgi_params",
+      "infra/sites-available/default",
+      "infra/sites-enabled/default",
+      "infra/snippets/fastcgi-php.conf",
+      "infra/snippets/snakeoil.conf",
+      "infra/uwsgi_params",
+      "infra/win-utf",
+      "start.py",
+      "stop.py"
+    ],
+    "limitations": [
+      "Phase 4 and RESPONSE_BODY remain non-promoted under framework policy.",
+      "Native PR24 evidence is separate from connector smoke evidence."
+    ],
+    "name": "nginx-pr24",
+    "source": {
+      "captured_at_utc": "2026-06-09T15:18:21Z",
+      "pr_head_sha": "134ea7e35d72e7d72294b66d80dafa07daa5fc92",
+      "pr_number": 24,
+      "pr_url": "https://github.com/owasp-modsecurity/MRTS/pull/24",
+      "replacement_note": "replace with $MRTS_ROOT/config_infra/nginx_linux once merged upstream",
+      "stability": "experimental",
+      "upstream_status": "open-pr"
+    },
+    "version": 1
+  },
+  "reports": {
+    "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+  },
+  "summary": {
+    "NOT_RUN": 2
+  },
+  "targets": {
+    "apache2_ubuntu": {
+      "counts": {
+        "attempted": 0,
+        "blocked": 0,
+        "fail": 0,
+        "failed_cases": [],
+        "not_executable": 0,
+        "pass": 0
+      },
+      "first_failing_cases": [],
+      "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+      "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
+      "known_limitations": [
+        "phase4_native_limitation",
+        "RESPONSE_BODY non-promoted"
+      ],
+      "paths": {
+        "job_json_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "run_log_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+        "staged_infra_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra"
+      },
+      "reason": "native target job.json not found",
+      "run_log": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+      "status": "NOT_RUN",
+      "target": "apache2_ubuntu"
+    },
+    "nginx-pr24": {
+      "counts": {
+        "attempted": 0,
+        "blocked": 0,
+        "fail": 0,
+        "failed_cases": [],
+        "not_executable": 0,
+        "pass": 0
+      },
+      "first_failing_cases": [],
+      "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+      "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",
+      "known_limitations": [
+        "phase4_native_limitation",
+        "RESPONSE_BODY non-promoted"
+      ],
+      "paths": {
+        "job_json_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "run_log_path": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+        "staged_infra_path": "$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra"
+      },
+      "reason": "native target job.json not found",
+      "run_log": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+      "status": "NOT_RUN",
+      "target": "nginx-pr24"
+    }
+  }
+}

@@ -43,7 +43,7 @@ entry passed.
 
 `RESPONSE_BODY` is not verified. It remains xfail/mapped-only; see
 `../../../modules/ModSecurity-test-Framework/docs/testing/response-body-blocking-investigation.md`
-and `../generated/runtime-matrix.generated.md`.
+and `../generated/runtime/runtime-matrix.generated.md`.
 
 ## PR #377 Source Status
 

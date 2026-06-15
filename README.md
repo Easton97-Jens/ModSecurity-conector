@@ -69,10 +69,10 @@ differences, capability gaps, report-only cases, or `not_next` areas that should
 not be solved by changing Expected statuses or PASS/FAIL values. The canonical
 merge-readiness reports are:
 
-- [Full runtime matrix](./reports/testing/generated/full-runtime-matrix.generated.md)
-- [Final consistency audit](./reports/testing/generated/final-consistency-audit.generated.md)
-- [Next fix plan](./reports/testing/generated/next-fix-plan.generated.md)
-- [Remaining failure analysis](./reports/testing/generated/remaining-failure-analysis.generated.md)
+- [Full runtime matrix](./reports/testing/generated/canonical/full-runtime-matrix.generated.md)
+- [Final consistency audit](./reports/testing/generated/canonical/final-consistency-audit.generated.md)
+- [Next fix plan](./reports/testing/generated/canonical/next-fix-plan.generated.md)
+- [Remaining failure analysis](./reports/testing/generated/canonical/remaining-failure-analysis.generated.md)
 - [Testing report index](./reports/testing/README.md)
 
 ## Connector Feature Status
@@ -286,15 +286,22 @@ make mrts-native-full-run
 Native outputs are staged under `$MRTS_NATIVE_ROOT` and reported as separate
 native infrastructure evidence:
 
-- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`
-- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`
-- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`
-- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`
+- Apache native: `reports/testing/generated/mrts-native/mrts-native-apache.generated.md`
+- NGINX PR24 native: `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md`
+- Native summary: `reports/testing/generated/mrts-native/mrts-native-summary.generated.md`
+- Combined native report: `reports/testing/generated/mrts-native/mrts-native-full.generated.md`
 
 These native MRTS reports are separate from connector full-matrix evidence.
 Missing local dependencies such as `go-ftw`, `albedo`, `apachectl`, `nginx`, or
 the NGINX ModSecurity module are reported as `BLOCKED`; nothing is installed
 globally.
+
+Runtime tool source URLs, expected release refs, binary defaults, and candidate
+lists are centralized in `modules/ModSecurity-test-Framework/ci/common.sh`.
+Runtime preparation and proof scripts load that framework environment and read
+values such as `GO_FTW_SOURCE_URL`, `ALBEDO_SOURCE_URL`, and
+`EXPAT_SOURCE_URL` from it. Local overrides can be supplied through environment
+variables before invoking the Make targets.
 
 MRTS/CRS result paths are separated by variant:
 
@@ -386,11 +393,11 @@ files, and temporary job output are local artifacts and must not be committed.
 - Testing report index: [reports/testing/README.md](./reports/testing/README.md)
 - Real-world connector validation: [reports/testing/real-world-connector-validation.md](./reports/testing/real-world-connector-validation.md)
 - HAProxy PoC evidence: [reports/testing/haproxy-poc.md](./reports/testing/haproxy-poc.md)
-- Full runtime matrix: [reports/testing/generated/full-runtime-matrix.generated.md](./reports/testing/generated/full-runtime-matrix.generated.md)
-- Final consistency audit: [reports/testing/generated/final-consistency-audit.generated.md](./reports/testing/generated/final-consistency-audit.generated.md)
-- Next fix plan: [reports/testing/generated/next-fix-plan.generated.md](./reports/testing/generated/next-fix-plan.generated.md)
-- Remaining failure analysis: [reports/testing/generated/remaining-failure-analysis.generated.md](./reports/testing/generated/remaining-failure-analysis.generated.md)
-- Case matrix reports: [reports/testing/case-matrix.md](./reports/testing/case-matrix.md), [reports/testing/generated/case-matrix.generated.md](./reports/testing/generated/case-matrix.generated.md)
+- Full runtime matrix: [reports/testing/generated/canonical/full-runtime-matrix.generated.md](./reports/testing/generated/canonical/full-runtime-matrix.generated.md)
+- Final consistency audit: [reports/testing/generated/canonical/final-consistency-audit.generated.md](./reports/testing/generated/canonical/final-consistency-audit.generated.md)
+- Next fix plan: [reports/testing/generated/canonical/next-fix-plan.generated.md](./reports/testing/generated/canonical/next-fix-plan.generated.md)
+- Remaining failure analysis: [reports/testing/generated/canonical/remaining-failure-analysis.generated.md](./reports/testing/generated/canonical/remaining-failure-analysis.generated.md)
+- Case matrix reports: [reports/testing/case-matrix.md](./reports/testing/case-matrix.md), [reports/testing/generated/coverage/case-matrix.generated.md](./reports/testing/generated/coverage/case-matrix.generated.md)
 - PR/source evidence: [reports/testing/evidence/pr-evidence-summary.md](./reports/testing/evidence/pr-evidence-summary.md), [reports/testing/evidence/raw-args-pr3564.md](./reports/testing/evidence/raw-args-pr3564.md)
 - Licensing and origin index: [docs/licensing/license-and-origin.md](./docs/licensing/license-and-origin.md)
 - Framework docs: `modules/ModSecurity-test-Framework/README.md`
