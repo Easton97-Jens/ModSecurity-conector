@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -17,7 +18,17 @@ except Exception:  # pragma: no cover - the report still works without YAML meta
     yaml = None
 
 
-REPORT_DIR = Path("reports/testing/generated")
+REPORT_DIR = GENERATED_ROOT
+SOURCE_REPORT_INPUTS = (
+    report_relpath("full_runtime_matrix", "json"),
+    report_relpath("connector_work_queue", "json"),
+    report_relpath("phase_work_queue", "json"),
+    report_relpath("full_run_evidence", "json"),
+    report_relpath("runtime_build_cache", "json"),
+    report_relpath("mrts_native_summary", "json"),
+    report_relpath("mrts_native_apache", "json"),
+    report_relpath("mrts_native_nginx", "json"),
+)
 FAILURE_CATEGORIES = (
     "intervention_blocking",
     "collection_name_normalization_semantics",
@@ -759,14 +770,14 @@ def first_priority_item(plan: dict[str, list[dict[str, Any]]], *, excluded_clust
 
 def load_reports(root: Path) -> dict[str, dict[str, Any]]:
     return {
-        "full_runtime_matrix": read_json(root / "full-runtime-matrix.generated.json"),
-        "connector_work_queue": read_json(root / "connector-work-queue.generated.json"),
-        "phase_work_queue": read_json(root / "phase-work-queue.generated.json"),
-        "full_run_evidence": read_json(root / "full-run-evidence.generated.json"),
-        "runtime_build_cache": read_json(root / "runtime-build-cache.generated.json"),
-        "mrts_native_summary": read_json(root / "mrts-native-summary.generated.json"),
-        "mrts_native_apache": read_json(root / "mrts-native-apache.generated.json"),
-        "mrts_native_nginx": read_json(root / "mrts-native-nginx.generated.json"),
+        "full_runtime_matrix": read_json(report_path_from_root(root, "full_runtime_matrix", "json")),
+        "connector_work_queue": read_json(report_path_from_root(root, "connector_work_queue", "json")),
+        "phase_work_queue": read_json(report_path_from_root(root, "phase_work_queue", "json")),
+        "full_run_evidence": read_json(report_path_from_root(root, "full_run_evidence", "json")),
+        "runtime_build_cache": read_json(report_path_from_root(root, "runtime_build_cache", "json")),
+        "mrts_native_summary": read_json(report_path_from_root(root, "mrts_native_summary", "json")),
+        "mrts_native_apache": read_json(report_path_from_root(root, "mrts_native_apache", "json")),
+        "mrts_native_nginx": read_json(report_path_from_root(root, "mrts_native_nginx", "json")),
     }
 
 
@@ -1016,45 +1027,60 @@ def render_plan_markdown(plan: dict[str, Any], generated_at: str, recommendation
 
 
 def update_full_run_evidence(report_dir: Path) -> None:
-    json_path = report_dir / "full-run-evidence.generated.json"
-    data = read_json(json_path)
-    if data:
-        data["remaining_failure_analysis_reports"] = {
-            "analysis": "reports/testing/generated/remaining-failure-analysis.generated.md",
-            "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.md",
-            "phase4_hard_abort_capability": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
-            "nolog_audit_evidence": "reports/testing/generated/nolog-audit-evidence.generated.md",
-            "response_header_hook_analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",
-        }
-        reports = data.get("reports")
-        if isinstance(reports, list):
-            for report in (
-                "reports/testing/generated/remaining-failure-analysis.generated.json",
-                "reports/testing/generated/remaining-failure-analysis.generated.md",
-                "reports/testing/generated/next-fix-plan.generated.json",
-                "reports/testing/generated/next-fix-plan.generated.md",
-                "reports/testing/generated/phase4-hard-abort-capability.generated.json",
-                "reports/testing/generated/phase4-hard-abort-capability.generated.md",
-                "reports/testing/generated/nolog-audit-evidence.generated.json",
-                "reports/testing/generated/nolog-audit-evidence.generated.md",
-                "reports/testing/generated/response-header-hook-analysis.generated.json",
-                "reports/testing/generated/response-header-hook-analysis.generated.md",
-            ):
-                if report not in reports:
-                    reports.append(report)
-            data["reports"] = reports
-        write_json_file(json_path, data)
+    connector_root = report_dir.parents[2]
+    json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
+    data = read_json(json_path) or {
+        "generated_at": utc_now(),
+        "report_kind": "full-run-evidence",
+        "reports": [],
+        "notes": ["Evidence rollup created by remaining-failure-analysis because no categorized rollup existed yet."],
+    }
+    data["remaining_failure_analysis_reports"] = {
+        "analysis": report_relpath("remaining_failure_analysis", "md"),
+        "next_fix_plan": report_relpath("next_fix_plan", "md"),
+        "phase4_hard_abort_capability": report_relpath("phase4_hard_abort_capability", "md"),
+        "nolog_audit_evidence": report_relpath("nolog_audit_evidence", "md"),
+        "response_header_hook_analysis": report_relpath("response_header_hook_analysis", "md"),
+    }
+    reports = data.get("reports")
+    if not isinstance(reports, list):
+        reports = []
+    for report in (
+        report_relpath("remaining_failure_analysis", "json"),
+        report_relpath("remaining_failure_analysis", "md"),
+        report_relpath("next_fix_plan", "json"),
+        report_relpath("next_fix_plan", "md"),
+        report_relpath("phase4_hard_abort_capability", "json"),
+        report_relpath("phase4_hard_abort_capability", "md"),
+        report_relpath("nolog_audit_evidence", "json"),
+        report_relpath("nolog_audit_evidence", "md"),
+        report_relpath("response_header_hook_analysis", "json"),
+        report_relpath("response_header_hook_analysis", "md"),
+    ):
+        if report not in reports:
+            reports.append(report)
+    data["reports"] = reports
+    metadata = build_metadata(
+        generated_by="ci/generate-remaining-failure-analysis.py",
+        make_target="generate-remaining-failure-analysis",
+        connector_root=connector_root,
+        inputs=SOURCE_REPORT_INPUTS[:3],
+        generated_at=str(data.get("generated_at") or utc_now()),
+    )
+    write_text_file(json_path, generated_json_text(data, metadata))
 
-    md_path = report_dir / "full-run-evidence.generated.md"
+    md_path = report_path_from_root(report_dir, "full_run_evidence", "md")
     text = read_text(md_path)
+    if not text:
+        text = "# Full Run Evidence\n\nGenerated file - do not edit manually.\n"
     if text:
         lines = [
             "## Remaining Failure Analysis",
-            "- Remaining failure analysis: `reports/testing/generated/remaining-failure-analysis.generated.md`",
-            "- Next fix plan: `reports/testing/generated/next-fix-plan.generated.md`",
-            "- Phase 4 hard-abort capability: `reports/testing/generated/phase4-hard-abort-capability.generated.md`",
-            "- Nolog audit evidence: `reports/testing/generated/nolog-audit-evidence.generated.md`",
-            "- Response header hook analysis: `reports/testing/generated/response-header-hook-analysis.generated.md`",
+            f"- Remaining failure analysis: `{report_relpath('remaining_failure_analysis', 'md')}`",
+            f"- Next fix plan: `{report_relpath('next_fix_plan', 'md')}`",
+            f"- Phase 4 hard-abort capability: `{report_relpath('phase4_hard_abort_capability', 'md')}`",
+            f"- Nolog audit evidence: `{report_relpath('nolog_audit_evidence', 'md')}`",
+            f"- Response header hook analysis: `{report_relpath('response_header_hook_analysis', 'md')}`",
             "- These reports analyze connector Full-Matrix leftovers and keep Native MRTS evidence separate.",
         ]
         section = "\n".join(lines)
@@ -1070,7 +1096,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
             text = f"{prefix.rstrip()}\n\n{marked}\n\n## Reports And Logs{suffix}".rstrip() + "\n"
         else:
             text = text.rstrip() + "\n\n" + marked + "\n"
-        write_text_file(md_path, text)
+        write_text_file(md_path, generated_markdown_text(text, metadata))
 
 
 def main() -> int:
@@ -1091,13 +1117,31 @@ def main() -> int:
         "priority_plan": analysis["priority_plan"],
         "recommendation": analysis["recommendation"],
     }
-    write_json_file(output_dir / "remaining-failure-analysis.generated.json", analysis)
-    write_text_file(output_dir / "remaining-failure-analysis.generated.md", render_analysis_markdown(analysis))
-    write_json_file(output_dir / "next-fix-plan.generated.json", plan)
-    write_text_file(output_dir / "next-fix-plan.generated.md", render_plan_markdown(plan["priority_plan"], plan["generated_at"], plan["recommendation"]))
+    analysis_metadata = build_metadata(
+        generated_by="ci/generate-remaining-failure-analysis.py",
+        make_target="generate-remaining-failure-analysis",
+        connector_root=connector_root,
+        inputs=SOURCE_REPORT_INPUTS,
+        generated_at=analysis["generated_at"],
+    )
+    plan_metadata = build_metadata(
+        generated_by="ci/generate-remaining-failure-analysis.py",
+        make_target="generate-remaining-failure-analysis",
+        connector_root=connector_root,
+        inputs=[report_relpath("remaining_failure_analysis", "json")],
+        generated_at=plan["generated_at"],
+    )
+    analysis_json = report_path_from_root(output_dir, "remaining_failure_analysis", "json")
+    analysis_md = report_path_from_root(output_dir, "remaining_failure_analysis", "md")
+    plan_json = report_path_from_root(output_dir, "next_fix_plan", "json")
+    plan_md = report_path_from_root(output_dir, "next_fix_plan", "md")
+    write_text_file(analysis_json, generated_json_text(analysis, analysis_metadata))
+    write_text_file(analysis_md, generated_markdown_text(render_analysis_markdown(analysis), analysis_metadata))
+    write_text_file(plan_json, generated_json_text(plan, plan_metadata))
+    write_text_file(plan_md, generated_markdown_text(render_plan_markdown(plan["priority_plan"], plan["generated_at"], plan["recommendation"]), plan_metadata))
     update_full_run_evidence(output_dir)
-    print(output_dir / "remaining-failure-analysis.generated.md")
-    print(output_dir / "next-fix-plan.generated.md")
+    print(analysis_md)
+    print(plan_md)
     return 0
 
 

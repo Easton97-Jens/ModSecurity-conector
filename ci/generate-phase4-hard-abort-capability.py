@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -17,7 +18,7 @@ except Exception:  # pragma: no cover - report generation still works from evide
     yaml = None
 
 
-REPORT_DIR = Path("reports/testing/generated")
+REPORT_DIR = GENERATED_ROOT
 PHASE4_CATEGORIES = (
     "phase4_no_hard_abort_required",
     "phase4_hard_abort_evidence",
@@ -385,7 +386,7 @@ def native_relation(report_dir: Path) -> dict[str, Any]:
         "classification": "phase4_native_semantics",
     }
     for name in ("apache", "nginx"):
-        report = read_json(report_dir / f"mrts-native-{name}.generated.json")
+        report = read_json(report_path_from_root(report_dir, f"mrts_native_{name}", "json"))
         relation[name] = {
             "status": report.get("status", "-"),
             "counts": report.get("counts", {}),
@@ -397,7 +398,7 @@ def native_relation(report_dir: Path) -> dict[str, Any]:
 
 def build_report(connector_root: Path) -> dict[str, Any]:
     report_dir = connector_root / REPORT_DIR
-    work_queue = read_json(report_dir / "connector-work-queue.generated.json")
+    work_queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
     entries = [entry for entry in work_queue.get("entries", []) if isinstance(entry, dict) and is_phase4_candidate(entry)]
     rows = [case_row(entry) for entry in entries]
     rows.sort(key=lambda item: (str(item["connector"]), str(item["case_id"]), str(item["variant"])))
@@ -424,11 +425,11 @@ def build_report(connector_root: Path) -> dict[str, Any]:
             ],
         },
         "source_reports": {
-            "connector_work_queue": work_queue.get("generated_at", "-"),
-            "full_runtime_matrix": read_json(report_dir / "full-runtime-matrix.generated.json").get("generated_at", "-"),
-            "remaining_failure_analysis": read_json(report_dir / "remaining-failure-analysis.generated.json").get("generated_at", "-"),
-            "mrts_native_apache": read_json(report_dir / "mrts-native-apache.generated.json").get("generated_at", "-"),
-            "mrts_native_nginx": read_json(report_dir / "mrts-native-nginx.generated.json").get("generated_at", "-"),
+            "connector_work_queue": report_relpath("connector_work_queue", "json"),
+            "full_runtime_matrix": report_relpath("full_runtime_matrix", "json"),
+            "remaining_failure_analysis": report_relpath("remaining_failure_analysis", "json"),
+            "mrts_native_apache": report_relpath("mrts_native_apache", "json"),
+            "mrts_native_nginx": report_relpath("mrts_native_nginx", "json"),
         },
         "source_code_findings": {
             "nginx": [
@@ -628,12 +629,12 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 def update_phase_work_queue(report_dir: Path, report: dict[str, Any]) -> None:
-    json_path = report_dir / "phase-work-queue.generated.json"
+    json_path = report_path_from_root(report_dir, "phase_work_queue", "json")
     data = read_json(json_path)
     if data:
         data["phase4_hard_abort_capability"] = {
-            "report": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
-            "json": "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+            "report": report_relpath("phase4_hard_abort_capability", "md"),
+            "json": report_relpath("phase4_hard_abort_capability", "json"),
             "summary": report["summary"],
             "connector_summary": report["connector_summary"],
         }
@@ -642,13 +643,13 @@ def update_phase_work_queue(report_dir: Path, report: dict[str, Any]) -> None:
             guardrails["phase4_hard_abort_requires_transport_evidence"] = True
         write_json(json_path, data)
 
-    md_path = report_dir / "phase-work-queue.generated.md"
+    md_path = report_path_from_root(report_dir, "phase_work_queue", "md")
     text = read_text(md_path)
     if text:
         section = "\n".join(
             [
                 "## Phase 4 Hard Abort Capability",
-                "- Report: `reports/testing/generated/phase4-hard-abort-capability.generated.md`",
+                f"- Report: `{report_relpath('phase4_hard_abort_capability', 'md')}`",
                 f"- Hard-abort evidence rows: **{report['summary']['hard_abort_evidence_rows']}**",
                 f"- Full-delivery-without-abort rows: **{report['summary']['full_delivery_without_abort_rows']}**",
                 "- Phase 4 PASS promotion now requires intervention log evidence plus transport abort evidence, not HTTP status alone.",
@@ -667,12 +668,12 @@ def update_phase_work_queue(report_dir: Path, report: dict[str, Any]) -> None:
 
 
 def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
-    json_path = report_dir / "full-run-evidence.generated.json"
+    json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:
         data["phase4_hard_abort_capability"] = {
-            "report": "reports/testing/generated/phase4-hard-abort-capability.generated.md",
-            "json": "reports/testing/generated/phase4-hard-abort-capability.generated.json",
+            "report": report_relpath("phase4_hard_abort_capability", "md"),
+            "json": report_relpath("phase4_hard_abort_capability", "json"),
             "summary": report["summary"],
             "connector_summary": {
                 connector: {
@@ -686,21 +687,21 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
         reports = data.get("reports")
         if isinstance(reports, list):
             for path in (
-                "reports/testing/generated/phase4-hard-abort-capability.generated.json",
-                "reports/testing/generated/phase4-hard-abort-capability.generated.md",
+                report_relpath("phase4_hard_abort_capability", "json"),
+                report_relpath("phase4_hard_abort_capability", "md"),
             ):
                 if path not in reports:
                     reports.append(path)
             data["reports"] = reports
         write_json(json_path, data)
 
-    md_path = report_dir / "full-run-evidence.generated.md"
+    md_path = report_path_from_root(report_dir, "full_run_evidence", "md")
     text = read_text(md_path)
     if text:
         section = "\n".join(
             [
                 "## Phase 4 Hard Abort Capability",
-                "- Report: `reports/testing/generated/phase4-hard-abort-capability.generated.md`",
+                f"- Report: `{report_relpath('phase4_hard_abort_capability', 'md')}`",
                 f"- Hard-abort evidence rows: **{report['summary']['hard_abort_evidence_rows']}**",
                 f"- Full-delivery-without-abort rows: **{report['summary']['full_delivery_without_abort_rows']}**",
                 "- The report keeps Expected status and runtime PASS/FAIL unchanged while adding hard-abort classifications.",
@@ -733,10 +734,17 @@ def main() -> int:
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root)
-    json_path = output_dir / "phase4-hard-abort-capability.generated.json"
-    md_path = output_dir / "phase4-hard-abort-capability.generated.md"
-    write_json(json_path, report)
-    write_text_file(md_path, render_markdown(report))
+    metadata = build_metadata(
+        generated_by="ci/generate-phase4-hard-abort-capability.py",
+        make_target="generate-phase4-hard-abort-capability",
+        connector_root=connector_root,
+        inputs=report["source_reports"].values(),
+        generated_at=report["generated_at"],
+    )
+    json_path = report_path_from_root(output_dir, "phase4_hard_abort_capability", "json")
+    md_path = report_path_from_root(output_dir, "phase4_hard_abort_capability", "md")
+    write_text_file(json_path, generated_json_text(report, metadata))
+    write_text_file(md_path, generated_markdown_text(render_markdown(report), metadata))
     update_phase_work_queue(output_dir, report)
     update_full_run_evidence(output_dir, report)
     print(md_path)

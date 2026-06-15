@@ -37,10 +37,10 @@ locations.
 - Status model: `architecture/status-model.md`
 - Real connector proof mode: `../reports/testing/real-world-connector-validation.md`
 - Testing report index: `../reports/testing/README.md`
-- Merge readiness: `../reports/testing/generated/final-consistency-audit.generated.md`
+- Merge readiness: `../reports/testing/generated/canonical/final-consistency-audit.generated.md`
 - Current compatibility evidence: `../reports/testing/test-coverage-overview.md`
 - Case matrix: `../reports/testing/case-matrix.md` and
-  `../reports/testing/generated/case-matrix.generated.md`
+  `../reports/testing/generated/coverage/case-matrix.generated.md`
 - Roadmap and open work: `roadmap/roadmap.md` and
   `../modules/ModSecurity-test-Framework/docs/roadmap/todo-inventory.md`
 - YAML schema and shared fixtures:

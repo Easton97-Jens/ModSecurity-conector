@@ -1,4 +1,4 @@
-Generated file — do not edit manually.
+Generated file - do not edit manually.
 
 # ModSecurity Connector Test Coverage Overview
 
@@ -78,14 +78,14 @@ Generated file — do not edit manually.
 | FAIL | 44 | 50 | 44 |
 | NOT_EXECUTABLE | 87 | 81 | 87 |
 | MAPPED_ONLY | 10 | 10 | 10 |
-- Details: `reports/testing/generated/runtime-matrix.generated.md`
-- HAProxy per-case results: `reports/testing/generated/haproxy-runtime-results.generated.md`
+- Details: `reports/testing/generated/runtime/runtime-matrix.generated.md`
+- HAProxy per-case results: `reports/testing/generated/runtime/haproxy-runtime-results.generated.md`
 
 ## MRTS Native Infrastructure Evidence
-- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`
-- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`
-- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`
-- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`
+- Apache native: `reports/testing/generated/mrts-native/mrts-native-apache.generated.md`
+- NGINX PR24 native: `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md`
+- Native summary: `reports/testing/generated/mrts-native/mrts-native-summary.generated.md`
+- Combined native report: `reports/testing/generated/mrts-native/mrts-native-full.generated.md`
 
 These native MRTS reports are separate from connector full-matrix evidence.
 
@@ -311,8 +311,8 @@ These native MRTS reports are separate from connector full-matrix evidence.
 ## Open Areas / Gaps
 - Runtime-verified means only cases explicitly classified as `runtime_verified=true`.
 - Cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.
-- See `reports/testing/generated/connector-gap-summary.generated.md` for detailed connector-gap entries.
-- Phase 3/4 cases are visible in `reports/testing/generated/phase-coverage.generated.md` and in the runtime matrix.
+- See `reports/testing/generated/coverage/connector-gap-summary.generated.md` for detailed connector-gap entries.
+- Phase 3/4 cases are visible in `reports/testing/generated/coverage/phase-coverage.generated.md` and in the runtime matrix.
 - RESPONSE_BODY remains not verified and not promoted.
 - GitHub/Codex checks are intentionally lightweight.
 - Pending and gap topics need local runtime validation.
@@ -334,15 +334,15 @@ These native MRTS reports are separate from connector full-matrix evidence.
 - `make check-test-matrix`
 
 ## Detail Reports
-- `reports/testing/generated/case-matrix.generated.md`
-- `reports/testing/generated/coverage-summary.generated.md`
-- `reports/testing/generated/xfail-summary.generated.md`
-- `reports/testing/generated/connector-gap-summary.generated.md`
-- `reports/testing/generated/phase-coverage.generated.md`
-- `reports/testing/generated/runtime-matrix.generated.md`
-- `reports/testing/generated/apache-runtime-results.generated.md`
-- `reports/testing/generated/nginx-runtime-results.generated.md`
-- `reports/testing/generated/haproxy-runtime-results.generated.md`
+- `reports/testing/generated/coverage/case-matrix.generated.md`
+- `reports/testing/generated/coverage/coverage-summary.generated.md`
+- `reports/testing/generated/coverage/xfail-summary.generated.md`
+- `reports/testing/generated/coverage/connector-gap-summary.generated.md`
+- `reports/testing/generated/coverage/phase-coverage.generated.md`
+- `reports/testing/generated/runtime/runtime-matrix.generated.md`
+- `reports/testing/generated/runtime/apache-runtime-results.generated.md`
+- `reports/testing/generated/runtime/nginx-runtime-results.generated.md`
+- `reports/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - `reports/testing/runtime-validation-snapshot.json`
 
 ## Important Note

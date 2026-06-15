@@ -481,16 +481,16 @@ report_rc=$?
     --connector-root "$CONNECTOR_ROOT" \
     --framework-root "$FRAMEWORK_ROOT" \
     --output-root "$CONNECTOR_ROOT" \
-    --full-runtime-matrix "$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.json"
+    --full-runtime-matrix "$FULL_MATRIX_REPORT_DIR/canonical/full-runtime-matrix.generated.json"
 work_queue_rc=$?
 
 "$PYTHON" "$FRAMEWORK_ROOT/ci/generate-phase-work-queue.py" \
     --connector-root "$CONNECTOR_ROOT" \
     --framework-root "$FRAMEWORK_ROOT" \
     --output-root "$CONNECTOR_ROOT" \
-    --connector-work-queue "$FULL_MATRIX_REPORT_DIR/connector-work-queue.generated.json" \
-    --phase-coverage "$FULL_MATRIX_REPORT_DIR/phase-coverage.generated.md" \
-    --full-runtime-matrix "$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.json"
+    --connector-work-queue "$FULL_MATRIX_REPORT_DIR/work-queues/connector-work-queue.generated.json" \
+    --phase-coverage "$FULL_MATRIX_REPORT_DIR/coverage/phase-coverage.generated.md" \
+    --full-runtime-matrix "$FULL_MATRIX_REPORT_DIR/canonical/full-runtime-matrix.generated.json"
 phase_work_queue_rc=$?
 
 "$PYTHON" "$CONNECTOR_ROOT/ci/generate-nolog-audit-evidence-analysis.py" \
@@ -512,17 +512,17 @@ remaining_failure_analysis_rc=$?
 set -eu
 
 echo "full-matrix-parallel: manifest=$FULL_MATRIX_MANIFEST"
-echo "full-matrix-parallel: report=$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.md"
-echo "full-matrix-parallel: work_queue=$FULL_MATRIX_REPORT_DIR/connector-work-queue.generated.md"
-echo "full-matrix-parallel: phase_work_queue=$FULL_MATRIX_REPORT_DIR/phase-work-queue.generated.md"
-echo "full-matrix-parallel: response_header_hook=$FULL_MATRIX_REPORT_DIR/response-header-hook-analysis.generated.md"
-echo "full-matrix-parallel: remaining_failure_analysis=$FULL_MATRIX_REPORT_DIR/remaining-failure-analysis.generated.md"
+echo "full-matrix-parallel: report=$FULL_MATRIX_REPORT_DIR/canonical/full-runtime-matrix.generated.md"
+echo "full-matrix-parallel: work_queue=$FULL_MATRIX_REPORT_DIR/work-queues/connector-work-queue.generated.md"
+echo "full-matrix-parallel: phase_work_queue=$FULL_MATRIX_REPORT_DIR/work-queues/phase-work-queue.generated.md"
+echo "full-matrix-parallel: response_header_hook=$FULL_MATRIX_REPORT_DIR/focused-analysis/response-header-hook-analysis.generated.md"
+echo "full-matrix-parallel: remaining_failure_analysis=$FULL_MATRIX_REPORT_DIR/canonical/remaining-failure-analysis.generated.md"
 
 if [ "$report_rc" -ne 0 ] || [ "$work_queue_rc" -ne 0 ] || [ "$phase_work_queue_rc" -ne 0 ] || [ "$nolog_audit_evidence_rc" -ne 0 ] || [ "$response_header_hook_rc" -ne 0 ] || [ "$remaining_failure_analysis_rc" -ne 0 ]; then
     exit 2
 fi
 
-"$PYTHON" - "$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.json" "$port_check_blocked" <<'PY'
+"$PYTHON" - "$FULL_MATRIX_REPORT_DIR/canonical/full-runtime-matrix.generated.json" "$port_check_blocked" <<'PY'
 import json
 import sys
 from pathlib import Path

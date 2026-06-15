@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -19,7 +20,7 @@ except Exception:  # pragma: no cover - report generation has a regex fallback.
     yaml = None
 
 
-REPORT_DIR = Path("reports/testing/generated")
+REPORT_DIR = GENERATED_ROOT
 CASE_ID = "v3_action_nolog_pass_no_audit"
 CLASSIFICATION = "nolog-expected-no-audit"
 EVIDENCE_CLASSIFICATION = "nolog_expected_no_audit"
@@ -422,7 +423,7 @@ def classify_connector_queue(
     rows: list[dict[str, Any]],
     framework_root: Path,
 ) -> dict[str, int]:
-    path = report_dir / "connector-work-queue.generated.json"
+    path = report_path_from_root(report_dir, "connector_work_queue", "json")
     data = read_json(path)
     entries = data.get("entries", [])
     already_classified = sum(
@@ -479,6 +480,7 @@ def classify_connector_queue(
 
 
 def render_connector_queue_markdown(report_dir: Path, data: dict[str, Any], framework_root: Path) -> None:
+    connector_root = report_dir.parents[2]
     module = import_script(framework_root / "ci/generate-connector-work-queue.py", "connector_work_queue_generator")
     entries = data.get("entries", [])
     markdown = module.render_markdown(
@@ -487,7 +489,15 @@ def render_connector_queue_markdown(report_dir: Path, data: dict[str, Any], fram
         Counter(data.get("runtime_source_counts", {})),
         str(data.get("generated_at") or utc_now()),
     )
-    write_text_file(report_dir / "connector-work-queue.generated.md", markdown)
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else build_metadata(
+        generated_by="framework:ci/generate-connector-work-queue.py",
+        make_target="generate-work-queue",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[report_relpath("full_runtime_matrix", "json")],
+        generated_at=str(data.get("generated_at") or utc_now()),
+    )
+    write_text_file(report_path_from_root(report_dir, "connector_work_queue", "md"), generated_markdown_text(markdown, metadata))
 
 
 def render_phase_work_queue(
@@ -508,9 +518,9 @@ def render_phase_work_queue(
         return original_phase_work_direction(entry)
 
     module.phase_work_direction = patched_phase_work_direction
-    connector_work_queue_path = report_dir / "connector-work-queue.generated.json"
-    phase_coverage_path = report_dir / "phase-coverage.generated.md"
-    full_runtime_matrix_path = report_dir / "full-runtime-matrix.generated.json"
+    connector_work_queue_path = report_path_from_root(report_dir, "connector_work_queue", "json")
+    phase_coverage_path = report_path_from_root(report_dir, "phase_coverage", "md")
+    full_runtime_matrix_path = report_path_from_root(report_dir, "full_runtime_matrix", "json")
     connector_work_queue = module.read_json(connector_work_queue_path)
     phase_coverage = module.parse_phase_coverage(phase_coverage_path)
     full_runtime_matrix = module.read_json_optional(full_runtime_matrix_path)
@@ -526,37 +536,45 @@ def render_phase_work_queue(
             "full_runtime_matrix": str(full_runtime_matrix_path),
         },
     )
-    write_json(report_dir / "phase-work-queue.generated.json", payload)
-    write_text_file(report_dir / "phase-work-queue.generated.md", module.render_markdown(payload))
+    metadata = build_metadata(
+        generated_by="framework:ci/generate-phase-work-queue.py",
+        make_target="generate-phase-work-queue",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[connector_work_queue_path, phase_coverage_path, full_runtime_matrix_path],
+        generated_at=str(payload.get("generated_at") or utc_now()),
+    )
+    write_text_file(report_path_from_root(report_dir, "phase_work_queue", "json"), generated_json_text(payload, metadata))
+    write_text_file(report_path_from_root(report_dir, "phase_work_queue", "md"), generated_markdown_text(module.render_markdown(payload), metadata))
 
 
 def update_full_run_evidence(report_dir: Path) -> None:
-    json_path = report_dir / "full-run-evidence.generated.json"
+    json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:
         data["nolog_audit_evidence_report"] = {
-            "analysis": "reports/testing/generated/nolog-audit-evidence.generated.md",
-            "json": "reports/testing/generated/nolog-audit-evidence.generated.json",
+            "analysis": report_relpath("nolog_audit_evidence", "md"),
+            "json": report_relpath("nolog_audit_evidence", "json"),
             "case_id": CASE_ID,
             "classification": EVIDENCE_CLASSIFICATION,
         }
         reports = data.get("reports")
         if isinstance(reports, list):
             for report in (
-                "reports/testing/generated/nolog-audit-evidence.generated.json",
-                "reports/testing/generated/nolog-audit-evidence.generated.md",
+                report_relpath("nolog_audit_evidence", "json"),
+                report_relpath("nolog_audit_evidence", "md"),
             ):
                 if report not in reports:
                     reports.append(report)
             data["reports"] = reports
         write_json(json_path, data)
-    md_path = report_dir / "full-run-evidence.generated.md"
+    md_path = report_path_from_root(report_dir, "full_run_evidence", "md")
     text = read_text(md_path)
     if not text:
         return
     lines = [
         "## Nolog Audit Evidence Analysis",
-        "- Nolog audit evidence: `reports/testing/generated/nolog-audit-evidence.generated.md`",
+        f"- Nolog audit evidence: `{report_relpath('nolog_audit_evidence', 'md')}`",
         f"- Case `{CASE_ID}` is classified as `{EVIDENCE_CLASSIFICATION}` when rule {TARGET_RULE_ID} is absent from runtime logs.",
     ]
     section = "\n".join(lines)
@@ -577,8 +595,8 @@ def update_full_run_evidence(report_dir: Path) -> None:
 
 def build_analysis(connector_root: Path, framework_root: Path) -> dict[str, Any]:
     report_dir = connector_root / REPORT_DIR
-    connector_queue = read_json(report_dir / "connector-work-queue.generated.json")
-    full_runtime_matrix = read_json(report_dir / "full-runtime-matrix.generated.json")
+    connector_queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
+    full_runtime_matrix = read_json(report_path(connector_root, "full_runtime_matrix", "json"))
     entries = [
         entry for entry in connector_queue.get("entries", [])
         if isinstance(entry, dict) and entry.get("case_id") == CASE_ID
@@ -603,6 +621,11 @@ def build_analysis(connector_root: Path, framework_root: Path) -> dict[str, Any]
     return {
         "generated_at": utc_now(),
         "report_kind": "nolog-audit-evidence-analysis",
+        "source_reports": {
+            "connector_work_queue": report_relpath("connector_work_queue", "json"),
+            "full_runtime_matrix": report_relpath("full_runtime_matrix", "json"),
+            "phase_coverage": report_relpath("phase_coverage", "md"),
+        },
         "case_metadata": {
             **case_meta,
             "case_path": sanitize_path(case_meta["case_path"], connector_root, framework_root),
@@ -640,9 +663,19 @@ def main() -> int:
     add_report_roots(connector_root / REPORT_DIR)
     report_dir.mkdir(parents=True, exist_ok=True)
     analysis = build_analysis(connector_root, framework_root)
-    write_json(report_dir / "nolog-audit-evidence.generated.json", analysis)
-    write_text_file(report_dir / "nolog-audit-evidence.generated.md", render_analysis_markdown(analysis))
-    print(report_dir / "nolog-audit-evidence.generated.md")
+    metadata = build_metadata(
+        generated_by="ci/generate-nolog-audit-evidence-analysis.py",
+        make_target="generate-nolog-audit-evidence-analysis",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=analysis["source_reports"].values(),
+        generated_at=analysis["generated_at"],
+    )
+    json_path = report_path_from_root(report_dir, "nolog_audit_evidence", "json")
+    md_path = report_path_from_root(report_dir, "nolog_audit_evidence", "md")
+    write_text_file(json_path, generated_json_text(analysis, metadata))
+    write_text_file(md_path, generated_markdown_text(render_analysis_markdown(analysis), metadata))
+    print(md_path)
     return 0
 
 

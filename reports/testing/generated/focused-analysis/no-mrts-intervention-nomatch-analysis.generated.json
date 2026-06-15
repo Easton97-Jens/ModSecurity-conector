@@ -1,0 +1,125 @@
+{
+  "distribution": {
+    "causes": [],
+    "classifications": [],
+    "connectors": [],
+    "operators": [],
+    "phases": [],
+    "priorities": [],
+    "source_categories": [],
+    "targets": [],
+    "transformations": [],
+    "variants": [],
+    "work_directions": []
+  },
+  "generated_at": "2026-06-15T10:40:30Z",
+  "groups": {
+    "by_cause": [],
+    "by_connector": [],
+    "by_operator": [],
+    "by_phase": [],
+    "by_source_category": [],
+    "by_target": []
+  },
+  "metadata": {
+    "category": "focused-analysis",
+    "commit_policy": "versioned-generated",
+    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "data_kind": "focused-analysis",
+    "data_origin": "connector",
+    "empty_inputs": [],
+    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-15T10:40:30Z",
+    "generated_by": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "complete",
+    "inputs": [
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
+        "status": "present"
+      }
+    ],
+    "make_target": "generate-no-mrts-intervention-nomatch-analysis",
+    "missing_inputs": [],
+    "owner": "connector",
+    "report_key": "no_mrts_intervention_nomatch_analysis",
+    "schema_version": 1,
+    "severity": "informational",
+    "unknown_inputs": [],
+    "working_tree_dirty": "dirty"
+  },
+  "native_comparator": {
+    "available": false,
+    "matching_case_ids": [],
+    "native_status": {
+      "apache": "NOT_RUN",
+      "nginx": "NOT_RUN",
+      "summary_generated_at": "2026-06-15T10:39:57Z"
+    },
+    "reason": "Native MRTS reports cover upstream MRTS target cases; these 105 rows are framework-owned no-MRTS connector cases.",
+    "status": "no native comparator"
+  },
+  "records": [],
+  "report_kind": "no-mrts-intervention-nomatch-analysis",
+  "safe_subcluster": {
+    "action": "analysis only; no runtime, rule, expected-status, or PASS/FAIL change",
+    "cluster": "none",
+    "count": 0,
+    "reason": "No small safe harness/evidence fix was identified. The smallest clear group is phase1_request_body_unavailable_or_empty_body, but changing its body would change the test definition.",
+    "selected": false
+  },
+  "source_reports": {
+    "connector_work_queue": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+    "full_runtime_matrix": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+    "intervention_blocking_analysis": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+    "next_fix_plan": "reports/testing/generated/canonical/next-fix-plan.generated.json",
+    "remaining_failure_analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
+  },
+  "summary": {
+    "backend_reached": 0,
+    "before_after": {
+      "intervention_blocking_true_candidates_after": 0,
+      "intervention_blocking_true_candidates_before": 0,
+      "no_mrts_no_match_after": 0,
+      "no_mrts_no_match_before": 0,
+      "p0_p1_intervention_blocking_after": 0,
+      "p0_p1_intervention_blocking_before": 0
+    },
+    "full_matrix_totals": {
+      "attempted": 3928,
+      "blocked": 0,
+      "fail": 782,
+      "not_executable": 72,
+      "pass": 3074,
+      "pending": 2298
+    },
+    "intervention_created_connector_missed_403": 0,
+    "no_mrts_no_match": 0,
+    "rule_loaded_no_match": 0,
+    "rule_matched_no_intervention": 0,
+    "rule_not_loaded": 0,
+    "unique_cases": 0
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "body_processor_analysis_report": {
+    "analysis": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.md",
+    "json": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
+    "multipart_activation_missing_subcluster_count": 0,
+    "multipart_active_after_report_sync": 0,
+    "urlencoded_active_after_report_sync": 0,
+    "urlencoded_form_subcluster_count": 0,
+    "xml_activation_missing_subcluster_count": 0,
+    "xml_active_after_report_sync": 0
+  },
+  "final_consistency_audit_report": {
+    "analysis": "reports/testing/generated/canonical/final-consistency-audit.generated.md",
+    "full_matrix_summary": {
+      "attempted": 3928,
+      "blocked": 0,
+      "fail": 782,
+      "not_executable": 72,
+      "pass": 3074,
+      "pending": 2298
+    },
+    "json": "reports/testing/generated/canonical/final-consistency-audit.generated.json",
+    "recommended_next_fix_cluster": "none",
+    "release_readiness": "ready_with_known_reported_gaps"
+  },
+  "generated_at": "2026-06-15T08:49:03Z",
+  "metadata": {
+    "category": "canonical",
+    "commit_policy": "versioned-generated",
+    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "data_kind": "focused-analysis",
+    "data_origin": "runtime",
+    "empty_inputs": [],
+    "framework_sha": "unknown",
+    "framework_working_tree_dirty": "unknown",
+    "generated_at": "2026-06-15T08:49:03Z",
+    "generated_by": "ci/generate-remaining-failure-analysis.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "complete",
+    "inputs": [
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "status": "present"
+      }
+    ],
+    "make_target": "generate-remaining-failure-analysis",
+    "missing_inputs": [],
+    "owner": "connector",
+    "report_key": "next_fix_plan",
+    "schema_version": 1,
+    "severity": "important",
+    "unknown_inputs": [],
+    "working_tree_dirty": "dirty"
+  },
+  "no_mrts_intervention_nomatch_analysis_report": {
+    "analysis": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md",
+    "json": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json"
+  },
+  "nolog_audit_evidence_report": {
+    "analysis": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
+    "case_id": "v3_action_nolog_pass_no_audit",
+    "classification": "nolog_expected_no_audit",
+    "json": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json"
+  },
+  "notes": [
+    "Evidence rollup created by remaining-failure-analysis because no categorized rollup existed yet."
+  ],
+  "phase4_hard_abort_capability": {
+    "connector_summary": {
+      "apache": {
+        "capability_status": "implementation_path_present_no_runtime_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 260,
+        "hard_abort_evidence_rows": 0
+      },
+      "haproxy": {
+        "capability_status": "connector_gap_no_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 284,
+        "hard_abort_evidence_rows": 0
+      },
+      "nginx": {
+        "capability_status": "connector_gap_no_hard_abort_evidence",
+        "full_delivery_without_abort_rows": 294,
+        "hard_abort_evidence_rows": 0
+      }
+    },
+    "json": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
+    "report": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md",
+    "summary": {
+      "category_counts": {
+        "phase4_connector_gap": 76,
+        "phase4_log_only_no_abort": 6,
+        "phase4_missing_abort_evidence": 102,
+        "phase4_no_hard_abort_required": 684
+      },
+      "connection_aborted_rows": 0,
+      "full_delivery_without_abort_rows": 838,
+      "hard_abort_evidence_rows": 0,
+      "log_evidence_rows": 304,
+      "log_only_not_hard_abort_rows": 6,
+      "no_hard_abort_required_rows": 684,
+      "rows": 868,
+      "runtime_status": {
+        "FAIL": 116,
+        "NOT_EXECUTABLE": 12,
+        "PASS": 740
+      },
+      "sensitive_log_leak_rows": 0,
+      "status_200_without_abort_rows": 806,
+      "truncated_not_hard_abort_rows": 0
+    }
+  },
+  "remaining_failure_analysis_reports": {
+    "analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.md",
+    "next_fix_plan": "reports/testing/generated/canonical/next-fix-plan.generated.md",
+    "nolog_audit_evidence": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
+    "phase4_hard_abort_capability": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md",
+    "response_header_hook_analysis": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md"
+  },
+  "report_kind": "full-run-evidence",
+  "reports": [
+    "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+    "reports/testing/generated/canonical/remaining-failure-analysis.generated.md",
+    "reports/testing/generated/canonical/next-fix-plan.generated.json",
+    "reports/testing/generated/canonical/next-fix-plan.generated.md",
+    "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
+    "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md",
+    "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
+    "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
+    "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
+    "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md",
+    "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
+    "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md",
+    "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
+    "reports/testing/generated/focused-analysis/body-processor-analysis.generated.md",
+    "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
+    "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md",
+    "reports/testing/generated/canonical/final-consistency-audit.generated.json",
+    "reports/testing/generated/canonical/final-consistency-audit.generated.md"
+  ],
+  "response_header_hook_analysis_report": {
+    "analysis": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md",
+    "classification": "response_header_hook_split",
+    "json": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json"
+  },
+  "rule_chain_semantics_analysis": {
+    "json": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
+    "report": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md",
+    "summary": {
+      "chain_child_matched_rows": 0,
+      "chain_named_non_rule_chain_groups": 1,
+      "chain_named_non_rule_chain_rows": 6,
+      "chain_parent_matched_rows": 0,
+      "connectors": {
+        "apache": 2,
+        "haproxy": 2,
+        "nginx": 2
+      },
+      "evidence_parser_missing_full_chain_rows": 0,
+      "full_chain_disruptive_rows": 0,
+      "full_chain_matched_rows": 0,
+      "full_chain_non_disruptive_detection_only_rows": 6,
+      "report_only_items": 13,
+      "rule_chain_case_groups": 1,
+      "rule_chain_failure_rows": 6,
+      "runtime_fixable_candidates": 0,
+      "single_connector_classifications": {
+        "phase4_not_next_single_connector_leftover": 4,
+        "with_mrts_detection_only_single_connector_non_disruptive": 3
+      },
+      "single_connector_connectors": {
+        "nginx": 7
+      },
+      "small_single_connector_failure_groups": 7,
+      "small_single_connector_failure_rows": 14
+    }
+  }
+}

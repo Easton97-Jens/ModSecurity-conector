@@ -14,8 +14,8 @@ are useful evidence, but they do not by themselves promote connector behavior.
   HTTP client to server process to connector module to libmodsecurity to HTTP
   response.
 - Keep generated report status aligned with `TEST-COVERAGE-SUMMARY.md`,
-  `reports/testing/generated/full-runtime-matrix.generated.md`,
-  `reports/testing/generated/final-consistency-audit.generated.md`, and
+  `reports/testing/generated/canonical/full-runtime-matrix.generated.md`,
+  `reports/testing/generated/canonical/final-consistency-audit.generated.md`, and
   `reports/testing/README.md`.
 - Preserve the distinction between default local connector summaries and
   force-all/full-matrix evidence. Full-Matrix failures remain visible and
