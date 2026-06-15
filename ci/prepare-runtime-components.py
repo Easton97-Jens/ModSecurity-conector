@@ -15,6 +15,9 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
+
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
 
 
 SYSTEM_PREFIXES = (
@@ -30,11 +33,49 @@ SYSTEM_PREFIXES = (
     "/run",
 )
 
-GO_FTW_SOURCE_URL = "https://github.com/coreruleset/go-ftw"
-GO_FTW_PROMPT_EXPECTED_LATEST = "v2.2.0"
-ALBEDO_SOURCE_URL = "https://github.com/coreruleset/albedo"
-ALBEDO_PROMPT_EXPECTED_LATEST = "v0.3.0"
-EXPAT_SOURCE_URL = "https://github.com/libexpat/libexpat"
+COMMON_SH_CONFIG_VARS = (
+    "GO_FTW_SOURCE_URL",
+    "GO_FTW_PROMPT_EXPECTED_LATEST",
+    "GO_FTW_GIT_REF",
+    "GO_FTW_BIN",
+    "ALBEDO_SOURCE_URL",
+    "ALBEDO_PROMPT_EXPECTED_LATEST",
+    "ALBEDO_GIT_REF",
+    "ALBEDO_BIN",
+    "EXPAT_SOURCE_URL",
+    "EXPAT_GIT_REF",
+    "EXPAT_GIT_URL",
+    "EXPAT_PROMPT_EXPECTED_LATEST",
+)
+
+GITHUB_REPO_URL_KEYS = (
+    "CRS_REPO_URL",
+    "MODSECURITY_REPO_URL",
+    "MODSECURITY_V3_GIT_URL",
+    "MODSECURITY_APACHE_REPO_URL",
+    "MODSECURITY_APACHE_GIT_URL",
+    "MODSECURITY_NGINX_REPO_URL",
+    "MODSECURITY_NGINX_GIT_URL",
+    "NGINX_SOURCE_REPO_URL",
+    "NGINX_GITHUB_REPO",
+    "GO_FTW_SOURCE_URL",
+    "ALBEDO_SOURCE_URL",
+    "EXPAT_SOURCE_URL",
+    "EXPAT_GIT_URL",
+)
+
+HTTPS_URL_KEYS = (
+    "HAPROXY_SOURCE_URL",
+    "HAPROXY_SHA256_URL",
+    "HTTPD_SOURCE_URL",
+    "HTTPD_SHA256_URL",
+    "APR_SOURCE_URL",
+    "APR_SHA256_URL",
+    "APR_UTIL_SOURCE_URL",
+    "APR_UTIL_SHA256_URL",
+    "PCRE2_SOURCE_URL",
+    "PCRE2_SHA256_URL",
+)
 
 
 def utc_now() -> str:
@@ -67,6 +108,70 @@ def run_env(
     if check and proc.returncode != 0:
         raise RuntimeError((proc.stdout + proc.stderr).strip() or f"command failed: {' '.join(cmd)}")
     return proc
+
+
+def load_framework_environment(connector_root: Path, framework_root: Path, base_env: dict[str, str]) -> tuple[dict[str, str], str]:
+    common_sh = framework_root / "ci/common.sh"
+    if not common_sh.is_file():
+        return dict(base_env), f"missing:{common_sh}"
+    env = dict(base_env)
+    env["CONNECTOR_ROOT"] = str(connector_root)
+    env["FRAMEWORK_ROOT"] = str(framework_root)
+    try:
+        proc = subprocess.run(
+            ["bash", "-lc", 'set -a; . "$FRAMEWORK_ROOT/ci/common.sh"; env -0'],
+            cwd=str(connector_root),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=False,
+            timeout=60,
+        )
+    except FileNotFoundError as exc:
+        return dict(base_env), f"failed:{exc}"
+    except subprocess.TimeoutExpired as exc:
+        output = (exc.stdout or b"").decode("utf-8", errors="replace").strip()
+        return dict(base_env), f"failed:timeout loading common.sh {output}"
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+        return dict(base_env), f"failed:{stderr or proc.returncode}"
+    loaded: dict[str, str] = {}
+    for chunk in proc.stdout.split(b"\0"):
+        if not chunk or b"=" not in chunk:
+            continue
+        key, value = chunk.split(b"=", 1)
+        loaded[key.decode("utf-8", errors="replace")] = value.decode("utf-8", errors="replace")
+    return loaded, "loaded"
+
+
+def require_env_value(env: dict[str, str], key: str) -> str:
+    value = env.get(key, "").strip()
+    if not value:
+        raise RuntimeError(f"missing required runtime component config: {key} from framework common.sh")
+    return value
+
+
+def require_https_url(url: str, label: str) -> str:
+    raw = url.strip()
+    if not raw.startswith("https://"):
+        raise RuntimeError(f"{label} must use https:// only: {url}")
+    return raw
+
+
+def require_https_github_repo_url(url: str, label: str) -> str:
+    repo = github_repo_path(url)
+    return f"https://github.com/{repo}"
+
+
+def validate_https_url_config(env: dict[str, str]) -> None:
+    for key in GITHUB_REPO_URL_KEYS:
+        value = env.get(key, "").strip()
+        if value:
+            require_https_github_repo_url(value, key)
+    for key in HTTPS_URL_KEYS:
+        value = env.get(key, "").strip()
+        if value:
+            require_https_url(value, key)
 
 
 def sha256_file(path: Path) -> str:
@@ -189,6 +294,11 @@ def prepare_git_component(
     }
     if not url or not expected_ref:
         record.update(status="blocked", blocker_reason="missing_url_or_ref")
+        return record
+    try:
+        github_repo_path(url)
+    except RuntimeError as exc:
+        record.update(status="blocked", blocker_reason=f"https_github_url_policy:{exc}")
         return record
     if is_system_path(path):
         record.update(status="blocked", blocker_reason="system_path_write_forbidden")
@@ -315,6 +425,7 @@ def archive_can_list(path: Path) -> bool:
 
 
 def download(url: str, dest: Path) -> None:
+    require_https_url(url, "download URL")
     with urllib.request.urlopen(url, timeout=60) as response, dest.open("wb") as handle:
         shutil.copyfileobj(response, handle)
 
@@ -382,17 +493,19 @@ def prepare_archive(name: str, url: str, expected_sha: str, sha_url: str, dest_d
 
 
 def github_repo_path(url: str) -> str:
-    repo = url
-    if repo.startswith("http://github.com/"):
-        raise RuntimeError(f"insecure GitHub URL is not supported: {url}")
-    for prefix in ("https://github.com/", "git@github.com:"):
-        if repo.startswith(prefix):
-            repo = repo[len(prefix) :]
-            break
-    repo = repo.removesuffix(".git").strip("/")
-    if "/" not in repo:
-        raise RuntimeError(f"not a GitHub owner/repo URL: {url}")
-    return repo
+    raw = url.strip()
+    parsed = urlsplit(raw)
+    if parsed.scheme != "https":
+        raise RuntimeError(f"only HTTPS GitHub URLs are supported: {url}")
+    if parsed.netloc != "github.com":
+        raise RuntimeError(f"only github.com URLs are supported: {url}")
+    if parsed.query or parsed.fragment:
+        raise RuntimeError(f"not a plain GitHub owner/repo URL: {url}")
+    repo = parsed.path.removeprefix("/").removesuffix(".git").strip("/")
+    parts = repo.split("/")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise RuntimeError(f"not a plain GitHub owner/repo URL: {url}")
+    return f"{parts[0]}/{parts[1]}"
 
 
 def resolve_nginx_archive(env: dict[str, str]) -> tuple[str, str]:
@@ -635,10 +748,11 @@ def prepare_expat(
     log_path = build_root / "logs/runtime-components/expat-build.log"
     marker_path = prefix / "component-manifest.json"
     source_path = Path(git_record.get("path", "")).resolve() if git_record.get("path") else Path()
+    expat_source = git_record.get("source") or git_record.get("url") or env.get("EXPAT_SOURCE_URL", "")
     record: dict[str, Any] = {
         "name": "expat",
-        "source": git_record.get("source", git_record.get("url", EXPAT_SOURCE_URL)),
-        "url": git_record.get("url", git_record.get("source", EXPAT_SOURCE_URL)),
+        "source": expat_source,
+        "url": git_record.get("url") or git_record.get("source") or expat_source,
         "expected_ref": git_record.get("expected_ref", ""),
         "release_tag": git_record.get("release_tag", git_record.get("expected_ref", "")),
         "actual_head": git_record.get("actual_head", ""),
@@ -1967,7 +2081,7 @@ def known_tool_source(tool: str, roots: list[Path]) -> tuple[str, str, bool]:
     source_url = ""
     known_ref = ""
     can_build = False
-    build_markers = (f"go install {token}", f"git clone https://{token}", f"git clone git@github.com:coreruleset/{tool}")
+    build_markers = (f"go install {token}", f"git clone https://{token}", f"git clone https://{token}.git")
     for root in roots:
         if not root.exists():
             continue
@@ -2381,14 +2495,38 @@ def main() -> int:
     parser.add_argument("--native-root", default=None)
     args = parser.parse_args()
 
-    env = dict(os.environ)
+    initial_env = dict(os.environ)
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve()
+    env, common_status = load_framework_environment(connector_root, framework_root, initial_env)
+    if common_status != "loaded":
+        print(f"prepare-runtime-components: BLOCKED: framework common.sh could not be loaded ({common_status})")
+        return 77
     cache_root = Path(args.cache_root).resolve()
     output_root = Path(args.output_root).resolve()
     build_root = Path(args.build_root or env.get("BUILD_ROOT", str(default_state_home() / "ModSecurity-conector-build"))).resolve()
     native_root = Path(args.native_root or env.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native"))).resolve()
-    report_dir = output_root / "reports/testing/generated"
+    env.update(
+        {
+            "CONNECTOR_ROOT": str(connector_root),
+            "FRAMEWORK_ROOT": str(framework_root),
+            "CONNECTOR_COMPONENT_CACHE": str(cache_root),
+            "BUILD_ROOT": str(build_root),
+            "MRTS_NATIVE_ROOT": str(native_root),
+        }
+    )
+    try:
+        validate_https_url_config(env)
+        go_ftw_source_url = require_env_value(env, "GO_FTW_SOURCE_URL")
+        go_ftw_expected_latest = require_env_value(env, "GO_FTW_PROMPT_EXPECTED_LATEST")
+        albedo_source_url = require_env_value(env, "ALBEDO_SOURCE_URL")
+        albedo_expected_latest = require_env_value(env, "ALBEDO_PROMPT_EXPECTED_LATEST")
+        expat_source_url = require_env_value(env, "EXPAT_SOURCE_URL")
+        expat_git_ref = require_env_value(env, "EXPAT_GIT_REF")
+    except RuntimeError as exc:
+        print(f"prepare-runtime-components: BLOCKED: {exc}")
+        return 77
+    report_dir = output_root / GENERATED_ROOT
     strict = env.get("RUNTIME_COMPONENT_STRICT_VERIFY") == "1"
     if is_system_path(cache_root):
         print(
@@ -2447,24 +2585,24 @@ def main() -> int:
         ),
         prepare_release_git_component(
             "go-ftw",
-            GO_FTW_SOURCE_URL,
-            GO_FTW_PROMPT_EXPECTED_LATEST,
+            go_ftw_source_url,
+            go_ftw_expected_latest,
             git_root / "go-ftw",
             previous_git,
             strict,
         ),
         prepare_release_git_component(
             "albedo",
-            ALBEDO_SOURCE_URL,
-            ALBEDO_PROMPT_EXPECTED_LATEST,
+            albedo_source_url,
+            albedo_expected_latest,
             git_root / "albedo",
             previous_git,
             strict,
         ),
         prepare_release_git_component(
             "expat",
-            env.get("EXPAT_GIT_URL", EXPAT_SOURCE_URL) or EXPAT_SOURCE_URL,
-            env.get("EXPAT_PROMPT_EXPECTED_LATEST", ""),
+            env.get("EXPAT_GIT_URL") or expat_source_url,
+            env.get("EXPAT_PROMPT_EXPECTED_LATEST") or expat_git_ref,
             git_root / "libexpat",
             previous_git,
             strict,
@@ -2629,7 +2767,7 @@ def main() -> int:
                 "HAPROXY_CONNECTOR_BUILD_ID": str(haproxy.get("connector_build_id", "")),
             }
         )
-    runtime_env["RUNTIME_BUILD_CACHE_MANIFEST"] = str(report_dir / "runtime-build-cache.generated.json")
+    runtime_env["RUNTIME_BUILD_CACHE_MANIFEST"] = str(report_path_from_root(report_dir, "runtime_build_cache", "json"))
     if go_ftw.get("path"):
         runtime_env["GO_FTW_BIN"] = str(go_ftw["path"])
     if albedo.get("path"):
@@ -2651,6 +2789,7 @@ def main() -> int:
         "native_root": str(native_root),
         "strict_verify": strict,
         "prepare_phases": prepare_phases,
+        "framework_runtime_config": {key: env.get(key, "") for key in COMMON_SH_CONFIG_VARS},
         "runtime_env": runtime_env,
         "git_components": git_components,
         "archives": archives,
@@ -2674,10 +2813,31 @@ def main() -> int:
     write_json(cache_root / "manifest.json", payload)
     write_json(cache_root / "git-components.json", {"generated_at": payload["generated_at"], "components": git_components})
     write_json(cache_root / "runtime-build-cache.json", build_cache)
-    write_json(report_dir / "runtime-component-cache.generated.json", payload)
-    write_json(report_dir / "runtime-build-cache.generated.json", build_cache)
-    (report_dir / "runtime-component-cache.generated.md").write_text(markdown_report(payload), encoding="utf-8")
-    (report_dir / "runtime-build-cache.generated.md").write_text(runtime_build_cache_markdown(build_cache), encoding="utf-8")
+    component_metadata = build_metadata(
+        generated_by="ci/prepare-runtime-components.py",
+        make_target="prepare-runtime-components",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[cache_root / "manifest.json"],
+        generated_at=payload["generated_at"],
+    )
+    build_metadata_payload = build_metadata(
+        generated_by="ci/prepare-runtime-components.py",
+        make_target="prepare-runtime-components",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[cache_root / "runtime-build-cache.json"],
+        generated_at=str(build_cache.get("generated_at") or payload["generated_at"]),
+    )
+    component_json = report_path_from_root(report_dir, "runtime_component_cache", "json")
+    component_md = report_path_from_root(report_dir, "runtime_component_cache", "md")
+    build_json = report_path_from_root(report_dir, "runtime_build_cache", "json")
+    build_md = report_path_from_root(report_dir, "runtime_build_cache", "md")
+    component_json.parent.mkdir(parents=True, exist_ok=True)
+    write_json(component_json, json.loads(generated_json_text(payload, component_metadata)))
+    write_json(build_json, json.loads(generated_json_text(build_cache, build_metadata_payload)))
+    component_md.write_text(generated_markdown_text(markdown_report(payload), component_metadata), encoding="utf-8")
+    build_md.write_text(generated_markdown_text(runtime_build_cache_markdown(build_cache), build_metadata_payload), encoding="utf-8")
     postprocess = connector_root / "ci/update-runtime-reports.py"
     if postprocess.is_file():
         run([sys.executable, str(postprocess), "--connector-root", str(connector_root)])
@@ -2707,7 +2867,7 @@ def main() -> int:
             print(f"prepare-runtime-components: BLOCKED {item.get('name')}: {item.get('blocker_reason')}")
         return 77
     print(f"prepare-runtime-components: cache={cache_root}")
-    print(f"prepare-runtime-components: report={report_dir / 'runtime-component-cache.generated.md'}")
+    print(f"prepare-runtime-components: report={component_md}")
     return 0
 
 

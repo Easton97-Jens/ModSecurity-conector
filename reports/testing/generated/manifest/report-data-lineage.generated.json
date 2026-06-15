@@ -1,0 +1,1287 @@
+{
+  "generated_at": "2026-06-15T10:40:38Z",
+  "metadata": {
+    "category": "manifest",
+    "commit_policy": "versioned-generated",
+    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "data_kind": "manifest",
+    "data_origin": "manifest",
+    "empty_inputs": [],
+    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-15T10:40:38Z",
+    "generated_by": "ci/refresh-connector-reports.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "partial",
+    "inputs": [
+      {
+        "notes": "input file missing",
+        "path": "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
+        "status": "missing"
+      },
+      {
+        "notes": "input file missing",
+        "path": "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json",
+        "status": "missing"
+      },
+      {
+        "notes": "input file available",
+        "path": "/tmp/modsec-haproxy-setcookie/full-matrix/full-runtime-matrix-runs.jsonl",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "config/testing/import-status.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file missing",
+        "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
+        "status": "missing"
+      },
+      {
+        "notes": "input file missing",
+        "path": "reports/testing/generated/cache/runtime-component-cache.generated.json",
+        "status": "missing"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/runtime-validation-snapshot.json",
+        "status": "present"
+      }
+    ],
+    "make_target": "refresh-connector-reports",
+    "missing_inputs": [
+      "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
+      "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json",
+      "reports/testing/generated/cache/runtime-build-cache.generated.json",
+      "reports/testing/generated/cache/runtime-component-cache.generated.json"
+    ],
+    "owner": "manifest",
+    "report_key": "report_data_lineage",
+    "schema_version": 1,
+    "severity": "important",
+    "unknown_inputs": [],
+    "working_tree_dirty": "dirty"
+  },
+  "reports": [
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "manifest",
+      "data_origin": "manifest",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/refresh-connector-reports.py",
+      "inputs": [],
+      "key": "report_refresh_manifest",
+      "kind": "canonical",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "notes": "Catalog of report generators, outputs, inputs, and refresh status.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
+        "reports/testing/generated/manifest/report-refresh-manifest.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Catalog of report generators, outputs, inputs, and refresh status.",
+      "runtime_required": false,
+      "severity": "critical",
+      "stem": "report-refresh-manifest.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "manifest",
+      "data_origin": "manifest",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/refresh-connector-reports.py",
+      "inputs": [],
+      "key": "report_dependency_graph",
+      "kind": "canonical",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "notes": "Dependency graph for generated reports and their data flow.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/report-dependency-graph.generated.json",
+        "reports/testing/generated/manifest/report-dependency-graph.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Dependency graph for generated reports and their data flow.",
+      "runtime_required": false,
+      "severity": "important",
+      "stem": "report-dependency-graph.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "manifest",
+      "data_origin": "manifest",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/refresh-connector-reports.py",
+      "inputs": [],
+      "key": "report_data_lineage",
+      "kind": "canonical",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "notes": "Data-lineage index for generated reports.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/report-data-lineage.generated.json",
+        "reports/testing/generated/manifest/report-data-lineage.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Data-lineage index for generated reports.",
+      "runtime_required": false,
+      "severity": "important",
+      "stem": "report-data-lineage.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "manifest",
+      "data_origin": "manifest",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/refresh-connector-reports.py",
+      "inputs": [],
+      "key": "report_freshness",
+      "kind": "canonical",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "notes": "Freshness and stale-status report for generated reports.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/report-freshness.generated.json",
+        "reports/testing/generated/manifest/report-freshness.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Freshness and stale-status report for generated reports.",
+      "runtime_required": false,
+      "severity": "important",
+      "stem": "report-freshness.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "manifest",
+      "data_origin": "manifest",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/refresh-connector-reports.py",
+      "inputs": [],
+      "key": "report_path_migration",
+      "kind": "canonical",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "notes": "Old-path to new-path migration table for generated reports.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/report-path-migration.generated.json",
+        "reports/testing/generated/manifest/report-path-migration.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Old-path to new-path migration table for generated reports.",
+      "runtime_required": false,
+      "severity": "important",
+      "stem": "report-path-migration.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "manifest",
+      "data_origin": "manifest",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/refresh-connector-reports.py",
+      "inputs": [],
+      "key": "generator_runtime_summary",
+      "kind": "canonical",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "notes": "Generator runtime, return-code, and missing-input summary.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/generator-runtime-summary.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Generator runtime, return-code, and missing-input summary.",
+      "runtime_required": false,
+      "severity": "informational",
+      "stem": "generator-runtime-summary.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "dashboard",
+      "data_origin": "manifest",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/refresh-connector-reports.py",
+      "inputs": [],
+      "key": "merge_readiness_dashboard",
+      "kind": "canonical",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "notes": "Top-level merge-readiness dashboard.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/merge-readiness-dashboard.generated.json",
+        "reports/testing/generated/manifest/merge-readiness-dashboard.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Top-level merge-readiness dashboard.",
+      "runtime_required": false,
+      "severity": "critical",
+      "stem": "merge-readiness-dashboard.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "system-proof",
+      "data_origin": "external-local",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/generate-system-environment-proof.py",
+      "inputs": [],
+      "key": "system_environment_proof",
+      "kind": "canonical",
+      "make_target": "generate-system-environment-proof",
+      "native_mrts_required": false,
+      "notes": "System, tool-version, git, and check-execution proof.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/system-environment-proof.generated.json",
+        "reports/testing/generated/manifest/system-environment-proof.generated.md"
+      ],
+      "owner": "system",
+      "purpose": "System, tool-version, git, and check-execution proof.",
+      "runtime_required": false,
+      "severity": "important",
+      "stem": "system-environment-proof.generated"
+    },
+    {
+      "category": "canonical",
+      "commit_policy": "versioned-generated",
+      "data_kind": "matrix",
+      "data_origin": "runtime",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-full-runtime-matrix.py",
+      "inputs": [
+        "/tmp/modsec-haproxy-setcookie/full-matrix/full-runtime-matrix-runs.jsonl"
+      ],
+      "key": "full_runtime_matrix",
+      "kind": "canonical",
+      "make_target": "generate-full-runtime-matrix",
+      "native_mrts_required": false,
+      "notes": "Complete connector full-runtime matrix summary.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Complete connector full-runtime matrix summary.",
+      "runtime_required": true,
+      "severity": "critical",
+      "stem": "full-runtime-matrix.generated"
+    },
+    {
+      "category": "canonical",
+      "commit_policy": "versioned-generated",
+      "data_kind": "evidence",
+      "data_origin": "runtime",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-remaining-failure-analysis.py",
+      "inputs": [
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-summary.generated.json"
+      ],
+      "key": "full_run_evidence",
+      "kind": "canonical",
+      "make_target": "refresh-connector-reports",
+      "native_mrts_required": false,
+      "notes": "Evidence rollup shared by focused analysis and consistency checks.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/canonical/full-run-evidence.generated.json",
+        "reports/testing/generated/canonical/full-run-evidence.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Evidence rollup shared by focused analysis and consistency checks.",
+      "runtime_required": true,
+      "severity": "critical",
+      "stem": "full-run-evidence.generated"
+    },
+    {
+      "category": "canonical",
+      "commit_policy": "versioned-generated",
+      "data_kind": "evidence",
+      "data_origin": "connector",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-final-consistency-audit.py",
+      "inputs": [
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "reports/testing/generated/canonical/next-fix-plan.generated.json",
+        "reports/testing/generated/canonical/full-run-evidence.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
+        "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
+        "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
+        "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json"
+      ],
+      "key": "final_consistency_audit",
+      "kind": "canonical",
+      "make_target": "generate-final-consistency-audit",
+      "native_mrts_required": false,
+      "notes": "Merge-readiness consistency gate across generated evidence.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/canonical/final-consistency-audit.generated.json",
+        "reports/testing/generated/canonical/final-consistency-audit.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Merge-readiness consistency gate across generated evidence.",
+      "runtime_required": true,
+      "severity": "critical",
+      "stem": "final-consistency-audit.generated"
+    },
+    {
+      "category": "canonical",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "runtime",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-remaining-failure-analysis.py",
+      "inputs": [
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-summary.generated.json"
+      ],
+      "key": "remaining_failure_analysis",
+      "kind": "canonical",
+      "make_target": "generate-remaining-failure-analysis",
+      "native_mrts_required": false,
+      "notes": "Remaining failure clustering and classification.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "reports/testing/generated/canonical/remaining-failure-analysis.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Remaining failure clustering and classification.",
+      "runtime_required": true,
+      "severity": "important",
+      "stem": "remaining-failure-analysis.generated"
+    },
+    {
+      "category": "canonical",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "runtime",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-remaining-failure-analysis.py",
+      "inputs": [
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-summary.generated.json"
+      ],
+      "key": "next_fix_plan",
+      "kind": "canonical",
+      "make_target": "generate-remaining-failure-analysis",
+      "native_mrts_required": false,
+      "notes": "Current recommended next fix cluster.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/canonical/next-fix-plan.generated.json",
+        "reports/testing/generated/canonical/next-fix-plan.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Current recommended next fix cluster.",
+      "runtime_required": true,
+      "severity": "important",
+      "stem": "next-fix-plan.generated"
+    },
+    {
+      "category": "work-queues",
+      "commit_policy": "versioned-generated",
+      "data_kind": "work-queue",
+      "data_origin": "framework",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "framework:ci/generate-connector-work-queue.py",
+      "inputs": [
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json"
+      ],
+      "key": "connector_work_queue",
+      "kind": "focused",
+      "make_target": "generate-work-queue",
+      "native_mrts_required": false,
+      "notes": "Connector-scoped queue and classification state.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/work-queues/connector-work-queue.generated.md"
+      ],
+      "owner": "framework",
+      "purpose": "Connector-scoped queue and classification state.",
+      "runtime_required": true,
+      "severity": "important",
+      "stem": "connector-work-queue.generated"
+    },
+    {
+      "category": "work-queues",
+      "commit_policy": "versioned-generated",
+      "data_kind": "work-queue",
+      "data_origin": "framework",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "framework:ci/generate-phase-work-queue.py",
+      "inputs": [
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/coverage/phase-coverage.generated.md",
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json"
+      ],
+      "key": "phase_work_queue",
+      "kind": "focused",
+      "make_target": "generate-phase-work-queue",
+      "native_mrts_required": false,
+      "notes": "Phase-scoped queue and classification state.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "reports/testing/generated/work-queues/phase-work-queue.generated.md"
+      ],
+      "owner": "framework",
+      "purpose": "Phase-scoped queue and classification state.",
+      "runtime_required": true,
+      "severity": "important",
+      "stem": "phase-work-queue.generated"
+    },
+    {
+      "category": "coverage",
+      "commit_policy": "versioned-generated",
+      "data_kind": "report",
+      "data_origin": "framework",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "case_matrix",
+      "kind": "focused",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "Framework/connector case matrix.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/coverage/case-matrix.generated.md"
+      ],
+      "owner": "framework",
+      "purpose": "Framework/connector case matrix.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "case-matrix.generated"
+    },
+    {
+      "category": "coverage",
+      "commit_policy": "versioned-generated",
+      "data_kind": "report",
+      "data_origin": "framework",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "connector_gap_summary",
+      "kind": "focused",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "Connector gap summary.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/coverage/connector-gap-summary.generated.md"
+      ],
+      "owner": "framework",
+      "purpose": "Connector gap summary.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "connector-gap-summary.generated"
+    },
+    {
+      "category": "coverage",
+      "commit_policy": "versioned-generated",
+      "data_kind": "report",
+      "data_origin": "framework",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "coverage_summary",
+      "kind": "focused",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "Coverage summary by scope, status, runtime, phase, and variable.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/coverage/coverage-summary.generated.md"
+      ],
+      "owner": "framework",
+      "purpose": "Coverage summary by scope, status, runtime, phase, and variable.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "coverage-summary.generated"
+    },
+    {
+      "category": "coverage",
+      "commit_policy": "versioned-generated",
+      "data_kind": "report",
+      "data_origin": "framework",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "phase_coverage",
+      "kind": "focused",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "Phase coverage summary.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/coverage/phase-coverage.generated.md"
+      ],
+      "owner": "framework",
+      "purpose": "Phase coverage summary.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "phase-coverage.generated"
+    },
+    {
+      "category": "coverage",
+      "commit_policy": "versioned-generated",
+      "data_kind": "report",
+      "data_origin": "framework",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "xfail_summary",
+      "kind": "focused",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "Expected-failure and import-status summary.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/coverage/xfail-summary.generated.md"
+      ],
+      "owner": "framework",
+      "purpose": "Expected-failure and import-status summary.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "xfail-summary.generated"
+    },
+    {
+      "category": "focused-analysis",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "connector",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-body-processor-analysis.py",
+      "inputs": [
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "reports/testing/generated/canonical/next-fix-plan.generated.json"
+      ],
+      "key": "body_processor_analysis",
+      "kind": "focused",
+      "make_target": "generate-body-processor-analysis",
+      "native_mrts_required": false,
+      "notes": "Request-body, multipart, and XML processor classification.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/body-processor-analysis.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Request-body, multipart, and XML processor classification.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "body-processor-analysis.generated"
+    },
+    {
+      "category": "focused-analysis",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "connector",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-intervention-blocking-analysis.py",
+      "inputs": [
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "reports/testing/generated/canonical/next-fix-plan.generated.json"
+      ],
+      "key": "intervention_blocking_analysis",
+      "kind": "focused",
+      "make_target": "generate-intervention-blocking-analysis",
+      "native_mrts_required": false,
+      "notes": "Intervention blocking classification and no-match separation.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Intervention blocking classification and no-match separation.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "intervention-blocking-analysis.generated"
+    },
+    {
+      "category": "focused-analysis",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "connector",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
+      "inputs": [
+        "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "reports/testing/generated/canonical/next-fix-plan.generated.json"
+      ],
+      "key": "no_mrts_intervention_nomatch_analysis",
+      "kind": "focused",
+      "make_target": "generate-no-mrts-intervention-nomatch-analysis",
+      "native_mrts_required": false,
+      "notes": "Framework-owned no-MRTS no-match semantics.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Framework-owned no-MRTS no-match semantics.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "no-mrts-intervention-nomatch-analysis.generated"
+    },
+    {
+      "category": "focused-analysis",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "connector",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-nolog-audit-evidence-analysis.py",
+      "inputs": [
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/coverage/phase-coverage.generated.md"
+      ],
+      "key": "nolog_audit_evidence",
+      "kind": "focused",
+      "make_target": "generate-nolog-audit-evidence-analysis",
+      "native_mrts_required": false,
+      "notes": "Explicit nolog audit-evidence classification.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
+        "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Explicit nolog audit-evidence classification.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "nolog-audit-evidence.generated"
+    },
+    {
+      "category": "focused-analysis",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "connector",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-phase4-hard-abort-capability.py",
+      "inputs": [
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json"
+      ],
+      "key": "phase4_hard_abort_capability",
+      "kind": "focused",
+      "make_target": "generate-phase4-hard-abort-capability",
+      "native_mrts_required": false,
+      "notes": "Phase 4 hard-abort capability evidence.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
+        "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Phase 4 hard-abort capability evidence.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "phase4-hard-abort-capability.generated"
+    },
+    {
+      "category": "focused-analysis",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "connector",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-response-header-hook-analysis.py",
+      "inputs": [
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "reports/testing/generated/coverage/phase-coverage.generated.md"
+      ],
+      "key": "response_header_hook_analysis",
+      "kind": "focused",
+      "make_target": "generate-response-header-hook-analysis",
+      "native_mrts_required": false,
+      "notes": "Response-header hook and backend setup analysis.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Response-header hook and backend setup analysis.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "response-header-hook-analysis.generated"
+    },
+    {
+      "category": "focused-analysis",
+      "commit_policy": "versioned-generated",
+      "data_kind": "focused-analysis",
+      "data_origin": "connector",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-rule-chain-semantics-analysis.py",
+      "inputs": [
+        "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "reports/testing/generated/canonical/next-fix-plan.generated.json",
+        "reports/testing/generated/canonical/full-runtime-matrix.generated.json"
+      ],
+      "key": "rule_chain_semantics_analysis",
+      "kind": "focused",
+      "make_target": "generate-rule-chain-semantics-analysis",
+      "native_mrts_required": false,
+      "notes": "Rule-chain semantics and runtime-fixability analysis.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
+        "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md"
+      ],
+      "owner": "connector",
+      "purpose": "Rule-chain semantics and runtime-fixability analysis.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "rule-chain-semantics-analysis.generated"
+    },
+    {
+      "category": "runtime",
+      "commit_policy": "versioned-generated",
+      "data_kind": "report",
+      "data_origin": "runtime",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "apache_runtime_results",
+      "kind": "runtime",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "Apache runtime result details.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/runtime/apache-runtime-results.generated.md"
+      ],
+      "owner": "runtime",
+      "purpose": "Apache runtime result details.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "apache-runtime-results.generated"
+    },
+    {
+      "category": "runtime",
+      "commit_policy": "versioned-generated",
+      "data_kind": "report",
+      "data_origin": "runtime",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "nginx_runtime_results",
+      "kind": "runtime",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "NGINX runtime result details.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/runtime/nginx-runtime-results.generated.md"
+      ],
+      "owner": "runtime",
+      "purpose": "NGINX runtime result details.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "nginx-runtime-results.generated"
+    },
+    {
+      "category": "runtime",
+      "commit_policy": "versioned-generated",
+      "data_kind": "report",
+      "data_origin": "runtime",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "haproxy_runtime_results",
+      "kind": "runtime",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "HAProxy runtime result details.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/runtime/haproxy-runtime-results.generated.md"
+      ],
+      "owner": "runtime",
+      "purpose": "HAProxy runtime result details.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "haproxy-runtime-results.generated"
+    },
+    {
+      "category": "runtime",
+      "commit_policy": "versioned-generated",
+      "data_kind": "matrix",
+      "data_origin": "runtime",
+      "formats": [
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-case-matrix.py",
+      "inputs": [
+        "config/testing/import-status.json",
+        "reports/testing/runtime-validation-snapshot.json"
+      ],
+      "key": "runtime_matrix",
+      "kind": "runtime",
+      "make_target": "generate-test-matrix",
+      "native_mrts_required": false,
+      "notes": "Default runtime matrix summary.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/runtime/runtime-matrix.generated.md"
+      ],
+      "owner": "runtime",
+      "purpose": "Default runtime matrix summary.",
+      "runtime_required": true,
+      "severity": "informational",
+      "stem": "runtime-matrix.generated"
+    },
+    {
+      "category": "mrts-native",
+      "commit_policy": "optional-generated",
+      "data_kind": "evidence",
+      "data_origin": "mrts",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-mrts-native-report.py",
+      "inputs": [
+        "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
+        "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+      ],
+      "key": "mrts_native_full",
+      "kind": "optional",
+      "make_target": "mrts-native-full-run",
+      "native_mrts_required": true,
+      "notes": "Combined native MRTS infrastructure evidence.",
+      "optional": true,
+      "outputs": [
+        "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-full.generated.md"
+      ],
+      "owner": "mrts",
+      "purpose": "Combined native MRTS infrastructure evidence.",
+      "runtime_required": false,
+      "severity": "optional",
+      "stem": "mrts-native-full.generated"
+    },
+    {
+      "category": "mrts-native",
+      "commit_policy": "optional-generated",
+      "data_kind": "evidence",
+      "data_origin": "mrts",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-mrts-native-report.py",
+      "inputs": [
+        "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
+        "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+      ],
+      "key": "mrts_native_apache",
+      "kind": "optional",
+      "make_target": "mrts-native-full-run",
+      "native_mrts_required": true,
+      "notes": "Apache native MRTS infrastructure evidence.",
+      "optional": true,
+      "outputs": [
+        "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-apache.generated.md"
+      ],
+      "owner": "mrts",
+      "purpose": "Apache native MRTS infrastructure evidence.",
+      "runtime_required": false,
+      "severity": "optional",
+      "stem": "mrts-native-apache.generated"
+    },
+    {
+      "category": "mrts-native",
+      "commit_policy": "optional-generated",
+      "data_kind": "evidence",
+      "data_origin": "mrts",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-mrts-native-report.py",
+      "inputs": [
+        "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
+        "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+      ],
+      "key": "mrts_native_nginx",
+      "kind": "optional",
+      "make_target": "mrts-native-full-run",
+      "native_mrts_required": true,
+      "notes": "NGINX native MRTS infrastructure evidence.",
+      "optional": true,
+      "outputs": [
+        "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md"
+      ],
+      "owner": "mrts",
+      "purpose": "NGINX native MRTS infrastructure evidence.",
+      "runtime_required": false,
+      "severity": "optional",
+      "stem": "mrts-native-nginx.generated"
+    },
+    {
+      "category": "mrts-native",
+      "commit_policy": "optional-generated",
+      "data_kind": "evidence",
+      "data_origin": "mrts",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "framework:ci/generate-mrts-native-report.py",
+      "inputs": [
+        "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
+        "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+      ],
+      "key": "mrts_native_summary",
+      "kind": "optional",
+      "make_target": "mrts-native-full-run",
+      "native_mrts_required": true,
+      "notes": "Native MRTS summary.",
+      "optional": true,
+      "outputs": [
+        "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
+        "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+      ],
+      "owner": "mrts",
+      "purpose": "Native MRTS summary.",
+      "runtime_required": false,
+      "severity": "optional",
+      "stem": "mrts-native-summary.generated"
+    },
+    {
+      "category": "cache",
+      "commit_policy": "local-only",
+      "data_kind": "cache",
+      "data_origin": "cache",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/prepare-runtime-components.py",
+      "inputs": [
+        "reports/testing/generated/cache/runtime-component-cache.generated.json",
+        "reports/testing/generated/cache/runtime-build-cache.generated.json"
+      ],
+      "key": "runtime_build_cache",
+      "kind": "cache",
+      "make_target": "prepare-runtime-components",
+      "native_mrts_required": false,
+      "notes": "Runtime build-cache report.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/cache/runtime-build-cache.generated.json",
+        "reports/testing/generated/cache/runtime-build-cache.generated.md"
+      ],
+      "owner": "cache",
+      "purpose": "Runtime build-cache report.",
+      "runtime_required": true,
+      "severity": "cache",
+      "stem": "runtime-build-cache.generated"
+    },
+    {
+      "category": "cache",
+      "commit_policy": "local-only",
+      "data_kind": "cache",
+      "data_origin": "cache",
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/prepare-runtime-components.py",
+      "inputs": [
+        "reports/testing/generated/cache/runtime-component-cache.generated.json",
+        "reports/testing/generated/cache/runtime-build-cache.generated.json"
+      ],
+      "key": "runtime_component_cache",
+      "kind": "cache",
+      "make_target": "prepare-runtime-components",
+      "native_mrts_required": false,
+      "notes": "Runtime component-cache report.",
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/cache/runtime-component-cache.generated.json",
+        "reports/testing/generated/cache/runtime-component-cache.generated.md"
+      ],
+      "owner": "cache",
+      "purpose": "Runtime component-cache report.",
+      "runtime_required": true,
+      "severity": "cache",
+      "stem": "runtime-component-cache.generated"
+    }
+  ]
+}

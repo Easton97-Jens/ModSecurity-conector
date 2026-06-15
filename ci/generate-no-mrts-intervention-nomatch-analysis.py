@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -17,7 +18,7 @@ except Exception:  # pragma: no cover - report generation keeps working without 
     yaml = None
 
 
-REPORT_DIR = Path("reports/testing/generated")
+REPORT_DIR = GENERATED_ROOT
 REPORT_STEM = "no-mrts-intervention-nomatch-analysis.generated"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
 
@@ -127,7 +128,7 @@ def load_case(path: Path | None) -> dict[str, Any]:
 
 
 def queue_by_key(connector_root: Path) -> dict[tuple[str, str, str, str], dict[str, Any]]:
-    queue = read_json(connector_root / REPORT_DIR / "connector-work-queue.generated.json")
+    queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
     entries = queue.get("entries") if isinstance(queue.get("entries"), list) else []
     return {
         (
@@ -223,7 +224,7 @@ def classify_cause(record: dict[str, Any], request: dict[str, Any]) -> str:
 
 
 def selected_records(connector_root: Path) -> list[dict[str, Any]]:
-    report = read_json(connector_root / REPORT_DIR / "intervention-blocking-analysis.generated.json")
+    report = read_json(report_path(connector_root, "intervention_blocking_analysis", "json"))
     records = report.get("records") if isinstance(report.get("records"), list) else []
     return [
         item
@@ -237,10 +238,9 @@ def selected_records(connector_root: Path) -> list[dict[str, Any]]:
 
 
 def native_comparator(connector_root: Path, case_ids: set[str]) -> dict[str, Any]:
-    report_dir = connector_root / REPORT_DIR
-    apache = read_json(report_dir / "mrts-native-apache.generated.json")
-    nginx = read_json(report_dir / "mrts-native-nginx.generated.json")
-    summary = read_json(report_dir / "mrts-native-summary.generated.json")
+    apache = read_json(report_path(connector_root, "mrts_native_apache", "json"))
+    nginx = read_json(report_path(connector_root, "mrts_native_nginx", "json"))
+    summary = read_json(report_path(connector_root, "mrts_native_summary", "json"))
     native_ids = set()
     for report in (apache, nginx):
         counts = report.get("counts") if isinstance(report.get("counts"), dict) else {}
@@ -288,7 +288,7 @@ def grouped(records: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
 
 def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
     queue = queue_by_key(connector_root)
-    full_matrix = read_json(connector_root / REPORT_DIR / "full-runtime-matrix.generated.json")
+    full_matrix = read_json(report_path(connector_root, "full_runtime_matrix", "json"))
     raw_records = selected_records(connector_root)
     records: list[dict[str, Any]] = []
     for item in raw_records:
@@ -368,11 +368,11 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "report_kind": "no-mrts-intervention-nomatch-analysis",
         "generated_at": utc_now(),
         "source_reports": {
-            "intervention_blocking_analysis": "reports/testing/generated/intervention-blocking-analysis.generated.json",
-            "full_runtime_matrix": "reports/testing/generated/full-runtime-matrix.generated.json",
-            "remaining_failure_analysis": "reports/testing/generated/remaining-failure-analysis.generated.json",
-            "connector_work_queue": "reports/testing/generated/connector-work-queue.generated.json",
-            "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.json",
+            "intervention_blocking_analysis": report_relpath("intervention_blocking_analysis", "json"),
+            "full_runtime_matrix": report_relpath("full_runtime_matrix", "json"),
+            "remaining_failure_analysis": report_relpath("remaining_failure_analysis", "json"),
+            "connector_work_queue": report_relpath("connector_work_queue", "json"),
+            "next_fix_plan": report_relpath("next_fix_plan", "json"),
         },
         "summary": {
             "no_mrts_no_match": len(records),
@@ -583,25 +583,25 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 def update_full_run_evidence(report_dir: Path) -> None:
-    json_path = report_dir / "full-run-evidence.generated.json"
+    json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:
         data["no_mrts_intervention_nomatch_analysis_report"] = {
-            "analysis": f"reports/testing/generated/{REPORT_STEM}.md",
-            "json": f"reports/testing/generated/{REPORT_STEM}.json",
+            "analysis": report_relpath("no_mrts_intervention_nomatch_analysis", "md"),
+            "json": report_relpath("no_mrts_intervention_nomatch_analysis", "json"),
         }
         reports = data.get("reports")
         if isinstance(reports, list):
             for report in (
-                f"reports/testing/generated/{REPORT_STEM}.json",
-                f"reports/testing/generated/{REPORT_STEM}.md",
+                report_relpath("no_mrts_intervention_nomatch_analysis", "json"),
+                report_relpath("no_mrts_intervention_nomatch_analysis", "md"),
             ):
                 if report not in reports:
                     reports.append(report)
             data["reports"] = reports
         write_json(json_path, data)
 
-    md_path = report_dir / "full-run-evidence.generated.md"
+    md_path = report_path_from_root(report_dir, "full_run_evidence", "md")
     text = read_text(md_path)
     if text:
         start = "<!-- no-mrts-intervention-nomatch-analysis:start -->"
@@ -609,7 +609,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
         section = "\n".join(
             [
                 "## No-MRTS Intervention No-Match Analysis",
-                f"- Report: `reports/testing/generated/{REPORT_STEM}.md`",
+                f"- Report: `{report_relpath('no_mrts_intervention_nomatch_analysis', 'md')}`",
                 "- Scope: 105 no-MRTS expected 403 / actual 200 rows where the rule is loaded but no match evidence is visible.",
                 "- This is analysis-only evidence; Expected statuses and runtime PASS/FAIL values remain unchanged.",
             ]
@@ -642,10 +642,20 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     report = build_report(connector_root, framework_root)
-    write_json(output_dir / f"{REPORT_STEM}.json", report)
-    write_text_file(output_dir / f"{REPORT_STEM}.md", render_markdown(report))
+    metadata = build_metadata(
+        generated_by="ci/generate-no-mrts-intervention-nomatch-analysis.py",
+        make_target="generate-no-mrts-intervention-nomatch-analysis",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=report["source_reports"].values(),
+        generated_at=report["generated_at"],
+    )
+    json_path = report_path_from_root(output_dir, "no_mrts_intervention_nomatch_analysis", "json")
+    md_path = report_path_from_root(output_dir, "no_mrts_intervention_nomatch_analysis", "md")
+    write_text_file(json_path, generated_json_text(report, metadata))
+    write_text_file(md_path, generated_markdown_text(render_markdown(report), metadata))
     update_full_run_evidence(output_dir)
-    print(output_dir / f"{REPORT_STEM}.md")
+    print(md_path)
     return 0
 
 

@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import report_path_from_root
+
 
 SAFE_ROOTS: set[Path] = set()
 
@@ -56,7 +58,7 @@ def add_full_matrix_roots(full_matrix: dict[str, Any]) -> None:
 
 def add_report_roots(report_dir: Path) -> None:
     add_safe_roots(report_dir)
-    matrix_path = safe_existing_file(report_dir / "full-runtime-matrix.generated.json")
+    matrix_path = safe_existing_file(report_path_from_root(report_dir, "full_runtime_matrix", "json"))
     if matrix_path is None:
         return
     matrix = read_json_file(matrix_path)

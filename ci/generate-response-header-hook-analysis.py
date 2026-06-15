@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -19,7 +20,7 @@ except Exception:  # pragma: no cover - report generation has a regex fallback.
     yaml = None
 
 
-REPORT_DIR = Path("reports/testing/generated")
+REPORT_DIR = GENERATED_ROOT
 CLASSIFICATION_TO_WORK_DIRECTION = {
     "response_header_backend_setup": "response_header_backend_setup",
     "response_header_multi_value_gap": "response_header_multi_value_gap",
@@ -257,7 +258,7 @@ def build_rows(
     remaining_module: Any,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     report_dir = connector_root / REPORT_DIR
-    queue = read_json(report_dir / "connector-work-queue.generated.json")
+    queue = read_json(report_path_from_root(report_dir, "connector_work_queue", "json"))
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict)]
     failure_rows = [
         entry
@@ -349,7 +350,7 @@ def classify_connector_queue(
     rows: list[dict[str, Any]],
     framework_root: Path,
 ) -> dict[str, int]:
-    path = report_dir / "connector-work-queue.generated.json"
+    path = report_path_from_root(report_dir, "connector_work_queue", "json")
     data = read_json(path)
     entries = data.get("entries", [])
     row_by_key = {
@@ -426,6 +427,7 @@ def classify_connector_queue(
 
 
 def render_connector_queue_markdown(report_dir: Path, data: dict[str, Any], framework_root: Path) -> None:
+    connector_root = report_dir.parents[2]
     module = import_script(framework_root / "ci/generate-connector-work-queue.py", "connector_work_queue_generator")
     markdown = module.render_markdown(
         data.get("entries", []),
@@ -433,7 +435,15 @@ def render_connector_queue_markdown(report_dir: Path, data: dict[str, Any], fram
         Counter(data.get("runtime_source_counts", {})),
         str(data.get("generated_at") or utc_now()),
     )
-    write_text_file(report_dir / "connector-work-queue.generated.md", markdown)
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else build_metadata(
+        generated_by="framework:ci/generate-connector-work-queue.py",
+        make_target="generate-work-queue",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[report_relpath("full_runtime_matrix", "json")],
+        generated_at=str(data.get("generated_at") or utc_now()),
+    )
+    write_text_file(report_path_from_root(report_dir, "connector_work_queue", "md"), generated_markdown_text(markdown, metadata))
 
 
 def render_phase_work_queue(report_dir: Path, framework_root: Path, connector_root: Path) -> None:
@@ -452,9 +462,9 @@ def render_phase_work_queue(report_dir: Path, framework_root: Path, connector_ro
         return original_phase_work_direction(entry)
 
     module.phase_work_direction = patched_phase_work_direction
-    connector_work_queue_path = report_dir / "connector-work-queue.generated.json"
-    phase_coverage_path = report_dir / "phase-coverage.generated.md"
-    full_runtime_matrix_path = report_dir / "full-runtime-matrix.generated.json"
+    connector_work_queue_path = report_path_from_root(report_dir, "connector_work_queue", "json")
+    phase_coverage_path = report_path_from_root(report_dir, "phase_coverage", "md")
+    full_runtime_matrix_path = report_path_from_root(report_dir, "full_runtime_matrix", "json")
     connector_work_queue = module.read_json(connector_work_queue_path)
     phase_coverage = module.parse_phase_coverage(phase_coverage_path)
     full_runtime_matrix = module.read_json_optional(full_runtime_matrix_path)
@@ -470,36 +480,44 @@ def render_phase_work_queue(report_dir: Path, framework_root: Path, connector_ro
             "full_runtime_matrix": str(full_runtime_matrix_path),
         },
     )
-    write_json(report_dir / "phase-work-queue.generated.json", payload)
-    write_text_file(report_dir / "phase-work-queue.generated.md", module.render_markdown(payload))
+    metadata = build_metadata(
+        generated_by="framework:ci/generate-phase-work-queue.py",
+        make_target="generate-phase-work-queue",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[connector_work_queue_path, phase_coverage_path, full_runtime_matrix_path],
+        generated_at=str(payload.get("generated_at") or utc_now()),
+    )
+    write_text_file(report_path_from_root(report_dir, "phase_work_queue", "json"), generated_json_text(payload, metadata))
+    write_text_file(report_path_from_root(report_dir, "phase_work_queue", "md"), generated_markdown_text(module.render_markdown(payload), metadata))
 
 
 def update_full_run_evidence(report_dir: Path) -> None:
-    json_path = report_dir / "full-run-evidence.generated.json"
+    json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:
         data["response_header_hook_analysis_report"] = {
-            "analysis": "reports/testing/generated/response-header-hook-analysis.generated.md",
-            "json": "reports/testing/generated/response-header-hook-analysis.generated.json",
+            "analysis": report_relpath("response_header_hook_analysis", "md"),
+            "json": report_relpath("response_header_hook_analysis", "json"),
             "classification": "response_header_hook_split",
         }
         reports = data.get("reports")
         if isinstance(reports, list):
             for report in (
-                "reports/testing/generated/response-header-hook-analysis.generated.json",
-                "reports/testing/generated/response-header-hook-analysis.generated.md",
+                report_relpath("response_header_hook_analysis", "json"),
+                report_relpath("response_header_hook_analysis", "md"),
             ):
                 if report not in reports:
                     reports.append(report)
             data["reports"] = reports
         write_json(json_path, data)
-    md_path = report_dir / "full-run-evidence.generated.md"
+    md_path = report_path_from_root(report_dir, "full_run_evidence", "md")
     text = read_text(md_path)
     if not text:
         return
     lines = [
         "## Response Header Hook Analysis",
-        "- Response header hook analysis: `reports/testing/generated/response-header-hook-analysis.generated.md`",
+        f"- Response header hook analysis: `{report_relpath('response_header_hook_analysis', 'md')}`",
         "- The former monolithic `response_header_hook` cluster is split into backend header setup, multi-value header, and MRTS DetectionOnly overlay buckets.",
     ]
     section = "\n".join(lines)
@@ -644,6 +662,11 @@ def build_analysis(connector_root: Path, framework_root: Path) -> dict[str, Any]
     return {
         "generated_at": utc_now(),
         "report_kind": "response-header-hook-analysis",
+        "source_reports": {
+            "connector_work_queue": report_relpath("connector_work_queue", "json"),
+            "full_runtime_matrix": report_relpath("full_runtime_matrix", "json"),
+            "phase_coverage": report_relpath("phase_coverage", "md"),
+        },
         "summary": {
             "failure_rows": len(rows),
             "pass_control_rows": len(controls),
@@ -687,9 +710,19 @@ def main() -> int:
     add_report_roots(connector_root / REPORT_DIR)
     report_dir.mkdir(parents=True, exist_ok=True)
     analysis = build_analysis(connector_root, framework_root)
-    write_json(report_dir / "response-header-hook-analysis.generated.json", analysis)
-    write_text_file(report_dir / "response-header-hook-analysis.generated.md", render_markdown(analysis))
-    print(report_dir / "response-header-hook-analysis.generated.md")
+    metadata = build_metadata(
+        generated_by="ci/generate-response-header-hook-analysis.py",
+        make_target="generate-response-header-hook-analysis",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=analysis["source_reports"].values(),
+        generated_at=analysis["generated_at"],
+    )
+    json_path = report_path_from_root(report_dir, "response_header_hook_analysis", "json")
+    md_path = report_path_from_root(report_dir, "response_header_hook_analysis", "md")
+    write_text_file(json_path, generated_json_text(analysis, metadata))
+    write_text_file(md_path, generated_markdown_text(render_markdown(analysis), metadata))
+    print(md_path)
     return 0
 
 

@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, safe_existing_file, safe_path, write_json_file, write_text_file
 
 
@@ -22,14 +23,14 @@ BUILD_CACHE_MARKER_END = "<!-- runtime-build-cache:end -->"
 NATIVE_EVIDENCE_MARKER_START = "<!-- mrts-native-infrastructure-evidence:start -->"
 NATIVE_EVIDENCE_MARKER_END = "<!-- mrts-native-infrastructure-evidence:end -->"
 NATIVE_REPORT_FILES = [
-    "reports/testing/generated/mrts-native-apache.generated.json",
-    "reports/testing/generated/mrts-native-apache.generated.md",
-    "reports/testing/generated/mrts-native-nginx.generated.json",
-    "reports/testing/generated/mrts-native-nginx.generated.md",
-    "reports/testing/generated/mrts-native-summary.generated.json",
-    "reports/testing/generated/mrts-native-summary.generated.md",
-    "reports/testing/generated/mrts-native-full.generated.json",
-    "reports/testing/generated/mrts-native-full.generated.md",
+    report_relpath("mrts_native_apache", "json"),
+    report_relpath("mrts_native_apache", "md"),
+    report_relpath("mrts_native_nginx", "json"),
+    report_relpath("mrts_native_nginx", "md"),
+    report_relpath("mrts_native_summary", "json"),
+    report_relpath("mrts_native_summary", "md"),
+    report_relpath("mrts_native_full", "json"),
+    report_relpath("mrts_native_full", "md"),
 ]
 
 
@@ -42,12 +43,12 @@ def write_json(path: Any, data: dict[str, Any]) -> None:
 
 
 def component_inventory(report_dir: Path) -> dict[str, Any]:
-    cache_report = read_json(report_dir / "runtime-component-cache.generated.json")
+    cache_report = read_json(report_path_from_root(report_dir, "runtime_component_cache", "json"))
     return {key: cache_report.get(key, {}) for key in COMPONENT_KEYS}
 
 
 def build_cache_inventory(report_dir: Path) -> dict[str, Any]:
-    return read_json(report_dir / "runtime-build-cache.generated.json")
+    return read_json(report_path_from_root(report_dir, "runtime_build_cache", "json"))
 
 
 def replace_marked_section(text: str, section: str) -> str:
@@ -87,6 +88,10 @@ def replace_heading_section(text: str, heading: str, section: str, next_heading:
 
 def read_text_if_file(path: Any) -> str:
     return read_text_file(path)
+
+
+def report_root_for(path: Path) -> Path:
+    return path.parent if path.parent.name == "generated" else path.parent.parent
 
 
 def safe_runtime_child(root: Path | None, *parts: str) -> Path | None:
@@ -609,10 +614,10 @@ def native_evidence_links_markdown() -> str:
         NATIVE_EVIDENCE_MARKER_START,
         "## MRTS Native Infrastructure Evidence",
         "",
-        "- Apache native: `reports/testing/generated/mrts-native-apache.generated.md`",
-        "- NGINX PR24 native: `reports/testing/generated/mrts-native-nginx.generated.md`",
-        "- Native summary: `reports/testing/generated/mrts-native-summary.generated.md`",
-        "- Combined native report: `reports/testing/generated/mrts-native-full.generated.md`",
+        f"- Apache native: `{report_relpath('mrts_native_apache', 'md')}`",
+        f"- NGINX PR24 native: `{report_relpath('mrts_native_nginx', 'md')}`",
+        f"- Native summary: `{report_relpath('mrts_native_summary', 'md')}`",
+        f"- Combined native report: `{report_relpath('mrts_native_full', 'md')}`",
         "",
         "These native MRTS reports are separate from connector full-matrix evidence.",
         NATIVE_EVIDENCE_MARKER_END,
@@ -621,7 +626,7 @@ def native_evidence_links_markdown() -> str:
 
 
 def native_summary_markdown(report_dir: Path) -> str:
-    native = read_json(report_dir / "mrts-native-full.generated.json")
+    native = read_json(report_path_from_root(report_dir, "mrts_native_full", "json"))
     targets = native.get("targets") if isinstance(native.get("targets"), dict) else {}
     lines = [
         "## MRTS Native Summary",
@@ -660,7 +665,7 @@ def native_target_script_exit_code(summary: dict[str, Any]) -> int:
 
 
 def remove_stale_native_blockers(text: str, report_dir: Path) -> str:
-    native = read_json(report_dir / "mrts-native-full.generated.json")
+    native = read_json(report_path_from_root(report_dir, "mrts_native_full", "json"))
     summary = native.get("summary") if isinstance(native.get("summary"), dict) else {}
     if int(summary.get("BLOCKED", 0) or 0) > 0:
         return text
@@ -796,10 +801,10 @@ def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict
     if not data:
         return
     data["mrts_native_reports"] = {
-        "apache": "reports/testing/generated/mrts-native-apache.generated.md",
-        "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
-        "summary": "reports/testing/generated/mrts-native-summary.generated.md",
-        "combined": "reports/testing/generated/mrts-native-full.generated.md",
+        "apache": report_relpath("mrts_native_apache", "md"),
+        "nginx": report_relpath("mrts_native_nginx", "md"),
+        "summary": report_relpath("mrts_native_summary", "md"),
+        "combined": report_relpath("mrts_native_full", "md"),
     }
     if path.name == "full-run-evidence.generated.json":
         reports = data.get("reports")
@@ -809,14 +814,15 @@ def update_report_json(path: Path, components: dict[str, Any], diagnostics: dict
             if report_file not in reports:
                 reports.append(report_file)
         data["reports"] = reports
-        native_full = read_json(path.parent / "mrts-native-full.generated.json")
+        report_dir = report_root_for(path)
+        native_full = read_json(report_path_from_root(report_dir, "mrts_native_full", "json"))
         if native_full:
             mrts_native = data.get("mrts_native") if isinstance(data.get("mrts_native"), dict) else {}
             mrts_native.update(
                 {
                     "generated_at": native_full.get("generated_at"),
-                    "report_json": "reports/testing/generated/mrts-native-full.generated.json",
-                    "report_md": "reports/testing/generated/mrts-native-full.generated.md",
+                    "report_json": report_relpath("mrts_native_full", "json"),
+                    "report_md": report_relpath("mrts_native_full", "md"),
                     "reports": native_full.get("reports", data["mrts_native_reports"]),
                     "summary": native_full.get("summary", {}),
                     "target_script_exit_code": native_target_script_exit_code(native_full.get("summary", {})),
@@ -870,17 +876,16 @@ def main() -> int:
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
-    report_dir = connector_root / "reports/testing/generated"
+    report_dir = connector_root / GENERATED_ROOT
     add_safe_roots(connector_root, report_dir)
     add_report_roots(report_dir)
     components = component_inventory(report_dir)
     build_cache = build_cache_inventory(report_dir)
     diagnostics = collect_runtime_diagnostics(components)
-    update_report_json(report_dir / "runtime-component-cache.generated.json", components, diagnostics, build_cache)
-    update_report_md(report_dir / "runtime-component-cache.generated.md", components, diagnostics, build_cache)
-    for stem in ("full-run-evidence.generated",):
-        update_report_json(report_dir / f"{stem}.json", components, diagnostics, build_cache)
-        update_report_md(report_dir / f"{stem}.md", components, diagnostics, build_cache)
+    update_report_json(report_path_from_root(report_dir, "runtime_component_cache", "json"), components, diagnostics, build_cache)
+    update_report_md(report_path_from_root(report_dir, "runtime_component_cache", "md"), components, diagnostics, build_cache)
+    update_report_json(report_path_from_root(report_dir, "full_run_evidence", "json"), components, diagnostics, build_cache)
+    update_report_md(report_path_from_root(report_dir, "full_run_evidence", "md"), components, diagnostics, build_cache)
     return 0
 
 

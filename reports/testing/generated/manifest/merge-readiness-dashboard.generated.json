@@ -1,0 +1,125 @@
+{
+  "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+  "dirty_submodules": [
+    {
+      "branch": "report-governance-proof-layout",
+      "dirty": "dirty",
+      "expected": "-",
+      "name": "parent",
+      "path": ".",
+      "sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+      "status": "present"
+    }
+  ],
+  "failed_reports": [],
+  "final_consistency_status": "ready_with_known_reported_gaps",
+  "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+  "full_matrix_totals": {
+    "attempted": 3928,
+    "blocked": 0,
+    "fail": 782,
+    "not_executable": 72,
+    "pass": 3074,
+    "pending": 2298
+  },
+  "generated_at": "2026-06-15T10:40:38Z",
+  "metadata": {
+    "category": "manifest",
+    "commit_policy": "versioned-generated",
+    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "data_kind": "dashboard",
+    "data_origin": "manifest",
+    "empty_inputs": [],
+    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-15T10:40:38Z",
+    "generated_by": "ci/refresh-connector-reports.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "complete",
+    "inputs": [
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/final-consistency-audit.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/report-freshness.generated.json",
+        "status": "present"
+      }
+    ],
+    "make_target": "refresh-connector-reports",
+    "missing_inputs": [],
+    "owner": "manifest",
+    "report_key": "merge_readiness_dashboard",
+    "schema_version": 1,
+    "severity": "critical",
+    "unknown_inputs": [],
+    "working_tree_dirty": "dirty"
+  },
+  "reason": "Core canonical reports are generated; warning conditions are documented.",
+  "recommended_next_fix_cluster": "none",
+  "skipped_reports": [
+    "runtime_cache_reports"
+  ],
+  "stale_reports": [],
+  "status": "WARN",
+  "submodules": [
+    {
+      "branch": "report-governance-proof-layout",
+      "dirty": "dirty",
+      "expected": "-",
+      "name": "parent",
+      "path": ".",
+      "sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+      "status": "present"
+    },
+    {
+      "branch": "runtime-source-https-policy",
+      "dirty": "clean",
+      "expected": "61454d23be52e52d9395e6b091c52d651e16f89b",
+      "name": "framework_submodule",
+      "path": "modules/ModSecurity-test-Framework",
+      "sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+      "status": "present"
+    },
+    {
+      "branch": "HEAD",
+      "dirty": "clean",
+      "expected": "13aa91291adea12d5c607fdd165d010fcfb1da78",
+      "name": "mrts_submodule",
+      "path": "modules/ModSecurity-test-Framework/tools/MRTS",
+      "sha": "13aa91291adea12d5c607fdd165d010fcfb1da78",
+      "status": "present"
+    },
+    {
+      "branch": "runtime-source-https-policy",
+      "dirty": "clean",
+      "expected": "-",
+      "name": "framework_sibling_checkout",
+      "path": "/root/git/ModSecurity-test-Framework",
+      "sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+      "status": "present"
+    }
+  ]
+}

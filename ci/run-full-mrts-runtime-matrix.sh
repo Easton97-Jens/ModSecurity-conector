@@ -155,5 +155,5 @@ report_rc=$?
 set -eu
 
 echo "full-matrix: manifest=$FULL_MATRIX_MANIFEST"
-echo "full-matrix: report=$FULL_MATRIX_REPORT_DIR/full-runtime-matrix.generated.md"
+echo "full-matrix: report=$FULL_MATRIX_REPORT_DIR/canonical/full-runtime-matrix.generated.md"
 exit "$report_rc"

@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -20,7 +21,7 @@ except Exception:  # pragma: no cover - report generation has a conservative fal
     yaml = None
 
 
-REPORT_DIR = Path("reports/testing/generated")
+REPORT_DIR = GENERATED_ROOT
 TARGET_CATEGORIES = {"request_body_processor", "multipart_files", "xml_processor"}
 SELECTED_CONNECTOR_GAP_CASE = "phase1_vs_phase2_request_body_gap"
 URLENCODED_FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
@@ -377,7 +378,7 @@ def build_records(
     list[dict[str, Any]],
 ]:
     remaining = import_script(connector_root / "ci/generate-remaining-failure-analysis.py", "remaining_failure_analysis")
-    queue = read_json(connector_root / REPORT_DIR / "connector-work-queue.generated.json")
+    queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict) and entry.get("runtime_status") == "FAIL"]
     target_records: list[dict[str, Any]] = []
     selected_gap_records: list[dict[str, Any]] = []
@@ -714,16 +715,16 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "request_body_access_on": sum(1 for record in records + selected_gap_records if record["request_body_access"] == "yes"),
         "collection_evidence": sum(1 for record in records + selected_gap_records if record["collection_evidence"] == "yes"),
     }
-    plan = read_json(connector_root / REPORT_DIR / "next-fix-plan.generated.json")
+    plan = read_json(report_path(connector_root, "next_fix_plan", "json"))
     recommendation = plan.get("recommendation") if isinstance(plan.get("recommendation"), dict) else {}
     return {
         "report_kind": "body-processor-analysis",
         "generated_at": utc_now(),
         "source_reports": {
-            "connector_work_queue": "reports/testing/generated/connector-work-queue.generated.json",
-            "remaining_failure_analysis": "reports/testing/generated/remaining-failure-analysis.generated.json",
-            "phase_work_queue": "reports/testing/generated/phase-work-queue.generated.json",
-            "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.json",
+            "connector_work_queue": report_relpath("connector_work_queue", "json"),
+            "remaining_failure_analysis": report_relpath("remaining_failure_analysis", "json"),
+            "phase_work_queue": report_relpath("phase_work_queue", "json"),
+            "next_fix_plan": report_relpath("next_fix_plan", "json"),
         },
         "summary": summary,
         "distribution": {
@@ -979,12 +980,12 @@ def replace_marked_section(text: str, start: str, end: str, section: str) -> str
 
 
 def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
-    json_path = report_dir / "full-run-evidence.generated.json"
+    json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:
         data["body_processor_analysis_report"] = {
-            "analysis": "reports/testing/generated/body-processor-analysis.generated.md",
-            "json": "reports/testing/generated/body-processor-analysis.generated.json",
+            "analysis": report_relpath("body_processor_analysis", "md"),
+            "json": report_relpath("body_processor_analysis", "json"),
             "urlencoded_form_subcluster_count": report["summary"]["urlencoded_form_subcluster_count"],
             "urlencoded_active_after_report_sync": report["summary"]["urlencoded_form_active_after_report_sync"],
             "xml_activation_missing_subcluster_count": report["summary"]["xml_activation_missing_subcluster_count"],
@@ -995,21 +996,21 @@ def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
         reports = data.get("reports")
         if isinstance(reports, list):
             for item in (
-                "reports/testing/generated/body-processor-analysis.generated.json",
-                "reports/testing/generated/body-processor-analysis.generated.md",
+                report_relpath("body_processor_analysis", "json"),
+                report_relpath("body_processor_analysis", "md"),
             ):
                 if item not in reports:
                     reports.append(item)
             data["reports"] = reports
         write_json(json_path, data)
 
-    md_path = report_dir / "full-run-evidence.generated.md"
+    md_path = report_path_from_root(report_dir, "full_run_evidence", "md")
     text = read_text(md_path)
     if text:
         section = "\n".join(
             [
                 "## Body Processor Analysis",
-                "- Body processor analysis: `reports/testing/generated/body-processor-analysis.generated.md`",
+                f"- Body processor analysis: `{report_relpath('body_processor_analysis', 'md')}`",
                 f"- URL-encoded/form rows: **{report['summary']['urlencoded_form_subcluster_count']}** -> **{report['summary']['urlencoded_form_active_after_report_sync']}** active request_body_processor rows after report sync.",
                 f"- XML processor activation-missing rows: **{report['summary']['xml_activation_missing_subcluster_count']}** -> **{report['summary']['xml_processor_active_after_report_sync']}** active xml_processor rows after report sync.",
                 f"- Multipart processor activation-missing rows: **{report['summary']['multipart_activation_missing_subcluster_count']}** -> **{report['summary']['multipart_files_active_after_report_sync']}** active multipart_files rows after report sync.",
@@ -1044,8 +1045,16 @@ def main() -> int:
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
-    write_json(output_dir / "body-processor-analysis.generated.json", report)
-    write_text_file(output_dir / "body-processor-analysis.generated.md", render_markdown(report))
+    metadata = build_metadata(
+        generated_by="ci/generate-body-processor-analysis.py",
+        make_target="generate-body-processor-analysis",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=report["source_reports"].values(),
+        generated_at=report["generated_at"],
+    )
+    write_text_file(report_path_from_root(output_dir, "body_processor_analysis", "json"), generated_json_text(report, metadata))
+    write_text_file(report_path_from_root(output_dir, "body_processor_analysis", "md"), generated_markdown_text(render_markdown(report), metadata))
     update_full_run_evidence(output_dir, report)
     return 0
 

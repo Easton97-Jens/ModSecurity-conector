@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -17,7 +18,7 @@ except Exception:  # pragma: no cover - report generation still has a regex fall
     yaml = None
 
 
-REPORT_DIR = Path("reports/testing/generated")
+REPORT_DIR = GENERATED_ROOT
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
 STRICT_LOAD_ERROR_RE = re.compile(
     r"Rules error|Error parsing|Failed to load|Invalid input|AH00526|modsecurity_rules_file.*failed|Could not open",
@@ -367,7 +368,7 @@ def classify_record(record: dict[str, Any]) -> tuple[str, str, str, str]:
 
 def build_records(connector_root: Path, framework_root: Path) -> list[dict[str, Any]]:
     report_dir = connector_root / REPORT_DIR
-    queue = read_json(report_dir / "connector-work-queue.generated.json")
+    queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict)]
     selected = [
         entry
@@ -526,7 +527,7 @@ def top_counts(records: list[dict[str, Any]], key: str, limit: int = 20) -> list
 
 
 def next_recommendation(connector_root: Path) -> dict[str, Any]:
-    plan = read_json(connector_root / REPORT_DIR / "next-fix-plan.generated.json")
+    plan = read_json(report_path(connector_root, "next_fix_plan", "json"))
     recommendation = plan.get("recommendation") if isinstance(plan.get("recommendation"), dict) else {}
     return {
         "recommended_next_fix_cluster": recommendation.get("recommended_next_fix_cluster", "-"),
@@ -575,11 +576,11 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "report_kind": "intervention-blocking-analysis",
         "generated_at": utc_now(),
         "source_reports": {
-            "connector_work_queue": "reports/testing/generated/connector-work-queue.generated.json",
-            "full_runtime_matrix": "reports/testing/generated/full-runtime-matrix.generated.json",
-            "remaining_failure_analysis": "reports/testing/generated/remaining-failure-analysis.generated.json",
-            "phase_work_queue": "reports/testing/generated/phase-work-queue.generated.json",
-            "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.json",
+            "connector_work_queue": report_relpath("connector_work_queue", "json"),
+            "full_runtime_matrix": report_relpath("full_runtime_matrix", "json"),
+            "remaining_failure_analysis": report_relpath("remaining_failure_analysis", "json"),
+            "phase_work_queue": report_relpath("phase_work_queue", "json"),
+            "next_fix_plan": report_relpath("next_fix_plan", "json"),
         },
         "summary": summary,
         "distribution": {
@@ -722,8 +723,16 @@ def main() -> int:
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
-    write_json(output_dir / "intervention-blocking-analysis.generated.json", report)
-    write_text_file(output_dir / "intervention-blocking-analysis.generated.md", render_markdown(report))
+    metadata = build_metadata(
+        generated_by="ci/generate-intervention-blocking-analysis.py",
+        make_target="generate-intervention-blocking-analysis",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=report["source_reports"].values(),
+        generated_at=report["generated_at"],
+    )
+    write_text_file(report_path_from_root(output_dir, "intervention_blocking_analysis", "json"), generated_json_text(report, metadata))
+    write_text_file(report_path_from_root(output_dir, "intervention_blocking_analysis", "md"), generated_markdown_text(render_markdown(report), metadata))
     return 0
 
 

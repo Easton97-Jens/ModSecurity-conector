@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-06-15T10:39:57Z",
+  "metadata": {
+    "category": "mrts-native",
+    "commit_policy": "optional-generated",
+    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "data_kind": "evidence",
+    "data_origin": "mrts",
+    "empty_inputs": [],
+    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-15T10:39:57Z",
+    "generated_by": "framework:ci/generate-mrts-native-report.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "complete",
+    "inputs": [
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
+        "status": "present"
+      }
+    ],
+    "make_target": "mrts-native-full-run",
+    "missing_inputs": [],
+    "owner": "mrts",
+    "report_key": "mrts_native_apache",
+    "schema_version": 1,
+    "severity": "optional",
+    "unknown_inputs": [],
+    "working_tree_dirty": "dirty"
+  },
+  "note": "Native MRTS evidence is separate from connector runtime matrix evidence.",
+  "report_kind": "native-mrts-summary",
+  "reports": {
+    "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+  },
+  "separate_from_connector_full_matrix": true,
+  "targets": {
+    "apache2_ubuntu": {
+      "counts": {
+        "attempted": 0,
+        "blocked": 0,
+        "fail": 0,
+        "failed_cases": [],
+        "not_executable": 0,
+        "pass": 0
+      },
+      "report": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+      "status": "NOT_RUN"
+    },
+    "nginx-pr24": {
+      "counts": {
+        "attempted": 0,
+        "blocked": 0,
+        "fail": 0,
+        "failed_cases": [],
+        "not_executable": 0,
+        "pass": 0
+      },
+      "report": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+      "status": "NOT_RUN"
+    }
+  }
+}

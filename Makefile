@@ -74,7 +74,13 @@ export MRTS_NATIVE_NGINX_MODULE_DIR
 export MRTS_NATIVE_NGINX_PORT
 export MRTS_NATIVE_BACKEND_PORT
 export GO_FTW_BIN
+export GO_FTW_SOURCE_URL
+export GO_FTW_PROMPT_EXPECTED_LATEST
+export GO_FTW_GIT_REF
 export ALBEDO_BIN
+export ALBEDO_SOURCE_URL
+export ALBEDO_PROMPT_EXPECTED_LATEST
+export ALBEDO_GIT_REF
 export CRS_REPO_URL
 export CRS_GIT_REF
 export CRS_SOURCE_DIR
@@ -99,6 +105,10 @@ export HAPROXY_RUNTIME_BUILD_DIR
 export HAPROXY_RUNTIME_BUILD_WORKTREE
 export HAPROXY_RUNTIME_DIR
 export HAPROXY_BIN
+export EXPAT_SOURCE_URL
+export EXPAT_GIT_REF
+export EXPAT_GIT_URL
+export EXPAT_PROMPT_EXPECTED_LATEST
 export HTTPD_VERSION
 export HTTPD_SOURCE_URL
 export HTTPD_SHA256
@@ -127,7 +137,7 @@ export SKIP_RUNTIME_COMPONENT_PREPARE
 export RUNTIME_COMPONENT_STRICT_VERIFY
 export KEEP_RUNTIME_ARTIFACTS
 
-.PHONY: check-framework prepare-runtime-components refresh-connector-reports refresh-all-reports smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-remaining-failure-analysis mrts-native-full-run mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: check-framework prepare-runtime-components refresh-connector-reports refresh-all-reports check-generated-report-layout generate-system-environment-proof prove-generated-reports smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-remaining-failure-analysis mrts-native-full-run mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 define RUN_WITH_REFRESH_ALL
 	@set +e; \
@@ -164,6 +174,19 @@ refresh-all-reports: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --native-root "$(MRTS_NATIVE_ROOT)" --strict-inputs || connector_rc=$$?; \
 	if [ "$$framework_rc" -ne 0 ]; then exit "$$framework_rc"; fi; \
 	exit "$$connector_rc"
+
+check-generated-report-layout: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/check-generated-report-layout.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
+
+generate-system-environment-proof: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/generate-system-environment-proof.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
+
+prove-generated-reports:
+	$(MAKE) refresh-connector-reports
+	$(MAKE) check-generated-report-layout
+	$(MAKE) lint
+	$(MAKE) quick-check
+	$(MAKE) generate-system-environment-proof
 
 smoke-common: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=common sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
@@ -276,8 +299,8 @@ generate-full-runtime-matrix: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-full-runtime-matrix.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --log-root "$(LOG_ROOT)"
 
 generate-work-queue: check-framework
-	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-connector-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/full-runtime-matrix.generated.json"
-	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-phase-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --connector-work-queue "$(CURDIR)/reports/testing/generated/connector-work-queue.generated.json" --phase-coverage "$(CURDIR)/reports/testing/generated/phase-coverage.generated.md" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/full-runtime-matrix.generated.json"
+	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-connector-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/canonical/full-runtime-matrix.generated.json"
+	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-phase-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --connector-work-queue "$(CURDIR)/reports/testing/generated/work-queues/connector-work-queue.generated.json" --phase-coverage "$(CURDIR)/reports/testing/generated/coverage/phase-coverage.generated.md" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/canonical/full-runtime-matrix.generated.json"
 	"$(FRAMEWORK_PYTHON)" ci/generate-nolog-audit-evidence-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-response-header-hook-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-phase4-hard-abort-capability.py --connector-root "$(CURDIR)"
@@ -289,7 +312,7 @@ generate-work-queue: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-final-consistency-audit.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 
 generate-phase-work-queue: check-framework
-	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-phase-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --connector-work-queue "$(CURDIR)/reports/testing/generated/connector-work-queue.generated.json" --phase-coverage "$(CURDIR)/reports/testing/generated/phase-coverage.generated.md" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/full-runtime-matrix.generated.json"
+	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-phase-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --connector-work-queue "$(CURDIR)/reports/testing/generated/work-queues/connector-work-queue.generated.json" --phase-coverage "$(CURDIR)/reports/testing/generated/coverage/phase-coverage.generated.md" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/canonical/full-runtime-matrix.generated.json"
 	"$(FRAMEWORK_PYTHON)" ci/generate-nolog-audit-evidence-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-response-header-hook-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
 	"$(FRAMEWORK_PYTHON)" ci/generate-phase4-hard-abort-capability.py --connector-root "$(CURDIR)"
@@ -362,6 +385,7 @@ lint: check-framework
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile ci/*.py
+	$(MAKE) check-generated-report-layout
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-workflow-yaml.py"

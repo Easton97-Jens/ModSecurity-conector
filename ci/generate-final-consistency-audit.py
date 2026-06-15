@@ -10,28 +10,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_at_from_json, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, write_json_file, write_text_file
 
 
-REPORT_DIR = Path("reports/testing/generated")
-REPORT_JSON = "reports/testing/generated/final-consistency-audit.generated.json"
-REPORT_MD = "reports/testing/generated/final-consistency-audit.generated.md"
+REPORT_DIR = GENERATED_ROOT
+REPORT_JSON = report_relpath("final_consistency_audit", "json")
+REPORT_MD = report_relpath("final_consistency_audit", "md")
 
 INPUT_REPORTS = (
-    "full-runtime-matrix.generated.json",
-    "connector-work-queue.generated.json",
-    "phase-work-queue.generated.json",
-    "remaining-failure-analysis.generated.json",
-    "next-fix-plan.generated.json",
-    "full-run-evidence.generated.json",
-    "mrts-native-summary.generated.json",
-    "phase4-hard-abort-capability.generated.json",
-    "nolog-audit-evidence.generated.json",
-    "response-header-hook-analysis.generated.json",
-    "body-processor-analysis.generated.json",
-    "intervention-blocking-analysis.generated.json",
-    "no-mrts-intervention-nomatch-analysis.generated.json",
-    "rule-chain-semantics-analysis.generated.json",
+    ("full_runtime_matrix", "json"),
+    ("connector_work_queue", "json"),
+    ("phase_work_queue", "json"),
+    ("remaining_failure_analysis", "json"),
+    ("next_fix_plan", "json"),
+    ("full_run_evidence", "json"),
+    ("mrts_native_summary", "json"),
+    ("phase4_hard_abort_capability", "json"),
+    ("nolog_audit_evidence", "json"),
+    ("response_header_hook_analysis", "json"),
+    ("body_processor_analysis", "json"),
+    ("intervention_blocking_analysis", "json"),
+    ("no_mrts_intervention_nomatch_analysis", "json"),
+    ("rule_chain_semantics_analysis", "json"),
 )
 
 REPORT_ONLY_CATEGORIES = {
@@ -233,14 +234,14 @@ def native_status(native_summary: dict[str, Any]) -> dict[str, Any]:
 
 def input_freshness(report_dir: Path) -> list[dict[str, Any]]:
     freshness: list[dict[str, Any]] = []
-    for name in INPUT_REPORTS:
-        path = report_dir / name
+    for key, ext in INPUT_REPORTS:
+        path = report_path_from_root(report_dir, key, ext)
         data = read_json(path)
         freshness.append(
             {
-                "path": f"reports/testing/generated/{name}",
+                "path": report_relpath(key, ext),
                 "present": path.is_file(),
-                "generated_at": data.get("generated_at", "-"),
+                "generated_at": generated_at_from_json(data),
                 "report_kind": data.get("report_kind", "-"),
             }
         )
@@ -249,17 +250,17 @@ def input_freshness(report_dir: Path) -> list[dict[str, Any]]:
 
 def build_audit(connector_root: Path, framework_root: Path) -> dict[str, Any]:
     report_dir = connector_root / REPORT_DIR
-    full_matrix = read_json(report_dir / "full-runtime-matrix.generated.json")
-    queue = read_json(report_dir / "connector-work-queue.generated.json")
-    remaining = read_json(report_dir / "remaining-failure-analysis.generated.json")
-    next_plan = read_json(report_dir / "next-fix-plan.generated.json")
-    native_summary = read_json(report_dir / "mrts-native-summary.generated.json")
-    phase4 = read_json(report_dir / "phase4-hard-abort-capability.generated.json")
-    body = read_json(report_dir / "body-processor-analysis.generated.json")
-    intervention = read_json(report_dir / "intervention-blocking-analysis.generated.json")
-    response_headers = read_json(report_dir / "response-header-hook-analysis.generated.json")
-    nolog = read_json(report_dir / "nolog-audit-evidence.generated.json")
-    rule_chain = read_json(report_dir / "rule-chain-semantics-analysis.generated.json")
+    full_matrix = read_json(report_path(connector_root, "full_runtime_matrix", "json"))
+    queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
+    remaining = read_json(report_path(connector_root, "remaining_failure_analysis", "json"))
+    next_plan = read_json(report_path(connector_root, "next_fix_plan", "json"))
+    native_summary = read_json(report_path(connector_root, "mrts_native_summary", "json"))
+    phase4 = read_json(report_path(connector_root, "phase4_hard_abort_capability", "json"))
+    body = read_json(report_path(connector_root, "body_processor_analysis", "json"))
+    intervention = read_json(report_path(connector_root, "intervention_blocking_analysis", "json"))
+    response_headers = read_json(report_path(connector_root, "response_header_hook_analysis", "json"))
+    nolog = read_json(report_path(connector_root, "nolog_audit_evidence", "json"))
+    rule_chain = read_json(report_path(connector_root, "rule_chain_semantics_analysis", "json"))
 
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict)]
     failed_entries = [entry for entry in entries if entry.get("runtime_status") == "FAIL"]
@@ -329,12 +330,12 @@ def build_audit(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "report_kind": "final-consistency-audit",
         "generated_at": utc_now(),
         "source_reports": {
-            "full_runtime_matrix": "reports/testing/generated/full-runtime-matrix.generated.json",
-            "connector_work_queue": "reports/testing/generated/connector-work-queue.generated.json",
-            "phase_work_queue": "reports/testing/generated/phase-work-queue.generated.json",
-            "remaining_failure_analysis": "reports/testing/generated/remaining-failure-analysis.generated.json",
-            "next_fix_plan": "reports/testing/generated/next-fix-plan.generated.json",
-            "full_run_evidence": "reports/testing/generated/full-run-evidence.generated.json",
+            "full_runtime_matrix": report_relpath("full_runtime_matrix", "json"),
+            "connector_work_queue": report_relpath("connector_work_queue", "json"),
+            "phase_work_queue": report_relpath("phase_work_queue", "json"),
+            "remaining_failure_analysis": report_relpath("remaining_failure_analysis", "json"),
+            "next_fix_plan": report_relpath("next_fix_plan", "json"),
+            "full_run_evidence": report_relpath("full_run_evidence", "json"),
         },
         "git_snapshot": {
             "connector_head": git_stdout(connector_root, ["rev-parse", "HEAD"]),
@@ -632,16 +633,16 @@ def replace_marked_section(text: str, start: str, end: str, section: str) -> str
     if start in text and end in text:
         before = text.split(start, 1)[0]
         after = text.split(end, 1)[1]
-        return before + start + "\n" + section.strip() + "\n" + end + after
+        return (before + start + "\n" + section.strip() + "\n" + end + after).rstrip() + "\n"
     insert_before = "## Reports And Logs"
     block = start + "\n" + section.strip() + "\n" + end + "\n\n"
     if insert_before in text:
-        return text.replace(insert_before, block + insert_before, 1)
-    return text.rstrip() + "\n\n" + block
+        return text.replace(insert_before, block + insert_before, 1).rstrip() + "\n"
+    return (text.rstrip() + "\n\n" + block).rstrip() + "\n"
 
 
 def update_full_run_evidence(report_dir: Path, audit: dict[str, Any]) -> None:
-    json_path = report_dir / "full-run-evidence.generated.json"
+    json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:
         data["final_consistency_audit_report"] = {
@@ -657,7 +658,7 @@ def update_full_run_evidence(report_dir: Path, audit: dict[str, Any]) -> None:
                 reports.append(path)
         write_json(json_path, data)
 
-    md_path = report_dir / "full-run-evidence.generated.md"
+    md_path = report_path_from_root(report_dir, "full_run_evidence", "md")
     if md_path.is_file():
         text = read_text_file(md_path)
         section = "\n".join(
@@ -693,10 +694,20 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     audit = build_audit(connector_root, framework_root)
-    write_json(output_dir / "final-consistency-audit.generated.json", audit)
-    write_text_file(output_dir / "final-consistency-audit.generated.md", render_markdown(audit))
+    metadata = build_metadata(
+        generated_by="ci/generate-final-consistency-audit.py",
+        make_target="generate-final-consistency-audit",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=audit["source_reports"].values(),
+        generated_at=audit["generated_at"],
+    )
+    json_path = report_path_from_root(output_dir, "final_consistency_audit", "json")
+    md_path = report_path_from_root(output_dir, "final_consistency_audit", "md")
+    write_text_file(json_path, generated_json_text(audit, metadata))
+    write_text_file(md_path, generated_markdown_text(render_markdown(audit), metadata))
     update_full_run_evidence(output_dir, audit)
-    print(output_dir / "final-consistency-audit.generated.md")
+    print(md_path)
     return 0
 
 

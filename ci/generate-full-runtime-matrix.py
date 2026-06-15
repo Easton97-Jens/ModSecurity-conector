@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, report_relpath
+
 
 CONNECTORS = ("apache", "nginx", "haproxy")
 TEST_VARIANTS = ("no-crs", "with-crs")
@@ -20,10 +22,10 @@ MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(DEFAULT_BUILD_ROOT 
 MRTS_UPSTREAM_CASE_MARKER = "/upstream-config-tests/framework-cases/"
 MRTS_FEATURE_DEMO_CASE_MARKER = "/feature-demo/framework-cases/"
 NATIVE_EVIDENCE_REPORTS = {
-    "apache": "reports/testing/generated/mrts-native-apache.generated.md",
-    "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
-    "summary": "reports/testing/generated/mrts-native-summary.generated.md",
-    "combined": "reports/testing/generated/mrts-native-full.generated.md",
+    "apache": report_relpath("mrts_native_apache", "md"),
+    "nginx": report_relpath("mrts_native_nginx", "md"),
+    "summary": report_relpath("mrts_native_summary", "md"),
+    "combined": report_relpath("mrts_native_full", "md"),
 }
 
 
@@ -357,7 +359,7 @@ def main() -> int:
     connector_root = Path(args.connector_root).resolve()
     build_root = Path(args.build_root).resolve()
     log_root = Path(args.log_root).resolve() if args.log_root else build_root / "logs"
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated"
+    output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / GENERATED_ROOT
     manifest = Path(args.manifest).resolve() if args.manifest else build_root / "results/full-matrix/full-runtime-matrix-runs.jsonl"
 
     records = load_manifest(manifest, build_root, log_root)
@@ -389,9 +391,19 @@ def main() -> int:
         },
     }
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "full-runtime-matrix.generated.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_dir / "full-runtime-matrix.generated.md").write_text(markdown(records, totals, generated_at), encoding="utf-8")
+    metadata = build_metadata(
+        generated_by="ci/generate-full-runtime-matrix.py",
+        make_target="generate-full-runtime-matrix",
+        connector_root=connector_root,
+        framework_root=Path(args.framework_root).resolve() if args.framework_root else None,
+        inputs=[manifest],
+        generated_at=generated_at,
+    )
+    json_path = report_path_from_root(output_dir, "full_runtime_matrix", "json")
+    md_path = report_path_from_root(output_dir, "full_runtime_matrix", "md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+    md_path.write_text(generated_markdown_text(markdown(records, totals, generated_at), metadata), encoding="utf-8")
     return 0
 
 

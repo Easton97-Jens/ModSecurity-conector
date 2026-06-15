@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path, report_path_from_root, report_relpath
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -17,7 +18,7 @@ except Exception:  # pragma: no cover - regex fallback still renders the report.
     yaml = None
 
 
-REPORT_DIR = Path("reports/testing/generated")
+REPORT_DIR = GENERATED_ROOT
 REPORT_STEM = "rule-chain-semantics-analysis.generated"
 DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 ABSOLUTE_RUNTIME_PATH_RE = re.compile(r"(?<![\w.-])/(?:tmp|root|src)[^\s\"']*")
@@ -381,8 +382,7 @@ def top_single_connector_failures(failures: list[dict[str, Any]], framework_root
 
 
 def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
-    report_dir = connector_root / REPORT_DIR
-    queue = read_json(report_dir / "connector-work-queue.generated.json")
+    queue = read_json(report_path(connector_root, "connector_work_queue", "json"))
     entries = [entry for entry in queue.get("entries", []) if isinstance(entry, dict)]
     failures = [entry for entry in entries if entry.get("runtime_status") == "FAIL"]
     chain_failures = [entry for entry in failures if is_rule_chain_entry(entry)]
@@ -392,7 +392,7 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
     single_rows = top_single_connector_failures(failures, framework_root)
     runtime_candidates = [row for row in single_rows if row["analysis_classification"] == "runtime_fixable_candidate"]
     report_only_rows = [row for row in chain_rows if row["fixability"] == "report_only"] + [row for row in single_rows if row["fixability"] == "report_only"]
-    next_plan = read_json(report_dir / "next-fix-plan.generated.json")
+    next_plan = read_json(report_path(connector_root, "next_fix_plan", "json"))
     summary = {
         "rule_chain_failure_rows": len(chain_rows),
         "rule_chain_case_groups": len({row["case_id"] for row in chain_rows}),
@@ -417,9 +417,13 @@ def build_report(connector_root: Path, framework_root: Path) -> dict[str, Any]:
         "report_kind": "rule-chain-semantics-analysis",
         "source_reports": {
             "connector_work_queue": queue.get("generated_at", "-"),
-            "remaining_failure_analysis": read_json(report_dir / "remaining-failure-analysis.generated.json").get("generated_at", "-"),
+            "remaining_failure_analysis": read_json(report_path(connector_root, "remaining_failure_analysis", "json")).get("generated_at", "-"),
             "next_fix_plan": next_plan.get("generated_at", "-"),
-            "full_runtime_matrix": read_json(report_dir / "full-runtime-matrix.generated.json").get("generated_at", "-"),
+            "full_runtime_matrix": read_json(report_path(connector_root, "full_runtime_matrix", "json")).get("generated_at", "-"),
+            "connector_work_queue_path": report_relpath("connector_work_queue", "json"),
+            "remaining_failure_analysis_path": report_relpath("remaining_failure_analysis", "json"),
+            "next_fix_plan_path": report_relpath("next_fix_plan", "json"),
+            "full_runtime_matrix_path": report_relpath("full_runtime_matrix", "json"),
         },
         "summary": summary,
         "rule_chain_failures": chain_rows,
@@ -590,32 +594,32 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
-    json_path = report_dir / "full-run-evidence.generated.json"
+    json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:
         data["rule_chain_semantics_analysis"] = {
-            "report": f"reports/testing/generated/{REPORT_STEM}.md",
-            "json": f"reports/testing/generated/{REPORT_STEM}.json",
+            "report": report_relpath("rule_chain_semantics_analysis", "md"),
+            "json": report_relpath("rule_chain_semantics_analysis", "json"),
             "summary": report["summary"],
         }
         reports = data.get("reports")
         if isinstance(reports, list):
             for item in (
-                f"reports/testing/generated/{REPORT_STEM}.json",
-                f"reports/testing/generated/{REPORT_STEM}.md",
+                report_relpath("rule_chain_semantics_analysis", "json"),
+                report_relpath("rule_chain_semantics_analysis", "md"),
             ):
                 if item not in reports:
                     reports.append(item)
             data["reports"] = reports
         write_json(json_path, data)
 
-    md_path = report_dir / "full-run-evidence.generated.md"
+    md_path = report_path_from_root(report_dir, "full_run_evidence", "md")
     text = read_text(md_path)
     if text:
         section = "\n".join(
             [
                 "## Rule Chain Semantics Analysis",
-                f"- Report: `reports/testing/generated/{REPORT_STEM}.md`",
+                f"- Report: `{report_relpath('rule_chain_semantics_analysis', 'md')}`",
                 f"- Rule-chain failure rows: **{report['summary']['rule_chain_failure_rows']}**",
                 f"- Runtime-fixable candidates: **{report['summary']['runtime_fixable_candidates']}**",
                 "- The report keeps Expected status and runtime PASS/FAIL unchanged while classifying report-only Rule-Chain and single-connector leftovers.",
@@ -649,10 +653,23 @@ def main() -> int:
     add_report_roots(connector_root / REPORT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
     report = build_report(connector_root, framework_root)
-    json_path = output_dir / f"{REPORT_STEM}.json"
-    md_path = output_dir / f"{REPORT_STEM}.md"
-    write_json(json_path, report)
-    write_text_file(md_path, render_markdown(report))
+    metadata = build_metadata(
+        generated_by="ci/generate-rule-chain-semantics-analysis.py",
+        make_target="generate-rule-chain-semantics-analysis",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[
+            report["source_reports"]["connector_work_queue_path"],
+            report["source_reports"]["remaining_failure_analysis_path"],
+            report["source_reports"]["next_fix_plan_path"],
+            report["source_reports"]["full_runtime_matrix_path"],
+        ],
+        generated_at=report["generated_at"],
+    )
+    json_path = report_path_from_root(output_dir, "rule_chain_semantics_analysis", "json")
+    md_path = report_path_from_root(output_dir, "rule_chain_semantics_analysis", "md")
+    write_text_file(json_path, generated_json_text(report, metadata))
+    write_text_file(md_path, generated_markdown_text(render_markdown(report), metadata))
     update_full_run_evidence(output_dir, report)
     print(md_path)
     print(json_path)

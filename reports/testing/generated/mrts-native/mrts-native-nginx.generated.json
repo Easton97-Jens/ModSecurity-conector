@@ -1,0 +1,108 @@
+{
+  "counts": {
+    "attempted": 0,
+    "blocked": 0,
+    "fail": 0,
+    "failed_cases": [],
+    "not_executable": 0,
+    "pass": 0
+  },
+  "first_failing_cases": [],
+  "generated_at": "2026-06-15T10:39:57Z",
+  "guardrails": [
+    "tools/MRTS read-only",
+    "system paths read-only",
+    "no generated MRTS artifacts committed",
+    "native MRTS evidence is separate from connector full-matrix evidence"
+  ],
+  "infrastructure": "MRTS PR24 NGINX + libmodsecurity3 native infra",
+  "job": {
+    "counts": {
+      "attempted": 0,
+      "blocked": 0,
+      "fail": 0,
+      "failed_cases": [],
+      "not_executable": 0,
+      "pass": 0
+    },
+    "first_failing_cases": [],
+    "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+    "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",
+    "known_limitations": [
+      "phase4_native_limitation",
+      "RESPONSE_BODY non-promoted"
+    ],
+    "paths": {
+      "job_json_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+      "run_log_path": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+      "staged_infra_path": "$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra"
+    },
+    "reason": "native target job.json not found",
+    "run_log": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+    "status": "NOT_RUN",
+    "target": "nginx-pr24"
+  },
+  "known_limitations": [
+    "phase4_native_limitation",
+    "RESPONSE_BODY non-promoted"
+  ],
+  "metadata": {
+    "category": "mrts-native",
+    "commit_policy": "optional-generated",
+    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "data_kind": "evidence",
+    "data_origin": "mrts",
+    "empty_inputs": [],
+    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-15T10:39:57Z",
+    "generated_by": "framework:ci/generate-mrts-native-report.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "missing",
+    "inputs": [
+      {
+        "notes": "input file missing",
+        "path": "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json",
+        "status": "missing"
+      }
+    ],
+    "make_target": "mrts-native-full-run",
+    "missing_inputs": [
+      "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+    ],
+    "owner": "mrts",
+    "report_key": "mrts_native_apache",
+    "schema_version": 1,
+    "severity": "optional",
+    "unknown_inputs": [],
+    "working_tree_dirty": "dirty"
+  },
+  "paths": {
+    "job_json_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+    "run_log_path": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+    "staged_infra_path": "$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra"
+  },
+  "pr_metadata": {
+    "captured_at_utc": "2026-06-09T15:18:21Z",
+    "pr_head_sha": "134ea7e35d72e7d72294b66d80dafa07daa5fc92",
+    "pr_number": 24,
+    "replacement_note": "replace with $MRTS_ROOT/config_infra/nginx_linux once merged upstream",
+    "stability": "experimental",
+    "upstream_status": "open-pr"
+  },
+  "pr_url": "https://github.com/owasp-modsecurity/MRTS/pull/24",
+  "report_kind": "native-mrts-target-evidence",
+  "runtime_components": {
+    "MRTS_NATIVE_NGINX_BIN": "-",
+    "MRTS_NATIVE_NGINX_MODULE_DIR": "-",
+    "albedo_binary": "-",
+    "connector_build_id": "-",
+    "go_ftw_binary": "-",
+    "modsecurity_build_id": "-",
+    "ngx_http_modsecurity_module_so": "-"
+  },
+  "separate_from_connector_full_matrix": true,
+  "source": "Framework PR24 overlay",
+  "status": "NOT_RUN",
+  "target": "nginx-pr24"
+}

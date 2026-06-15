@@ -85,7 +85,7 @@ Current generated force-all status:
 | HAProxy | 133 | 104 | 23 | 0 | 6 |
 
 Force-all FAIL and NOT_EXECUTABLE rows stay in
-`reports/testing/generated/haproxy-runtime-results.generated.md`. Root
+`reports/testing/generated/runtime/haproxy-runtime-results.generated.md`. Root
 summaries remain connector-neutral.
 
 ## Decision And Audit Logs
@@ -171,7 +171,7 @@ SPOA service.
 
 ## Related Reports
 
-- `reports/testing/generated/haproxy-runtime-results.generated.md`
+- `reports/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - `reports/testing/test-coverage-overview.md`
 - `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`
 - `COMPILE_HAPROXY.md`

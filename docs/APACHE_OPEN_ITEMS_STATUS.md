@@ -7,7 +7,7 @@ Stand: 2026-05-24. Diese Analyse basiert auf den damals offenen GitHub-Issues un
 Aktueller Merge-Readiness-Status, Full-Matrix-Zahlen und der kanonische nächste
 Fix-Plan stehen in [reports/testing/README.md](../reports/testing/README.md)
 und
-[final-consistency-audit.generated.md](../reports/testing/generated/final-consistency-audit.generated.md).
+[final-consistency-audit.generated.md](../reports/testing/generated/canonical/final-consistency-audit.generated.md).
 Diese Datei bleibt als historischer Apache-Open-Items-Abgleich erhalten.
 
 ## Quelle
@@ -37,7 +37,7 @@ Wichtigste technische Lücken:
 
 | Typ | Nummer | Titel | Status | Relevanz für ModSecurity-conector | Relevanz für Test-Framework | Nachweis im Code/Test | Nächste Schritte |
 |---|---:|---|---|---|---|---|---|
-| Issue | 12 | Having the exactly same results for apache version 2 and version 3 while running the OWASP CRS | Teilweise umgesetzt | V2/v3-Parität und CRS-Verhalten | Hoch, aber nur als Teilmenge vorhanden | `docs/testing/generated/apache-runtime-results.generated.md`, `docs/testing/generated/connector-gap-summary.generated.md`, `docs/testing/v2-vs-v3-compatibility.md` | Vollständigen CRS-Lauf mit Log-Parser und v2/v3-Diff ergänzen |
+| Issue | 12 | Having the exactly same results for apache version 2 and version 3 while running the OWASP CRS | Teilweise umgesetzt | V2/v3-Parität und CRS-Verhalten | Hoch, aber nur als Teilmenge vorhanden | `docs/testing/generated/runtime/apache-runtime-results.generated.md`, `docs/testing/generated/coverage/connector-gap-summary.generated.md`, `docs/testing/v2-vs-v3-compatibility.md` | Vollständigen CRS-Lauf mit Log-Parser und v2/v3-Diff ergänzen |
 | Issue | 15 | Have all the phases correctly attached to Apache | Teilweise umgesetzt | Apache-Hooks, Filter, Phase 1 bis 5 | Hoch | `connectors/apache/src/mod_security3.c`: `hook_request_late`, `hook_insert_filter`, `hook_log_transaction`; PR-70-Tests phase 1 bis 3 PASS, phase 4 former expected-failure | Phase 4 stabilisieren und Phase-5-Test ergänzen |
 | Issue | 17 | Implement the logging callback | Umgesetzt | libmodsecurity-Logcallback in Apache | Mittel, dedizierter Logcallback-Test fehlt | `modsecurity_log_cb`, `msc_set_log_cb`, `modsecurity_use_error_log` in `connectors/apache/src/mod_security3.c` und `connectors/apache/src/msc_config.c` | Regression für error-log-Forwarding bei `log,deny` ergänzen |
 | Issue | 23 | Configuration merge is not working as expected | Teilweise umgesetzt | Directory/Location-Merge, Ruleset-Merge, Enable/Disable | Hoch | `msc_hook_merge_config_directory`; `ci/check-apache-directive-config.sh` testet `modsecurity off` in `Location` | Merge-Reihenfolge und Directory-vs-Location-Regelvererbung testen |
@@ -76,8 +76,8 @@ Wichtigste technische Lücken:
 - Typ: Issue
 - Statusbewertung: Teilweise umgesetzt
 - Kurzbeschreibung: Gewünscht ist ein vollständiger Vergleich von Apache v2 und Apache v3 beim Ausführen des OWASP CRS mit Log-Parser-Auswertung.
-- Relevante Dateien im ModSecurity-conector: `reports/testing/real-world-connector-validation.md`, `reports/testing/generated/runtime-matrix.generated.md`, `README.md`.
-- Relevante Tests im ModSecurity-test-Framework: `docs/testing/generated/apache-runtime-results.generated.md`, `docs/testing/generated/runtime-matrix.generated.md`, `docs/testing/v2-vs-v3-compatibility.md`.
+- Relevante Dateien im ModSecurity-conector: `reports/testing/real-world-connector-validation.md`, `reports/testing/generated/runtime/runtime-matrix.generated.md`, `README.md`.
+- Relevante Tests im ModSecurity-test-Framework: `docs/testing/generated/runtime/apache-runtime-results.generated.md`, `docs/testing/generated/runtime/runtime-matrix.generated.md`, `docs/testing/v2-vs-v3-compatibility.md`.
 - Bewertung: Das Framework deckt viele portable Regel-, Body-, Audit- und Phasenfälle ab, aber keinen vollständigen CRS-v2/v3-Gleichlauf.
 - Fehlende Umsetzung: Vollständiger CRS-Lauf, ModSecurity-log-utilities-Integration, reproduzierbarer v2-vs-v3-Diff und akzeptierte Abweichungsliste.
 - Empfohlene nächste Schritte: CRS-Fixtures in `ModSecurity-test-Framework` aufnehmen, `ci/run-apache-smoke.sh` um CRS-Profil ergänzen, Log-Parser-Ausgabe als Artefakt persistieren. Vermuteter Aufwand: hoch.
@@ -89,7 +89,7 @@ Wichtigste technische Lücken:
 - Statusbewertung: Teilweise umgesetzt
 - Kurzbeschreibung: Alle libmodsecurity-Phasen sollen korrekt an Apache-Hooks und Filter angebunden sein.
 - Relevante Dateien im ModSecurity-conector: `connectors/apache/src/mod_security3.c` mit `hook_request_late`, `hook_insert_filter`, `hook_log_transaction`, `process_request_headers`; `connectors/apache/src/msc_filters.c` mit `input_filter` und `output_filter`.
-- Relevante Tests im ModSecurity-test-Framework: `tests/cases/audit-log/pr70-phases/pr70_phase1_audit_request_header.yaml`, `pr70_phase2_audit_urlencoded_body.yaml`, `pr70_phase3_audit_response_header.yaml`, `pr70_phase4_response_body_audit_xfail.yaml`, `docs/testing/generated/apache-runtime-results.generated.md`.
+- Relevante Tests im ModSecurity-test-Framework: `tests/cases/audit-log/pr70-phases/pr70_phase1_audit_request_header.yaml`, `pr70_phase2_audit_urlencoded_body.yaml`, `pr70_phase3_audit_response_header.yaml`, `pr70_phase4_response_body_audit_xfail.yaml`, `docs/testing/generated/runtime/apache-runtime-results.generated.md`.
 - Bewertung: Phase 1 bis 3 sind durch PR-70-Derivate belegt; Phase 4 bleibt former expected-failure und Phase 5 hat keinen vergleichbaren PR-70-Test.
 - Fehlende Umsetzung: Stabiles Response-Body-Blocking, vollständige Audit-Assertions für Phase 4 und dedizierter Phase-5-Logging-Test.
 - Empfohlene nächste Schritte: Guard/State im `output_filter` ergänzen, `msc_process_response_body` nur einmal pro Transaktion verifizieren, Phase-5-YAML aus PR #70 ableiten. Vermuteter Aufwand: hoch.
@@ -173,7 +173,7 @@ Wichtigste technische Lücken:
 - Statusbewertung: Nicht umgesetzt
 - Kurzbeschreibung: Section F des Audit-Logs enthält wiederholte Response-Header.
 - Relevante Dateien im ModSecurity-conector: `connectors/apache/src/msc_filters.c` mit `output_filter`.
-- Relevante Tests im ModSecurity-test-Framework: `tests/cases/response/headers/phase3_response_headers_multi_value_connector_gap.yaml`, `phase3_response_headers_duplicate_value_runtime_difference.yaml`, `docs/testing/generated/apache-runtime-results.generated.md`.
+- Relevante Tests im ModSecurity-test-Framework: `tests/cases/response/headers/phase3_response_headers_multi_value_connector_gap.yaml`, `phase3_response_headers_duplicate_value_runtime_difference.yaml`, `docs/testing/generated/runtime/apache-runtime-results.generated.md`.
 - Bewertung: Der Output-Filter addiert Response-Header pro Filterdurchlauf; ein "already processed"-Flag ist nicht erkennbar.
 - Fehlende Umsetzung: Transaktionszustand für einmalige `msc_process_response_headers`-Ausführung und Section-F-Deduplizierungsregression.
 - Empfohlene nächste Schritte: State in `msc_t` ergänzen, Header nur einmal an libmodsecurity übergeben, Audit-Log-Fixture mit duplizierten Headern prüfen. Vermuteter Aufwand: mittel.
@@ -233,7 +233,7 @@ Wichtigste technische Lücken:
 - Statusbewertung: Nicht umgesetzt
 - Kurzbeschreibung: Bei `SecRequestBodyAccess Off` wird Phase 2 bzw. Request-Body-Verarbeitung weiterhin angestoßen.
 - Relevante Dateien im ModSecurity-conector: `connectors/apache/src/mod_security3.c` mit `hook_request_late`; `connectors/apache/src/msc_filters.c` mit `input_filter`.
-- Relevante Tests im ModSecurity-test-Framework: `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml`, `tests/cases/negative-pass-through/phase2_header_only_pass_through.yaml`, `docs/testing/generated/apache-runtime-results.generated.md`.
+- Relevante Tests im ModSecurity-test-Framework: `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml`, `tests/cases/negative-pass-through/phase2_header_only_pass_through.yaml`, `docs/testing/generated/runtime/apache-runtime-results.generated.md`.
 - Bewertung: Es ist keine explizite Off-Gate-Logik sichtbar; der Runtime-Fall `phase1_vs_phase2_request_body_gap` schlägt fehl.
 - Fehlende Umsetzung: Body-Verarbeitung muss Engine-/Ruleset-Status respektieren; Debug-Log-Doppelstart sollte regressiongetestet werden.
 - Empfohlene nächste Schritte: YAML-Fall mit `SecRequestBodyAccess Off` und POST-Body ergänzen, danach Filter-/Hook-Pfad korrigieren. Vermuteter Aufwand: mittel bis hoch.
@@ -245,7 +245,7 @@ Wichtigste technische Lücken:
 - Statusbewertung: Teilweise umgesetzt
 - Kurzbeschreibung: Dokumentationsfrage zu Produktionsreife und v2/v3-Konfigurationsunterschieden, inklusive `SecDefaultAction`-Startupfehler.
 - Relevante Dateien im ModSecurity-conector: `README.md`, `COMPILE_APACHE.md`, `docs/connectors/directive-parity.md`, `reports/testing/test-coverage-overview.md`.
-- Relevante Tests im ModSecurity-test-Framework: `docs/testing/generated/apache-runtime-results.generated.md`, `docs/testing/generated/connector-gap-summary.generated.md`.
+- Relevante Tests im ModSecurity-test-Framework: `docs/testing/generated/runtime/apache-runtime-results.generated.md`, `docs/testing/generated/coverage/connector-gap-summary.generated.md`.
 - Bewertung: Die lokale Doku beschreibt unterstützte Direktiven und Lücken, aber keine klare Endnutzer-Migrationsseite.
 - Fehlende Umsetzung: Explizite Erklärung "unstable/not production ready", Beispiele für CRS-Einbindung über `modsecurity_rules_file`, Umgang mit v2-Direktiven.
 - Empfohlene nächste Schritte: Anwenderorientiertes Migrationsdokument ergänzen. Vermuteter Aufwand: niedrig bis mittel.
