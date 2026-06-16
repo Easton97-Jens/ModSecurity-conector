@@ -114,9 +114,9 @@ These native MRTS reports are separate from connector full-matrix evidence.
 | make runtime-matrix-all | PASS | Force-all matrix orchestration completed and recorded Apache/NGINX per-case evidence; expected runtime FAILs remain evidence and are not PASS promotions |
 
 ## Runtime Smoke Status
-- Snapshot: **2026-06-15** (2026-06-15 23:17:11 CEST)
-- Git: branch `master`, commit `9391a8d`
-- BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
+- Snapshot: **2026-06-16** (2026-06-16 19:07:10 CEST)
+- Git: branch `master`, commit `b53340a`
+- BUILD_ROOT: `/var/tmp/ModSecurity-conector-verified/build`
 - Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 
 ### Default Runtime Smoke Status

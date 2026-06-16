@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T16:22:44Z`
-> Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
+> Generated at: `2026-06-16T18:58:49Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `efac6d66d0e165af8d6e1b5404083d5f50601327`
-> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
+> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
 > Input status: `unknown`
 
 # Report Path Migration

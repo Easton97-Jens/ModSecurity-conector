@@ -1,42 +1,39 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T16:22:41Z`
-> Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
+> Generated at: `2026-06-16T18:58:25Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `efac6d66d0e165af8d6e1b5404083d5f50601327`
-> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
-> Input status: `missing`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
+> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
+> Input status: `complete`
 
-# Native MRTS summary.
+# MRTS Native Summary
 
-Status: `skipped_missing_input`
+Generated at: `2026-06-16T18:58:25Z`
 
-Reason: required input missing or empty
+| Native target | Report | Status | Attempted | Pass | Fail | Blocked |
+|---|---|---|---:|---:|---:|---:|
+| Apache2 Ubuntu | mrts-native-apache.generated.md | FAIL | 13 | 12 | 1 | 0 |
+| NGINX PR24 | mrts-native-nginx.generated.md | FAIL | 13 | 12 | 1 | 0 |
 
-## Verified Command
+Combined report: `reports/testing/generated/mrts-native/mrts-native-full.generated.md`
 
-| Command | Status | Return Code | Notes |
-|---|---|---:|---|
-| `/root/git/ModSecurity-conector/.venv/bin/python /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/generate-mrts-native-report.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --native-root /var/tmp/ModSecurity-conector-verified/build/mrts-native --output-root /root/git/ModSecurity-conector` | skipped_missing_input | - | required input missing or empty |
-
-## Rows
-
-_No rows available. Reason: producer command was not run or verified input is unavailable._
+Note: Native MRTS evidence is separate from connector runtime matrix evidence.
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | `unknown` | `2026-06-15T21-01-39Z-9391a8d0` | missing |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `unknown` | `2026-06-15T21-01-39Z-9391a8d0` | missing |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `cf4fc89931e535da77cd91f57eda28d65fdeb44a3af07c568303a87db7c8867a` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `d1d6c1592ae4287cf93001eb543aa75d99dc4ef267489498737f470fe5f9fa6a` | `2026-06-16T16-57-44Z-b53340a8` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | missing | input file missing |
-| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | missing | input file missing |
+| `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | present | input file available |
+| `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | present | input file available |

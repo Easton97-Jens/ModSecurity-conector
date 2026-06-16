@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T16:22:39Z`
-> Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
+> Generated at: `2026-06-16T18:58:16Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `efac6d66d0e165af8d6e1b5404083d5f50601327`
-> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
+> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -161,8 +161,8 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/runtime-validation-snapshot.json` | `dfeb2c386052d649210cd1b1acaa5dab644396c933eec71daa33e2bbd5f3b5ed` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `d46979910100376ddf0937db13dcaa6e5c45597aafa545a29d1688b8130b1636` | `2026-06-16T16-57-44Z-b53340a8` | present |
 
 ## Data Availability / Missing Information
 

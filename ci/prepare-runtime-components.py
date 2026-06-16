@@ -19,20 +19,8 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+from runtime_path_utils import is_system_write_path
 
-
-SYSTEM_PREFIXES = (
-    "/usr",
-    "/usr/local",
-    "/opt",
-    "/etc",
-    "/var",
-    "/lib",
-    "/lib64",
-    "/bin",
-    "/sbin",
-    "/run",
-)
 
 COMMON_SH_CONFIG_VARS = (
     "GO_FTW_SOURCE_URL",
@@ -84,8 +72,7 @@ def utc_now() -> str:
 
 
 def is_system_path(path: Path) -> bool:
-    text = str(path.resolve(strict=False))
-    return any(text == prefix or text.startswith(prefix + "/") for prefix in SYSTEM_PREFIXES)
+    return is_system_write_path(path)
 
 
 def sh_quote(value: str) -> str:

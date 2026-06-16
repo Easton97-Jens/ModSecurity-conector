@@ -13,14 +13,15 @@ SYSTEM_WRITE_PREFIXES = (
     "/usr/local",
     "/opt",
     "/etc",
-    "/var/lib",
-    "/var/run",
-    "/var/log",
     "/lib",
     "/lib64",
     "/bin",
     "/sbin",
     "/run",
+    "/root",
+)
+SYSTEM_WRITE_VAR_ALLOWLIST = (
+    "/var/tmp",
 )
 
 
@@ -47,8 +48,34 @@ def is_under_root_home(path: Path) -> bool:
 
 
 def is_system_write_path(path: Path) -> bool:
-    text = str(path.resolve(strict=False))
+    resolved = path.resolve(strict=False)
+    text = str(resolved)
+    if text == "/var":
+        return True
+    if text.startswith("/var/"):
+        for prefix in SYSTEM_WRITE_VAR_ALLOWLIST:
+            if text == prefix or text.startswith(prefix + "/"):
+                return False
+        return True
     return any(text == prefix or text.startswith(prefix + "/") for prefix in SYSTEM_WRITE_PREFIXES)
+
+
+def allowed_runtime_roots(env: Mapping[str, str] | None = None) -> list[Path]:
+    values = env or os.environ
+    paths = verified_runtime_paths(values)
+    roots = [
+        Path(paths["VERIFIED_RUN_ROOT"]),
+        Path(_env_value(values, "RUNNER_TEMP")) if _env_value(values, "RUNNER_TEMP") else None,
+        Path(_env_value(values, "TMPDIR")) if _env_value(values, "TMPDIR") else None,
+        Path("/tmp"),
+        Path("/var/tmp"),
+    ]
+    return [root.resolve(strict=False) for root in roots if root is not None and str(root)]
+
+
+def is_allowed_runtime_path(path: Path, env: Mapping[str, str] | None = None) -> bool:
+    resolved = path.resolve(strict=False)
+    return any(resolved == root or is_under(resolved, root) for root in allowed_runtime_roots(env))
 
 
 def verified_runtime_paths(

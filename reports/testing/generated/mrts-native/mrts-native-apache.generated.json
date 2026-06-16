@@ -1,66 +1,139 @@
 {
-  "command": [
-    "/root/git/ModSecurity-conector/.venv/bin/python",
-    "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/generate-mrts-native-report.py",
-    "--connector-root",
-    "/root/git/ModSecurity-conector",
-    "--framework-root",
-    "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
-    "--native-root",
-    "/var/tmp/ModSecurity-conector-verified/build/mrts-native",
-    "--output-root",
-    "/root/git/ModSecurity-conector"
+  "counts": {
+    "attempted": 13,
+    "blocked": 0,
+    "fail": 1,
+    "failed_cases": [
+      "100003-1"
+    ],
+    "not_executable": 0,
+    "pass": 12
+  },
+  "first_failing_cases": [
+    {
+      "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+      "case_id": "100003-1",
+      "classification": "native_modsecurity_semantics",
+      "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+      "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+      "phase": "4",
+      "request": "POST /?foo=attack",
+      "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+      "rule_id": "100003",
+      "secondary_classification": "phase4_native_limitation",
+      "target": "ARGS",
+      "variable": "ARGS"
+    }
   ],
-  "data_source_policy": "verified-inputs-only",
-  "empty_reason": "producer command was not run or verified input is unavailable",
-  "generated_at": "2026-06-16T16:22:41Z",
-  "generator": "framework:ci/generate-mrts-native-report.py",
-  "make_target": "mrts-native-full-run",
+  "generated_at": "2026-06-16T18:58:25Z",
+  "guardrails": [
+    "tools/MRTS read-only",
+    "system paths read-only",
+    "no generated MRTS artifacts committed",
+    "native MRTS evidence is separate from connector full-matrix evidence"
+  ],
+  "infrastructure": "MRTS upstream Apache2 Ubuntu native infra",
+  "job": {
+    "counts": {
+      "attempted": 13,
+      "blocked": 0,
+      "fail": 1,
+      "failed_cases": [
+        "100003-1"
+      ],
+      "not_executable": 0,
+      "pass": 12
+    },
+    "duration_seconds": 13,
+    "exit_code": 1,
+    "first_failing_cases": [
+      {
+        "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+        "case_id": "100003-1",
+        "classification": "native_modsecurity_semantics",
+        "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+        "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+        "phase": "4",
+        "request": "POST /?foo=attack",
+        "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+        "rule_id": "100003",
+        "secondary_classification": "phase4_native_limitation",
+        "target": "ARGS",
+        "variable": "ARGS"
+      }
+    ],
+    "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+    "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
+    "known_limitations": [
+      "phase4_native_limitation",
+      "RESPONSE_BODY non-promoted"
+    ],
+    "paths": {
+      "job_json_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+      "run_log_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+      "staged_infra_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra"
+    },
+    "reason": "native MRTS go-ftw run failed",
+    "remediation": [],
+    "run_log": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+    "status": "FAIL",
+    "summary_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+    "target": "apache2_ubuntu"
+  },
+  "known_limitations": [
+    "phase4_native_limitation",
+    "RESPONSE_BODY non-promoted"
+  ],
   "metadata": {
-    "blocked_reason": "required input missing or empty",
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
+    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T16:22:41Z",
+    "generated_at": "2026-06-16T18:58:25Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "missing",
+    "input_status": "complete",
     "inputs": [
       {
-        "notes": "input file missing",
+        "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
-        "status": "missing"
-      },
-      {
-        "notes": "input file missing",
-        "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
-        "status": "missing"
+        "sha256": "e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7",
+        "source_hash": "e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7",
+        "status": "present"
       }
     ],
     "make_target": "mrts-native-full-run",
-    "missing_inputs": [
-      "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
-      "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
-    ],
+    "missing_inputs": [],
     "owner": "mrts",
     "report_key": "mrts_native_apache",
-    "run_status": "skipped_missing_input",
     "schema_version": 1,
     "severity": "optional",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
+    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
     "working_tree_dirty": "dirty"
   },
-  "reason": "required input missing or empty",
-  "report_key": "mrts_native_apache",
-  "report_name": "mrts_native_apache",
-  "rows": [],
-  "status": "skipped_missing_input",
-  "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+  "paths": {
+    "job_json_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+    "run_log_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+    "staged_infra_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra"
+  },
+  "report_kind": "native-mrts-target-evidence",
+  "runtime_components": {
+    "APACHECTL_BIN": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/apachectl-mrts",
+    "albedo_binary": "$CONNECTOR_COMPONENT_CACHE/bin/albedo",
+    "connector_build_id": "898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67",
+    "go_ftw_binary": "$CONNECTOR_COMPONENT_CACHE/bin/go-ftw",
+    "httpd_binary": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/httpd",
+    "mod_security3_so": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/build/output/apache/mod_security3.so",
+    "modsecurity_build_id": "0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72"
+  },
+  "separate_from_connector_full_matrix": true,
+  "source": "$MRTS_ROOT/config_infra/apache2_ubuntu",
+  "status": "FAIL",
+  "target": "apache2_ubuntu"
 }

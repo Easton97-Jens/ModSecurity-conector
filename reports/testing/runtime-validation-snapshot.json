@@ -1,9 +1,9 @@
 {
-  "snapshot_date": "2026-06-15",
-  "captured_at": "2026-06-15 23:17:11 CEST",
+  "snapshot_date": "2026-06-16",
+  "captured_at": "2026-06-16 19:07:10 CEST",
   "branch": "master",
-  "commit": "9391a8d",
-  "build_root": "/root/.local/state/ModSecurity-conector-build",
+  "commit": "b53340a",
+  "build_root": "/var/tmp/ModSecurity-conector-verified/build",
   "force_all_cases": true,
   "notes": [
     "Runtime matrix snapshot generated from local Apache, NGINX, and HAProxy summary JSON files when present.",

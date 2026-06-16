@@ -1,42 +1,80 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T16:22:41Z`
-> Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
+> Generated at: `2026-06-16T18:58:25Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `efac6d66d0e165af8d6e1b5404083d5f50601327`
-> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
-> Input status: `missing`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
+> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
+> Input status: `complete`
 
-# Apache native MRTS infrastructure evidence.
+# MRTS Native Apache Report
 
-Status: `skipped_missing_input`
+Generated at: `2026-06-16T18:58:25Z`
 
-Reason: required input missing or empty
+## Target
+- Target: `apache2_ubuntu`
+- Source: `$MRTS_ROOT/config_infra/apache2_ubuntu`
+- Infrastructure: MRTS upstream Apache2 Ubuntu native infra
+- Native MRTS evidence is separate from connector full-matrix evidence.
 
-## Verified Command
+## Status
+- Status: **FAIL**
 
-| Command | Status | Return Code | Notes |
-|---|---|---:|---|
-| `/root/git/ModSecurity-conector/.venv/bin/python /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/generate-mrts-native-report.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --native-root /var/tmp/ModSecurity-conector-verified/build/mrts-native --output-root /root/git/ModSecurity-conector` | skipped_missing_input | - | required input missing or empty |
+## Counts
+- attempted: **13**
+- pass: **12**
+- fail: **1**
+- blocked: **0**
+- not_executable: **0**
 
-## Rows
+## Known Limitations
+- `phase4_native_limitation`
+- `RESPONSE_BODY non-promoted`
 
-_No rows available. Reason: producer command was not run or verified input is unavailable._
+## First Failing Cases
+- Case: `100003-1`
+  Rule ID: `100003`
+  Phase: `4`
+  Variable/target: `ARGS` / `ARGS`
+  Expected: HTTP 200 backend response plus ModSecurity log id 100003
+  Actual: HTTP 200 backend response observed; expected phase 4 log id 100003 missing
+  Classification: `native_modsecurity_semantics` / `phase4_native_limitation`
+  Evidence summary: Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.
+  Rule: `SecRule ARGS "@contains attack" "id:100003, phase:4, deny, t:none, log"`
+  Request: `POST /?foo=attack`
+
+## Runtime Components
+- APACHECTL_BIN: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/apachectl-mrts`
+- httpd_binary: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/httpd`
+- mod_security3_so: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/build/output/apache/mod_security3.so`
+- connector_build_id: `898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67`
+- modsecurity_build_id: `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72`
+- go_ftw_binary: `$CONNECTOR_COMPONENT_CACHE/bin/go-ftw`
+- albedo_binary: `$CONNECTOR_COMPONENT_CACHE/bin/albedo`
+
+## Paths
+- staged_infra_path: `$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra`
+- run_log_path: `$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log`
+- job_json_path: `$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json`
+
+## Guardrails
+- tools/MRTS read-only
+- system paths read-only
+- no generated MRTS artifacts committed
+- native MRTS evidence is separate from connector full-matrix evidence
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | `unknown` | `2026-06-15T21-01-39Z-9391a8d0` | missing |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `unknown` | `2026-06-15T21-01-39Z-9391a8d0` | missing |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | `e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7` | `2026-06-16T16-57-44Z-b53340a8` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | missing | input file missing |
-| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | missing | input file missing |
+| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | present | input file available |

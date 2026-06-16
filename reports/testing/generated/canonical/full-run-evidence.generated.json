@@ -9,80 +9,223 @@
   ],
   "data_source_policy": "verified-inputs-only",
   "empty_reason": "producer command was not run or verified input is unavailable",
-  "generated_at": "2026-06-16T16:22:42Z",
+  "generated_at": "2026-06-16T16:53:14Z",
   "generator": "ci/generate-remaining-failure-analysis.py",
   "make_target": "generate-remaining-failure-analysis",
   "metadata": {
-    "blocked_reason": "required generated input is blocked",
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
-    "data_kind": "evidence",
+    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T16:22:42Z",
+    "framework_sha": "unknown",
+    "framework_working_tree_dirty": "unknown",
+    "generated_at": "2026-06-16T16:53:14Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "blocked",
+    "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
-        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
-        "notes": "generated report input is not usable: status=skipped_missing_input",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "74dff241151f409d4a958eff005fd65b7e0dc5e03a886ad44bcfc2084e52585f",
-        "source_hash": "74dff241151f409d4a958eff005fd65b7e0dc5e03a886ad44bcfc2084e52585f",
-        "status": "skipped_missing_input",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+        "sha256": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "source_hash": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
-        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "3f570cdeada65c05b87f63069c1ed107b78dc1bd2159566a8dfa718b8d8bbfe7",
-        "source_hash": "3f570cdeada65c05b87f63069c1ed107b78dc1bd2159566a8dfa718b8d8bbfe7",
-        "status": "blocked",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+        "sha256": "ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c",
+        "source_hash": "ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
-        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "cc2e3e94ad36ce80f8675c014493a35a11238ec6e4b008cafedf021486ce8010",
-        "source_hash": "cc2e3e94ad36ce80f8675c014493a35a11238ec6e4b008cafedf021486ce8010",
-        "status": "blocked",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
-        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
-        "notes": "generated report input is not usable: status=skipped_missing_input",
-        "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "sha256": "fa93fe73005003fce1a16fc8d3fb9c1f3288c15b21b8b9d47b9d5d83f354b776",
-        "source_hash": "fa93fe73005003fce1a16fc8d3fb9c1f3288c15b21b8b9d47b9d5d83f354b776",
-        "status": "skipped_missing_input",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+        "sha256": "36f90db93c8a3a554305350d2a745835c1a9d8773742ef5359192beb364299ea",
+        "source_hash": "36f90db93c8a3a554305350d2a745835c1a9d8773742ef5359192beb364299ea",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       }
     ],
-    "make_target": "refresh-connector-reports",
+    "make_target": "generate-remaining-failure-analysis",
     "missing_inputs": [],
     "owner": "connector",
-    "report_key": "full_run_evidence",
-    "run_status": "blocked",
+    "report_key": "next_fix_plan",
     "schema_version": 1,
-    "severity": "critical",
+    "severity": "important",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
+    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
     "working_tree_dirty": "dirty"
   },
+  "mrts_native": {
+    "generated_at": "2026-06-16T18:55:31Z",
+    "report_json": "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
+    "report_md": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "reports": {
+      "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+      "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+      "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+      "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+    },
+    "summary": {
+      "FAIL": 2
+    },
+    "target_script_exit_code": 2,
+    "targets": {
+      "apache2_ubuntu": {
+        "counts": {
+          "attempted": 13,
+          "blocked": 0,
+          "fail": 1,
+          "failed_cases": [
+            "100003-1"
+          ],
+          "not_executable": 0,
+          "pass": 12
+        },
+        "duration_seconds": 13,
+        "exit_code": 1,
+        "first_failing_cases": [
+          {
+            "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+            "case_id": "100003-1",
+            "classification": "native_modsecurity_semantics",
+            "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+            "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+            "phase": "4",
+            "request": "POST /?foo=attack",
+            "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+            "rule_id": "100003",
+            "secondary_classification": "phase4_native_limitation",
+            "target": "ARGS",
+            "variable": "ARGS"
+          }
+        ],
+        "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
+        "known_limitations": [
+          "phase4_native_limitation",
+          "RESPONSE_BODY non-promoted"
+        ],
+        "paths": {
+          "job_json_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+          "run_log_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+          "staged_infra_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra"
+        },
+        "reason": "native MRTS go-ftw run failed",
+        "remediation": [],
+        "run_log": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+        "status": "FAIL",
+        "summary_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "target": "apache2_ubuntu"
+      },
+      "nginx-pr24": {
+        "counts": {
+          "attempted": 13,
+          "blocked": 0,
+          "fail": 1,
+          "failed_cases": [
+            "100003-1"
+          ],
+          "not_executable": 0,
+          "pass": 12
+        },
+        "duration_seconds": 5,
+        "exit_code": 1,
+        "first_failing_cases": [
+          {
+            "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+            "case_id": "100003-1",
+            "classification": "native_modsecurity_semantics",
+            "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+            "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+            "phase": "4",
+            "request": "POST /?foo=attack",
+            "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+            "rule_id": "100003",
+            "secondary_classification": "phase4_native_limitation",
+            "target": "ARGS",
+            "variable": "ARGS"
+          }
+        ],
+        "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",
+        "known_limitations": [
+          "phase4_native_limitation",
+          "RESPONSE_BODY non-promoted"
+        ],
+        "paths": {
+          "job_json_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+          "run_log_path": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+          "staged_infra_path": "$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra"
+        },
+        "reason": "native MRTS go-ftw run failed",
+        "remediation": [],
+        "run_log": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+        "status": "FAIL",
+        "summary_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "target": "nginx-pr24"
+      }
+    }
+  },
+  "mrts_native_reports": {
+    "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+  },
+  "nolog_audit_evidence_report": {
+    "analysis": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
+    "case_id": "v3_action_nolog_pass_no_audit",
+    "classification": "nolog_expected_no_audit",
+    "json": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json"
+  },
   "reason": "required generated input is blocked",
+  "remaining_failure_analysis_reports": {
+    "analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.md",
+    "next_fix_plan": "reports/testing/generated/canonical/next-fix-plan.generated.md",
+    "nolog_audit_evidence": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
+    "phase4_hard_abort_capability": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md",
+    "response_header_hook_analysis": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md"
+  },
   "report_key": "full_run_evidence",
   "report_name": "full_run_evidence",
+  "reports": [
+    "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-summary.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
+    "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
+    "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
+    "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md",
+    "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+    "reports/testing/generated/canonical/remaining-failure-analysis.generated.md",
+    "reports/testing/generated/canonical/next-fix-plan.generated.json",
+    "reports/testing/generated/canonical/next-fix-plan.generated.md",
+    "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
+    "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md"
+  ],
+  "response_header_hook_analysis_report": {
+    "analysis": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md",
+    "classification": "response_header_hook_split",
+    "json": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json"
+  },
   "rows": [],
   "status": "blocked",
   "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
