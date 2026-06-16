@@ -1,12 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:39:48Z`
+> Generated at: `2026-06-16T18:58:16Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
-> Framework SHA: `61454d23be52e52d9395e6b091c52d651e16f89b`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
+> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
 > Input status: `complete`
 
 # Generated Coverage Summary
@@ -86,6 +88,13 @@
 - Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.
 - RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.
 - Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `d46979910100376ddf0937db13dcaa6e5c45597aafa545a29d1688b8130b1636` | `2026-06-16T16-57-44Z-b53340a8` | present |
 
 ## Data Availability / Missing Information
 

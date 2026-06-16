@@ -1,23 +1,25 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:39:57Z`
+> Generated at: `2026-06-16T18:58:25Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
-> Framework SHA: `61454d23be52e52d9395e6b091c52d651e16f89b`
-> Input status: `missing`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
+> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
+> Input status: `complete`
 
 # MRTS Native Infrastructure Report
 
-Generated at: `2026-06-15T10:39:57Z`
+Generated at: `2026-06-16T18:58:25Z`
 
 ## Executive Summary
 - PASS: **0**
-- FAIL: **0**
+- FAIL: **2**
 - BLOCKED: **0**
-- NOT_RUN: **2**
+- NOT_RUN: **0**
 
 ## Split Native Reports
 - Apache native: `reports/testing/generated/mrts-native/mrts-native-apache.generated.md`
@@ -30,8 +32,8 @@ These native MRTS reports are separate from connector full-matrix evidence.
 ## Native Target Summary
 | Target | Status | Attempted | PASS | FAIL | BLOCKED | Reason | Run log | Summary |
 |---|---|---:|---:|---:|---:|---|---|---|
-| apache2_ubuntu | NOT_RUN | 0 | 0 | 0 | 0 | native target job.json not found | `$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log` | `-` |
-| nginx-pr24 | NOT_RUN | 0 | 0 | 0 | 0 | native target job.json not found | `$MRTS_NATIVE_ROOT/nginx-pr24/run.log` | `-` |
+| apache2_ubuntu | FAIL | 13 | 12 | 1 | 0 | native MRTS go-ftw run failed | `$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log` | `$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json` |
+| nginx-pr24 | FAIL | 13 | 12 | 1 | 0 | native MRTS go-ftw run failed | `$MRTS_NATIVE_ROOT/nginx-pr24/run.log` | `$MRTS_NATIVE_ROOT/nginx-pr24/job.json` |
 
 ## Apache2 Ubuntu Native Infra
 - Source: `$MRTS_ROOT/config_infra/apache2_ubuntu` staged under `MRTS_NATIVE_ROOT`.
@@ -62,9 +64,16 @@ These native MRTS reports are separate from connector full-matrix evidence.
 - `tools/MRTS` and MRTS definitions are not edited by native report generation.
 - Generated MRTS rules, go-ftw YAML, load files, logs, and native results are not committed.
 
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | `e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `772ec32045669d24351108aff42092c9c714c4a89b1642e1aa1011081e2d3e87` | `2026-06-16T16-57-44Z-b53340a8` | present |
+
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json` | missing | input file missing |
-| `/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json` | missing | input file missing |
+| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | present | input file available |

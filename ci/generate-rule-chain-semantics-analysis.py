@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -594,6 +595,8 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 def update_full_run_evidence(report_dir: Path, report: dict[str, Any]) -> None:
+    if os.environ.get("SUPPRESS_FULL_RUN_EVIDENCE_SIDE_EFFECTS") == "1":
+        return
     json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:

@@ -22,11 +22,16 @@ jobs:
       - name: Initialize runner temp paths
         run: |
           set -eu
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
           {
-            echo "SOURCE_ROOT=$RUNNER_TEMP/sources"
-            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build"
-            echo "TMP_ROOT=$RUNNER_TEMP/ModSecurity-conector-build/tmp"
-            echo "LOG_ROOT=$RUNNER_TEMP/ModSecurity-conector-build/logs"
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "SOURCE_ROOT=$verified_root/src"
+            echo "BUILD_ROOT=$verified_root/build"
+            echo "TMP_ROOT=$verified_root/tmp"
+            echo "LOG_ROOT=$verified_root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
           } >> "$GITHUB_ENV"
       - name: Check common scaffold
         run: |
@@ -47,7 +52,7 @@ jobs:
           test -f modules/ModSecurity-test-Framework/docs/imports/common/modsecurity-v3-regression-map.md
           test -f modules/ModSecurity-test-Framework/docs/testing/v2-vs-v3-test-compatibility.md
           test -f reports/testing/real-world-connector-validation.md
-          test ! -d docs/testing
+          test -f docs/testing/verified-run-environment.md
           test ! -d connectors/apache/tests
           test ! -d connectors/nginx/tests
           test -f docs/architecture/capability-model.md

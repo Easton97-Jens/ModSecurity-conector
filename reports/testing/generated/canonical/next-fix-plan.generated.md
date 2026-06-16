@@ -1,17 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:40:09Z`
+> Generated at: `2026-06-16T18:58:35Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
 > Framework SHA: `unknown`
 > Input status: `complete`
 
 # Next Fix Plan
 
-Generated at: `2026-06-15T10:40:09Z`
+Generated at: `2026-06-16T18:58:35Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -39,11 +41,17 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 ## P3
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |
 |---|---|---|---|---|---|---|
-| phase4_hard_abort_capability | 116 | apache, nginx, haproxy | Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial | stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists | high if promoted prematurely or faked | phase4 hard-abort report regeneration, targeted strict Phase 4 connector evidence, native report regeneration |
-| transformation_semantics | 36 | apache, nginx, haproxy | largest semantic cluster; likely needs native/libmodsecurity comparison before any fix | deeper semantic evidence, not harness routing | high | targeted transformation cases, native comparison where available |
+| phase4_hard_abort_capability | 88 | apache, nginx, haproxy | Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial | stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists | high if promoted prematurely or faked | phase4 hard-abort report regeneration, targeted strict Phase 4 connector evidence, native report regeneration |
+| transformation_semantics | 24 | apache, nginx, haproxy | largest semantic cluster; likely needs native/libmodsecurity comparison before any fix | deeper semantic evidence, not harness routing | high | targeted transformation cases, native comparison where available |
 
 ## P4
 - None.
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `d76478030a4008d696c028237490a1e4643fb5d7d73248443dfdc87921c9a548` | `2026-06-16T16-57-44Z-b53340a8` | present |
 
 ## Data Availability / Missing Information
 

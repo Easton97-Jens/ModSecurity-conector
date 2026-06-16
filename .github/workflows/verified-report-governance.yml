@@ -1,0 +1,63 @@
+name: verified-report-governance
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Initialize verified runtime paths
+        run: |
+          set -eu
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
+          {
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "SOURCE_ROOT=$verified_root/src"
+            echo "BUILD_ROOT=$verified_root/build"
+            echo "TMP_ROOT=$verified_root/tmp"
+            echo "LOG_ROOT=$verified_root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+
+      - name: Static syntax checks
+        run: |
+          set -eu
+          python3 -m py_compile ci/*.py
+          sh -n ci/*.sh
+          sh -n modules/ModSecurity-test-Framework/ci/*.sh
+
+      - name: Generated report governance
+        run: |
+          set -eu
+          make generate-system-environment-proof
+          make check-generated-report-layout
+
+      - name: Runtime producer readiness
+        run: |
+          set +e
+          make check-runtime-producer-readiness
+          rc=$?
+          if [ "$rc" -eq 77 ]; then
+            echo "Runtime producer readiness is BLOCKED in this lightweight job; full runtime preparation is intentionally not run here."
+            exit 0
+          fi
+          exit "$rc"

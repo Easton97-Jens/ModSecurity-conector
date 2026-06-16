@@ -5,14 +5,12 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}"
 [ -d "$FRAMEWORK_ROOT" ] || { echo "nginx_smoke: blocked FRAMEWORK_ROOT is missing; run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; exit 77; }
-BUILD_ROOT="${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}"
+VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
+VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
+BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
+NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-$VERIFIED_RUN_ROOT/nginx-harness}"
 CURRENT_UID=$(id -u 2>/dev/null || printf 'unknown')
 if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
-    if [ "$CURRENT_UID" = "0" ]; then
-        NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${TMPDIR:-/tmp}}"
-    else
-        NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}}"
-    fi
     if [ "$CURRENT_UID" = "0" ]; then
         parent_perms=$(stat -c '%A' "$NGINX_HARNESS_PARENT" 2>/dev/null || printf '')
         case "$parent_perms" in
@@ -28,7 +26,7 @@ if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
         esac
     fi
     if [ ! -d "$NGINX_HARNESS_PARENT" ]; then
-        install -d -m 700 "$NGINX_HARNESS_PARENT"
+        install -d -m 755 "$NGINX_HARNESS_PARENT"
     fi
     NGINX_HARNESS_WORK_ROOT=$(mktemp -d "$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID-XXXXXX")
 fi
@@ -177,6 +175,114 @@ ensure_worker_runtime_permissions() {
         chmod -R u+rwX,go+rX "$NGINX_HARNESS_WORK_ROOT" 2>/dev/null || true
     fi
     write_permission_diagnostics
+}
+
+append_worker_preflight_record() {
+    check_name=$1
+    check_status=$2
+    check_path=$3
+    check_notes=$4
+    preflight_file="${NGINX_WORKER_PREFLIGHT_FILE:-$LOG_DIR/nginx-worker-preflight.jsonl}"
+    mkdir -p "$(dirname "$preflight_file")"
+    "$PYTHON_BIN" - "$preflight_file" "$check_name" "$check_status" "$check_path" "$check_notes" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+record = {
+    "check": sys.argv[2],
+    "status": sys.argv[3],
+    "path": sys.argv[4],
+    "notes": sys.argv[5],
+}
+with path.open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps(record, sort_keys=True) + "\n")
+PY
+}
+
+nginx_worker_can_access() {
+    access_mode=$1
+    access_path=$2
+    if command -v runuser >/dev/null 2>&1 && [ "$CURRENT_UID" = "0" ] && id "$NGINX_WORKER_USER" >/dev/null 2>&1; then
+        runuser -u "$NGINX_WORKER_USER" -- test "$access_mode" "$access_path"
+        return $?
+    fi
+    test "$access_mode" "$access_path"
+}
+
+nginx_worker_access_notes() {
+    if command -v runuser >/dev/null 2>&1 && [ "$CURRENT_UID" = "0" ] && id "$NGINX_WORKER_USER" >/dev/null 2>&1; then
+        printf 'checked with runuser -u %s' "$NGINX_WORKER_USER"
+    else
+        printf 'runuser worker check unavailable; used current process stat/test fallback'
+    fi
+}
+
+preflight_nginx_worker_docroot() {
+    preflight_file="${NGINX_WORKER_PREFLIGHT_FILE:-$LOG_DIR/nginx-worker-preflight.jsonl}"
+    : > "$preflight_file"
+    preflight_failed=0
+    index_file="$DOCROOT/index.html"
+
+    case "$NGINX_HARNESS_PARENT" in
+        /root|/root/*)
+            append_worker_preflight_record "Path under /root" "FAIL" "$NGINX_HARNESS_PARENT" "NGINX_HARNESS_PARENT must not be under /root"
+            preflight_failed=1
+            ;;
+        *)
+            append_worker_preflight_record "Path under /root" "PASS" "$NGINX_HARNESS_PARENT" "NGINX_HARNESS_PARENT is outside /root"
+            ;;
+    esac
+    case "$NGINX_HARNESS_WORK_ROOT" in
+        /root|/root/*)
+            append_worker_preflight_record "Work root under /root" "FAIL" "$NGINX_HARNESS_WORK_ROOT" "NGINX_HARNESS_WORK_ROOT must not be under /root"
+            preflight_failed=1
+            ;;
+        *)
+            append_worker_preflight_record "Work root under /root" "PASS" "$NGINX_HARNESS_WORK_ROOT" "NGINX_HARNESS_WORK_ROOT is outside /root"
+            ;;
+    esac
+
+    if [ -f "$index_file" ]; then
+        append_worker_preflight_record "DOCROOT/index.html exists" "PASS" "$index_file" "materialized before NGINX start"
+    else
+        append_worker_preflight_record "DOCROOT/index.html exists" "FAIL" "$index_file" "materialized docroot index is missing"
+        preflight_failed=1
+    fi
+
+    if command -v namei >/dev/null 2>&1; then
+        namei -l "$index_file" > "$LOG_DIR/namei-docroot-index.log" 2>&1 || true
+    else
+        printf '%s\n' "namei unavailable" > "$LOG_DIR/namei-docroot-index.log"
+    fi
+
+    access_notes=$(nginx_worker_access_notes)
+    if nginx_worker_can_access -x "$NGINX_HARNESS_PARENT"; then
+        append_worker_preflight_record "Harness parent traversable" "PASS" "$NGINX_HARNESS_PARENT" "$access_notes"
+    else
+        append_worker_preflight_record "Harness parent traversable" "FAIL" "$NGINX_HARNESS_PARENT" "$access_notes"
+        preflight_failed=1
+    fi
+    if nginx_worker_can_access -x "$DOCROOT"; then
+        append_worker_preflight_record "NGINX worker can traverse docroot" "PASS" "$DOCROOT" "$access_notes"
+    else
+        append_worker_preflight_record "NGINX worker can traverse docroot" "FAIL" "$DOCROOT" "$access_notes"
+        preflight_failed=1
+    fi
+    if nginx_worker_can_access -r "$index_file"; then
+        append_worker_preflight_record "htdocs/index.html readable by worker" "PASS" "$index_file" "$access_notes"
+    else
+        append_worker_preflight_record "htdocs/index.html readable by worker" "FAIL" "$index_file" "$access_notes"
+        preflight_failed=1
+    fi
+    append_worker_preflight_record "try_files fallback guarded" "$([ "$preflight_failed" -eq 0 ] && printf PASS || printf FAIL)" "$index_file" "docroot readability is checked before try_files /index.html can loop"
+
+    if [ "$preflight_failed" -ne 0 ]; then
+        write_permission_diagnostics
+        echo "BLOCKED: nginx worker cannot access harness docroot"
+        blocked "nginx worker cannot access harness docroot"
+    fi
 }
 
 nginx_docroot_permission_denied() {
@@ -749,6 +855,7 @@ fi
 start_response_header_backend
 write_location_handler_directives "$NGINX_LOCATION_HANDLER_DIRECTIVES_FILE"
 ensure_worker_runtime_permissions
+preflight_nginx_worker_docroot
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH

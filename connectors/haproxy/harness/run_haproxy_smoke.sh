@@ -90,11 +90,18 @@ require_absolute() {
 require_under_source_root() {
     path=$1
     label=$2
+    state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
+
     require_absolute "$path" "$label"
     case "$path" in
-        /src|/src/*) ;;
-        *) blocked "$label must be under /src: $path" ;;
+        /src|/src/*) return 0 ;;
     esac
+    if [ -n "$state_root" ]; then
+        case "$path" in
+            "$state_root"|"$state_root"/*) return 0 ;;
+        esac
+    fi
+    blocked "$label must be under /src or XDG state home: $path"
 }
 
 require_under_runtime_root() {

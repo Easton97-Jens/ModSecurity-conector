@@ -1,83 +1,41 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:40:29Z`
+> Generated at: `2026-06-16T18:58:45Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-intervention-blocking-analysis.py`
 > Make target: `generate-intervention-blocking-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
-> Framework SHA: `61454d23be52e52d9395e6b091c52d651e16f89b`
-> Input status: `complete`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
+> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
+> Input status: `stale`
 
-# Intervention Blocking Analysis
+# Intervention blocking classification and no-match separation.
 
-- Generated at: `2026-06-15T10:40:29Z`
-- Expected `403` / actual `200` rows under review: **559**.
-- Intervention-blocking true candidates: **0** runtime-fixable rows.
-- Remaining P0/P1 intervention-blocking rows: **0**.
-- DetectionOnly overlay non-disruptive rows: **490** report-only rows.
-- no-MRTS semantic no-match rows: **69** metadata-only rows.
-- Rule in generated loadfile: **0**
-- Strict rule-load errors: **0**
-- Rule matched: **0**
-- Disruptive intervention evidence: **0**
-- Connector lost intervention evidence: **0**
-- Connector returned 403 from that evidence: **0**
-- Backend/client 200 reached: **559**
+Status: `skipped_stale_input`
 
-## Key Split
+Reason: required generated input is stale
 
-- with-MRTS DetectionOnly overlay rows: **490**
-- with-MRTS rows with logged target-rule match suppressed by that overlay: **0**
-- no-MRTS rows with loaded rule but no match evidence: **69**
+## Verified Command
 
-## A-H Groups
+| Command | Status | Return Code | Notes |
+|---|---|---:|---|
+| `/root/git/ModSecurity-conector/.venv/bin/python ci/generate-intervention-blocking-analysis.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --output-dir /root/git/ModSecurity-conector/reports/testing/generated` | skipped_stale_input | - | required generated input is stale |
 
-| group | label | count | connectors | variants | suspected cause | fixability | risk |
-| --- | --- | ---: | --- | --- | --- | --- | --- |
-| A | Rule not loaded | 559 | apache, haproxy, nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | Rule-load evidence is missing or startup logs show a strict rule-load error. | fixable if generated loadfile path is wrong | low to medium |
-| B | Rule loaded, no match | 0 | - | - | - | - | - |
-| C | Rule matched, no intervention created | 0 | - | - | - | - | - |
-| D | Intervention created, connector did not set 403 | 0 | - | - | - | - | - |
-| E | Intervention created, runner/evidence missed it | 0 | - | - | - | - | - |
-| F | Expected block, but effective runtime is non-disruptive | 0 | - | - | - | - | - |
-| G | CRS changed behavior | 0 | - | - | - | - | - |
-| H | Connector-specific blocking gap | 0 | - | - | - | - | - |
+## Rows
 
-## Representative Evidence
+_No rows available. Reason: producer command was not run or verified input is unavailable._
 
-### A. Rule not loaded
+## Data Sources
 
-| case | connector | variant | rule | phase | target | operator | request | loaded | matched | intervention | backend |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| duplicate_args_encoded_separator_edge | apache | no-crs/no-mrts | - | 2 | `-` | `-` | `-` | no | no | no | yes |
-| duplicate_header_case_normalization_gap | apache | no-crs/no-mrts | - | 1 | `-` | `-` | `-` | no | no | no | yes |
-| edge_semicolon_query_args_names | apache | no-crs/no-mrts | - | 2 | `-` | `-` | `-` | no | no | no | yes |
-| phase1_vs_phase2_request_body_gap | apache | no-crs/no-mrts | - | 1 | `-` | `-` | `-` | no | no | no | yes |
-| sqli_like_keyword_spacing_probe | apache | no-crs/no-mrts | - | 2 | `-` | `-` | `-` | no | no | no | yes |
-| sqli_like_quote_encoding_runtime_difference | apache | no-crs/no-mrts | - | 2 | `-` | `-` | `-` | no | no | no | yes |
-| unicode_double_encoded_uri_runtime_difference | apache | no-crs/no-mrts | - | 1 | `-` | `-` | `-` | no | no | no | yes |
-| unicode_whitespace_normalization_gap | apache | no-crs/no-mrts | - | 2 | `-` | `-` | `-` | no | no | no | yes |
-
-## Safe Subcluster
-
-- Selected: **no**
-- Name: `none`
-- Count: **0**
-- Reason: no row shows a real disruptive intervention that is later lost by connector or runner
-- Recommended action: do not edit connector/core code yet; decide whether to classify with-MRTS DetectionOnly overlay separately and run native/semantic comparison for no-MRTS no-match cases
-
-## Current Next Fix Plan
-
-- Recommended next cluster: `none`
-- Reason: No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.
-
-## Guardrail Notes
-
-- This report does not change Expected statuses, testcase rules, MRTS definitions, or PASS/FAIL values.
-- No row currently proves a disruptive intervention that was later lost by connector or runner.
-- The with-MRTS group is classification/report-only unless the MRTS overlay policy is intentionally changed.
-- Treat the no-MRTS group as semantic/native-comparison work, not as an intervention-forwarding fix.
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `7bbf04c71c0bf6a56e892371205db4618f97e091458c0073ac41952a956eb205` | `2026-06-16T16-57-44Z-b53340a8` | stale |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `36f90db93c8a3a554305350d2a745835c1a9d8773742ef5359192beb364299ea` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560` | `2026-06-16T16-57-44Z-b53340a8` | stale |
 
 ## Data Availability / Missing Information
 
@@ -85,6 +43,6 @@
 |---|---|---|
 | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | present | input file available |
 | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | present | input file available |
+| `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | stale | generated report input is stale: framework_sha differs |
 | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/next-fix-plan.generated.json` | present | input file available |
+| `reports/testing/generated/canonical/next-fix-plan.generated.json` | stale | generated report input is stale: framework_sha differs |

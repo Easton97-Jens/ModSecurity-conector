@@ -3,13 +3,17 @@ set -eu
 
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(CDPATH= cd "$(dirname "$0")/.." && pwd)}"
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}"
-DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}}"
-SOURCE_ROOT="${SOURCE_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-src}"
-SHARED_BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
+VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
+VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
+VERIFIED_SOURCE_ROOT="${VERIFIED_SOURCE_ROOT:-$VERIFIED_RUN_ROOT/src}"
+VERIFIED_TMP_ROOT="${VERIFIED_TMP_ROOT:-$VERIFIED_RUN_ROOT/tmp}"
+VERIFIED_LOG_ROOT="${VERIFIED_LOG_ROOT:-$VERIFIED_RUN_ROOT/logs}"
+SOURCE_ROOT="${SOURCE_ROOT:-$VERIFIED_SOURCE_ROOT}"
+SHARED_BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
 BUILD_ROOT="$SHARED_BUILD_ROOT"
-TMP_ROOT="${TMP_ROOT:-$SHARED_BUILD_ROOT/tmp}"
-LOG_ROOT="${LOG_ROOT:-$SHARED_BUILD_ROOT/logs}"
-MATRIX_ROOT="${MATRIX_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-full-matrix}"
+TMP_ROOT="${TMP_ROOT:-$VERIFIED_TMP_ROOT}"
+LOG_ROOT="${LOG_ROOT:-$VERIFIED_LOG_ROOT}"
+MATRIX_ROOT="${MATRIX_ROOT:-$SHARED_BUILD_ROOT/full-matrix}"
 MRTS_BUILD_ROOT="${MRTS_BUILD_ROOT:-$SHARED_BUILD_ROOT/mrts}"
 PYTHON="${PYTHON:-python3}"
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
@@ -21,6 +25,8 @@ FULL_MATRIX_MANIFEST="${FULL_MATRIX_MANIFEST:-$MATRIX_ROOT/full-runtime-matrix-r
 FULL_MATRIX_PORT_SPAN="${FULL_MATRIX_PORT_SPAN:-1000}"
 FULL_MATRIX_PREPARE_SHARED_BUILDS="${FULL_MATRIX_PREPARE_SHARED_BUILDS:-1}"
 FULL_MATRIX_PREPARE_CASE="${FULL_MATRIX_PREPARE_CASE:-action_allow_phase1_pass}"
+FULL_MATRIX_TRUNCATE_MANIFEST="${FULL_MATRIX_TRUNCATE_MANIFEST:-1}"
+FULL_MATRIX_SKIP_REPORTS="${FULL_MATRIX_SKIP_REPORTS:-0}"
 
 export CONNECTOR_ROOT FRAMEWORK_ROOT SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT PYTHONDONTWRITEBYTECODE FORCE_ALL_CASES MRTS_BUILD_ROOT
 
@@ -33,13 +39,19 @@ validate_runner_paths() {
     assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
     assert_safe_runtime_path "$MATRIX_ROOT" MATRIX_ROOT || exit 77
     assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
+    assert_safe_runtime_path "$NGINX_HARNESS_PARENT" NGINX_HARNESS_PARENT || exit 77
     assert_not_system_path_for_write "$FULL_MATRIX_REPORT_DIR" FULL_MATRIX_REPORT_DIR || exit 77
     assert_not_system_path_for_write "$FULL_MATRIX_MANIFEST" FULL_MATRIX_MANIFEST || exit 77
 }
 
 validate_runner_paths
 mkdir -p "$MATRIX_ROOT" "$FULL_MATRIX_REPORT_DIR"
-: > "$FULL_MATRIX_MANIFEST"
+if [ "$FULL_MATRIX_TRUNCATE_MANIFEST" = "1" ]; then
+    : > "$FULL_MATRIX_MANIFEST"
+else
+    mkdir -p "$(dirname "$FULL_MATRIX_MANIFEST")"
+    touch "$FULL_MATRIX_MANIFEST"
+fi
 
 pids=""
 port_check_blocked=0
@@ -278,7 +290,7 @@ run_job() {
             rc=$?
             ;;
         nginx)
-            nginx_harness_parent="${RUNNER_TEMP:-${TMPDIR:-${CONNECTOR_COMPONENT_CACHE:-/src/ModSecurity-conector-cache}/nginx-harness}}"
+            nginx_harness_parent="${NGINX_HARNESS_PARENT:-$TMP_ROOT/nginx-harness}"
             nginx_harness_root="$nginx_harness_parent/ModSecurity-conector-full-matrix/$test_variant-$mrts_variant-nginx-$port"
             env $common_env \
                 NGINX_TEST_PORT="$port" \
@@ -287,6 +299,7 @@ run_job() {
                 NGINX_BINARY="${MRTS_NATIVE_NGINX_BIN:-}" \
                 NGINX_MODULE="${MRTS_NATIVE_NGINX_MODULE_FILE:-${MRTS_NATIVE_NGINX_MODULE_DIR:-}/ngx_http_modsecurity_module.so}" \
                 MODSECURITY_LIB_DIR="${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
+                NGINX_HARNESS_PARENT="$nginx_harness_parent" \
                 NGINX_HARNESS_WORK_ROOT="$nginx_harness_root" \
                 NGINX_RUNTIME_BASE="$nginx_harness_root/runtime" \
                 NGINX_RUNTIME_LOG_DIR="$nginx_harness_root/logs" \
@@ -337,21 +350,58 @@ run_job() {
     RUN_RESULTS_DIR="$results_dir" \
     RUN_SUMMARY_PATH="$actual_summary_path" \
     RUN_LOG_PATH="$run_log" \
+    RUN_JOB_JSON="$job_json" \
+    RUN_BUILD_MANIFEST="$build_manifest" \
+    RUN_VERIFIED_RUN_ID="${VERIFIED_RUN_ID:-}" \
     "$PYTHON" - <<'PY' > "$job_json"
+import hashlib
 import json
 import os
+from pathlib import Path
+
+def sha256(path):
+    p = Path(path)
+    if not p.is_file():
+        return "missing"
+    h = hashlib.sha256()
+    with p.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+connector = os.environ["RUN_CONNECTOR"]
+test_variant = os.environ["RUN_TEST_VARIANT"]
+mrts_variant = os.environ["RUN_MRTS_VARIANT"]
+rc = int(os.environ["RUN_RC"])
 
 print(json.dumps({
-    "connector": os.environ["RUN_CONNECTOR"],
-    "test_variant": os.environ["RUN_TEST_VARIANT"],
-    "mrts_variant": os.environ["RUN_MRTS_VARIANT"],
-    "return_code": int(os.environ["RUN_RC"]),
+    "connector": connector,
+    "job_id": f"{connector}:{test_variant}:{mrts_variant}",
+    "verified_run_id": os.environ.get("RUN_VERIFIED_RUN_ID", ""),
+    "test_variant": test_variant,
+    "mrts_variant": mrts_variant,
+    "return_code": rc,
+    "status": "completed" if rc == 0 else "completed_with_mismatches",
     "started_at": os.environ["RUN_STARTED_AT"],
     "ended_at": os.environ["RUN_ENDED_AT"],
     "duration_seconds": int(os.environ["RUN_DURATION"]),
     "results_dir": os.environ["RUN_RESULTS_DIR"],
     "summary_path": os.environ["RUN_SUMMARY_PATH"],
     "log_path": os.environ["RUN_LOG_PATH"],
+    "hashes": {
+        "log": sha256(os.environ["RUN_LOG_PATH"]),
+        "summary": sha256(os.environ["RUN_SUMMARY_PATH"]),
+        "build_manifest": sha256(os.environ["RUN_BUILD_MANIFEST"]),
+    },
+    "inputs": {
+        "build_manifest": os.environ["RUN_BUILD_MANIFEST"],
+    },
+    "outputs": {
+        "job_json": os.environ["RUN_JOB_JSON"],
+        "log": os.environ["RUN_LOG_PATH"],
+        "summary": os.environ["RUN_SUMMARY_PATH"],
+        "results_dir": os.environ["RUN_RESULTS_DIR"],
+    },
 }, sort_keys=True))
 PY
     exit "$rc"
@@ -455,6 +505,7 @@ run_batch() {
 validate_matrix_connectors
 prepare_shared_builds
 
+matrix_rc=0
 for variant in $FULL_MATRIX_VARIANTS; do
     case "$variant" in
         */*) ;;
@@ -463,9 +514,17 @@ for variant in $FULL_MATRIX_VARIANTS; do
     test_variant=${variant%/*}
     mrts_variant=${variant#*/}
     echo "full-matrix-parallel: batch start $test_variant/$mrts_variant"
-    run_batch "$test_variant" "$mrts_variant" || true
+    if ! run_batch "$test_variant" "$mrts_variant"; then
+        matrix_rc=2
+    fi
     echo "full-matrix-parallel: batch end $test_variant/$mrts_variant"
 done
+
+if [ "$FULL_MATRIX_SKIP_REPORTS" = "1" ]; then
+    echo "full-matrix-parallel: skip downstream report generation (FULL_MATRIX_SKIP_REPORTS=1)"
+    echo "full-matrix-parallel: manifest=$FULL_MATRIX_MANIFEST"
+    exit "$matrix_rc"
+fi
 
 set +e
 "$PYTHON" "$CONNECTOR_ROOT/ci/generate-full-runtime-matrix.py" \

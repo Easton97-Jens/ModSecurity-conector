@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -10,10 +11,12 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from generated_report_utils import (
+    DATA_SOURCE_POLICY,
     FILENAME_TO_KEY,
     GENERATED_NOTICE,
     GENERATED_REPORTS,
     GENERATED_ROOT,
+    read_report_metadata,
     report_relpath,
     report_path,
 )
@@ -89,6 +92,8 @@ def check_json_metadata(path: Path, errors: list[str], connector_root: Path) -> 
         "missing_inputs",
         "empty_inputs",
         "unknown_inputs",
+        "verified_run_id",
+        "data_source_policy",
         "schema_version",
     )
     for key in required:
@@ -96,24 +101,58 @@ def check_json_metadata(path: Path, errors: list[str], connector_root: Path) -> 
             errors.append(f"{rel(path, connector_root)}: metadata.{key} is missing")
     if metadata.get("generated_notice") != GENERATED_NOTICE:
         errors.append(f"{rel(path, connector_root)}: metadata.generated_notice is not canonical")
+    if not metadata.get("verified_run_id") or metadata.get("verified_run_id") == "unknown":
+        errors.append(f"{rel(path, connector_root)}: metadata.verified_run_id is missing or unknown")
+    if metadata.get("data_source_policy") != DATA_SOURCE_POLICY:
+        errors.append(f"{rel(path, connector_root)}: metadata.data_source_policy is not {DATA_SOURCE_POLICY}")
     if not isinstance(metadata.get("inputs"), list):
         errors.append(f"{rel(path, connector_root)}: metadata.inputs must be a list")
 
 
 def check_markdown_metadata(path: Path, errors: list[str], connector_root: Path) -> None:
     text = path.read_text(encoding="utf-8", errors="replace")
-    first_lines = text.splitlines()[:12]
+    first_lines = text.splitlines()[:20]
     if not first_lines or first_lines[0].strip() != f"> {GENERATED_NOTICE}":
         errors.append(f"{rel(path, connector_root)}: missing generated notice at top")
     if not any("Generated at:" in line for line in first_lines):
         errors.append(f"{rel(path, connector_root)}: missing visible generated timestamp")
+    if not any("Verified run id:" in line for line in first_lines):
+        errors.append(f"{rel(path, connector_root)}: missing visible verified run id")
+    if not any("Data source policy:" in line for line in first_lines):
+        errors.append(f"{rel(path, connector_root)}: missing visible data source policy")
     if "## Data Availability / Missing Information" not in text:
         errors.append(f"{rel(path, connector_root)}: missing data availability section")
+    if "## Data Sources" not in text:
+        errors.append(f"{rel(path, connector_root)}: missing data sources section")
+    check_empty_tables_explained(path, text, errors, connector_root)
+
+
+def is_table_separator(line: str) -> bool:
+    cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+    return bool(cells) and all(cell and set(cell) <= {"-", ":"} and cell.count("-") >= 3 for cell in cells)
+
+
+def check_empty_tables_explained(path: Path, text: str, errors: list[str], connector_root: Path) -> None:
+    lines = text.splitlines()
+    for index in range(1, len(lines)):
+        if not is_table_separator(lines[index]):
+            continue
+        if "|" not in lines[index - 1]:
+            continue
+        next_index = index + 1
+        while next_index < len(lines) and not lines[next_index].strip():
+            next_index += 1
+        if next_index >= len(lines) or lines[next_index].startswith("## "):
+            window = "\n".join(lines[index + 1 : min(index + 5, len(lines))])
+            if "_No rows available. Reason:" not in window:
+                errors.append(f"{rel(path, connector_root)}:{index + 1}: empty table lacks a Missing/Empty explanation")
 
 
 def check_existing_generated_reports(connector_root: Path, errors: list[str]) -> None:
     generated_root = connector_root / GENERATED_ROOT
     for path in sorted(generated_root.rglob("*.generated.*")):
+        if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1" and path.name.startswith("system-environment-proof.generated."):
+            continue
         if path.suffix == ".json":
             check_json_metadata(path, errors, connector_root)
         elif path.suffix == ".md":
@@ -153,6 +192,10 @@ def check_manifest(connector_root: Path, errors: list[str]) -> None:
         for key in ("category", "kind", "owner", "severity", "input_status", "inputs", "missing_inputs", "empty_inputs", "unknown_inputs"):
             if key not in record:
                 errors.append(f"{rel(manifest_path, connector_root)}: report {record.get('report_name', '<unknown>')} missing {key}")
+        if record.get("severity") == "critical" and record.get("input_status") in {"stale", "blocked"}:
+            errors.append(f"{rel(manifest_path, connector_root)}: critical report {record.get('report_name', '<unknown>')} has {record.get('input_status')} input_status")
+        if record.get("severity") == "critical" and record.get("stale_inputs"):
+            errors.append(f"{rel(manifest_path, connector_root)}: critical report {record.get('report_name', '<unknown>')} has stale inputs")
 
 
 def check_system_environment_proof(connector_root: Path, errors: list[str]) -> None:
@@ -164,6 +207,8 @@ def check_system_environment_proof(connector_root: Path, errors: list[str]) -> N
             errors.append(f"{rel(md_path, connector_root)}: missing Framework Environment Resolution section")
         if "## Runtime Component Readiness" not in text:
             errors.append(f"{rel(md_path, connector_root)}: missing Runtime Component Readiness section")
+        if "## NGINX Runtime Module Readiness" not in text:
+            errors.append(f"{rel(md_path, connector_root)}: missing NGINX Runtime Module Readiness section")
         if "## HTTPS Repository URL Policy" not in text:
             errors.append(f"{rel(md_path, connector_root)}: missing HTTPS Repository URL Policy section")
         expected_header = "| Tool | Status | Resolved Command | Source | Candidates | Version / Output | Notes |"
@@ -339,6 +384,8 @@ def check_no_insecure_repo_url_literals(connector_root: Path, framework_root: Pa
 
 def check_registry_paths(connector_root: Path, errors: list[str]) -> None:
     for key, report in GENERATED_REPORTS.items():
+        if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1" and key == "verified_run_manifest":
+            continue
         if not report.category:
             errors.append(f"registry:{key}: missing category")
         if not report.owner:
@@ -368,6 +415,78 @@ def check_no_orphan_generated_reports(connector_root: Path, errors: list[str]) -
             errors.append(f"{rel(path, connector_root)}: generated file is not at registry path")
 
 
+def critical_run_keys() -> set[str]:
+    return {
+        key
+        for key, report in GENERATED_REPORTS.items()
+        if report.severity == "critical" and report.commit_policy not in {"local-only", "do-not-commit"}
+    } | {"system_environment_proof"}
+
+
+def check_critical_report_run_consistency(connector_root: Path, errors: list[str]) -> None:
+    run_ids: dict[str, set[str]] = {}
+    keys = critical_run_keys()
+    if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1":
+        keys = keys - {"system_environment_proof", "verified_run_manifest"}
+    for key in sorted(keys):
+        report = GENERATED_REPORTS[key]
+        for ext in report.formats:
+            path = report_path(connector_root, key, ext)
+            if not path.is_file():
+                continue
+            metadata = read_report_metadata(path)
+            run_id = str(metadata.get("verified_run_id") or "")
+            if not run_id or run_id == "unknown":
+                errors.append(f"{rel(path, connector_root)}: critical report has unknown verified_run_id")
+            else:
+                run_ids.setdefault(run_id, set()).add(f"{key}.{ext}")
+            for sha_key in ("connector_sha", "framework_sha"):
+                if str(metadata.get(sha_key) or "unknown") == "unknown":
+                    errors.append(f"{rel(path, connector_root)}: critical report has unknown {sha_key}")
+            if path.suffix == ".json":
+                data = load_json(path, errors, connector_root)
+                metadata_obj = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+                if metadata_obj.get("input_status") in {"stale", "blocked"}:
+                    errors.append(f"{rel(path, connector_root)}: critical report metadata.input_status is {metadata_obj.get('input_status')}")
+                for item in metadata_obj.get("inputs", []) if isinstance(metadata_obj.get("inputs"), list) else []:
+                    if isinstance(item, dict) and item.get("status") in {"stale", "blocked"}:
+                        errors.append(f"{rel(path, connector_root)}: critical report input is {item.get('status')}: {item.get('path', 'unknown')}")
+    if len(run_ids) > 1:
+        summary = "; ".join(f"{run_id}: {', '.join(sorted(items))}" for run_id, items in sorted(run_ids.items()))
+        errors.append(f"critical generated reports use multiple verified_run_id values: {summary}")
+
+
+def check_verified_runtime_diagnostics(connector_root: Path, errors: list[str]) -> None:
+    dashboard_path = report_path(connector_root, "merge_readiness_dashboard", "json")
+    mismatch_path = report_path(connector_root, "verified_runtime_mismatch_analysis", "json")
+    if not dashboard_path.is_file() or not mismatch_path.is_file():
+        return
+    dashboard = load_json(dashboard_path, errors, connector_root)
+    mismatch = load_json(mismatch_path, errors, connector_root)
+    full_matrix = mismatch.get("full_matrix") if isinstance(mismatch.get("full_matrix"), dict) else {}
+    runtime_complete = bool(full_matrix.get("complete"))
+    refresh_timeout = bool(dashboard.get("full_matrix_refresh_timeout") or full_matrix.get("refresh_timeout"))
+    critical_mismatches = int(mismatch.get("critical_mismatch_count") or dashboard.get("critical_runtime_mismatch_count") or 0)
+    stale_reports = dashboard.get("stale_reports") if isinstance(dashboard.get("stale_reports"), list) else []
+    if runtime_complete and stale_reports:
+        errors.append(
+            "critical runtime evidence exists but downstream reports are stale: "
+            + ", ".join(str(item) for item in stale_reports)
+        )
+    if runtime_complete and refresh_timeout:
+        errors.append("refresh timeout after runtime completed; merge dashboard cannot PASS until downstream reports are fresh")
+    if runtime_complete and critical_mismatches:
+        errors.append(f"full-matrix critical mismatches detected: {critical_mismatches}; merge dashboard cannot PASS")
+    if not runtime_complete and mismatch:
+        completed = full_matrix.get("completed_jobs", "unknown")
+        expected = full_matrix.get("expected_jobs", "unknown")
+        missing = full_matrix.get("missing_jobs") if isinstance(full_matrix.get("missing_jobs"), list) else []
+        errors.append(
+            f"full-matrix incomplete: {completed}/{expected} jobs complete; missing jobs: "
+            + (", ".join(str(item) for item in missing) if missing else "unknown")
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
@@ -385,6 +504,8 @@ def main() -> int:
     check_no_orphan_generated_reports(connector_root, errors)
     check_manifest(connector_root, errors)
     check_existing_generated_reports(connector_root, errors)
+    check_critical_report_run_consistency(connector_root, errors)
+    check_verified_runtime_diagnostics(connector_root, errors)
     check_system_environment_proof(connector_root, errors)
     check_no_legacy_references(connector_root, errors)
     check_no_flat_generator_writes(connector_root, framework_root, errors)

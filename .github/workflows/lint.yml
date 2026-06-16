@@ -22,11 +22,16 @@ jobs:
       - name: Initialize runner temp paths
         run: |
           set -eu
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
           {
-            echo "SOURCE_ROOT=$RUNNER_TEMP/sources"
-            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build"
-            echo "TMP_ROOT=$RUNNER_TEMP/ModSecurity-conector-build/tmp"
-            echo "LOG_ROOT=$RUNNER_TEMP/ModSecurity-conector-build/logs"
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "SOURCE_ROOT=$verified_root/src"
+            echo "BUILD_ROOT=$verified_root/build"
+            echo "TMP_ROOT=$verified_root/tmp"
+            echo "LOG_ROOT=$verified_root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
           } >> "$GITHUB_ENV"
       - name: Check common boundary and docs
         run: |
@@ -43,8 +48,8 @@ jobs:
           test -f docs/README.md
           test -f docs/architecture/README.md
           test -f docs/connectors/README.md
+          test -f docs/testing/verified-run-environment.md
           test -f reports/testing/test-coverage-overview.md
-          test ! -d docs/testing
       - name: Run lightweight lint
         if: github.event_name != 'pull_request'
         run: |

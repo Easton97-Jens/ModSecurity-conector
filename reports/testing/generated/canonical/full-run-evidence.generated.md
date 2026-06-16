@@ -1,34 +1,39 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T08:49:03Z`
+> Generated at: `2026-06-16T16:53:14Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
 > Framework SHA: `unknown`
 > Input status: `complete`
 
-# Full Run Evidence
+# Evidence rollup shared by focused analysis and consistency checks.
 
-Generated file - do not edit manually.
+Status: `blocked`
 
-<!-- no-mrts-intervention-nomatch-analysis:start -->
-## No-MRTS Intervention No-Match Analysis
-- Report: `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md`
-- Scope: 105 no-MRTS expected 403 / actual 200 rows where the rule is loaded but no match evidence is visible.
-- This is analysis-only evidence; Expected statuses and runtime PASS/FAIL values remain unchanged.
-<!-- no-mrts-intervention-nomatch-analysis:end -->
+Reason: required generated input is blocked
 
-<!-- remaining-failure-analysis:start -->
-## Remaining Failure Analysis
-- Remaining failure analysis: `reports/testing/generated/canonical/remaining-failure-analysis.generated.md`
-- Next fix plan: `reports/testing/generated/canonical/next-fix-plan.generated.md`
-- Phase 4 hard-abort capability: `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md`
-- Nolog audit evidence: `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md`
-- Response header hook analysis: `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md`
-- These reports analyze connector Full-Matrix leftovers and keep Native MRTS evidence separate.
-<!-- remaining-failure-analysis:end -->
+## Verified Command
+
+| Command | Status | Return Code | Notes |
+|---|---|---:|---|
+| `/root/git/ModSecurity-conector/.venv/bin/python ci/generate-remaining-failure-analysis.py --connector-root /root/git/ModSecurity-conector --output-dir /root/git/ModSecurity-conector/reports/testing/generated` | blocked | - | required generated input is blocked |
+
+## Rows
+
+_No rows available. Reason: producer command was not run or verified input is unavailable._
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `36f90db93c8a3a554305350d2a745835c1a9d8773742ef5359192beb364299ea` | `2026-06-16T16-57-44Z-b53340a8` | present |
 
 ## Data Availability / Missing Information
 
@@ -37,30 +42,3 @@ Generated file - do not edit manually.
 | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | present | input file available |
 | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | present | input file available |
 | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
-
-<!-- body-processor-analysis:start -->
-## Body Processor Analysis
-- Body processor analysis: `reports/testing/generated/focused-analysis/body-processor-analysis.generated.md`
-- URL-encoded/form rows: **0** -> **0** active request_body_processor rows after report sync.
-- XML processor activation-missing rows: **0** -> **0** active xml_processor rows after report sync.
-- Multipart processor activation-missing rows: **0** -> **0** active multipart_files rows after report sync.
-- The URL-encoded rows have body and Content-Type evidence and are kept as report-only with-MRTS DetectionOnly overlay cases.
-- The XML rows have body and XML Content-Type evidence, but their fixtures do not enable the XML request body processor.
-- The Multipart rows have body, Content-Type, and boundary evidence, but their fixtures do not enable request body access before expecting FILES/ARGS_NAMES collection evidence.
-<!-- body-processor-analysis:end -->
-
-<!-- rule-chain-semantics-analysis:start -->
-## Rule Chain Semantics Analysis
-- Report: `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md`
-- Rule-chain failure rows: **6**
-- Runtime-fixable candidates: **0**
-- The report keeps Expected status and runtime PASS/FAIL unchanged while classifying report-only Rule-Chain and single-connector leftovers.
-<!-- rule-chain-semantics-analysis:end -->
-
-<!-- final-consistency-audit:start -->
-## Final Consistency Audit
-- Report: `reports/testing/generated/canonical/final-consistency-audit.generated.md`
-- Recommended next fix cluster: `none`
-- Release readiness: `ready_with_known_reported_gaps`
-- This is an audit-only report; Expected statuses and runtime PASS/FAIL values remain unchanged.
-<!-- final-consistency-audit:end -->

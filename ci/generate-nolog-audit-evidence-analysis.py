@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -549,6 +550,8 @@ def render_phase_work_queue(
 
 
 def update_full_run_evidence(report_dir: Path) -> None:
+    if os.environ.get("SUPPRESS_FULL_RUN_EVIDENCE_SIDE_EFFECTS") == "1":
+        return
     json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
     data = read_json(json_path)
     if data:

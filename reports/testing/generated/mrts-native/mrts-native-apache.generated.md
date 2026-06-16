@@ -1,17 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:39:57Z`
+> Generated at: `2026-06-16T18:58:25Z`
+> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
-> Framework SHA: `61454d23be52e52d9395e6b091c52d651e16f89b`
-> Input status: `missing`
+> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
+> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
+> Input status: `complete`
 
 # MRTS Native Apache Report
 
-Generated at: `2026-06-15T10:39:57Z`
+Generated at: `2026-06-16T18:58:25Z`
 
 ## Target
 - Target: `apache2_ubuntu`
@@ -20,12 +22,12 @@ Generated at: `2026-06-15T10:39:57Z`
 - Native MRTS evidence is separate from connector full-matrix evidence.
 
 ## Status
-- Status: **NOT_RUN**
+- Status: **FAIL**
 
 ## Counts
-- attempted: **0**
-- pass: **0**
-- fail: **0**
+- attempted: **13**
+- pass: **12**
+- fail: **1**
 - blocked: **0**
 - not_executable: **0**
 
@@ -34,16 +36,25 @@ Generated at: `2026-06-15T10:39:57Z`
 - `RESPONSE_BODY non-promoted`
 
 ## First Failing Cases
-- None recorded.
+- Case: `100003-1`
+  Rule ID: `100003`
+  Phase: `4`
+  Variable/target: `ARGS` / `ARGS`
+  Expected: HTTP 200 backend response plus ModSecurity log id 100003
+  Actual: HTTP 200 backend response observed; expected phase 4 log id 100003 missing
+  Classification: `native_modsecurity_semantics` / `phase4_native_limitation`
+  Evidence summary: Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.
+  Rule: `SecRule ARGS "@contains attack" "id:100003, phase:4, deny, t:none, log"`
+  Request: `POST /?foo=attack`
 
 ## Runtime Components
-- APACHECTL_BIN: `-`
-- httpd_binary: `-`
-- mod_security3_so: `-`
-- connector_build_id: `-`
-- modsecurity_build_id: `-`
-- go_ftw_binary: `-`
-- albedo_binary: `-`
+- APACHECTL_BIN: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/apachectl-mrts`
+- httpd_binary: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/httpd`
+- mod_security3_so: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/build/output/apache/mod_security3.so`
+- connector_build_id: `898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67`
+- modsecurity_build_id: `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72`
+- go_ftw_binary: `$CONNECTOR_COMPONENT_CACHE/bin/go-ftw`
+- albedo_binary: `$CONNECTOR_COMPONENT_CACHE/bin/albedo`
 
 ## Paths
 - staged_infra_path: `$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra`
@@ -56,8 +67,14 @@ Generated at: `2026-06-15T10:39:57Z`
 - no generated MRTS artifacts committed
 - native MRTS evidence is separate from connector full-matrix evidence
 
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | `e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7` | `2026-06-16T16-57-44Z-b53340a8` | present |
+
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json` | missing | input file missing |
+| `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | present | input file available |

@@ -66,11 +66,11 @@ Generated file - do not edit manually.
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **54**
-- Apache attempted YAML cases from force-all summary: **516**
+- Apache attempted YAML cases from force-all summary: **133**
 - NGINX attempted YAML cases from force-all summary: **140**
 - HAProxy attempted YAML cases from force-all summary: **133**
-- Apache force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **183** / **327** / **0** / **6**
-- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **67** / **67** / **0** / **6**
+- Apache force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **108** / **19** / **0** / **6**
+- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **74** / **60** / **0** / **6**
 - HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **104** / **23** / **0** / **6**
 | Status | Apache | NGINX | HAProxy |
 |---|---:|---:|---:|
@@ -114,9 +114,9 @@ These native MRTS reports are separate from connector full-matrix evidence.
 | make runtime-matrix-all | PASS | Force-all matrix orchestration completed and recorded Apache/NGINX per-case evidence; expected runtime FAILs remain evidence and are not PASS promotions |
 
 ## Runtime Smoke Status
-- Snapshot: **2026-06-10** (2026-06-10 16:58:51 CEST)
-- Git: branch `integrate-new-connectors-local`, commit `48bdd28`
-- BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
+- Snapshot: **2026-06-16** (2026-06-16 19:07:10 CEST)
+- Git: branch `master`, commit `b53340a`
+- BUILD_ROOT: `/var/tmp/ModSecurity-conector-verified/build`
 - Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 
 ### Default Runtime Smoke Status
@@ -130,8 +130,8 @@ These native MRTS reports are separate from connector full-matrix evidence.
 ### Force-All Runtime Smoke Status
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
-| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 516 | 183 | 327 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 67 | 67 | 0 | 6 | /root/.local/state/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 133 | 108 | 19 | 0 | 6 | /root/.local/state/ModSecurity-conector-build/results/force-all/apache-summary.json |
+| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 74 | 60 | 0 | 6 | /root/.local/state/ModSecurity-conector-build/results/force-all/nginx-summary.json |
 | haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 1 | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 ## Connector Runtime Availability

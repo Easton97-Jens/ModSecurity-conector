@@ -49,6 +49,10 @@
       "to": "rule_chain_semantics_analysis"
     },
     {
+      "from": "full_matrix_job_completeness",
+      "to": "nginx_mrts_http500_cluster_analysis"
+    },
+    {
       "from": "full_run_evidence",
       "to": "final_consistency_audit"
     },
@@ -235,6 +239,10 @@
     {
       "from": "runtime_component_cache",
       "to": "runtime_build_cache"
+    },
+    {
+      "from": "verified_runtime_mismatch_analysis",
+      "to": "nginx_mrts_http500_cluster_analysis"
     }
   ],
   "final_reports": [
@@ -242,154 +250,283 @@
     "full_run_evidence",
     "merge_readiness_dashboard"
   ],
-  "generated_at": "2026-06-15T10:40:38Z",
+  "generated_at": "2026-06-16T18:58:49Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
     "data_kind": "manifest",
     "data_origin": "manifest",
+    "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
-    "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-15T10:40:38Z",
+    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-16T18:58:49Z",
     "generated_by": "ci/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "partial",
+    "input_status": "blocked",
     "inputs": [
       {
-        "notes": "input file missing",
-        "path": "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
-        "status": "missing"
-      },
-      {
-        "notes": "input file missing",
-        "path": "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json",
-        "status": "missing"
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
+        "sha256": "808eb86b9a8c6b19093fc2daf965ca1fd031be11bfaba263f2988a910586c0bf",
+        "source_hash": "808eb86b9a8c6b19093fc2daf965ca1fd031be11bfaba263f2988a910586c0bf",
+        "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/tmp/modsec-haproxy-setcookie/full-matrix/full-runtime-matrix-runs.jsonl",
+        "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
+        "sha256": "e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7",
+        "source_hash": "e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
+        "sha256": "772ec32045669d24351108aff42092c9c714c4a89b1642e1aa1011081e2d3e87",
+        "source_hash": "772ec32045669d24351108aff42092c9c714c4a89b1642e1aa1011081e2d3e87",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
+        "sha256": "f7092c24374de4f6bf26ea230ed84429b8dfc9cded204a709c9619599d6dd73f",
+        "source_hash": "f7092c24374de4f6bf26ea230ed84429b8dfc9cded204a709c9619599d6dd73f",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "config/testing/import-status.json",
+        "sha256": "5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f",
+        "source_hash": "5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f",
         "status": "present"
       },
       {
-        "notes": "input file missing",
-        "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
-        "status": "missing"
-      },
-      {
-        "notes": "input file missing",
-        "path": "reports/testing/generated/cache/runtime-component-cache.generated.json",
-        "status": "missing"
-      },
-      {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
-        "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "status": "present"
+        "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
+        "sha256": "58c14894ad3f824f4aaf66730bfa8af0beefaae7674039e3e813c67542cadf54",
+        "source_hash": "58c14894ad3f824f4aaf66730bfa8af0beefaae7674039e3e813c67542cadf54",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "input file available",
+        "path": "reports/testing/generated/cache/runtime-component-cache.generated.json",
+        "sha256": "bd47303437524a77a8b31743668e6b50041f176dec683c2efe25737f6d0d8ef7",
+        "source_hash": "bd47303437524a77a8b31743668e6b50041f176dec683c2efe25737f6d0d8ef7",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+      },
+      {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
+        "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
+        "sha256": "dd74444ee2dda65ac29c6c32ad15aa9592fbb95ad095f607e1b02e03b309e6d4",
+        "source_hash": "dd74444ee2dda65ac29c6c32ad15aa9592fbb95ad095f607e1b02e03b309e6d4",
+        "status": "stale",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+      },
+      {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "status": "present"
+        "sha256": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "source_hash": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "status": "present"
+        "sha256": "f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560",
+        "source_hash": "f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560",
+        "status": "stale",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "status": "present"
+        "sha256": "7bbf04c71c0bf6a56e892371205db4618f97e091458c0073ac41952a956eb205",
+        "source_hash": "7bbf04c71c0bf6a56e892371205db4618f97e091458c0073ac41952a956eb205",
+        "status": "stale",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "status": "present"
+        "sha256": "27f5f0cdd2b94697fd5bea41e8e39bbc5f3463d3a53931eb8abf5002b910075d",
+        "source_hash": "27f5f0cdd2b94697fd5bea41e8e39bbc5f3463d3a53931eb8abf5002b910075d",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
         "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
-        "status": "present"
+        "sha256": "bca39fdc9484e13668b49c73a89db6f0e90ac73d976d8c125d5e49a80591d447",
+        "source_hash": "bca39fdc9484e13668b49c73a89db6f0e90ac73d976d8c125d5e49a80591d447",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
         "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "status": "present"
+        "sha256": "a20c5dd83c2a4ab1b072d6f61a472e55a675a8be48212b1bf108621e052f6e69",
+        "source_hash": "a20c5dd83c2a4ab1b072d6f61a472e55a675a8be48212b1bf108621e052f6e69",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "generated report input is not usable: status=blocked",
         "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
-        "status": "present"
+        "sha256": "b3e54024c30f3b3a31a5800714e6b65658ec01f5610a39560b5d925e5fccf07b",
+        "source_hash": "b3e54024c30f3b3a31a5800714e6b65658ec01f5610a39560b5d925e5fccf07b",
+        "status": "blocked",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
-        "status": "present"
+        "sha256": "88c93af067aff9d0039f0fdb70588e0b760ba950e249375081b65ef346d318b2",
+        "source_hash": "88c93af067aff9d0039f0fdb70588e0b760ba950e249375081b65ef346d318b2",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
-        "status": "present"
+        "sha256": "5bc32041708470287a9581441360673a6d1ecbfffa00cdc32eb25fed93aa3cb9",
+        "source_hash": "5bc32041708470287a9581441360673a6d1ecbfffa00cdc32eb25fed93aa3cb9",
+        "status": "stale",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
-        "status": "present"
+        "sha256": "29a64da4865de4f551ffd230b36ce8c8ff8261e43c1d88ecfac1ca8249b9bd43",
+        "source_hash": "29a64da4865de4f551ffd230b36ce8c8ff8261e43c1d88ecfac1ca8249b9bd43",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
         "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
-        "status": "present"
+        "sha256": "34c111cc26bc25e09ed6d820ef127bdd830bd55a76e896ebf7fc6f8cd39cd06e",
+        "source_hash": "34c111cc26bc25e09ed6d820ef127bdd830bd55a76e896ebf7fc6f8cd39cd06e",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
+        "sha256": "b3ac7d2737b2859e60b8a624cd1e5500fffda8052a874d3c47dafdd35d47d07a",
+        "source_hash": "b3ac7d2737b2859e60b8a624cd1e5500fffda8052a874d3c47dafdd35d47d07a",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+      },
+      {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "sha256": "5a46b78e9b0b07805bfa70305a7f2fb7f907511087e8952d7ee18b91f6e9f5bb",
+        "source_hash": "5a46b78e9b0b07805bfa70305a7f2fb7f907511087e8952d7ee18b91f6e9f5bb",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+      },
+      {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "status": "present"
+        "sha256": "cf4fc89931e535da77cd91f57eda28d65fdeb44a3af07c568303a87db7c8867a",
+        "source_hash": "cf4fc89931e535da77cd91f57eda28d65fdeb44a3af07c568303a87db7c8867a",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "status": "present"
+        "sha256": "d1d6c1592ae4287cf93001eb543aa75d99dc4ef267489498737f470fe5f9fa6a",
+        "source_hash": "d1d6c1592ae4287cf93001eb543aa75d99dc4ef267489498737f470fe5f9fa6a",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "status": "present"
+        "sha256": "56f68e0495da29c03f847d077d74a6f79b2608c9624f3217a2f725e28d953644",
+        "source_hash": "56f68e0495da29c03f847d077d74a6f79b2608c9624f3217a2f725e28d953644",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "status": "present"
+        "sha256": "ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c",
+        "source_hash": "ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
+        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "status": "present"
+        "sha256": "36f90db93c8a3a554305350d2a745835c1a9d8773742ef5359192beb364299ea",
+        "source_hash": "36f90db93c8a3a554305350d2a745835c1a9d8773742ef5359192beb364299ea",
+        "status": "present",
+        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
       },
       {
         "notes": "input file available",
         "path": "reports/testing/runtime-validation-snapshot.json",
+        "sha256": "d46979910100376ddf0937db13dcaa6e5c45597aafa545a29d1688b8130b1636",
+        "source_hash": "d46979910100376ddf0937db13dcaa6e5c45597aafa545a29d1688b8130b1636",
         "status": "present"
       }
     ],
     "make_target": "refresh-connector-reports",
-    "missing_inputs": [
-      "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
-      "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json",
-      "reports/testing/generated/cache/runtime-build-cache.generated.json",
-      "reports/testing/generated/cache/runtime-component-cache.generated.json"
-    ],
+    "missing_inputs": [],
     "owner": "manifest",
     "report_key": "report_dependency_graph",
     "schema_version": 1,
     "severity": "important",
     "unknown_inputs": [],
+    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
     "working_tree_dirty": "dirty"
   },
   "nodes": [
@@ -562,6 +699,34 @@
     {
       "category": "manifest",
       "commit_policy": "versioned-generated",
+      "data_kind": "manifest",
+      "data_origin": "manifest",
+      "dependencies": [],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/run-verified-report-run.py",
+      "inputs": [],
+      "key": "verified_run_manifest",
+      "kind": "canonical",
+      "make_target": "verified-report-run",
+      "native_mrts_required": false,
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/verified-run-manifest.generated.json",
+        "reports/testing/generated/manifest/verified-run-manifest.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Verified run manifest with producer, consumer, input, output, and log evidence.",
+      "runtime_required": false,
+      "severity": "critical",
+      "stem": "verified-run-manifest.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
       "data_kind": "dashboard",
       "data_origin": "manifest",
       "dependencies": [],
@@ -590,6 +755,104 @@
     {
       "category": "manifest",
       "commit_policy": "versioned-generated",
+      "data_kind": "analysis",
+      "data_origin": "runtime",
+      "dependencies": [],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/generate-verified-runtime-mismatch-analysis.py",
+      "inputs": [
+        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
+        "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl"
+      ],
+      "key": "verified_runtime_mismatch_analysis",
+      "kind": "canonical",
+      "make_target": "generate-verified-runtime-mismatch-analysis",
+      "native_mrts_required": false,
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Verified runtime mismatch analysis from producer result files.",
+      "runtime_required": true,
+      "severity": "critical",
+      "stem": "verified-runtime-mismatch-analysis.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "analysis",
+      "data_origin": "runtime",
+      "dependencies": [],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-full-matrix-job-completeness.py",
+      "inputs": [
+        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
+        "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl"
+      ],
+      "key": "full_matrix_job_completeness",
+      "kind": "canonical",
+      "make_target": "generate-full-matrix-job-completeness",
+      "native_mrts_required": false,
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
+        "reports/testing/generated/manifest/full-matrix-job-completeness.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Full-matrix job completeness, missing-job, and slow-job evidence.",
+      "runtime_required": true,
+      "severity": "critical",
+      "stem": "full-matrix-job-completeness.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "analysis",
+      "data_origin": "runtime",
+      "dependencies": [
+        "full_matrix_job_completeness",
+        "verified_runtime_mismatch_analysis"
+      ],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-nginx-mrts-http500-cluster-analysis.py",
+      "inputs": [
+        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
+        "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
+        "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
+        "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
+      ],
+      "key": "nginx_mrts_http500_cluster_analysis",
+      "kind": "canonical",
+      "make_target": "generate-nginx-mrts-http500-cluster-analysis",
+      "native_mrts_required": false,
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json",
+        "reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "NGINX with-crs/with-mrts HTTP-500 cluster root-cause analysis.",
+      "runtime_required": true,
+      "severity": "critical",
+      "stem": "nginx-mrts-http500-cluster-analysis.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
       "data_kind": "system-proof",
       "data_origin": "external-local",
       "dependencies": [],
@@ -612,7 +875,7 @@
       "owner": "system",
       "purpose": "System, tool-version, git, and check-execution proof.",
       "runtime_required": false,
-      "severity": "important",
+      "severity": "critical",
       "stem": "system-environment-proof.generated"
     },
     {
@@ -628,7 +891,7 @@
       "full_matrix_required": true,
       "generator": "ci/generate-full-runtime-matrix.py",
       "inputs": [
-        "/tmp/modsec-haproxy-setcookie/full-matrix/full-runtime-matrix-runs.jsonl"
+        "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl"
       ],
       "key": "full_runtime_matrix",
       "kind": "canonical",
@@ -1423,8 +1686,8 @@
       "full_matrix_required": false,
       "generator": "framework:ci/generate-mrts-native-report.py",
       "inputs": [
-        "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
-        "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+        "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
+        "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
       ],
       "key": "mrts_native_full",
       "kind": "optional",
@@ -1454,8 +1717,8 @@
       "full_matrix_required": false,
       "generator": "framework:ci/generate-mrts-native-report.py",
       "inputs": [
-        "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
-        "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+        "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
+        "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
       ],
       "key": "mrts_native_apache",
       "kind": "optional",
@@ -1485,8 +1748,8 @@
       "full_matrix_required": false,
       "generator": "framework:ci/generate-mrts-native-report.py",
       "inputs": [
-        "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
-        "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+        "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
+        "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
       ],
       "key": "mrts_native_nginx",
       "kind": "optional",
@@ -1516,8 +1779,8 @@
       "full_matrix_required": false,
       "generator": "framework:ci/generate-mrts-native-report.py",
       "inputs": [
-        "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
-        "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json"
+        "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
+        "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json"
       ],
       "key": "mrts_native_summary",
       "kind": "optional",
@@ -1602,9 +1865,10 @@
     }
   ],
   "root_inputs": [
-    "/root/.local/state/ModSecurity-conector-build/mrts-native/apache2_ubuntu/job.json",
-    "/root/.local/state/ModSecurity-conector-build/mrts-native/nginx-pr24/job.json",
-    "/tmp/modsec-haproxy-setcookie/full-matrix/full-runtime-matrix-runs.jsonl",
+    "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
+    "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
+    "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
+    "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
     "config/testing/import-status.json",
     "reports/testing/generated/cache/runtime-build-cache.generated.json",
     "reports/testing/generated/cache/runtime-component-cache.generated.json",
