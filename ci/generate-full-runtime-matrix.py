@@ -11,13 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, report_relpath
+from runtime_path_utils import verified_runtime_paths
 
 
 CONNECTORS = ("apache", "nginx", "haproxy")
 TEST_VARIANTS = ("no-crs", "with-crs")
 MRTS_VARIANTS = ("no-mrts", "with-mrts")
-DEFAULT_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_STATE_HOME / "ModSecurity-conector-build"))).resolve()
+DEFAULT_PATHS = verified_runtime_paths(os.environ)
+DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", DEFAULT_PATHS["BUILD_ROOT"])).resolve()
 MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(DEFAULT_BUILD_ROOT / "mrts"))).resolve()
 MRTS_UPSTREAM_CASE_MARKER = "/upstream-config-tests/framework-cases/"
 MRTS_FEATURE_DEMO_CASE_MARKER = "/feature-demo/framework-cases/"

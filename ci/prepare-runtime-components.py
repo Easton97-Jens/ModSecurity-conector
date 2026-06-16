@@ -592,7 +592,9 @@ def resolve_nginx_archive(env: dict[str, str], latest_cache_path: Path | None = 
 
 
 def default_state_home() -> Path:
-    return Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
+    from runtime_path_utils import verified_runtime_paths
+
+    return Path(verified_runtime_paths(os.environ)["VERIFIED_STATE_ROOT"])
 
 
 def executable(path: Path) -> bool:

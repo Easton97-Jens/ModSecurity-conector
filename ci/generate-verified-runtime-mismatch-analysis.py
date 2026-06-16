@@ -8,7 +8,7 @@ import os
 import stat
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,10 @@ from generated_report_utils import (
     generated_json_text,
     generated_markdown_text,
     report_path,
+    sha256_file,
+    utc_now,
 )
+from runtime_path_utils import verified_runtime_paths
 
 
 CRITICAL_CATEGORIES = {
@@ -34,21 +37,9 @@ CRITICAL_CATEGORIES = {
 }
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
 def progress(message: str) -> None:
     if os.environ.get("DEBUG_MISMATCH_GENERATOR"):
         print(f"[mismatch-analysis] {message}", file=sys.stderr, flush=True)
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def is_regular_file(path: Path) -> bool:
@@ -590,8 +581,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    default_state_home = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-    build_root = Path(args.build_root or default_state_home / "ModSecurity-conector-build").resolve()
+    default_paths = verified_runtime_paths(os.environ)
+    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     verified_run_id = args.verified_run_id or current_verified_run_id(connector_root)
     os.environ["VERIFIED_RUN_ID"] = verified_run_id
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated/manifest"

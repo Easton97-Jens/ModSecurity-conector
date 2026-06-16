@@ -1,10 +1,19 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 FRAMEWORK_PYTHON := $(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON))
-STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
-SOURCE_ROOT ?= $(STATE_HOME)/ModSecurity-conector-src
-BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
-TMP_ROOT ?= $(BUILD_ROOT)/tmp
-LOG_ROOT ?= $(BUILD_ROOT)/logs
+VERIFIED_RUN_PARENT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),/var/tmp))
+VERIFIED_RUN_ROOT ?= $(VERIFIED_RUN_PARENT)/ModSecurity-conector-verified
+VERIFIED_STATE_ROOT ?= $(VERIFIED_RUN_ROOT)/state
+VERIFIED_BUILD_ROOT ?= $(VERIFIED_RUN_ROOT)/build
+VERIFIED_SOURCE_ROOT ?= $(VERIFIED_RUN_ROOT)/src
+VERIFIED_TMP_ROOT ?= $(VERIFIED_RUN_ROOT)/tmp
+VERIFIED_LOG_ROOT ?= $(VERIFIED_RUN_ROOT)/logs
+VERIFIED_COMPONENT_CACHE ?= $(VERIFIED_RUN_ROOT)/component-cache
+STATE_HOME ?= $(VERIFIED_STATE_ROOT)
+SOURCE_ROOT ?= $(VERIFIED_SOURCE_ROOT)
+BUILD_ROOT ?= $(VERIFIED_BUILD_ROOT)
+TMP_ROOT ?= $(VERIFIED_TMP_ROOT)
+LOG_ROOT ?= $(VERIFIED_LOG_ROOT)
+MATRIX_ROOT ?= $(BUILD_ROOT)/full-matrix
 FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
 CONNECTOR_ROOT := $(CURDIR)
 REQUESTED_VERIFIED_RUN_ID := $(VERIFIED_RUN_ID)
@@ -12,8 +21,8 @@ DEFAULT_VERIFIED_RUN_ID := $(shell date -u +%Y-%m-%dT%H-%M-%SZ)-$(shell git rev-
 EXISTING_VERIFIED_RUN_ID := $(shell "$(PYTHON)" -c 'import json,pathlib; p=pathlib.Path("reports/testing/generated/manifest/verified-run-manifest.generated.json"); d=json.loads(p.read_text()) if p.is_file() else {}; print(d.get("verified_run_id") or d.get("metadata", {}).get("verified_run_id") or "")' 2>/dev/null)
 VERIFIED_RUN_ID := $(if $(REQUESTED_VERIFIED_RUN_ID),$(REQUESTED_VERIFIED_RUN_ID),$(if $(EXISTING_VERIFIED_RUN_ID),$(EXISTING_VERIFIED_RUN_ID),$(DEFAULT_VERIFIED_RUN_ID)))
 FRESH_VERIFIED_RUN_ID := $(if $(REQUESTED_VERIFIED_RUN_ID),$(REQUESTED_VERIFIED_RUN_ID),$(DEFAULT_VERIFIED_RUN_ID))
-CONNECTOR_COMPONENT_CACHE ?= $(BUILD_ROOT)/component-cache
-NGINX_HARNESS_PARENT ?= $(TMP_ROOT)/nginx-harness
+CONNECTOR_COMPONENT_CACHE ?= $(VERIFIED_COMPONENT_CACHE)
+NGINX_HARNESS_PARENT ?= $(VERIFIED_RUN_ROOT)/nginx-harness
 MRTS_BUILD_ROOT ?= $(BUILD_ROOT)/mrts
 MRTS_NATIVE_ROOT ?= $(BUILD_ROOT)/mrts-native
 MRTS_NATIVE_TARGETS ?= apache2_ubuntu nginx-pr24
@@ -38,6 +47,14 @@ export BUILD_ROOT
 export SOURCE_ROOT
 export TMP_ROOT
 export LOG_ROOT
+export MATRIX_ROOT
+export VERIFIED_RUN_ROOT
+export VERIFIED_STATE_ROOT
+export VERIFIED_BUILD_ROOT
+export VERIFIED_SOURCE_ROOT
+export VERIFIED_TMP_ROOT
+export VERIFIED_LOG_ROOT
+export VERIFIED_COMPONENT_CACHE
 export VERIFIED_RUN_ID
 export VERIFIED_RUN_RUNTIME_MATRIX_TIMEOUT_SECONDS
 export VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS

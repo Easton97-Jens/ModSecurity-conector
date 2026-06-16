@@ -12,6 +12,7 @@ and generated reports grow.
 | --- | --- |
 | `architecture/` | Common C-first model, adapter boundaries, status/capability models, and refactor plans |
 | `connectors/` | Apache/NGINX directive/rule-load docs and future connector planning |
+| `testing/` | Verified-run runtime environment, worker-access preflights, and generated-report workflow notes |
 | `roadmap/` | Current connector roadmap |
 | `licensing/` | License and origin policy for imported connector sources |
 | `../reports/testing/` | Connector-owned generated evidence, real-world validation notes, case matrix, and PR/source evidence |
@@ -37,6 +38,7 @@ locations.
 - Status model: `architecture/status-model.md`
 - Real connector proof mode: `../reports/testing/real-world-connector-validation.md`
 - Testing report index: `../reports/testing/README.md`
+- Verified run environment: `testing/verified-run-environment.md`
 - Merge readiness: `../reports/testing/generated/canonical/final-consistency-audit.generated.md`
 - Current compatibility evidence: `../reports/testing/test-coverage-overview.md`
 - Case matrix: `../reports/testing/case-matrix.md` and

@@ -315,8 +315,9 @@ $BUILD_ROOT/results/with-crs/with-mrts
 Source-build variables remain configurable:
 
 ```sh
-BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build
-SOURCE_ROOT=$BUILD_ROOT/sources
+VERIFIED_RUN_ROOT=/var/tmp/ModSecurity-conector-verified
+BUILD_ROOT=$VERIFIED_RUN_ROOT/build
+SOURCE_ROOT=$VERIFIED_RUN_ROOT/src
 MODSECURITY_GIT_REF=v3/master
 MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
 ```
@@ -324,6 +325,13 @@ MODSECURITY_SOURCE_DIR=$SOURCE_ROOT/ModSecurity_V3
 `BUILD_ROOT` is a local build/output location, not a cache contract. Full
 runtime validation is local and evidence-based; `make smoke-all` is
 authoritative only when it is actually executed successfully.
+
+Verified-run and report-refresh workflows default to
+`${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified`, with
+`NGINX_HARNESS_PARENT` below that root so worker processes can traverse the
+generated docroot. See
+[Verified Run Environment](./docs/testing/verified-run-environment.md) for the
+runtime path contract, NGINX docroot preflight, and generated artifact rules.
 
 ## Framework Module Integration
 

@@ -20,6 +20,7 @@ from generated_report_utils import (
     report_path_from_root,
 )
 from report_path_safety import add_safe_roots, write_text_file
+from runtime_path_utils import verified_runtime_paths
 
 
 JOB_ID = "nginx:with-crs:with-mrts"
@@ -452,14 +453,14 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path, 
             "status_counts": dict(Counter(str(row.get("status")) for row in rows)),
         },
         "root_cause": {
-            "likely_cause": "NGINX worker cannot traverse /root-owned BUILD_ROOT parent; generated docroot is inaccessible, and try_files /index.html loops into HTTP 500.",
+            "likely_cause": "Historical evidence: NGINX worker could not traverse /root-owned runtime parents, generated docroot was inaccessible, and try_files /index.html looped into HTTP 500. New runs should block in the worker-docroot preflight before this becomes runtime mismatch evidence.",
             "classification": "harness_environment_error",
             "secondary_classification": "nginx_config_error",
             "confidence": "high",
             "evidence": [
                 f"{rewrite_count} HTTP-500 rows have {ERROR_REWRITE_CYCLE!r}.",
                 f"{permission_case_count} HTTP-500 rows have htdocs/index.html Permission denied in final-run error logs.",
-                "namei shows /root is 0700 while NGINX worker user is nobody; generated files below it are otherwise readable.",
+                "Historical namei evidence shows /root is 0700 while NGINX worker user is nobody; generated files below it are otherwise readable.",
                 "No segfault/core/module-load error pattern was observed in the final-run cluster.",
             ],
         },
@@ -491,10 +492,10 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path, 
         ],
         "fix_plan": [
             {
-                "fix": "Move verified NGINX Full-Matrix harness roots out from under /root or avoid overriding NGINX_HARNESS_WORK_ROOT with BUILD_ROOT/tmp.",
+                "fix": "Keep verified NGINX Full-Matrix harness roots under VERIFIED_RUN_ROOT/NGINX_HARNESS_PARENT outside /root.",
                 "path": "ci/run-full-matrix-parallel.sh / Makefile NGINX_HARNESS_PARENT",
                 "risk": "medium",
-                "expected_effect": "Eliminates docroot Permission denied and the 510-case /index.html redirect-cycle 500 cluster.",
+                "expected_effect": "Eliminates docroot Permission denied or reports it as a BLOCKED preflight before the 500 cluster can form.",
                 "needs_new_verified_run": True,
             },
             {
@@ -645,7 +646,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    build_root = Path(args.build_root or Path.home() / ".local/state/ModSecurity-conector-build").resolve()
+    default_paths = verified_runtime_paths(os.environ)
+    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / GENERATED_ROOT
     report_root = output_dir.parent if output_dir.name == "manifest" else output_dir
     add_safe_roots(report_root, output_dir)

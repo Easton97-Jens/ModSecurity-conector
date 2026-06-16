@@ -685,7 +685,7 @@ def post_libcrypt_native_markdown(summary: dict[str, Any]) -> str:
         POST_LIBCRYPT_MARKER_START,
         "## Post-libcrypt Native Rerun",
         "- Scope: requested native rerun after external `libcrypt-dev` availability; the earlier full-matrix sections in this file remain historical evidence from their original generation time.",
-        "- Command: `BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build SOURCE_ROOT=$HOME/.local/state/ModSecurity-conector-src CONNECTOR_COMPONENT_CACHE=$HOME/.local/state/ModSecurity-conector-build/component-cache MRTS_NATIVE_TARGETS=\"apache2_ubuntu nginx-pr24\" PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run`",
+        "- Command: `VERIFIED_RUN_ROOT=/var/tmp/ModSecurity-conector-verified MRTS_NATIVE_TARGETS=\"apache2_ubuntu nginx-pr24\" PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run`",
         f"- BUILD_ROOT: `{summary.get('build_root', '-')}`",
         f"- Apache wrapper: `{summary.get('apachectl_bin', '-')}`",
         f"- Apache module: `{summary.get('apache_module', '-')}`",

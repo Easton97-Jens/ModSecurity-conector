@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from collections import Counter
 from datetime import datetime, timezone
@@ -17,23 +16,14 @@ from generated_report_utils import (
     generated_markdown_text,
     git_sha,
     report_path,
+    sha256_file,
+    utc_now,
 )
+from runtime_path_utils import verified_runtime_paths
 
 
 CONNECTORS = ("apache", "nginx", "haproxy")
 VARIANTS = (("no-crs", "no-mrts"), ("no-crs", "with-mrts"), ("with-crs", "no-mrts"), ("with-crs", "with-mrts"))
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def file_record(path: Path, label: str) -> dict[str, Any]:
@@ -425,7 +415,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    build_root = Path(args.build_root or Path.home() / ".local/state/ModSecurity-conector-build").resolve()
+    default_paths = verified_runtime_paths()
+    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated/manifest"
     matrix_root = build_root / "full-matrix"
     manifest_path = matrix_root / "full-runtime-matrix-runs.jsonl"

@@ -1,13 +1,13 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T07:22:12Z`
+> Generated at: `2026-06-16T16:22:44Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
+> Connector SHA: `efac6d66d0e165af8d6e1b5404083d5f50601327`
 > Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
 > Input status: `unknown`
 

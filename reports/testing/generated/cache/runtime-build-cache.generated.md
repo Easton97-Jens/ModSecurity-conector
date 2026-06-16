@@ -1,13 +1,13 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T07:22:12Z`
+> Generated at: `2026-06-16T16:22:44Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/prepare-runtime-components.py`
 > Make target: `prepare-runtime-components`
 > Owner: `cache`
 > Severity: `cache`
-> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
+> Connector SHA: `efac6d66d0e165af8d6e1b5404083d5f50601327`
 > Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
 > Input status: `blocked`
 
@@ -31,8 +31,8 @@ _No rows available. Reason: producer command was not run or verified input is un
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/cache/runtime-component-cache.generated.json` | `bd0637c74748651a55bf6916366af37ef2bb9c364ed07c5f2cfa848d538c46a6` | `2026-06-15T21-01-39Z-9391a8d0` | blocked |
-| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `a3aec7f6881f1a8cffec1e0dd59771fa60c0d70ce1e9f0676be7789ff4a811a5` | `2026-06-15T21-01-39Z-9391a8d0` | blocked |
+| Declared input | `reports/testing/generated/cache/runtime-component-cache.generated.json` | `66036d9685b85b9c3b33dc0ea98bfb11949af2ab20a405fc78cf01186a420738` | `2026-06-15T21-01-39Z-9391a8d0` | blocked |
+| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `1a1153884a8b455e7776c4e34a791a3720aefde40c81cfaaf328eb556d4b7d70` | `2026-06-15T21-01-39Z-9391a8d0` | blocked |
 
 ## Data Availability / Missing Information
 

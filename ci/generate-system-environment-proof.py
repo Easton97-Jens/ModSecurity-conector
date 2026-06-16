@@ -29,8 +29,16 @@ from generated_report_utils import (
     generated_markdown_text,
     report_path,
 )
+from runtime_path_utils import verified_runtime_paths
 
 FRAMEWORK_ENVIRONMENT_VARS = (
+    "VERIFIED_RUN_ROOT",
+    "VERIFIED_STATE_ROOT",
+    "VERIFIED_BUILD_ROOT",
+    "VERIFIED_SOURCE_ROOT",
+    "VERIFIED_TMP_ROOT",
+    "VERIFIED_LOG_ROOT",
+    "VERIFIED_COMPONENT_CACHE",
     "BUILD_ROOT",
     "SOURCE_ROOT",
     "TMP_ROOT",
@@ -156,6 +164,8 @@ def load_framework_environment(connector_root: Path, framework_root: Path) -> di
     base_env = os.environ.copy()
     base_env["CONNECTOR_ROOT"] = str(connector_root)
     base_env["FRAMEWORK_ROOT"] = str(framework_root)
+    for key, value in verified_runtime_paths(base_env).items():
+        base_env.setdefault(key, value)
     if not common_sh.is_file():
         return {
             "framework_root": str(framework_root),
@@ -1210,16 +1220,17 @@ def verified_producer_readiness(
     framework_env: dict[str, Any],
 ) -> list[dict[str, Any]]:
     variables = framework_env.get("variables", {})
+    defaults = verified_runtime_paths(os.environ)
     commands = read_verified_commands()
     runtime_paths = {
-        "BUILD_ROOT": variables.get("BUILD_ROOT") or os.environ.get("BUILD_ROOT") or "$HOME/.local/state/ModSecurity-conector-build",
-        "SOURCE_ROOT": variables.get("SOURCE_ROOT") or os.environ.get("SOURCE_ROOT") or "$HOME/.local/state/ModSecurity-conector-src",
-        "TMP_ROOT": variables.get("TMP_ROOT") or os.environ.get("TMP_ROOT") or "$BUILD_ROOT/tmp",
-        "LOG_ROOT": variables.get("LOG_ROOT") or os.environ.get("LOG_ROOT") or "$BUILD_ROOT/logs",
-        "CONNECTOR_COMPONENT_CACHE": variables.get("CONNECTOR_COMPONENT_CACHE") or os.environ.get("CONNECTOR_COMPONENT_CACHE") or "$BUILD_ROOT/component-cache",
-        "NGINX_HARNESS_PARENT": variables.get("NGINX_HARNESS_PARENT") or os.environ.get("NGINX_HARNESS_PARENT") or "$TMP_ROOT/nginx-harness",
-        "MATRIX_ROOT": variables.get("MATRIX_ROOT") or os.environ.get("MATRIX_ROOT") or "$BUILD_ROOT/full-matrix",
-        "MRTS_NATIVE_ROOT": variables.get("MRTS_NATIVE_ROOT") or os.environ.get("MRTS_NATIVE_ROOT") or "$BUILD_ROOT/mrts-native",
+        "BUILD_ROOT": variables.get("BUILD_ROOT") or os.environ.get("BUILD_ROOT") or defaults["BUILD_ROOT"],
+        "SOURCE_ROOT": variables.get("SOURCE_ROOT") or os.environ.get("SOURCE_ROOT") or defaults["SOURCE_ROOT"],
+        "TMP_ROOT": variables.get("TMP_ROOT") or os.environ.get("TMP_ROOT") or defaults["TMP_ROOT"],
+        "LOG_ROOT": variables.get("LOG_ROOT") or os.environ.get("LOG_ROOT") or defaults["LOG_ROOT"],
+        "CONNECTOR_COMPONENT_CACHE": variables.get("CONNECTOR_COMPONENT_CACHE") or os.environ.get("CONNECTOR_COMPONENT_CACHE") or defaults["CONNECTOR_COMPONENT_CACHE"],
+        "NGINX_HARNESS_PARENT": variables.get("NGINX_HARNESS_PARENT") or os.environ.get("NGINX_HARNESS_PARENT") or defaults["NGINX_HARNESS_PARENT"],
+        "MATRIX_ROOT": variables.get("MATRIX_ROOT") or os.environ.get("MATRIX_ROOT") or defaults["MATRIX_ROOT"],
+        "MRTS_NATIVE_ROOT": variables.get("MRTS_NATIVE_ROOT") or os.environ.get("MRTS_NATIVE_ROOT") or defaults["MRTS_NATIVE_ROOT"],
     }
     native_missing = tool_missing(
         tools,
@@ -1243,7 +1254,7 @@ def verified_producer_readiness(
                 for key, value in runtime_paths.items()
                 if key in {"BUILD_ROOT", "SOURCE_ROOT", "CONNECTOR_COMPONENT_CACHE"}
             ],
-            "how_to_fix": "ensure BUILD_ROOT, SOURCE_ROOT, TMP_ROOT, LOG_ROOT and CONNECTOR_COMPONENT_CACHE are under $HOME/.local/state, then run make prepare-runtime-components",
+            "how_to_fix": "ensure VERIFIED_RUN_ROOT points outside /root and rerun make prepare-runtime-components",
         },
         {
             "producer": "runtime-matrix-all",

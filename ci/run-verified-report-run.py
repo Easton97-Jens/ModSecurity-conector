@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import signal
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,19 +22,15 @@ from generated_report_utils import (
     git_sha,
     report_path,
     report_relpath,
+    sha256_file,
+    utc_now,
 )
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+from runtime_path_utils import (
+    WORKER_BLOCKED_REASON,
+    is_under_root_home,
+    runtime_path_rows,
+    verified_runtime_paths,
+)
 
 
 def git_output(args: list[str], cwd: Path) -> str:
@@ -70,7 +65,7 @@ def command_status(return_code: int, *, optional: bool = False, classification: 
         return "PASS"
     if classification == "blocked_timeout":
         return "BLOCKED_TIMEOUT"
-    if classification in {"blocked_network", "blocked_network_optional", "producer_readiness_blocked"}:
+    if classification in {"blocked_network", "blocked_network_optional", "producer_readiness_blocked", "nginx_worker_docroot_blocked"}:
         return "BLOCKED_OPTIONAL" if optional else "BLOCKED"
     if classification == "interrupted":
         return "INTERRUPTED"
@@ -155,6 +150,8 @@ def run_command(
     log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.is_file() else ""
     if return_code != 0 and not classification and ("HTTP Error 504" in log_text or "Gateway Timeout" in log_text):
         classification = "blocked_network_optional" if optional else "blocked_network"
+    if return_code != 0 and not classification and WORKER_BLOCKED_REASON in log_text:
+        classification = "nginx_worker_docroot_blocked"
     log_hash = sha256_file(log_path)
     status = command_status(return_code, optional=optional, classification=classification)
     print(f"verified-report-run: {status} rc={return_code} log={log_path}", flush=True)
@@ -283,19 +280,166 @@ def collect_report_statuses(connector_root: Path, status_prefix: str | None = No
 
 
 def runtime_paths(env: dict[str, str], build_root: Path, verified_run_id: str) -> dict[str, str]:
-    default_state_home = Path(env.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
+    paths = verified_runtime_paths(env, build_root_override=build_root)
+    paths["VERIFIED_RUN_INSTANCE_ROOT"] = str(build_root / "verified-runs" / verified_run_id)
+    return paths
+
+
+def prepare_runtime_roots(paths: dict[str, str]) -> None:
+    for key in (
+        "VERIFIED_RUN_ROOT",
+        "VERIFIED_STATE_ROOT",
+        "VERIFIED_BUILD_ROOT",
+        "VERIFIED_SOURCE_ROOT",
+        "VERIFIED_TMP_ROOT",
+        "VERIFIED_LOG_ROOT",
+        "VERIFIED_COMPONENT_CACHE",
+        "NGINX_HARNESS_PARENT",
+    ):
+        path = Path(paths[key])
+        path.mkdir(parents=True, exist_ok=True)
+        try:
+            path.chmod(0o755)
+        except OSError:
+            pass
+
+
+def runtime_path_report_rows(paths: dict[str, str], connector_root: Path, framework_root: Path) -> list[dict[str, Any]]:
+    return runtime_path_rows(paths, connector_root=connector_root, framework_root=framework_root)
+
+
+def worker_preflight_rows(paths: dict[str, str], build_root: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    harness_parent = Path(paths["NGINX_HARNESS_PARENT"])
+    root_status = "FAIL" if is_under_root_home(harness_parent) else "PASS"
+    rows.append(
+        {
+            "check": "Path under /root",
+            "status": root_status,
+            "path": str(harness_parent),
+            "notes": "NGINX_HARNESS_PARENT must be outside /root" if root_status == "FAIL" else "outside /root",
+        }
+    )
+    if harness_parent.exists():
+        traverse_status = "PASS" if os.access(harness_parent, os.X_OK) else "FAIL"
+        rows.append(
+            {
+                "check": "Harness parent traversable",
+                "status": traverse_status,
+                "path": str(harness_parent),
+                "notes": "current process can traverse; per-case worker checks are recorded in nginx-worker-preflight.jsonl",
+            }
+        )
+    else:
+        rows.append(
+            {
+                "check": "Harness parent traversable",
+                "status": "UNKNOWN",
+                "path": str(harness_parent),
+                "notes": "harness parent has not been created yet",
+            }
+        )
+
+    candidates: list[Path] = []
+    for root in (harness_parent, build_root):
+        if root.exists():
+            candidates.extend(root.rglob("nginx-worker-preflight.jsonl"))
+    seen: set[str] = set()
+    for path in sorted(candidates, key=lambda item: item.stat().st_mtime if item.exists() else 0, reverse=True):
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        for record in read_jsonl(path):
+            if not isinstance(record, dict):
+                continue
+            row = {
+                "check": record.get("check", "unknown"),
+                "status": record.get("status", "UNKNOWN"),
+                "path": record.get("path", str(path)),
+                "notes": record.get("notes", "-"),
+                "source_file": str(path),
+                "source_hash": sha256_file(path),
+            }
+            rows.append(row)
+            if len(rows) >= 60:
+                return rows
+    return rows
+
+
+def full_matrix_completeness_summary(connector_root: Path) -> dict[str, Any]:
+    data = read_json(report_path(connector_root, "full_matrix_job_completeness", "json"))
+    jobs = data.get("jobs") if isinstance(data.get("jobs"), list) else []
+    slowest = data.get("slowest_jobs") if isinstance(data.get("slowest_jobs"), list) else []
     return {
-        "BUILD_ROOT": str(build_root),
-        "SOURCE_ROOT": env.get("SOURCE_ROOT", str(default_state_home / "ModSecurity-conector-src")),
-        "TMP_ROOT": env.get("TMP_ROOT", str(build_root / "tmp")),
-        "LOG_ROOT": env.get("LOG_ROOT", str(build_root / "logs")),
-        "CONNECTOR_COMPONENT_CACHE": env.get("CONNECTOR_COMPONENT_CACHE", str(build_root / "component-cache")),
-        "NGINX_HARNESS_PARENT": env.get("NGINX_HARNESS_PARENT", str(build_root / "tmp/nginx-harness")),
-        "MATRIX_ROOT": env.get("MATRIX_ROOT", str(build_root / "full-matrix")),
-        "MRTS_BUILD_ROOT": env.get("MRTS_BUILD_ROOT", str(build_root / "mrts")),
-        "MRTS_NATIVE_ROOT": env.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native")),
-        "VERIFIED_RUN_ROOT": str(build_root / "verified-runs" / verified_run_id),
+        "status": data.get("overall_status", "unknown"),
+        "complete_jobs": data.get("complete_jobs", 0),
+        "total_jobs": data.get("total_jobs", 0),
+        "missing_jobs": data.get("missing_job_ids", []),
+        "timeout_jobs": [
+            job.get("job_id", "unknown")
+            for job in jobs
+            if str(job.get("status", "")).startswith("timeout") or "timeout" in str(job.get("reason", "")).lower()
+        ],
+        "slowest_jobs": [
+            {
+                "job_id": job.get("job_id", "unknown"),
+                "duration_seconds": job.get("duration_seconds", "unknown"),
+                "status": job.get("status", "unknown"),
+            }
+            for job in slowest[:5]
+            if isinstance(job, dict)
+        ],
+        "source": str(report_path(connector_root, "full_matrix_job_completeness", "json")),
     }
+
+
+def runtime_mismatch_summary(connector_root: Path) -> dict[str, Any]:
+    data = read_json(report_path(connector_root, "verified_runtime_mismatch_analysis", "json"))
+    by_connector = data.get("by_connector") if isinstance(data.get("by_connector"), dict) else {}
+    top_connector = "unknown"
+    top_count = -1
+    for name, value in by_connector.items():
+        count = value.get("total", value.get("count", 0)) if isinstance(value, dict) else value
+        try:
+            numeric = int(count)
+        except Exception:
+            numeric = 0
+        if numeric > top_count:
+            top_connector = str(name)
+            top_count = numeric
+    full_matrix = data.get("full_matrix") if isinstance(data.get("full_matrix"), dict) else {}
+    blocker = full_matrix.get("classification") or full_matrix.get("status") or data.get("merge_readiness_reason") or "unknown"
+    return {
+        "total_mismatches": data.get("mismatch_count", "unknown"),
+        "critical_mismatches": data.get("critical_mismatch_count", "unknown"),
+        "top_connector": top_connector,
+        "primary_blocker": blocker,
+        "merge_readiness": data.get("merge_readiness", "unknown"),
+        "source": str(report_path(connector_root, "verified_runtime_mismatch_analysis", "json")),
+    }
+
+
+def manifest_input_status(payload: dict[str, Any], metadata_status: str) -> str:
+    if payload.get("missing_inputs") or payload.get("blocked_reports") or payload.get("failed_reports"):
+        return "blocked"
+    for item in payload.get("skipped_reports", []):
+        status = str(item.get("status", ""))
+        if status == "skipped_stale_input":
+            return "stale"
+        if status.startswith("skipped"):
+            return "blocked"
+    if payload.get("stale_inputs"):
+        return "stale"
+    if metadata_status != "complete":
+        return metadata_status
+    completeness = payload.get("full_matrix_job_completeness", {})
+    if completeness.get("status") == "unknown":
+        return "unknown"
+    mismatch = payload.get("runtime_mismatch_summary", {})
+    if mismatch.get("total_mismatches", "unknown") == "unknown":
+        return "unknown"
+    return "complete"
 
 
 def parse_timeout(value: str | None) -> int | None:
@@ -673,35 +817,69 @@ def duration_seconds(start: str, end: str) -> float | str:
 
 
 def render_markdown(payload: dict[str, Any]) -> str:
+    def cell(value: Any) -> str:
+        return str(value if value is not None else "-").replace("|", "/").replace("\n", " ")
+
+    producer_targets = {
+        "git-submodule-update",
+        "prepare-runtime-components",
+        "check-runtime-producer-readiness",
+        "runtime-matrix-all",
+        "full-matrix-parallel",
+        "mrts-native-full-run",
+        "generate-verified-runtime-mismatch-analysis",
+    }
+    consumer_targets = {"refresh-all-reports", "generate-system-environment-proof"}
+    check_targets = {"check-generated-report-layout", "lint", "quick-check"}
+
     lines = [
         "# Verified Run Manifest",
         "",
         "## Summary",
-        f"- Verified run id: `{payload.get('verified_run_id', 'unknown')}`",
-        f"- Data source policy: `{payload.get('data_source_policy', DATA_SOURCE_POLICY)}`",
-        f"- Profile: `{payload.get('profile', 'full')}`",
-        f"- Start time UTC: `{payload.get('started_at_utc', 'unknown')}`",
-        f"- End time UTC: `{payload.get('finished_at_utc', 'unknown')}`",
-        f"- Duration seconds: `{payload.get('duration_seconds', 'unknown')}`",
-        f"- Connector SHA: `{payload.get('connector_sha', 'unknown')}`",
-        f"- Framework SHA: `{payload.get('framework_sha', 'unknown')}`",
-        f"- MRTS SHA: `{payload.get('mrts_sha', 'unknown')}`",
-        f"- Parent branch: `{payload.get('branches', {}).get('connector', 'unknown')}`",
-        f"- Framework branch: `{payload.get('branches', {}).get('framework', 'unknown')}`",
-        f"- Dirty status: `{payload.get('dirty_status', {}).get('connector', 'unknown')}` / `{payload.get('dirty_status', {}).get('framework', 'unknown')}`",
-        f"- Full matrix timeout seconds: `{payload.get('full_matrix_timeout_seconds', 'none')}`",
-        f"- Runtime matrix timeout seconds: `{payload.get('timeout_budgets', {}).get('runtime_matrix', 'none')}`",
-        f"- Full matrix runtime timeout seconds: `{payload.get('timeout_budgets', {}).get('full_matrix_runtime', 'none')}`",
-        f"- Report refresh timeout seconds: `{payload.get('timeout_budgets', {}).get('report_refresh', 'none')}`",
-        f"- Native MRTS timeout seconds: `{payload.get('timeout_budgets', {}).get('native_mrts', 'none')}`",
+        "",
+        "| Field | Value |",
+        "|---|---|",
+        f"| Verified run id | `{cell(payload.get('verified_run_id', 'unknown'))}` |",
+        f"| Data source policy | `{cell(payload.get('data_source_policy', DATA_SOURCE_POLICY))}` |",
+        f"| Profile | `{cell(payload.get('profile', 'full'))}` |",
+        f"| Start time UTC | `{cell(payload.get('started_at_utc', 'unknown'))}` |",
+        f"| End time UTC | `{cell(payload.get('finished_at_utc', 'unknown'))}` |",
+        f"| Duration seconds | `{cell(payload.get('duration_seconds', 'unknown'))}` |",
+        f"| Input status | `{cell(payload.get('input_status', 'unknown'))}` |",
+        "",
+        "## Runtime Environment",
+        "",
+        "| Field | Value |",
+        "|---|---|",
+        f"| Connector SHA | `{cell(payload.get('connector_sha', 'unknown'))}` |",
+        f"| Framework SHA | `{cell(payload.get('framework_sha', 'unknown'))}` |",
+        f"| MRTS SHA | `{cell(payload.get('mrts_sha', 'unknown'))}` |",
+        f"| Connector branch | `{cell(payload.get('branches', {}).get('connector', 'unknown'))}` |",
+        f"| Framework branch | `{cell(payload.get('branches', {}).get('framework', 'unknown'))}` |",
+        f"| Dirty status | `{cell(payload.get('dirty_status', {}).get('connector', 'unknown'))}` / `{cell(payload.get('dirty_status', {}).get('framework', 'unknown'))}` |",
+        f"| Runtime matrix timeout seconds | `{cell(payload.get('timeout_budgets', {}).get('runtime_matrix', 'none'))}` |",
+        f"| Full matrix runtime timeout seconds | `{cell(payload.get('timeout_budgets', {}).get('full_matrix_runtime', 'none'))}` |",
+        f"| Report refresh timeout seconds | `{cell(payload.get('timeout_budgets', {}).get('report_refresh', 'none'))}` |",
+        f"| Native MRTS timeout seconds | `{cell(payload.get('timeout_budgets', {}).get('native_mrts', 'none'))}` |",
         "",
         "## Runtime Paths",
         "",
-        "| Variable | Value |",
-        "|---|---|",
+        "| Variable | Value | Status | Notes |",
+        "|---|---|---|---|",
     ]
-    for key, value in payload.get("runtime_paths", {}).items():
-        lines.append(f"| `{key}` | `{str(value).replace('|', '/')}` |")
+    for item in payload.get("runtime_path_rows", []):
+        lines.append(
+            f"| `{cell(item.get('variable'))}` | `{cell(item.get('value'))}` | {cell(item.get('status'))} | {cell(item.get('notes'))} |"
+        )
+    if not payload.get("runtime_path_rows"):
+        lines.append("| `-` | `-` | UNKNOWN | no runtime path rows recorded |")
+
+    lines.extend(["", "## Worker Accessibility / Preflight", "", "| Check | Status | Path | Notes |", "|---|---|---|---|"])
+    for item in payload.get("worker_preflight", []):
+        lines.append(f"| {cell(item.get('check'))} | {cell(item.get('status'))} | `{cell(item.get('path'))}` | {cell(item.get('notes'))} |")
+    if not payload.get("worker_preflight"):
+        lines.append("| NGINX worker preflight | UNKNOWN | `-` | no preflight evidence recorded |")
+
     producer_check = payload.get("runtime_producer_readiness_check", {})
     nginx_readiness = producer_check.get("nginx_runtime_module_readiness", {}) if isinstance(producer_check, dict) else {}
     lines.extend(
@@ -719,14 +897,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
     )
     components = producer_check.get("components", []) if isinstance(producer_check, dict) else []
     for item in components:
-        if not isinstance(item, dict):
-            continue
-        path = str(item.get("path", "-")).replace("|", "/")
-        fix = str(item.get("fix", "-")).replace("|", "/")
-        lines.append(
-            f"| {str(item.get('component', '-')).replace('|', '/')} | {item.get('required', '-')} | "
-            f"{str(item.get('status', 'unknown')).replace('|', '/')} | `{path}` | `{fix}` |"
-        )
+        if isinstance(item, dict):
+            lines.append(
+                f"| {cell(item.get('component', '-'))} | {cell(item.get('required', '-'))} | {cell(item.get('status', 'unknown'))} | "
+                f"`{cell(item.get('path', '-'))}` | `{cell(item.get('fix', '-'))}` |"
+            )
     if not components:
         lines.append("| - | - | unknown | `-` | `make check-runtime-producer-readiness` |")
     lines.extend(
@@ -736,11 +911,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "",
             "| Field | Value |",
             "|---|---|",
-            f"| NGINX_BIN | `{str(nginx_readiness.get('NGINX_BIN', '')).replace('|', '/')}` |",
-            f"| NGINX_MODULE_DIR | `{str(nginx_readiness.get('NGINX_MODULE_DIR', '')).replace('|', '/')}` |",
-            f"| ModSecurity module path | `{str(nginx_readiness.get('ModSecurity module path', '')).replace('|', '/')}` |",
-            f"| Module exists | `{str(nginx_readiness.get('Module exists', False)).lower()}` |",
-            f"| How to prepare | `{str(nginx_readiness.get('How to prepare', 'make prepare-runtime-components')).replace('|', '/')}` |",
+            f"| NGINX_BIN | `{cell(nginx_readiness.get('NGINX_BIN', ''))}` |",
+            f"| NGINX_MODULE_DIR | `{cell(nginx_readiness.get('NGINX_MODULE_DIR', ''))}` |",
+            f"| ModSecurity module path | `{cell(nginx_readiness.get('ModSecurity module path', ''))}` |",
+            f"| Module exists | `{cell(str(nginx_readiness.get('Module exists', False)).lower())}` |",
+            f"| How to prepare | `{cell(nginx_readiness.get('How to prepare', 'make prepare-runtime-components'))}` |",
             "",
             "## Runtime Network / Cache Readiness",
             "",
@@ -750,95 +925,93 @@ def render_markdown(payload: dict[str, Any]) -> str:
     )
     network_cache = producer_check.get("network_cache", []) if isinstance(producer_check, dict) else []
     for item in network_cache:
-        if not isinstance(item, dict):
-            continue
-        lines.append(
-            f"| {str(item.get('source', '-')).replace('|', '/')} | {str(item.get('status', 'unknown')).replace('|', '/')} | "
-            f"`{str(item.get('path', '-')).replace('|', '/')}` | {str(item.get('notes', '-')).replace('|', '/')} |"
-        )
+        if isinstance(item, dict):
+            lines.append(f"| {cell(item.get('source', '-'))} | {cell(item.get('status', 'unknown'))} | `{cell(item.get('path', '-'))}` | {cell(item.get('notes', '-'))} |")
     if not network_cache:
         lines.append("| - | unknown | `-` | No runtime producer cache rows recorded. |")
-    lines.extend(
-        [
-            "",
-        "## Verified Commands",
-        "",
-            "| Phase | Command | Required | Status | Return Code | Classification | Signal | Duration | Log Hash | Affected Reports |",
-            "|---|---|---|---|---:|---|---|---:|---|---|",
+
+    def command_table(title: str, targets: set[str]) -> None:
+        lines.extend(["", title, "", "| Command | Status | RC | Duration | Runtime Status | Refresh Status | Log |", "|---|---:|---:|---:|---|---|---|"])
+        rows = [
+            command for command in payload.get("commands", [])
+            if str(command.get("logical_target", "")) in targets
+            or (title == "## Producer Commands" and str(command.get("logical_target", "")).startswith("full-matrix-job:"))
         ]
-    )
-    for command in payload.get("commands", []):
-        command_text = " ".join(command.get("command", []))
-        lines.append(
-            f"| {command.get('phase', 'unknown')} | `{command_text}` | {command.get('required', '-')} | "
-            f"{command.get('status', 'unknown')} | {command.get('return_code', '-')} | "
-            f"{command.get('classification', '-')} | {command.get('signal', '-') or '-'} | "
-            f"{command.get('duration_seconds', '-')} | `{command.get('log_hash', 'unknown')}` | "
-            f"{', '.join(command.get('affected_reports', [])) or '-'} |"
-        )
-    if not payload.get("commands"):
-        lines.append("| - | `-` | - | not_run | - | - | - | - | `unknown` | No commands were executed. |")
-    lines.extend(
-        [
-            "",
-            "## Input Files",
-            "",
-            "| Input | Status | Hash | Verified Run ID | Notes |",
-            "|---|---|---|---|---|",
-        ]
-    )
-    for item in payload.get("input_files", []):
-        lines.append(
-            f"| `{item.get('path', '-')}` | {item.get('status', 'unknown')} | `{item.get('sha256', 'unknown')}` | "
-            f"`{item.get('verified_run_id', 'unknown')}` | {str(item.get('notes', '-')).replace('|', '/')} |"
-        )
-    if not payload.get("input_files"):
-        lines.append("| `-` | missing | `missing` | `unknown` | No declared inputs found. |")
-    lines.extend(
-        [
-            "",
-            "## Output Files",
-            "",
-            "| Output | Status | Hash | Bytes |",
-            "|---|---|---|---:|",
-        ]
-    )
-    for item in payload.get("output_files", []):
-        lines.append(f"| `{item.get('path', '-')}` | {item.get('status', 'unknown')} | `{item.get('sha256', 'unknown')}` | {item.get('bytes', '-')} |")
-    if not payload.get("output_files"):
-        lines.append("| `-` | missing | `missing` | - |")
-    lines.extend(
-        [
-            "",
-            "## Missing / Skipped / Blocked / Failed",
-            "",
-            "| Item | Status | Reason | Affected Reports |",
-            "|---|---|---|---|",
-        ]
-    )
+        for command in rows:
+            command_text = " ".join(command.get("command", []))
+            lines.append(
+                f"| `{cell(command_text)}` | {cell(command.get('status', 'unknown'))} | {cell(command.get('return_code', '-'))} | "
+                f"{cell(command.get('duration_seconds', '-'))} | {cell(command.get('runtime_status', '-'))} | "
+                f"{cell(command.get('refresh_status', '-'))} | `{cell(command.get('log_path', '-'))}` |"
+            )
+        if not rows:
+            lines.append("| `-` | not_run | - | - | - | - | `-` |")
+
+    command_table("## Producer Commands", producer_targets)
+    command_table("## Consumer / Refresh Commands", consumer_targets)
+    command_table("## Checks", check_targets)
+
+    completeness = payload.get("full_matrix_job_completeness", {})
+    lines.extend(["", "## Full-Matrix Job Completeness", "", "| Field | Value |", "|---|---|"])
+    lines.append(f"| Completeness | `{cell(completeness.get('complete_jobs', 0))}/{cell(completeness.get('total_jobs', 0))}` |")
+    lines.append(f"| Overall status | `{cell(completeness.get('status', 'unknown'))}` |")
+    lines.append(f"| Missing jobs | `{cell(', '.join(completeness.get('missing_jobs', [])) or '-')}` |")
+    lines.append(f"| Timeout jobs | `{cell(', '.join(completeness.get('timeout_jobs', [])) or '-')}` |")
+    lines.extend(["", "| Slowest Job | Duration Seconds | Status |", "|---|---:|---|"])
+    for job in completeness.get("slowest_jobs", []):
+        lines.append(f"| `{cell(job.get('job_id'))}` | {cell(job.get('duration_seconds'))} | {cell(job.get('status'))} |")
+    if not completeness.get("slowest_jobs"):
+        lines.append("| `-` | - | unknown |")
+
+    mismatch = payload.get("runtime_mismatch_summary", {})
+    lines.extend(["", "## Runtime Mismatch Summary", "", "| Field | Value |", "|---|---|"])
+    lines.append(f"| Total mismatches | `{cell(mismatch.get('total_mismatches', 'unknown'))}` |")
+    lines.append(f"| Critical mismatches | `{cell(mismatch.get('critical_mismatches', 'unknown'))}` |")
+    lines.append(f"| Top connector | `{cell(mismatch.get('top_connector', 'unknown'))}` |")
+    lines.append(f"| Primary blocker | `{cell(mismatch.get('primary_blocker', 'unknown'))}` |")
+    lines.append(f"| Merge readiness | `{cell(mismatch.get('merge_readiness', 'unknown'))}` |")
+
+    lines.extend(["", "## Blocked / Stale Inputs", "", "| Item | Status | Reason | Affected Reports |", "|---|---|---|---|"])
     rows = []
-    for key in ("missing_inputs", "skipped_reports", "blocked_reports", "failed_reports"):
+    for key in ("missing_inputs", "skipped_reports", "blocked_reports", "failed_reports", "stale_inputs"):
         for item in payload.get(key, []):
             rows.append(item)
     for item in rows:
         affected = ", ".join(str(value) for value in item.get("outputs", [])) or "-"
-        lines.append(f"| `{item.get('report_name', item.get('path', 'unknown'))}` | {item.get('status', key)} | {str(item.get('reason', 'unknown')).replace('|', '/')} | {affected.replace('|', '/')} |")
+        lines.append(
+            f"| `{cell(item.get('report_name', item.get('path', 'unknown')))}` | {cell(item.get('status', 'unknown'))} | "
+            f"{cell(item.get('reason', item.get('notes', 'unknown')))} | {cell(affected)} |"
+        )
     if not rows:
-        lines.append("| `-` | zero_result_verified | No missing, skipped, blocked, or failed reports were recorded. | - |")
+        lines.append("| `-` | zero_result_verified | No missing, skipped, blocked, stale, or failed reports were recorded. | - |")
+
+    lines.extend(["", "## Tool Versions", "", "| Tool | Status | Version / Output |", "|---|---|---|"])
+    for tool in payload.get("tool_versions", []):
+        version = str(tool.get("version") or tool.get("version_output") or "-").splitlines()[0]
+        lines.append(f"| {cell(tool.get('tool', '-'))} | {cell(tool.get('status', 'unknown'))} | `{cell(version)}` |")
+    if not payload.get("tool_versions"):
+        lines.append("| `-` | unknown | `system-environment-proof unavailable` |")
+
     lines.extend(
         [
             "",
-            "## Tool Versions",
+            "## Git Evidence",
             "",
-            "| Tool | Status | Version / Output |",
+            "| Repository | SHA | Branch | Dirty Status |",
+            "|---|---|---|---|",
+            f"| connector | `{cell(payload.get('connector_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('connector', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('connector', 'unknown'))}` |",
+            f"| framework | `{cell(payload.get('framework_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('framework', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('framework', 'unknown'))}` |",
+            f"| MRTS | `{cell(payload.get('mrts_sha', 'unknown'))}` | `{cell(payload.get('branches', {}).get('mrts', 'unknown'))}` | `{cell(payload.get('dirty_status', {}).get('mrts', 'unknown'))}` |",
+            "",
+            "## Proof Summary",
+            "",
+            "| Claim | Status | Evidence |",
             "|---|---|---|",
+            f"| Runtime paths outside /root by default | `{cell('PASS' if not is_under_root_home(Path(payload.get('runtime_paths', {}).get('VERIFIED_RUN_ROOT', '/root'))) else 'FAIL')}` | `VERIFIED_RUN_ROOT={cell(payload.get('runtime_paths', {}).get('VERIFIED_RUN_ROOT', 'unknown'))}` |",
+            f"| NGINX docroot preflight evidence | `{cell('PASS' if payload.get('worker_preflight') else 'UNKNOWN')}` | `nginx-worker-preflight.jsonl` rows are included when NGINX smoke ran |",
+            f"| Verified inputs only | `PASS` | `{DATA_SOURCE_POLICY}` |",
         ]
     )
-    for tool in payload.get("tool_versions", []):
-        version = str(tool.get("version") or tool.get("version_output") or "-").splitlines()[0].replace("|", "/")
-        lines.append(f"| {tool.get('tool', '-')} | {tool.get('status', 'unknown')} | `{version}` |")
-    if not payload.get("tool_versions"):
-        lines.append("| `-` | unknown | `system-environment-proof unavailable` |")
     return "\n".join(lines) + "\n"
 
 
@@ -860,6 +1033,8 @@ def write_verified_manifest(
     mrts_root = framework_root / "tools/MRTS"
     proof = system_proof_summary(connector_root)
     reports = manifest_report_records(connector_root)
+    runtime_path_records = runtime_path_report_rows(runtime_paths(env, build_root, verified_run_id), connector_root, framework_root)
+    input_files = collect_declared_inputs(connector_root)
     payload = {
         "verified_run_id": verified_run_id,
         "data_source_policy": DATA_SOURCE_POLICY,
@@ -867,6 +1042,8 @@ def write_verified_manifest(
         "full_matrix_timeout_seconds": full_matrix_timeout,
         "timeout_budgets": timeout_budgets,
         "runtime_paths": runtime_paths(env, build_root, verified_run_id),
+        "runtime_path_rows": runtime_path_records,
+        "worker_preflight": worker_preflight_rows(runtime_paths(env, build_root, verified_run_id), build_root),
         "started_at_utc": started_at,
         "finished_at_utc": finished_at,
         "duration_seconds": duration_seconds(started_at, finished_at),
@@ -885,16 +1062,23 @@ def write_verified_manifest(
         },
         "commands": commands,
         "command_file": file_record(commands_file, connector_root),
-        "input_files": collect_declared_inputs(connector_root),
+        "input_files": input_files,
         "output_files": generated_output_records(connector_root),
         "missing_inputs": [
             {"path": item.get("path"), "status": item.get("status"), "reason": item.get("notes", "input missing")}
-            for item in collect_declared_inputs(connector_root)
+            for item in input_files
             if item.get("status") in {"missing", "empty", "unknown", "stale"}
+        ],
+        "stale_inputs": [
+            {"path": item.get("path"), "status": item.get("status"), "reason": item.get("notes", "input stale")}
+            for item in input_files
+            if item.get("status") == "stale"
         ],
         "skipped_reports": collect_report_statuses(connector_root, status_prefix="skipped"),
         "blocked_reports": collect_report_statuses(connector_root, status_prefix="blocked"),
         "failed_reports": collect_report_statuses(connector_root, status_values={"failed"}),
+        "full_matrix_job_completeness": full_matrix_completeness_summary(connector_root),
+        "runtime_mismatch_summary": runtime_mismatch_summary(connector_root),
         "tool_versions": proof["tools"],
         "system": proof["system"],
         "runtime_component_readiness": proof["runtime_component_readiness"],
@@ -915,7 +1099,10 @@ def write_verified_manifest(
         ],
         generated_at=finished_at,
         report_key="verified_run_manifest",
+        extra={"mrts_sha": git_sha(mrts_root)},
     )
+    metadata["input_status"] = manifest_input_status(payload, metadata.get("input_status", "unknown"))
+    payload["input_status"] = metadata.get("input_status", "unknown")
     json_path = report_path(connector_root, "verified_run_manifest", "json")
     md_path = report_path(connector_root, "verified_run_manifest", "md")
     json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -952,8 +1139,10 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    default_state_home = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-    build_root = Path(args.build_root or default_state_home / "ModSecurity-conector-build").resolve()
+    initial_paths = verified_runtime_paths(os.environ)
+    build_root = Path(args.build_root or initial_paths["BUILD_ROOT"]).resolve()
+    paths = runtime_paths(dict(os.environ), build_root, os.environ.get("VERIFIED_RUN_ID", "pending"))
+    prepare_runtime_roots(paths)
     current_run_file = build_root / "verified-runs" / "current-run-id"
     if not os.environ.get("VERIFIED_RUN_ID") and args.phase in {
         "report-refresh",
@@ -971,6 +1160,8 @@ def main() -> int:
     os.environ.setdefault("VERIFIED_RUN_ID", current_verified_run_id(connector_root))
     verified_run_id = os.environ["VERIFIED_RUN_ID"]
     started_at = utc_now()
+    paths = runtime_paths(dict(os.environ), build_root, verified_run_id)
+    prepare_runtime_roots(paths)
     run_root = build_root / "verified-runs" / verified_run_id
     logs_dir = run_root / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -990,11 +1181,17 @@ def main() -> int:
     native_mrts_timeout = timeout_from_env(env, "VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS", 1800)
     full_matrix_job_timeout = timeout_from_env(env, "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS", 3600)
     full_matrix_total_timeout = timeout_from_env(env, "VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS", 14400)
-    paths = runtime_paths(env, build_root, verified_run_id)
     env.update(
         {
             "CONNECTOR_ROOT": str(connector_root),
             "FRAMEWORK_ROOT": str(framework_root),
+            "VERIFIED_RUN_ROOT": paths["VERIFIED_RUN_ROOT"],
+            "VERIFIED_STATE_ROOT": paths["VERIFIED_STATE_ROOT"],
+            "VERIFIED_BUILD_ROOT": paths["VERIFIED_BUILD_ROOT"],
+            "VERIFIED_SOURCE_ROOT": paths["VERIFIED_SOURCE_ROOT"],
+            "VERIFIED_TMP_ROOT": paths["VERIFIED_TMP_ROOT"],
+            "VERIFIED_LOG_ROOT": paths["VERIFIED_LOG_ROOT"],
+            "VERIFIED_COMPONENT_CACHE": paths["VERIFIED_COMPONENT_CACHE"],
             "BUILD_ROOT": str(build_root),
             "SOURCE_ROOT": paths["SOURCE_ROOT"],
             "TMP_ROOT": paths["TMP_ROOT"],

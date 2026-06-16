@@ -3,12 +3,16 @@ set -eu
 
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(CDPATH= cd "$(dirname "$0")/.." && pwd)}"
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}"
-DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}}"
-SOURCE_ROOT="${SOURCE_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-src}"
-SHARED_BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
+VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
+VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
+VERIFIED_SOURCE_ROOT="${VERIFIED_SOURCE_ROOT:-$VERIFIED_RUN_ROOT/src}"
+VERIFIED_TMP_ROOT="${VERIFIED_TMP_ROOT:-$VERIFIED_RUN_ROOT/tmp}"
+VERIFIED_LOG_ROOT="${VERIFIED_LOG_ROOT:-$VERIFIED_RUN_ROOT/logs}"
+SOURCE_ROOT="${SOURCE_ROOT:-$VERIFIED_SOURCE_ROOT}"
+SHARED_BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
 BUILD_ROOT="$SHARED_BUILD_ROOT"
-TMP_ROOT="${TMP_ROOT:-$SHARED_BUILD_ROOT/tmp}"
-LOG_ROOT="${LOG_ROOT:-$SHARED_BUILD_ROOT/logs}"
+TMP_ROOT="${TMP_ROOT:-$VERIFIED_TMP_ROOT}"
+LOG_ROOT="${LOG_ROOT:-$VERIFIED_LOG_ROOT}"
 MATRIX_ROOT="${MATRIX_ROOT:-$SHARED_BUILD_ROOT/full-matrix}"
 MRTS_BUILD_ROOT="${MRTS_BUILD_ROOT:-$SHARED_BUILD_ROOT/mrts}"
 PYTHON="${PYTHON:-python3}"
@@ -35,6 +39,7 @@ validate_runner_paths() {
     assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
     assert_safe_runtime_path "$MATRIX_ROOT" MATRIX_ROOT || exit 77
     assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
+    assert_safe_runtime_path "$NGINX_HARNESS_PARENT" NGINX_HARNESS_PARENT || exit 77
     assert_not_system_path_for_write "$FULL_MATRIX_REPORT_DIR" FULL_MATRIX_REPORT_DIR || exit 77
     assert_not_system_path_for_write "$FULL_MATRIX_MANIFEST" FULL_MATRIX_MANIFEST || exit 77
 }
@@ -294,6 +299,7 @@ run_job() {
                 NGINX_BINARY="${MRTS_NATIVE_NGINX_BIN:-}" \
                 NGINX_MODULE="${MRTS_NATIVE_NGINX_MODULE_FILE:-${MRTS_NATIVE_NGINX_MODULE_DIR:-}/ngx_http_modsecurity_module.so}" \
                 MODSECURITY_LIB_DIR="${MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR:-${MODSECURITY_LIB_DIR:-}}" \
+                NGINX_HARNESS_PARENT="$nginx_harness_parent" \
                 NGINX_HARNESS_WORK_ROOT="$nginx_harness_root" \
                 NGINX_RUNTIME_BASE="$nginx_harness_root/runtime" \
                 NGINX_RUNTIME_LOG_DIR="$nginx_harness_root/logs" \

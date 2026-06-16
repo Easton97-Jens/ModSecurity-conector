@@ -1,28 +1,71 @@
 {
-  "generated_at": "2026-06-16T07:21:25Z",
+  "command": [
+    "/root/git/ModSecurity-conector/.venv/bin/python",
+    "ci/generate-remaining-failure-analysis.py",
+    "--connector-root",
+    "/root/git/ModSecurity-conector",
+    "--output-dir",
+    "/root/git/ModSecurity-conector/reports/testing/generated"
+  ],
+  "data_source_policy": "verified-inputs-only",
+  "empty_reason": "producer command was not run or verified input is unavailable",
+  "generated_at": "2026-06-16T16:22:42Z",
+  "generator": "ci/generate-remaining-failure-analysis.py",
+  "make_target": "generate-remaining-failure-analysis",
   "metadata": {
+    "blocked_reason": "required generated input is blocked",
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+    "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "unknown",
-    "framework_working_tree_dirty": "unknown",
-    "generated_at": "2026-06-16T07:21:25Z",
+    "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-16T16:22:42Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "complete",
+    "input_status": "blocked",
     "inputs": [
       {
-        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
-        "framework_sha": "unknown",
-        "notes": "input file available",
-        "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "7f47c0da56cd0c800820d9694f15ad2735f15195e17ba8122a73c033f330de6a",
-        "source_hash": "7f47c0da56cd0c800820d9694f15ad2735f15195e17ba8122a73c033f330de6a",
-        "status": "present",
+        "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=skipped_missing_input",
+        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "sha256": "74dff241151f409d4a958eff005fd65b7e0dc5e03a886ad44bcfc2084e52585f",
+        "source_hash": "74dff241151f409d4a958eff005fd65b7e0dc5e03a886ad44bcfc2084e52585f",
+        "status": "skipped_missing_input",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=blocked",
+        "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "sha256": "3f570cdeada65c05b87f63069c1ed107b78dc1bd2159566a8dfa718b8d8bbfe7",
+        "source_hash": "3f570cdeada65c05b87f63069c1ed107b78dc1bd2159566a8dfa718b8d8bbfe7",
+        "status": "blocked",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=blocked",
+        "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
+        "sha256": "cc2e3e94ad36ce80f8675c014493a35a11238ec6e4b008cafedf021486ce8010",
+        "source_hash": "cc2e3e94ad36ce80f8675c014493a35a11238ec6e4b008cafedf021486ce8010",
+        "status": "blocked",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "efac6d66d0e165af8d6e1b5404083d5f50601327",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=skipped_missing_input",
+        "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
+        "sha256": "fa93fe73005003fce1a16fc8d3fb9c1f3288c15b21b8b9d47b9d5d83f354b776",
+        "source_hash": "fa93fe73005003fce1a16fc8d3fb9c1f3288c15b21b8b9d47b9d5d83f354b776",
+        "status": "skipped_missing_input",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       }
     ],
@@ -30,146 +73,17 @@
     "missing_inputs": [],
     "owner": "connector",
     "report_key": "next_fix_plan",
+    "run_status": "blocked",
     "schema_version": 1,
     "severity": "important",
     "unknown_inputs": [],
     "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
     "working_tree_dirty": "dirty"
   },
-  "priority_plan": {
-    "P0": [
-      {
-        "cluster_name": "nginx_with_crs_with_mrts_http500_cluster",
-        "connector": "nginx",
-        "count": 510,
-        "likely_change": "move NGINX Full-Matrix harness roots out from under /root or block inaccessible worker docroots before runtime classification",
-        "risk": "medium",
-        "tests": [
-          "targeted NGINX with-crs/with-mrts case",
-          "make verified-full-matrix-job CONNECTOR=nginx CRS=with-crs MRTS=with-mrts"
-        ],
-        "why": "largest verified Full-Matrix blocker; all HTTP-500 rows share the /index.html redirect-cycle/docroot-permission signature"
-      },
-      {
-        "cluster_name": "nginx_actual_500",
-        "connector": "mixed",
-        "count": 1138,
-        "likely_change": "stop and triage regression before new work",
-        "risk": "high",
-        "tests": [
-          "regenerate full matrix",
-          "targeted smoke for affected connector"
-        ],
-        "why": "previously resolved cluster reappeared"
-      }
-    ],
-    "P1": [],
-    "P2": [
-      {
-        "cluster_name": "response_header_backend_setup",
-        "connector": "apache, nginx",
-        "count": 12,
-        "likely_change": "add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path",
-        "risk": "low to medium",
-        "tests": [
-          "targeted response-header cases",
-          "make smoke-apache",
-          "make smoke-nginx"
-        ],
-        "why": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged"
-      },
-      {
-        "cluster_name": "multipart_files",
-        "connector": "apache, nginx, haproxy",
-        "count": 46,
-        "likely_change": "compare multipart variable population across connectors with one representative request",
-        "risk": "medium",
-        "tests": [
-          "targeted multipart cases",
-          "connector smoke for touched connector",
-          "full matrix if parser behavior changes"
-        ],
-        "why": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits"
-      }
-    ],
-    "P3": [
-      {
-        "cluster_name": "phase4_hard_abort_capability",
-        "connector": "apache, nginx, haproxy",
-        "count": 352,
-        "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
-        "risk": "high if promoted prematurely or faked",
-        "tests": [
-          "phase4 hard-abort report regeneration",
-          "targeted strict Phase 4 connector evidence",
-          "native report regeneration"
-        ],
-        "why": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial"
-      },
-      {
-        "cluster_name": "transformation_semantics",
-        "connector": "apache, nginx, haproxy",
-        "count": 88,
-        "likely_change": "deeper semantic evidence, not harness routing",
-        "risk": "high",
-        "tests": [
-          "targeted transformation cases",
-          "native comparison where available"
-        ],
-        "why": "largest semantic cluster; likely needs native/libmodsecurity comparison before any fix"
-      }
-    ],
-    "P4": [
-      {
-        "cluster_name": "rule_chain_semantics and small single-connector leftovers",
-        "connector": "mostly nginx for connector-only leftovers",
-        "count": 110,
-        "likely_change": "focused per-case triage only when runtime-fixable evidence remains",
-        "risk": "low to medium",
-        "tests": [
-          "targeted single-case smokes"
-        ],
-        "why": "small connector-only leftovers after report-only and not-next groups are excluded"
-      }
-    ]
-  },
-  "recommendation": {
-    "not_next": [
-      {
-        "cluster": "phase4_hard_abort_capability",
-        "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes"
-      },
-      {
-        "cluster": "transformation_semantics",
-        "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes"
-      },
-      {
-        "cluster": "nolog_expected_no_audit",
-        "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence"
-      },
-      {
-        "cluster": "response_header_mrts_detection_only",
-        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action"
-      },
-      {
-        "cluster": "with_mrts_detection_only_non_disruptive",
-        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
-      },
-      {
-        "cluster": "xml_processor_activation_missing",
-        "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
-      },
-      {
-        "cluster": "multipart_processor_activation_missing",
-        "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections"
-      },
-      {
-        "cluster": "collection_name_normalization_semantics",
-        "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
-      }
-    ],
-    "reason": "largest verified Full-Matrix blocker; all HTTP-500 rows share the /index.html redirect-cycle/docroot-permission signature",
-    "recommended_next_fix_cluster": "nginx_with_crs_with_mrts_http500_cluster"
-  },
-  "report_kind": "next-fix-plan"
+  "reason": "required generated input is blocked",
+  "report_key": "next_fix_plan",
+  "report_name": "next_fix_plan",
+  "rows": [],
+  "status": "blocked",
+  "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
 }

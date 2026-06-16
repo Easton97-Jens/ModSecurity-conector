@@ -1059,6 +1059,7 @@ def metadata_block(metadata: dict[str, Any]) -> str:
             f"> Severity: `{metadata.get('severity', 'unknown')}`",
             f"> Connector SHA: `{metadata.get('connector_sha', 'unknown')}`",
             f"> Framework SHA: `{metadata.get('framework_sha', 'unknown')}`",
+            *([f"> MRTS SHA: `{metadata.get('mrts_sha', 'unknown')}`"] if metadata.get("mrts_sha") else []),
             f"> Input status: `{metadata.get('input_status', 'unknown')}`",
         ]
     )

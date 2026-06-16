@@ -9,6 +9,8 @@ import sys
 import time
 from pathlib import Path
 
+from runtime_path_utils import verified_runtime_paths
+
 
 def read_json(path: Path) -> dict:
     try:
@@ -57,7 +59,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    build_root = Path(args.build_root or Path.home() / ".local/state/ModSecurity-conector-build").resolve()
+    default_paths = verified_runtime_paths(os.environ)
+    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     current = build_root / "verified-runs/current-run-id"
     verified_run_id = os.environ.get("VERIFIED_RUN_ID") or (current.read_text(encoding="utf-8").strip() if current.is_file() else "")
 

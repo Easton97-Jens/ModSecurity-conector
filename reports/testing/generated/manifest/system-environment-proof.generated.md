@@ -1,13 +1,13 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T07:17:20Z`
+> Generated at: `2026-06-16T16:22:38Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-system-environment-proof.py`
 > Make target: `generate-system-environment-proof`
 > Owner: `system`
 > Severity: `critical`
-> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
+> Connector SHA: `efac6d66d0e165af8d6e1b5404083d5f50601327`
 > Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
 > Input status: `complete`
 
@@ -33,15 +33,22 @@
 | common.sh path | `/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/common.sh` |
 | common.sh status | `loaded` |
 | common.sh return code | `0` |
-| BUILD_ROOT | `/root/.local/state/ModSecurity-conector-build` |
-| SOURCE_ROOT | `/root/.local/state/ModSecurity-conector-src` |
-| TMP_ROOT | `/root/.local/state/ModSecurity-conector-build/tmp` |
-| LOG_ROOT | `/root/.local/state/ModSecurity-conector-build/logs` |
-| CONNECTOR_COMPONENT_CACHE | `/root/.local/state/ModSecurity-conector-build/component-cache` |
-| NGINX_HARNESS_PARENT | `/root/.local/state/ModSecurity-conector-build/tmp/nginx-harness` |
-| MATRIX_ROOT | `unset` |
-| MRTS_BUILD_ROOT | `/root/.local/state/ModSecurity-conector-build/mrts` |
-| MRTS_NATIVE_ROOT | `/root/.local/state/ModSecurity-conector-build/mrts-native` |
+| VERIFIED_RUN_ROOT | `/var/tmp/ModSecurity-conector-verified` |
+| VERIFIED_STATE_ROOT | `/var/tmp/ModSecurity-conector-verified/state` |
+| VERIFIED_BUILD_ROOT | `/var/tmp/ModSecurity-conector-verified/build` |
+| VERIFIED_SOURCE_ROOT | `/var/tmp/ModSecurity-conector-verified/src` |
+| VERIFIED_TMP_ROOT | `/var/tmp/ModSecurity-conector-verified/tmp` |
+| VERIFIED_LOG_ROOT | `/var/tmp/ModSecurity-conector-verified/logs` |
+| VERIFIED_COMPONENT_CACHE | `/var/tmp/ModSecurity-conector-verified/component-cache` |
+| BUILD_ROOT | `/var/tmp/ModSecurity-conector-verified/build` |
+| SOURCE_ROOT | `/var/tmp/ModSecurity-conector-verified/src` |
+| TMP_ROOT | `/var/tmp/ModSecurity-conector-verified/tmp` |
+| LOG_ROOT | `/var/tmp/ModSecurity-conector-verified/logs` |
+| CONNECTOR_COMPONENT_CACHE | `/var/tmp/ModSecurity-conector-verified/component-cache` |
+| NGINX_HARNESS_PARENT | `/var/tmp/ModSecurity-conector-verified/nginx-harness` |
+| MATRIX_ROOT | `/var/tmp/ModSecurity-conector-verified/build/full-matrix` |
+| MRTS_BUILD_ROOT | `/var/tmp/ModSecurity-conector-verified/build/mrts` |
+| MRTS_NATIVE_ROOT | `/var/tmp/ModSecurity-conector-verified/build/mrts-native` |
 | VERIFIED_RUN_ID | `2026-06-15T21-01-39Z-9391a8d0` |
 | VERIFIED_RUN_PROFILE | `unset` |
 | VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS | `unset` |
@@ -68,11 +75,11 @@
 | CI_APACHE_BIN_CANDIDATES | `apache2 httpd apachectl` |
 | CI_APXS_BIN_CANDIDATES | `apxs apxs2` |
 | CI_NGINX_BIN_CANDIDATES | `nginx` |
-| HAPROXY_BIN | `/root/.local/state/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy` |
+| HAPROXY_BIN | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy/sbin/haproxy` |
 | HAPROXY_VERSION | `3.2.19` |
 | HAPROXY_SOURCE_URL | `https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz` |
-| HAPROXY_RUNTIME_DIR | `/root/.local/state/ModSecurity-conector-build/haproxy-runtime/haproxy` |
-| HAPROXY_RUNTIME_BUILD_DIR | `/root/.local/state/ModSecurity-conector-build/haproxy-runtime-build` |
+| HAPROXY_RUNTIME_DIR | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy` |
+| HAPROXY_RUNTIME_BUILD_DIR | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime-build` |
 | EXPAT_SOURCE_URL | `https://github.com/libexpat/libexpat` |
 | EXPAT_GIT_REF | `master` |
 | EXPAT_GIT_URL | `https://github.com/libexpat/libexpat` |
@@ -104,14 +111,14 @@
 | apachectl | missing | `` | `CI_APACHE_BIN_CANDIDATES from framework common.sh` | `apachectl` | `no candidate found: apachectl` | `APACHECTL_BIN is unset; checked apachectl candidate` |
 | apache/httpd | missing | `` | `CI_APACHE_BIN_CANDIDATES from framework common.sh` | `apache2 httpd apachectl` | `no candidate found: apache2 httpd apachectl` | `APACHECTL_BIN/APACHE_BIN are unset; checked APXS helper and framework candidates` |
 | nginx | missing | `` | `CI_NGINX_BIN_CANDIDATES from framework common.sh` | `nginx` | `no candidate found: nginx` | `NGINX_BIN is unset; checked framework candidates` |
-| haproxy | configured_missing | `/root/.local/state/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy` | `HAPROXY_BIN from framework common.sh` | `` | `file not found` | `runtime path configured by common.sh but binary has not been built/prepared locally; HAPROXY_VERSION=3.2.19; HAPROXY_SOURCE_URL=https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz; HAPROXY_RUNTIME_DIR=/root/.local/state/ModSecurity-conector-build/haproxy-runtime/haproxy; HAPROXY_RUNTIME_BUILD_DIR=/root/.local/state/ModSecurity-conector-build/haproxy-runtime-build` |
+| haproxy | configured_missing | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy/sbin/haproxy` | `HAPROXY_BIN from framework common.sh` | `` | `file not found` | `runtime path configured by common.sh but binary has not been built/prepared locally; HAPROXY_VERSION=3.2.19; HAPROXY_SOURCE_URL=https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz; HAPROXY_RUNTIME_DIR=/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy; HAPROXY_RUNTIME_BUILD_DIR=/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime-build` |
 | apxs | missing | `` | `CI_APXS_BIN_CANDIDATES from framework common.sh` | `apxs apxs2` | `no candidate found: apxs apxs2` | `APXS_BIN is unset; checked framework candidates` |
 
 ## Runtime Component Readiness
 
 | Component | Status | Expected Path | Source URL | Version / Ref | How to Prepare |
 |---|---|---|---|---|---|
-| HAProxy | configured_missing | `/root/.local/state/ModSecurity-conector-build/haproxy-runtime/haproxy/sbin/haproxy` | `https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz` | `3.2.19` | `make prepare-runtime-components or make runtime-matrix-haproxy` |
+| HAProxy | configured_missing | `/var/tmp/ModSecurity-conector-verified/build/haproxy-runtime/haproxy/sbin/haproxy` | `https://www.haproxy.org/download/3.2/src/haproxy-3.2.19.tar.gz` | `3.2.19` | `make prepare-runtime-components or make runtime-matrix-haproxy` |
 | NGINX | missing | `nginx` | `https://github.com/nginx/nginx` | `latest` | `install nginx or prepare runtime components` |
 | Apache/APXS | missing | `apxs apxs2` | `https://archive.apache.org/dist/httpd/httpd-2.4.67.tar.bz2` | `2.4.67` | `install apache2-dev/httpd-devel or prepare Apache runtime` |
 | go-ftw | missing_optional | `go-ftw` | `https://github.com/coreruleset/go-ftw` | `v2.2.0` | `install go-ftw only if MRTS/FTW checks are required` |
@@ -122,29 +129,29 @@
 
 | Field | Value |
 |---|---|
-| NGINX_BIN | `/root/.local/state/ModSecurity-conector-build/component-cache/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/sbin/nginx` |
-| NGINX_MODULE_DIR | `/root/.local/state/ModSecurity-conector-build/component-cache/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/modules` |
-| ModSecurity module path | `/root/.local/state/ModSecurity-conector-build/component-cache/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/modules/ngx_http_modsecurity_module.so` |
-| Module exists | `true` |
+| NGINX_BIN | `/var/tmp/ModSecurity-conector-verified/build/nginx-runtime/nginx/sbin/nginx` |
+| NGINX_MODULE_DIR | `/var/tmp/ModSecurity-conector-verified/build/nginx-runtime/nginx/modules` |
+| ModSecurity module path | `/var/tmp/ModSecurity-conector-verified/build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so` |
+| Module exists | `false` |
 | How to prepare | `make prepare-runtime-components` |
 
 ## Verified Producer Readiness
 
 | Producer | Required | Status | Missing Tools | Missing Paths | How to Fix |
 |---|---|---|---|---|---|
-| prepare-runtime-components | True | not_run | - | `BUILD_ROOT=/root/.local/state/ModSecurity-conector-build`<br>`SOURCE_ROOT=/root/.local/state/ModSecurity-conector-src`<br>`CONNECTOR_COMPONENT_CACHE=/root/.local/state/ModSecurity-conector-build/component-cache` | `ensure BUILD_ROOT, SOURCE_ROOT, TMP_ROOT, LOG_ROOT and CONNECTOR_COMPONENT_CACHE are under $HOME/.local/state, then run make prepare-runtime-components` |
-| runtime-matrix-all | True | not_run | - | `BUILD_ROOT=/root/.local/state/ModSecurity-conector-build`<br>`TMP_ROOT=/root/.local/state/ModSecurity-conector-build/tmp`<br>`LOG_ROOT=/root/.local/state/ModSecurity-conector-build/logs`<br>`NGINX_HARNESS_PARENT=/root/.local/state/ModSecurity-conector-build/tmp/nginx-harness` | `run make runtime-matrix-all after prepare-runtime-components; inspect the verified command log on BLOCKED/FAIL` |
-| full-matrix-parallel | True | not_run | - | `MATRIX_ROOT=$BUILD_ROOT/full-matrix` | `run make verified-report-run with safe BUILD_ROOT/MATRIX_ROOT paths` |
-| mrts-native-full-run | False | not_run | go-ftw, albedo, apachectl, apache/httpd, nginx, apxs | `MRTS_NATIVE_ROOT=/root/.local/state/ModSecurity-conector-build/mrts-native` | `install optional go-ftw/albedo/native webserver tooling or leave native MRTS as optional WARN evidence` |
+| prepare-runtime-components | True | not_run | - | `BUILD_ROOT=/var/tmp/ModSecurity-conector-verified/build`<br>`SOURCE_ROOT=/var/tmp/ModSecurity-conector-verified/src`<br>`CONNECTOR_COMPONENT_CACHE=/var/tmp/ModSecurity-conector-verified/component-cache` | `ensure VERIFIED_RUN_ROOT points outside /root and rerun make prepare-runtime-components` |
+| runtime-matrix-all | True | not_run | - | `BUILD_ROOT=/var/tmp/ModSecurity-conector-verified/build`<br>`TMP_ROOT=/var/tmp/ModSecurity-conector-verified/tmp`<br>`LOG_ROOT=/var/tmp/ModSecurity-conector-verified/logs`<br>`NGINX_HARNESS_PARENT=/var/tmp/ModSecurity-conector-verified/nginx-harness` | `run make runtime-matrix-all after prepare-runtime-components; inspect the verified command log on BLOCKED/FAIL` |
+| full-matrix-parallel | True | not_run | - | `MATRIX_ROOT=/var/tmp/ModSecurity-conector-verified/build/full-matrix` | `run make verified-report-run with safe BUILD_ROOT/MATRIX_ROOT paths` |
+| mrts-native-full-run | False | not_run | go-ftw, albedo, apachectl, apache/httpd, nginx, apxs | `MRTS_NATIVE_ROOT=/var/tmp/ModSecurity-conector-verified/build/mrts-native` | `install optional go-ftw/albedo/native webserver tooling or leave native MRTS as optional WARN evidence` |
 
 ## Runtime Network / Cache Readiness
 
 | Source | Status | Path | Notes |
 |---|---|---|---|
-| nginx latest release | present | `/root/.local/state/ModSecurity-conector-build/component-cache/archives/nginx/nginx-latest-release.json` | local cache available |
-| nginx archive cache | present | `/root/.local/state/ModSecurity-conector-build/component-cache/archives/nginx` | local cache available |
-| go-ftw git cache | present | `/root/.local/state/ModSecurity-conector-build/component-cache/git/go-ftw` | local cache available |
-| albedo git cache | present | `/root/.local/state/ModSecurity-conector-build/component-cache/git/albedo` | local cache available |
+| nginx latest release | missing | `/var/tmp/ModSecurity-conector-verified/component-cache/archives/nginx/nginx-latest-release.json` | network may be required unless this cache is prefilled |
+| nginx archive cache | missing | `/var/tmp/ModSecurity-conector-verified/component-cache/archives/nginx` | network may be required unless this cache is prefilled |
+| go-ftw git cache | missing | `/var/tmp/ModSecurity-conector-verified/component-cache/git/go-ftw` | network may be required unless this cache is prefilled |
+| albedo git cache | missing | `/var/tmp/ModSecurity-conector-verified/component-cache/git/albedo` | network may be required unless this cache is prefilled |
 
 ## HTTPS Repository URL Policy
 
@@ -172,11 +179,11 @@
 
 | Command | Status | Return Code | Duration | Notes |
 |---|---|---:|---:|---|
-| `make refresh-connector-reports` | PASS | 0 | 94.367 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.venv/bin/p |
-| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.522 | - reports/testing/generated/manifest/report-refresh-mani |
-| `make lint` | FAIL | 2 | 3.083 | - reports/testing/generated/manifest/report-refresh-manifest.generated.json: critical report input is stale: reports/testing/generated/focused-analysis/phase4-hard-abort-cap |
-| `make quick-check` | FAIL | 2 | 3.133 | - reports/testing/generated/manifest/report-refresh-manifest.generated.json: critical report input is stale: reports/testing/generated/focused-analysis/phase4-hard-abort-cap |
-| `git status --short` | PASS | 0 | 0.105 |  M reports/testing/generated/m |
+| `make refresh-connector-reports` | PASS | 0 | 12.935 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 0.733 | - reports/tes |
+| `make lint` | FAIL | 2 | 2.337 | - reports/tes |
+| `make quick-check` | FAIL | 2 | 2.407 | - reports/tes |
+| `git status --short` | PASS | 0 | 0.036 |  M reports/testing/generated/manifest/generator-runtime-summary.g |
 
 ## Report Layout Evidence
 
@@ -187,29 +194,30 @@
 | Categories | 8 (cache, canonical, coverage, focused-analysis, manifest, mrts-native, runtime, work-queues) |
 | Missing registry outputs | 0 |
 | Orphan generated reports | 0 |
-| Skipped reports | 3 |
+| Skipped reports | 4 |
 | Failed reports | 0 |
 
 ## Known Skipped Inputs
 
 | Report | Status | Missing Inputs | Reason |
 |---|---|---|---|
-| `intervention_blocking_analysis` | skipped_stale_input | - | local optional inputs are missing or unavailable |
-| `body_processor_analysis` | skipped_stale_input | - | local optional inputs are missing or unavailable |
-| `rule_chain_semantics_analysis` | skipped_stale_input | - | local optional inputs are missing or unavailable |
+| `full_runtime_matrix` | skipped_missing_input | `BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl` | local optional inputs are missing or unavailable |
+| `full_matrix_job_completeness` | skipped_missing_input | `BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl` | local optional inputs are missing or unavailable |
+| `verified_runtime_mismatch_analysis` | skipped_missing_input | `BUILD_ROOT:full-matrix/full-runtime-matrix-runs.jsonl` | local optional inputs are missing or unavailable |
+| `native_mrts_reports` | skipped_missing_input | `BUILD_ROOT:mrts-native/apache2_ubuntu/job.json`, `BUILD_ROOT:mrts-native/nginx-pr24/job.json` | local optional inputs are missing or unavailable |
 
 ## Git Evidence
 
 | Command | Status | Return Code | Output Hash |
 |---|---|---:|---|
-| `git_status_short` | PASS | 0 | `7463ad6cf0696ad6c36bf48f7ebb210c13056b4985997317f5f5e2fb49a65a71` |
-| `git_head` | PASS | 0 | `15dd21b8d45176223e140357f67782c745a9ff2f6e71336ae94e2581fcdb8e0a` |
+| `git_status_short` | PASS | 0 | `af82b46abd9242cf26d19b27c2181d2f3b8099b3388e1f6be8054cb3713bac98` |
+| `git_head` | PASS | 0 | `558e224e7252db7e45e0a166d73c204972439861f23fc6103cabb67f1a083097` |
 | `git_branch` | PASS | 0 | `9b3162498c21d7f960877099174ecea13410bd21d12440b2ea8868117fc08ae0` |
 | `git_submodule_status` | PASS | 0 | `ba754e980921ceb1383dff6098c68e024eb0a9685c7cb46e2b4d5b1e7c4a09d9` |
-| `git_diff_stat` | PASS | 0 | `7818a21a1a260724993bd7b4c85875fe5627af59d70dbd70f854bee59a2e62ee` |
-| `framework_status_short` | PASS | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `git_diff_stat` | PASS | 0 | `0763bc8c44779eb5527d00f6542370fb2d660372042669d34d657698f7c506c2` |
+| `framework_status_short` | PASS | 0 | `71bdd1bb7c1d2a8e9a2a00ed8ab6fd6c9b52f3e1bd6bb5b9fae08871e729d216` |
 | `framework_head` | PASS | 0 | `581c4df039742c77cdf43b701e86c8df464a18be0f6228affa6782e64a237cb9` |
-| `framework_diff_stat` | PASS | 0 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `framework_diff_stat` | PASS | 0 | `70c566428775b54af10b200083b582a3d5ec2ddd8d37e8b0e7e1e45366451836` |
 
 ## Proof Summary
 
@@ -227,9 +235,9 @@ The generated report layout was validated on the system above.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `71e4fd2a52c0d54613f920b4f669d9a5d1ef008ac3c32e7951263f1a657441d6` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `e12940b83a122835dead616e5bff5505406151229cd5d7ab5b77c2ab731475fc` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `f62ccc4c9e5a2748adf9a1cf1ca382b6c1b683e02fd0264740ec495333cddace` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `ae5644b7e45dc2fedaa289b57881489257e53a99bc341d1ad853fb3a84eda33a` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `7d4f982b8cc29d3c1b36b372ceaedf66a18ed73e9d0ac3dadae9ba7bd93d3d0f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `63c224e072428210f66b357e0b6bcdaffaf8435ba571277d625452943e31eed9` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 
 ## Data Availability / Missing Information
 

@@ -11,36 +11,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
-SYSTEM_PREFIXES = (
-    "/usr",
-    "/usr/local",
-    "/opt",
-    "/etc",
-    "/var",
-    "/lib",
-    "/lib64",
-    "/bin",
-    "/sbin",
-    "/run",
-)
+from runtime_path_utils import is_system_write_path, is_under, verified_runtime_paths
 
 
 def default_state_home() -> Path:
-    return Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-
-
-def is_system_path(path: Path) -> bool:
-    text = str(path.resolve(strict=False))
-    return any(text == prefix or text.startswith(prefix + "/") for prefix in SYSTEM_PREFIXES)
+    return Path(verified_runtime_paths(os.environ)["VERIFIED_STATE_ROOT"])
 
 
 def is_within(path: Path, root: Path) -> bool:
-    try:
-        path.resolve(strict=False).relative_to(root.resolve(strict=False))
-        return True
-    except ValueError:
-        return False
+    return is_under(path, root)
 
 
 def parse_export_file(path: Path) -> dict[str, str]:
@@ -114,6 +93,13 @@ def file_status(path: Path | None, *, executable_required: bool = False) -> str:
     return "present" if path.is_file() else "missing"
 
 
+def first_nonempty(*values: str | None) -> str:
+    for value in values:
+        if value:
+            return value
+    return ""
+
+
 def status_for_required(items: list[dict[str, Any]]) -> str:
     return "PASS" if all(item["status"] == "present" for item in items) else "BLOCKED"
 
@@ -147,7 +133,7 @@ def check_safe_path(path: Path, label: str, roots: dict[str, Path], connector_ro
     if not path.is_absolute():
         status = "BLOCKED"
         notes.append("path is not absolute")
-    if is_system_path(path):
+    if is_system_write_path(path):
         status = "BLOCKED"
         notes.append("system write path is forbidden")
     for root_label, root in (("connector checkout", connector_root), ("framework checkout", framework_root)):
@@ -188,20 +174,28 @@ def network_cache_status(env: dict[str, str], cache_root: Path) -> list[dict[str
 
 
 def build_payload(connector_root: Path, framework_root: Path, build_root: Path) -> dict[str, Any]:
-    state_home = default_state_home()
-    cache_root = Path(os.environ.get("CONNECTOR_COMPONENT_CACHE", str(build_root / "component-cache"))).resolve()
+    defaults = verified_runtime_paths(os.environ, build_root_override=build_root)
+    state_home = Path(defaults["VERIFIED_STATE_ROOT"])
+    cache_root = Path(os.environ.get("CONNECTOR_COMPONENT_CACHE", defaults["CONNECTOR_COMPONENT_CACHE"])).resolve()
     base_env = dict(os.environ)
     base_env.update(
         {
             "CONNECTOR_ROOT": str(connector_root),
             "FRAMEWORK_ROOT": str(framework_root),
             "BUILD_ROOT": str(build_root),
-            "SOURCE_ROOT": base_env.get("SOURCE_ROOT", str(state_home / "ModSecurity-conector-src")),
-            "TMP_ROOT": base_env.get("TMP_ROOT", str(build_root / "tmp")),
-            "LOG_ROOT": base_env.get("LOG_ROOT", str(build_root / "logs")),
+            "VERIFIED_RUN_ROOT": defaults["VERIFIED_RUN_ROOT"],
+            "VERIFIED_STATE_ROOT": defaults["VERIFIED_STATE_ROOT"],
+            "VERIFIED_BUILD_ROOT": defaults["VERIFIED_BUILD_ROOT"],
+            "VERIFIED_SOURCE_ROOT": defaults["VERIFIED_SOURCE_ROOT"],
+            "VERIFIED_TMP_ROOT": defaults["VERIFIED_TMP_ROOT"],
+            "VERIFIED_LOG_ROOT": defaults["VERIFIED_LOG_ROOT"],
+            "VERIFIED_COMPONENT_CACHE": defaults["VERIFIED_COMPONENT_CACHE"],
+            "SOURCE_ROOT": base_env.get("SOURCE_ROOT", defaults["SOURCE_ROOT"]),
+            "TMP_ROOT": base_env.get("TMP_ROOT", defaults["TMP_ROOT"]),
+            "LOG_ROOT": base_env.get("LOG_ROOT", defaults["LOG_ROOT"]),
             "CONNECTOR_COMPONENT_CACHE": str(cache_root),
-            "NGINX_HARNESS_PARENT": base_env.get("NGINX_HARNESS_PARENT", str(build_root / "tmp/nginx-harness")),
-            "MRTS_NATIVE_ROOT": base_env.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native")),
+            "NGINX_HARNESS_PARENT": base_env.get("NGINX_HARNESS_PARENT", defaults["NGINX_HARNESS_PARENT"]),
+            "MRTS_NATIVE_ROOT": base_env.get("MRTS_NATIVE_ROOT", defaults["MRTS_NATIVE_ROOT"]),
         }
     )
     common = load_common_sh(connector_root, framework_root, base_env)
@@ -213,20 +207,20 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
 
     nginx_prefix = Path(effective_env.get("NGINX_PREFIX", str(build_root / "nginx-runtime/nginx"))).resolve()
     nginx_bin = Path(effective_env.get("NGINX_BINARY", str(nginx_prefix / "sbin/nginx"))).resolve()
+    nginx_module_dir_value = first_nonempty(effective_env.get("MRTS_NATIVE_NGINX_MODULE_DIR"), str(nginx_prefix / "modules"))
     nginx_module_file = Path(
-        effective_env.get(
-            "NGINX_MODULE",
-            effective_env.get(
-                "MRTS_NATIVE_NGINX_MODULE_FILE",
-                str(Path(effective_env.get("MRTS_NATIVE_NGINX_MODULE_DIR", str(nginx_prefix / "modules"))) / "ngx_http_modsecurity_module.so"),
-            ),
+        first_nonempty(
+            effective_env.get("NGINX_MODULE"),
+            effective_env.get("MRTS_NATIVE_NGINX_MODULE_FILE"),
+            str(Path(nginx_module_dir_value) / "ngx_http_modsecurity_module.so"),
         )
     ).resolve()
     nginx_module_dir = nginx_module_file.parent
     modsecurity_lib_dir = Path(
-        effective_env.get(
-            "NGINX_MRTS_MODSECURITY_LIB_DIR",
-            effective_env.get("MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR", effective_env.get("MODSECURITY_LIB_DIR", "")),
+        first_nonempty(
+            effective_env.get("NGINX_MRTS_MODSECURITY_LIB_DIR"),
+            effective_env.get("MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR"),
+            effective_env.get("MODSECURITY_LIB_DIR"),
         )
     )
     modsecurity_lib = (modsecurity_lib_dir / "libmodsecurity.so").resolve() if str(modsecurity_lib_dir) else None
@@ -257,6 +251,7 @@ def build_payload(connector_root: Path, framework_root: Path, build_root: Path) 
         component("albedo", file_status(albedo, executable_required=True), albedo, "optional native MRTS: install or cache albedo", required=False),
     ]
     roots = {
+        "verified_run_root": Path(effective_env["VERIFIED_RUN_ROOT"]).resolve(),
         "state_home": state_home,
         "build_root": build_root,
         "cache_root": cache_root,
@@ -324,7 +319,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    build_root = Path(args.build_root or default_state_home() / "ModSecurity-conector-build").resolve()
+    default_paths = verified_runtime_paths(os.environ)
+    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     payload = build_payload(connector_root, framework_root, build_root)
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))

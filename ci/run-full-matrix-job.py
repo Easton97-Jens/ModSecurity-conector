@@ -8,17 +8,15 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
+
+from generated_report_utils import utc_now
+from runtime_path_utils import verified_runtime_paths
 
 
 CONNECTORS = {"apache", "nginx", "haproxy"}
 CRS_VARIANTS = {"no-crs", "with-crs"}
 MRTS_VARIANTS = {"no-mrts", "with-mrts"}
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def safe_token(value: str) -> str:
@@ -99,7 +97,8 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    build_root = Path(args.build_root or Path.home() / ".local/state/ModSecurity-conector-build").resolve()
+    default_paths = verified_runtime_paths(os.environ)
+    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     matrix_root = Path(os.environ.get("MATRIX_ROOT", str(build_root / "full-matrix"))).resolve()
     verified_run_id = os.environ.get("VERIFIED_RUN_ID", "")
     if not verified_run_id:

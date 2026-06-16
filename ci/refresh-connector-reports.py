@@ -1879,8 +1879,10 @@ def main() -> int:
 
     connector_root = Path(args.connector_root).resolve()
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
-    default_state_home = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-    build_root = Path(args.build_root or default_state_home / "ModSecurity-conector-build").resolve()
+    from runtime_path_utils import verified_runtime_paths
+
+    default_paths = verified_runtime_paths(os.environ)
+    build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
     native_root = Path(args.native_root or build_root / "mrts-native").resolve()
     report_dir = connector_root / REPORT_DIR
     report_dir.mkdir(parents=True, exist_ok=True)
