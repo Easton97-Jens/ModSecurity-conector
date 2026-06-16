@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T05:56:28Z`
+> Generated at: `2026-06-16T07:20:46Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-full-matrix-job-completeness.py`
 > Make target: `generate-full-matrix-job-completeness`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
-> Framework SHA: `708183dce7dcd0ad190a5cb5211b1ba3de6a2385`
+> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
+> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
 > Input status: `complete`
 
 # Full-Matrix Job Completeness
@@ -152,7 +152,7 @@ Add sharding at the case-list stage in connectors/*/harness/run_*_smoke.sh, afte
 | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `6c1859588a5d1cff7ee5a6fd1c347f4629381bd6c6221e0c7978f0f072ef989e` |
 | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl` | present | `8efbce6ae1454ca86ce4d7f5fde168a47b78743b9a8fad525e84c972f5cf7e47` |
 | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/build-manifest.json` | present | `ea212075df625b0068175103bfbeacb9b3bbd8d4c22d5a3fc3a1bbe052c422d2` |
-| `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load` | present | `665e4200a092978c7c7007e3d06e043c5f7162ad789899943891150fc07767e5` |
+| `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load` | present | `eb30eaf5beecc3cdb82cc497453600b8095de129d451b903adf709a5f289a2d6` |
 | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/haproxy/job.json` | present | `1e8998bdf289217d45a7df434310de0f91c3b6ef6d6785bb45ec3052e95e396f` |
 | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/haproxy/run.log` | present | `bdbf4a2f04351e22236196cf66906f37c8cb652a24f9d039ac0a9c52c8f40fb9` |
 | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `1bebe0cc629cf0f3d171f7147da0d3f1cdf5f75669ff7752327aa91f5e4ed4c3` |
@@ -218,7 +218,7 @@ Add sharding at the case-list stage in connectors/*/harness/run_*_smoke.sh, afte
 | Declared input | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | `6c1859588a5d1cff7ee5a6fd1c347f4629381bd6c6221e0c7978f0f072ef989e` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 | Declared input | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl` | `8efbce6ae1454ca86ce4d7f5fde168a47b78743b9a8fad525e84c972f5cf7e47` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 | Declared input | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/build-manifest.json` | `ea212075df625b0068175103bfbeacb9b3bbd8d4c22d5a3fc3a1bbe052c422d2` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load` | `665e4200a092978c7c7007e3d06e043c5f7162ad789899943891150fc07767e5` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load` | `eb30eaf5beecc3cdb82cc497453600b8095de129d451b903adf709a5f289a2d6` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 | Declared input | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/haproxy/job.json` | `1e8998bdf289217d45a7df434310de0f91c3b6ef6d6785bb45ec3052e95e396f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 | Declared input | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/haproxy/run.log` | `bdbf4a2f04351e22236196cf66906f37c8cb652a24f9d039ac0a9c52c8f40fb9` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 | Declared input | `/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json` | `1bebe0cc629cf0f3d171f7147da0d3f1cdf5f75669ff7752327aa91f5e4ed4c3` | `2026-06-15T21-01-39Z-9391a8d0` | present |

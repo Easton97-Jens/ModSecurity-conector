@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T05:56:38Z`
+> Generated at: `2026-06-16T07:20:58Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
-> Framework SHA: `708183dce7dcd0ad190a5cb5211b1ba3de6a2385`
+> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
+> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
 > Input status: `complete`
 
 # MRTS Native Apache Report
 
-Generated at: `2026-06-16T05:56:38Z`
+Generated at: `2026-06-16T07:20:58Z`
 
 ## Target
 - Target: `apache2_ubuntu`
@@ -48,13 +48,13 @@ Generated at: `2026-06-16T05:56:38Z`
   Request: `POST /?foo=attack`
 
 ## Runtime Components
-- APACHECTL_BIN: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/70269d7c4705bf86cb946dd57aa0f4ba51d9392dd51fa01a5f75577599e50b22/httpd/bin/apachectl-mrts`
-- httpd_binary: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/70269d7c4705bf86cb946dd57aa0f4ba51d9392dd51fa01a5f75577599e50b22/httpd/bin/httpd`
-- mod_security3_so: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/70269d7c4705bf86cb946dd57aa0f4ba51d9392dd51fa01a5f75577599e50b22/build/output/apache/mod_security3.so`
-- connector_build_id: `70269d7c4705bf86cb946dd57aa0f4ba51d9392dd51fa01a5f75577599e50b22`
-- modsecurity_build_id: `38503a5b3c496424e81b4d6bba0b34bd329cf40a76e82c3fa3ef07abff5dfc0a`
-- go_ftw_binary: `$CONNECTOR_COMPONENT_CACHE/bin/go-ftw`
-- albedo_binary: `$CONNECTOR_COMPONENT_CACHE/bin/albedo`
+- APACHECTL_BIN: `-`
+- httpd_binary: `-`
+- mod_security3_so: `-`
+- connector_build_id: `-`
+- modsecurity_build_id: `-`
+- go_ftw_binary: `-`
+- albedo_binary: `-`
 
 ## Paths
 - staged_infra_path: `$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra`

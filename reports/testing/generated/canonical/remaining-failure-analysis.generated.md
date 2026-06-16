@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T05:57:06Z`
+> Generated at: `2026-06-16T07:21:25Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
+> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
 > Framework SHA: `unknown`
 > Input status: `blocked`
 
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-16T05:57:06Z`
+Generated at: `2026-06-16T07:21:25Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -199,8 +199,8 @@ Generated at: `2026-06-16T05:57:06Z`
 | 4 | operator_rx_pass_no_match_phase2 | nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | unknown_requires_review | {'200→500': 4} | 4505 | ARGS:q |
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `nginx_actual_500`
-- Begründung: previously resolved cluster reappeared
+- Empfohlener nächster Fix-Cluster: `nginx_with_crs_with_mrts_http500_cluster`
+- Begründung: largest verified Full-Matrix blocker; all HTTP-500 rows share the /index.html redirect-cycle/docroot-permission signature
 - Nicht als nächstes bearbeiten: `phase4_hard_abort_capability`, weil requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.
@@ -214,14 +214,14 @@ Generated at: `2026-06-16T05:57:06Z`
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `9dddbb2d7e4d5da765bb8196de926a0003f76085c9c14427e440bc63f4e1e006` | `2026-06-15T21-01-39Z-9391a8d0` | blocked |
-| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `443a82e324f1acc1b0ab2faaa3304e7244e40bfd18e5666297bb3fed586c0d16` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `76f13eeeb07f9680bd79fe061b8c3e7283630a80f2ecec31242b108e22c61161` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `410a57c9f3059a1bd9876227185044fdc74896cce1270eeb18434628648e2221` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `4be1206f0d2f50dd3b08893fc18ae6237b68ecd11476f824802ccea9733cac93` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `9ba0e705e79616868c41e57959d7b80963efd1859039704bfa46aab2e9648fe5` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `58779ee2126c9f1c19a0b81db904eb56ecc73dd008f014bc2ec0e6ef83d96e81` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `e8549a2c62650e9b0ec761a461f61b7d2abb1af0be375f49116976f324bd35a3` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `88ce8e4acd933ddb46d5f4f488190daf1de5c38dcdb6a2cd9cdb35b738c56e3e` | `2026-06-15T21-01-39Z-9391a8d0` | blocked |
+| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `3a396c14ab6c2d7e84b419d32fbc215193e99a47a6a37a5c7d1ea9a55482717e` | `2026-06-15T21-01-39Z-9391a8d0` | blocked |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `54f4c92738c5271b21ac17bd65352499f65b467c8a0d4679e1ee331dbf81f897` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `95d3512364665627633d55db406e6d783652ac35f9a6ccad2cc08127c82dae78` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `be1eb6d091f6b266506cdbe9527f6b33f719d2b5772058e3fb616be78045a888` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 
 ## Data Availability / Missing Information
 
@@ -231,7 +231,7 @@ Generated at: `2026-06-16T05:57:06Z`
 | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | present | input file available |
 | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
 | `reports/testing/generated/canonical/full-run-evidence.generated.json` | blocked | generated report input is not usable: status=blocked |
-| `reports/testing/generated/cache/runtime-build-cache.generated.json` | present | input file available |
+| `reports/testing/generated/cache/runtime-build-cache.generated.json` | blocked | generated report input is not usable: status=blocked |
 | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | present | input file available |
 | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | present | input file available |
 | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | present | input file available |

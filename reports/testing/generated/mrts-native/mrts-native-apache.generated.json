@@ -25,7 +25,7 @@
       "variable": "ARGS"
     }
   ],
-  "generated_at": "2026-06-16T05:56:38Z",
+  "generated_at": "2026-06-16T07:20:58Z",
   "guardrails": [
     "tools/MRTS read-only",
     "system paths read-only",
@@ -87,14 +87,14 @@
   "metadata": {
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+    "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T05:56:38Z",
+    "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-16T07:20:58Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -124,13 +124,13 @@
   },
   "report_kind": "native-mrts-target-evidence",
   "runtime_components": {
-    "APACHECTL_BIN": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/70269d7c4705bf86cb946dd57aa0f4ba51d9392dd51fa01a5f75577599e50b22/httpd/bin/apachectl-mrts",
-    "albedo_binary": "$CONNECTOR_COMPONENT_CACHE/bin/albedo",
-    "connector_build_id": "70269d7c4705bf86cb946dd57aa0f4ba51d9392dd51fa01a5f75577599e50b22",
-    "go_ftw_binary": "$CONNECTOR_COMPONENT_CACHE/bin/go-ftw",
-    "httpd_binary": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/70269d7c4705bf86cb946dd57aa0f4ba51d9392dd51fa01a5f75577599e50b22/httpd/bin/httpd",
-    "mod_security3_so": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/70269d7c4705bf86cb946dd57aa0f4ba51d9392dd51fa01a5f75577599e50b22/build/output/apache/mod_security3.so",
-    "modsecurity_build_id": "38503a5b3c496424e81b4d6bba0b34bd329cf40a76e82c3fa3ef07abff5dfc0a"
+    "APACHECTL_BIN": "-",
+    "albedo_binary": "-",
+    "connector_build_id": "-",
+    "go_ftw_binary": "-",
+    "httpd_binary": "-",
+    "mod_security3_so": "-",
+    "modsecurity_build_id": "-"
   },
   "separate_from_connector_full_matrix": true,
   "source": "$MRTS_ROOT/config_infra/apache2_ubuntu",

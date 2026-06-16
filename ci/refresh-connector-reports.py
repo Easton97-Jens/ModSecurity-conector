@@ -261,6 +261,7 @@ FULL_RUN_EVIDENCE_OUTPUTS = generated_report_outputs(["full_run_evidence"])
 RUNTIME_CACHE_OUTPUTS = generated_report_outputs(["runtime_component_cache", "runtime_build_cache"])
 FULL_MATRIX_JOB_COMPLETENESS_OUTPUTS = generated_report_outputs(["full_matrix_job_completeness"])
 VERIFIED_RUNTIME_MISMATCH_OUTPUTS = generated_report_outputs(["verified_runtime_mismatch_analysis"])
+NGINX_MRTS_HTTP500_OUTPUTS = generated_report_outputs(["nginx_mrts_http500_cluster_analysis"])
 NOLOG_OUTPUTS = generated_report_outputs(["nolog_audit_evidence"])
 RESPONSE_HEADER_OUTPUTS = generated_report_outputs(["response_header_hook_analysis"])
 PHASE4_OUTPUTS = generated_report_outputs(["phase4_hard_abort_capability"])
@@ -404,6 +405,35 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
                 str(Path(os.environ.get("VERIFIED_RUN_COMMANDS_FILE", str(build_root / "verified-runs" / current_verified_run_id(connector_root) / "verified-commands.json")))),
             ),
             requires_runtime=True,
+        ),
+        ReportSpec(
+            name="nginx_mrts_http500_cluster_analysis",
+            owner="connector",
+            generator="ci/generate-nginx-mrts-http500-cluster-analysis.py",
+            make_target="generate-nginx-mrts-http500-cluster-analysis",
+            inputs=(
+                str(Path(os.environ.get("VERIFIED_RUN_COMMANDS_FILE", str(build_root / "verified-runs" / current_verified_run_id(connector_root) / "verified-commands.json")))),
+                str(full_matrix_manifest),
+                report_relpath("full_matrix_job_completeness", "json"),
+                report_relpath("verified_runtime_mismatch_analysis", "json"),
+            ),
+            outputs=NGINX_MRTS_HTTP500_OUTPUTS,
+            command=(
+                python,
+                "ci/generate-nginx-mrts-http500-cluster-analysis.py",
+                "--connector-root",
+                str(connector_root),
+                "--framework-root",
+                str(framework_root),
+                "--build-root",
+                str(build_root),
+                "--output-dir",
+                str(report_dir / "manifest"),
+                "--verified-run-id",
+                current_verified_run_id(connector_root),
+            ),
+            requires_runtime=True,
+            requires_full_matrix=True,
         ),
         ReportSpec(
             name="connector_work_queue",
@@ -1480,6 +1510,7 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
     system_proof = read_json(report_path(connector_root, "system_environment_proof", "json"))
     mismatch_analysis = read_json(report_path(connector_root, "verified_runtime_mismatch_analysis", "json"))
     job_completeness = read_json(report_path(connector_root, "full_matrix_job_completeness", "json"))
+    nginx_http500 = read_json(report_path(connector_root, "nginx_mrts_http500_cluster_analysis", "json"))
     reports = manifest.get("reports", [])
     failed = [report for report in reports if report.get("status") == "failed" and not report.get("optional")]
     optional_failed = [report for report in reports if report.get("status") == "failed" and report.get("optional")]
@@ -1556,6 +1587,14 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
     mismatch_count = int(mismatch_analysis.get("mismatch_count") or 0)
     smoke_only = evidence_scope == "smoke-only"
     full_matrix_incomplete = bool(mismatch_analysis) and (smoke_only or not full_matrix_complete)
+    primary_blocker = str(nginx_http500.get("primary_blocker") or "")
+    if primary_blocker == "none":
+        primary_blocker = ""
+    if not primary_blocker and full_matrix_complete and critical_mismatch_count > 0:
+        primary_blocker = str(
+            next_plan.get("recommendation", {}).get("recommended_next_fix_cluster")
+            or final_audit.get("recommended_next_fix_cluster", {}).get("value", "unknown")
+        )
     core_ok = (
         not failed
         and not skipped
@@ -1612,6 +1651,7 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
         "critical_runtime_mismatch_count": critical_mismatch_count,
         "runtime_mismatch_categories": mismatch_analysis.get("by_classification", {}) if isinstance(mismatch_analysis.get("by_classification"), dict) else {},
         "final_consistency_status": final_audit.get("release_readiness", "unknown"),
+        "primary_blocker": primary_blocker or "unknown",
         "recommended_next_fix_cluster": next_plan.get("recommendation", {}).get("recommended_next_fix_cluster")
         or final_audit.get("recommended_next_fix_cluster", {}).get("value", "unknown"),
         "failed_reports": [report.get("report_name") for report in failed],
@@ -1713,6 +1753,7 @@ def render_merge_dashboard_md(payload: dict[str, Any]) -> str:
             f"- Verified run id: `{payload.get('verified_run_id', 'unknown')}`",
             f"- Connector SHA: `{payload.get('connector_sha', 'unknown')}`",
             f"- Framework SHA: `{payload.get('framework_sha', 'unknown')}`",
+            f"- Primary blocker: `{payload.get('primary_blocker', 'unknown')}`",
             f"- Recommended next fix cluster: `{payload.get('recommended_next_fix_cluster', 'unknown')}`",
             f"- Evidence scope: `{payload.get('evidence_scope', 'unknown')}`",
             f"- Full-Matrix complete: `{payload.get('full_matrix_complete', False)}`",

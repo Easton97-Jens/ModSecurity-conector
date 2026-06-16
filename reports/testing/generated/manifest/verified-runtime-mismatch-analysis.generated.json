@@ -299,7 +299,7 @@
     "status": "not_run",
     "timeout": false
   },
-  "generated_at": "2026-06-16T05:56:32Z",
+  "generated_at": "2026-06-16T07:20:50Z",
   "inputs": [
     {
       "bytes": 6542,
@@ -482,14 +482,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+    "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T05:56:32Z",
+    "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-16T07:20:50Z",
     "generated_by": "ci/generate-verified-runtime-mismatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",

@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T05:56:38Z`
+> Generated at: `2026-06-16T07:20:58Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
-> Framework SHA: `708183dce7dcd0ad190a5cb5211b1ba3de6a2385`
+> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
+> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
 > Input status: `complete`
 
 # MRTS Native NGINX PR24 Report
 
-Generated at: `2026-06-16T05:56:38Z`
+Generated at: `2026-06-16T07:20:58Z`
 
 ## Target
 - Target: `nginx-pr24`
@@ -57,13 +57,13 @@ Generated at: `2026-06-16T05:56:38Z`
   Request: `POST /?foo=attack`
 
 ## Runtime Components
-- MRTS_NATIVE_NGINX_BIN: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/sbin/nginx`
-- MRTS_NATIVE_NGINX_MODULE_DIR: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/modules`
-- ngx_http_modsecurity_module_so: `$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/modules/ngx_http_modsecurity_module.so`
-- connector_build_id: `b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66`
-- modsecurity_build_id: `38503a5b3c496424e81b4d6bba0b34bd329cf40a76e82c3fa3ef07abff5dfc0a`
-- go_ftw_binary: `$CONNECTOR_COMPONENT_CACHE/bin/go-ftw`
-- albedo_binary: `$CONNECTOR_COMPONENT_CACHE/bin/albedo`
+- MRTS_NATIVE_NGINX_BIN: `-`
+- MRTS_NATIVE_NGINX_MODULE_DIR: `-`
+- ngx_http_modsecurity_module_so: `-`
+- connector_build_id: `-`
+- modsecurity_build_id: `-`
+- go_ftw_binary: `-`
+- albedo_binary: `-`
 
 ## Paths
 - staged_infra_path: `$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra`

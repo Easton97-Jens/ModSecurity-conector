@@ -49,6 +49,10 @@
       "to": "rule_chain_semantics_analysis"
     },
     {
+      "from": "full_matrix_job_completeness",
+      "to": "nginx_mrts_http500_cluster_analysis"
+    },
+    {
       "from": "full_run_evidence",
       "to": "final_consistency_audit"
     },
@@ -235,6 +239,10 @@
     {
       "from": "runtime_component_cache",
       "to": "runtime_build_cache"
+    },
+    {
+      "from": "verified_runtime_mismatch_analysis",
+      "to": "nginx_mrts_http500_cluster_analysis"
     }
   ],
   "final_reports": [
@@ -242,18 +250,18 @@
     "full_run_evidence",
     "merge_readiness_dashboard"
   ],
-  "generated_at": "2026-06-16T05:58:01Z",
+  "generated_at": "2026-06-16T07:22:12Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+    "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
     "data_kind": "manifest",
     "data_origin": "manifest",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T05:58:01Z",
+    "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-16T07:22:12Z",
     "generated_by": "ci/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "blocked",
@@ -294,192 +302,212 @@
         "status": "present"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-        "notes": "input file available",
-        "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
-        "sha256": "443a82e324f1acc1b0ab2faaa3304e7244e40bfd18e5666297bb3fed586c0d16",
-        "source_hash": "443a82e324f1acc1b0ab2faaa3304e7244e40bfd18e5666297bb3fed586c0d16",
-        "status": "present",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-        "notes": "input file available",
-        "path": "reports/testing/generated/cache/runtime-component-cache.generated.json",
-        "sha256": "cb6706def1a85d59cfb8562b1d15c697a2118f936f7319a9401b229206798c11",
-        "source_hash": "cb6706def1a85d59cfb8562b1d15c697a2118f936f7319a9401b229206798c11",
-        "status": "present",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
-        "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "7d6a5dc9ffaf32181caa561e8371b8b73077a42b7350d56dea0c2c497712934d",
-        "source_hash": "7d6a5dc9ffaf32181caa561e8371b8b73077a42b7350d56dea0c2c497712934d",
-        "status": "stale",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-        "notes": "input file available",
-        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
-        "source_hash": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
-        "status": "present",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
-        "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d",
-        "source_hash": "6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d",
-        "status": "stale",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
-        "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479",
-        "source_hash": "d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479",
-        "status": "stale",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-        "notes": "input file available",
-        "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "adba249dc1947b867070bce66995422b5e2b1382a5dc869c940b7c26b9e519bc",
-        "source_hash": "adba249dc1947b867070bce66995422b5e2b1382a5dc869c940b7c26b9e519bc",
-        "status": "present",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
-        "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
-        "sha256": "39a4083ed1e26c6fdf9069a83f4b6e428500ef6b7919c784d16a6623244f3d7f",
-        "source_hash": "39a4083ed1e26c6fdf9069a83f4b6e428500ef6b7919c784d16a6623244f3d7f",
-        "status": "skipped_stale_input",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
-        "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "sha256": "68d737435a1d14cf21aeaeb32fecf65b0283f5ad6da2192d849dd261b4587eeb",
-        "source_hash": "68d737435a1d14cf21aeaeb32fecf65b0283f5ad6da2192d849dd261b4587eeb",
-        "status": "skipped_stale_input",
-        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
-      },
-      {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "generated report input is not usable: status=blocked",
-        "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
-        "sha256": "063dd8a70bd170aba2eb05c6231787b00bbb6c03a06ffb52e9453689002a7c3c",
-        "source_hash": "063dd8a70bd170aba2eb05c6231787b00bbb6c03a06ffb52e9453689002a7c3c",
+        "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
+        "sha256": "a3aec7f6881f1a8cffec1e0dd59771fa60c0d70ce1e9f0676be7789ff4a811a5",
+        "source_hash": "a3aec7f6881f1a8cffec1e0dd59771fa60c0d70ce1e9f0676be7789ff4a811a5",
         "status": "blocked",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-        "notes": "input file available",
-        "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
-        "sha256": "1f4c8b9040baccbd172c717c40116e4ea01296d78062886cbaa1a3ccb3cc4654",
-        "source_hash": "1f4c8b9040baccbd172c717c40116e4ea01296d78062886cbaa1a3ccb3cc4654",
-        "status": "present",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=blocked",
+        "path": "reports/testing/generated/cache/runtime-component-cache.generated.json",
+        "sha256": "bd0637c74748651a55bf6916366af37ef2bb9c364ed07c5f2cfa848d538c46a6",
+        "source_hash": "bd0637c74748651a55bf6916366af37ef2bb9c364ed07c5f2cfa848d538c46a6",
+        "status": "blocked",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
         "framework_sha": "unknown",
         "notes": "generated report input is stale: framework_sha differs",
-        "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
-        "sha256": "49bb0bf74ecc0e5ed80a547ccdb0876b7de88d4479df685c0193e0d2d5705da4",
-        "source_hash": "49bb0bf74ecc0e5ed80a547ccdb0876b7de88d4479df685c0193e0d2d5705da4",
+        "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
+        "sha256": "17e62a146094e8a9c60599e449527ccf5b2827493236737c5cf145cc14fe0d7f",
+        "source_hash": "17e62a146094e8a9c60599e449527ccf5b2827493236737c5cf145cc14fe0d7f",
         "status": "stale",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
-        "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
-        "sha256": "ea853430a51cf140efe5a29c350ec15cb586c158eb80fe252e8b9213b93c1b42",
-        "source_hash": "ea853430a51cf140efe5a29c350ec15cb586c158eb80fe252e8b9213b93c1b42",
+        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "sha256": "9ba0e705e79616868c41e57959d7b80963efd1859039704bfa46aab2e9648fe5",
+        "source_hash": "9ba0e705e79616868c41e57959d7b80963efd1859039704bfa46aab2e9648fe5",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
+        "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
+        "sha256": "ff38f4488db455098e339d2d81c5e3d21d3026bf8669e640a320d362be5ec346",
+        "source_hash": "ff38f4488db455098e339d2d81c5e3d21d3026bf8669e640a320d362be5ec346",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
+        "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "sha256": "ef80c91405646ef2009facb6f426e272901027be072cf287acdc38916500111f",
+        "source_hash": "ef80c91405646ef2009facb6f426e272901027be072cf287acdc38916500111f",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "input file available",
+        "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
+        "sha256": "14e2ffeb04a9d357850663c04fafcdbd9049f2867a09ebb2263c0a01212e7f36",
+        "source_hash": "14e2ffeb04a9d357850663c04fafcdbd9049f2867a09ebb2263c0a01212e7f36",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "generated report input is not usable: status=skipped_stale_input",
-        "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
-        "sha256": "bee021d0f08bd8e225ab21c6d42a604430dbbab5fa15f12695951827b5dde4bc",
-        "source_hash": "bee021d0f08bd8e225ab21c6d42a604430dbbab5fa15f12695951827b5dde4bc",
+        "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
+        "sha256": "1098cc935a3fa5c8b710d9e257c2fbcf998767964bb767d5b9360ad39eceea91",
+        "source_hash": "1098cc935a3fa5c8b710d9e257c2fbcf998767964bb767d5b9360ad39eceea91",
         "status": "skipped_stale_input",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+        "sha256": "48e7174076363e40169a643fa4101c281473978a04978deb3b7e733f99a6c582",
+        "source_hash": "48e7174076363e40169a643fa4101c281473978a04978deb3b7e733f99a6c582",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=blocked",
+        "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
+        "sha256": "23071f5e8ef839dacb600f4fa544c92cc99330057ac8958765d0fc58b772582e",
+        "source_hash": "23071f5e8ef839dacb600f4fa544c92cc99330057ac8958765d0fc58b772582e",
+        "status": "blocked",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
+        "sha256": "f9f24f249aaa6132aee6f812fe8dda4f2ffa5c35cfddae7df51ef7bddbf25165",
+        "source_hash": "f9f24f249aaa6132aee6f812fe8dda4f2ffa5c35cfddae7df51ef7bddbf25165",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
+        "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
+        "sha256": "7b808f91a9c4535d912835f24392e57d4667ab29e234528ab14921ecdc469cde",
+        "source_hash": "7b808f91a9c4535d912835f24392e57d4667ab29e234528ab14921ecdc469cde",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
+        "sha256": "7bd9805b7bf9075d5890e09bcbe2e7a02bcea12d8f7b6110440d862715a29a96",
+        "source_hash": "7bd9805b7bf9075d5890e09bcbe2e7a02bcea12d8f7b6110440d862715a29a96",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
+        "sha256": "e6a48838af65ab438ad05099978bab28988f65cd8ca527341a473b68cf844d5a",
+        "source_hash": "e6a48838af65ab438ad05099978bab28988f65cd8ca527341a473b68cf844d5a",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
+        "sha256": "739639a9e9ad53d7f2e1478080ed78f868ff440a65dc3466ba321bd0295a565f",
+        "source_hash": "739639a9e9ad53d7f2e1478080ed78f868ff440a65dc3466ba321bd0295a565f",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "sha256": "13a80bd86eb41c43a4567eeae5f18fee50e649bde9f14abefa5416b1a68d7923",
+        "source_hash": "13a80bd86eb41c43a4567eeae5f18fee50e649bde9f14abefa5416b1a68d7923",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "410a57c9f3059a1bd9876227185044fdc74896cce1270eeb18434628648e2221",
-        "source_hash": "410a57c9f3059a1bd9876227185044fdc74896cce1270eeb18434628648e2221",
+        "sha256": "95d3512364665627633d55db406e6d783652ac35f9a6ccad2cc08127c82dae78",
+        "source_hash": "95d3512364665627633d55db406e6d783652ac35f9a6ccad2cc08127c82dae78",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "4be1206f0d2f50dd3b08893fc18ae6237b68ecd11476f824802ccea9733cac93",
-        "source_hash": "4be1206f0d2f50dd3b08893fc18ae6237b68ecd11476f824802ccea9733cac93",
+        "sha256": "be1eb6d091f6b266506cdbe9527f6b33f719d2b5772058e3fb616be78045a888",
+        "source_hash": "be1eb6d091f6b266506cdbe9527f6b33f719d2b5772058e3fb616be78045a888",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "sha256": "76f13eeeb07f9680bd79fe061b8c3e7283630a80f2ecec31242b108e22c61161",
-        "source_hash": "76f13eeeb07f9680bd79fe061b8c3e7283630a80f2ecec31242b108e22c61161",
+        "sha256": "54f4c92738c5271b21ac17bd65352499f65b467c8a0d4679e1ee331dbf81f897",
+        "source_hash": "54f4c92738c5271b21ac17bd65352499f65b467c8a0d4679e1ee331dbf81f897",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
-        "source_hash": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
+        "sha256": "58779ee2126c9f1c19a0b81db904eb56ecc73dd008f014bc2ec0e6ef83d96e81",
+        "source_hash": "58779ee2126c9f1c19a0b81db904eb56ecc73dd008f014bc2ec0e6ef83d96e81",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7",
-        "source_hash": "0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7",
+        "sha256": "e8549a2c62650e9b0ec761a461f61b7d2abb1af0be375f49116976f324bd35a3",
+        "source_hash": "e8549a2c62650e9b0ec761a461f61b7d2abb1af0be375f49116976f324bd35a3",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
@@ -785,6 +813,42 @@
       "runtime_required": true,
       "severity": "critical",
       "stem": "full-matrix-job-completeness.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "analysis",
+      "data_origin": "runtime",
+      "dependencies": [
+        "full_matrix_job_completeness",
+        "verified_runtime_mismatch_analysis"
+      ],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-nginx-mrts-http500-cluster-analysis.py",
+      "inputs": [
+        "/root/.local/state/ModSecurity-conector-build/verified-runs/2026-06-15T21-01-39Z-9391a8d0/verified-commands.json",
+        "/root/.local/state/ModSecurity-conector-build/full-matrix/full-runtime-matrix-runs.jsonl",
+        "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
+        "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
+      ],
+      "key": "nginx_mrts_http500_cluster_analysis",
+      "kind": "canonical",
+      "make_target": "generate-nginx-mrts-http500-cluster-analysis",
+      "native_mrts_required": false,
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json",
+        "reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "NGINX with-crs/with-mrts HTTP-500 cluster root-cause analysis.",
+      "runtime_required": true,
+      "severity": "critical",
+      "stem": "nginx-mrts-http500-cluster-analysis.generated"
     },
     {
       "category": "manifest",

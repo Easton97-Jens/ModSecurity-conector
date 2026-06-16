@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T05:56:43Z`
+> Generated at: `2026-06-16T07:21:03Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-phase-work-queue.py`
 > Make target: `generate-phase-work-queue`
 > Owner: `framework`
 > Severity: `important`
-> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
-> Framework SHA: `708183dce7dcd0ad190a5cb5211b1ba3de6a2385`
+> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
+> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
 > Input status: `complete`
 
 # Phase-Oriented MRTS Work Queue
@@ -16,7 +16,7 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-16T05:56:43Z`
+- Generated at: `2026-06-16T07:21:03Z`
 - Runtime evidence rows analyzed: **3928**
 - Queued work rows: **2226**
 - Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **1650** / **0** / **72**
@@ -347,9 +347,9 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `adba249dc1947b867070bce66995422b5e2b1382a5dc869c940b7c26b9e519bc` | `2026-06-15T21-01-39Z-9391a8d0` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `58779ee2126c9f1c19a0b81db904eb56ecc73dd008f014bc2ec0e6ef83d96e81` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `14e2ffeb04a9d357850663c04fafcdbd9049f2867a09ebb2263c0a01212e7f36` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `9ba0e705e79616868c41e57959d7b80963efd1859039704bfa46aab2e9648fe5` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 
 ## Data Availability / Missing Information
 

@@ -1,16 +1,16 @@
 {
   "complete_jobs": 12,
-  "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+  "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
   "data_source_policy": "verified-inputs-only",
   "evidence_scope": "full",
-  "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-  "generated_at": "2026-06-16T05:56:28Z",
-  "generated_at_utc": "2026-06-16T05:56:28Z",
+  "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+  "generated_at": "2026-06-16T07:20:46Z",
+  "generated_at_utc": "2026-06-16T07:20:46Z",
   "inputs": [
     {
       "bytes": 6542,
       "label": "full_matrix_manifest",
-      "mtime_utc": "2026-06-16T05:56:28Z",
+      "mtime_utc": "2026-06-16T07:20:46Z",
       "path": "/root/.local/state/ModSecurity-conector-build/full-matrix/full-runtime-matrix-runs.jsonl",
       "sha256": "f9634d21e3486bd05843bab0d423dd871d48edcfe6a2ec7a46cd5c694f3b54bb",
       "status": "present"
@@ -448,11 +448,11 @@
       "status": "present"
     },
     {
-      "bytes": 220,
+      "bytes": 249,
       "label": "rule_preamble",
-      "mtime_utc": "2026-06-16T04:53:37Z",
+      "mtime_utc": "2026-06-16T07:06:35Z",
       "path": "/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load",
-      "sha256": "665e4200a092978c7c7007e3d06e043c5f7162ad789899943891150fc07767e5",
+      "sha256": "eb30eaf5beecc3cdb82cc497453600b8095de129d451b903adf709a5f289a2d6",
       "status": "present"
     },
     {
@@ -1324,11 +1324,11 @@
           "status": "present"
         },
         {
-          "bytes": 220,
+          "bytes": 249,
           "label": "rule_preamble",
-          "mtime_utc": "2026-06-16T04:53:37Z",
+          "mtime_utc": "2026-06-16T07:06:35Z",
           "path": "/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load",
-          "sha256": "665e4200a092978c7c7007e3d06e043c5f7162ad789899943891150fc07767e5",
+          "sha256": "eb30eaf5beecc3cdb82cc497453600b8095de129d451b903adf709a5f289a2d6",
           "status": "present"
         }
       ],
@@ -1436,14 +1436,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+    "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T05:56:28Z",
+    "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-16T07:20:46Z",
     "generated_by": "ci/generate-full-matrix-job-completeness.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -1836,8 +1836,8 @@
       {
         "notes": "input file available",
         "path": "/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load",
-        "sha256": "665e4200a092978c7c7007e3d06e043c5f7162ad789899943891150fc07767e5",
-        "source_hash": "665e4200a092978c7c7007e3d06e043c5f7162ad789899943891150fc07767e5",
+        "sha256": "eb30eaf5beecc3cdb82cc497453600b8095de129d451b903adf709a5f289a2d6",
+        "source_hash": "eb30eaf5beecc3cdb82cc497453600b8095de129d451b903adf709a5f289a2d6",
         "status": "present"
       },
       {
@@ -1979,11 +1979,11 @@
           "status": "present"
         },
         {
-          "bytes": 220,
+          "bytes": 249,
           "label": "rule_preamble",
-          "mtime_utc": "2026-06-16T04:53:37Z",
+          "mtime_utc": "2026-06-16T07:06:35Z",
           "path": "/root/.local/state/ModSecurity-conector-build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load",
-          "sha256": "665e4200a092978c7c7007e3d06e043c5f7162ad789899943891150fc07767e5",
+          "sha256": "eb30eaf5beecc3cdb82cc497453600b8095de129d451b903adf709a5f289a2d6",
           "status": "present"
         }
       ],

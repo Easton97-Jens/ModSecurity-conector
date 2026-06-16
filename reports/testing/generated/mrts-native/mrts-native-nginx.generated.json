@@ -25,7 +25,7 @@
       "variable": "ARGS"
     }
   ],
-  "generated_at": "2026-06-16T05:56:38Z",
+  "generated_at": "2026-06-16T07:20:58Z",
   "guardrails": [
     "tools/MRTS read-only",
     "system paths read-only",
@@ -87,14 +87,14 @@
   "metadata": {
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+    "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T05:56:38Z",
+    "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-16T07:20:58Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -133,13 +133,13 @@
   "pr_url": "https://github.com/owasp-modsecurity/MRTS/pull/24",
   "report_kind": "native-mrts-target-evidence",
   "runtime_components": {
-    "MRTS_NATIVE_NGINX_BIN": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/sbin/nginx",
-    "MRTS_NATIVE_NGINX_MODULE_DIR": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/modules",
-    "albedo_binary": "$CONNECTOR_COMPONENT_CACHE/bin/albedo",
-    "connector_build_id": "b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66",
-    "go_ftw_binary": "$CONNECTOR_COMPONENT_CACHE/bin/go-ftw",
-    "modsecurity_build_id": "38503a5b3c496424e81b4d6bba0b34bd329cf40a76e82c3fa3ef07abff5dfc0a",
-    "ngx_http_modsecurity_module_so": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/nginx/b8c4040163e68e315279dcfbd360e01586e650c70c955fb30c1d79bc92841b66/nginx/modules/ngx_http_modsecurity_module.so"
+    "MRTS_NATIVE_NGINX_BIN": "-",
+    "MRTS_NATIVE_NGINX_MODULE_DIR": "-",
+    "albedo_binary": "-",
+    "connector_build_id": "-",
+    "go_ftw_binary": "-",
+    "modsecurity_build_id": "-",
+    "ngx_http_modsecurity_module_so": "-"
   },
   "separate_from_connector_full_matrix": true,
   "source": "Framework PR24 overlay",

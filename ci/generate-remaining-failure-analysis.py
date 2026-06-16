@@ -775,6 +775,7 @@ def load_reports(root: Path) -> dict[str, dict[str, Any]]:
         "phase_work_queue": read_json(report_path_from_root(root, "phase_work_queue", "json")),
         "full_run_evidence": read_json(report_path_from_root(root, "full_run_evidence", "json")),
         "runtime_build_cache": read_json(report_path_from_root(root, "runtime_build_cache", "json")),
+        "nginx_mrts_http500_cluster_analysis": read_json(report_path_from_root(root, "nginx_mrts_http500_cluster_analysis", "json")),
         "mrts_native_summary": read_json(report_path_from_root(root, "mrts_native_summary", "json")),
         "mrts_native_apache": read_json(report_path_from_root(root, "mrts_native_apache", "json")),
         "mrts_native_nginx": read_json(report_path_from_root(root, "mrts_native_nginx", "json")),
@@ -842,6 +843,22 @@ def build_analysis(connector_root: Path) -> dict[str, Any]:
         "category_rollup": categories,
     }
     analysis["priority_plan"] = priority_plan(failures, categories)
+    nginx_http500 = reports.get("nginx_mrts_http500_cluster_analysis", {})
+    http500_count = int((nginx_http500.get("summary") or {}).get("http500_failures") or 0)
+    if http500_count > 0 and nginx_http500.get("primary_blocker") == "nginx_with_crs_with_mrts_http500_cluster":
+        analysis["priority_plan"].setdefault("P0", [])
+        analysis["priority_plan"]["P0"].insert(
+            0,
+            {
+                "cluster_name": "nginx_with_crs_with_mrts_http500_cluster",
+                "count": http500_count,
+                "connector": "nginx",
+                "why": "largest verified Full-Matrix blocker; all HTTP-500 rows share the /index.html redirect-cycle/docroot-permission signature",
+                "likely_change": "move NGINX Full-Matrix harness roots out from under /root or block inaccessible worker docroots before runtime classification",
+                "risk": "medium",
+                "tests": ["targeted NGINX with-crs/with-mrts case", "make verified-full-matrix-job CONNECTOR=nginx CRS=with-crs MRTS=with-mrts"],
+            },
+        )
     not_next = [dict(item) for item in NOT_NEXT_RECOMMENDATIONS]
     recommended = first_priority_item(
         analysis["priority_plan"],

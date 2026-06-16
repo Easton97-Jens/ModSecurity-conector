@@ -1,25 +1,25 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T05:57:06Z`
+> Generated at: `2026-06-16T07:21:25Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
+> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
 > Framework SHA: `unknown`
 > Input status: `complete`
 
 # Next Fix Plan
 
-Generated at: `2026-06-16T05:57:06Z`
+Generated at: `2026-06-16T07:21:25Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `nginx_actual_500`
-- Begründung: previously resolved cluster reappeared
+- Empfohlener nächster Fix-Cluster: `nginx_with_crs_with_mrts_http500_cluster`
+- Begründung: largest verified Full-Matrix blocker; all HTTP-500 rows share the /index.html redirect-cycle/docroot-permission signature
 - Nicht als nächstes bearbeiten: `phase4_hard_abort_capability`, weil requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.
@@ -32,6 +32,7 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 ## P0
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |
 |---|---|---|---|---|---|---|
+| nginx_with_crs_with_mrts_http500_cluster | 510 | nginx | largest verified Full-Matrix blocker; all HTTP-500 rows share the /index.html redirect-cycle/docroot-permission signature | move NGINX Full-Matrix harness roots out from under /root or block inaccessible worker docroots before runtime classification | medium | targeted NGINX with-crs/with-mrts case, make verified-full-matrix-job CONNECTOR=nginx CRS=with-crs MRTS=with-mrts |
 | nginx_actual_500 | 1138 | mixed | previously resolved cluster reappeared | stop and triage regression before new work | high | regenerate full matrix, targeted smoke for affected connector |
 
 ## P1
@@ -58,7 +59,7 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `47b2a590a0e590b1ab1e488256f8e7ee461d0ef38cafddf81901b276737b006f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `7f47c0da56cd0c800820d9694f15ad2735f15195e17ba8122a73c033f330de6a` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 
 ## Data Availability / Missing Information
 

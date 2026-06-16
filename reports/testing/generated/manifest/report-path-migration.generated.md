@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T05:58:01Z`
+> Generated at: `2026-06-16T07:22:12Z`
 > Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
-> Framework SHA: `708183dce7dcd0ad190a5cb5211b1ba3de6a2385`
+> Connector SHA: `1e0c825de82d1325b5e7b070a4916de2f5af2207`
+> Framework SHA: `04e31a60676eebba86be2a4c1510ff596e37ba2f`
 > Input status: `unknown`
 
 # Report Path Migration
@@ -47,6 +47,8 @@
 | `reports/testing/generated/mrts-native-summary.generated.md` | `reports/testing/generated/mrts-native/mrts-native-summary.generated.md` | mrts-native | migrated |
 | `reports/testing/generated/next-fix-plan.generated.json` | `reports/testing/generated/canonical/next-fix-plan.generated.json` | canonical | migrated |
 | `reports/testing/generated/next-fix-plan.generated.md` | `reports/testing/generated/canonical/next-fix-plan.generated.md` | canonical | migrated |
+| `reports/testing/generated/nginx-mrts-http500-cluster-analysis.generated.json` | `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json` | manifest | migrated |
+| `reports/testing/generated/nginx-mrts-http500-cluster-analysis.generated.md` | `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md` | manifest | migrated |
 | `reports/testing/generated/nginx-runtime-results.generated.md` | `reports/testing/generated/runtime/nginx-runtime-results.generated.md` | runtime | migrated |
 | `reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.json` | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | focused-analysis | migrated |
 | `reports/testing/generated/no-mrts-intervention-nomatch-analysis.generated.md` | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md` | focused-analysis | migrated |

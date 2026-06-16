@@ -1348,99 +1348,99 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-16T05:57:06Z",
+  "generated_at": "2026-06-16T07:21:25Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+    "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "unknown",
     "framework_working_tree_dirty": "unknown",
-    "generated_at": "2026-06-16T05:57:06Z",
+    "generated_at": "2026-06-16T07:21:25Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "blocked",
     "inputs": [
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
-        "source_hash": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "sha256": "9ba0e705e79616868c41e57959d7b80963efd1859039704bfa46aab2e9648fe5",
+        "source_hash": "9ba0e705e79616868c41e57959d7b80963efd1859039704bfa46aab2e9648fe5",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
-        "source_hash": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
+        "sha256": "58779ee2126c9f1c19a0b81db904eb56ecc73dd008f014bc2ec0e6ef83d96e81",
+        "source_hash": "58779ee2126c9f1c19a0b81db904eb56ecc73dd008f014bc2ec0e6ef83d96e81",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7",
-        "source_hash": "0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7",
+        "sha256": "e8549a2c62650e9b0ec761a461f61b7d2abb1af0be375f49116976f324bd35a3",
+        "source_hash": "e8549a2c62650e9b0ec761a461f61b7d2abb1af0be375f49116976f324bd35a3",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
         "framework_sha": "unknown",
         "notes": "generated report input is not usable: status=blocked",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "9dddbb2d7e4d5da765bb8196de926a0003f76085c9c14427e440bc63f4e1e006",
-        "source_hash": "9dddbb2d7e4d5da765bb8196de926a0003f76085c9c14427e440bc63f4e1e006",
+        "sha256": "88ce8e4acd933ddb46d5f4f488190daf1de5c38dcdb6a2cd9cdb35b738c56e3e",
+        "source_hash": "88ce8e4acd933ddb46d5f4f488190daf1de5c38dcdb6a2cd9cdb35b738c56e3e",
         "status": "blocked",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
-        "notes": "input file available",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
+        "notes": "generated report input is not usable: status=blocked",
         "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
-        "sha256": "443a82e324f1acc1b0ab2faaa3304e7244e40bfd18e5666297bb3fed586c0d16",
-        "source_hash": "443a82e324f1acc1b0ab2faaa3304e7244e40bfd18e5666297bb3fed586c0d16",
-        "status": "present",
+        "sha256": "3a396c14ab6c2d7e84b419d32fbc215193e99a47a6a37a5c7d1ea9a55482717e",
+        "source_hash": "3a396c14ab6c2d7e84b419d32fbc215193e99a47a6a37a5c7d1ea9a55482717e",
+        "status": "blocked",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "sha256": "76f13eeeb07f9680bd79fe061b8c3e7283630a80f2ecec31242b108e22c61161",
-        "source_hash": "76f13eeeb07f9680bd79fe061b8c3e7283630a80f2ecec31242b108e22c61161",
+        "sha256": "54f4c92738c5271b21ac17bd65352499f65b467c8a0d4679e1ee331dbf81f897",
+        "source_hash": "54f4c92738c5271b21ac17bd65352499f65b467c8a0d4679e1ee331dbf81f897",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "410a57c9f3059a1bd9876227185044fdc74896cce1270eeb18434628648e2221",
-        "source_hash": "410a57c9f3059a1bd9876227185044fdc74896cce1270eeb18434628648e2221",
+        "sha256": "95d3512364665627633d55db406e6d783652ac35f9a6ccad2cc08127c82dae78",
+        "source_hash": "95d3512364665627633d55db406e6d783652ac35f9a6ccad2cc08127c82dae78",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
-        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "connector_sha": "1e0c825de82d1325b5e7b070a4916de2f5af2207",
+        "framework_sha": "04e31a60676eebba86be2a4c1510ff596e37ba2f",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "4be1206f0d2f50dd3b08893fc18ae6237b68ecd11476f824802ccea9733cac93",
-        "source_hash": "4be1206f0d2f50dd3b08893fc18ae6237b68ecd11476f824802ccea9733cac93",
+        "sha256": "be1eb6d091f6b266506cdbe9527f6b33f719d2b5772058e3fb616be78045a888",
+        "source_hash": "be1eb6d091f6b266506cdbe9527f6b33f719d2b5772058e3fb616be78045a888",
         "status": "present",
         "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       }
@@ -1514,6 +1514,18 @@
   },
   "priority_plan": {
     "P0": [
+      {
+        "cluster_name": "nginx_with_crs_with_mrts_http500_cluster",
+        "connector": "nginx",
+        "count": 510,
+        "likely_change": "move NGINX Full-Matrix harness roots out from under /root or block inaccessible worker docroots before runtime classification",
+        "risk": "medium",
+        "tests": [
+          "targeted NGINX with-crs/with-mrts case",
+          "make verified-full-matrix-job CONNECTOR=nginx CRS=with-crs MRTS=with-mrts"
+        ],
+        "why": "largest verified Full-Matrix blocker; all HTTP-500 rows share the /index.html redirect-cycle/docroot-permission signature"
+      },
       {
         "cluster_name": "nginx_actual_500",
         "connector": "mixed",
@@ -1632,8 +1644,8 @@
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
-    "reason": "previously resolved cluster reappeared",
-    "recommended_next_fix_cluster": "nginx_actual_500"
+    "reason": "largest verified Full-Matrix blocker; all HTTP-500 rows share the /index.html redirect-cycle/docroot-permission signature",
+    "recommended_next_fix_cluster": "nginx_with_crs_with_mrts_http500_cluster"
   },
   "regression_checks": {
     "apache_expected_200_actual_404": {
@@ -1695,14 +1707,15 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-16T05:56:37Z",
+    "connector_work_queue": "2026-06-16T07:20:56Z",
     "full_run_evidence": "2026-06-15T23:26:44Z",
-    "full_runtime_matrix": "2026-06-16T05:56:27Z",
-    "mrts_native_apache": "2026-06-16T05:56:38Z",
-    "mrts_native_nginx": "2026-06-16T05:56:38Z",
-    "mrts_native_summary": "2026-06-16T05:56:38Z",
-    "phase_work_queue": "2026-06-16T05:56:43Z",
-    "runtime_build_cache": "2026-06-16T04:53:27Z"
+    "full_runtime_matrix": "2026-06-16T07:20:45Z",
+    "mrts_native_apache": "2026-06-16T07:20:58Z",
+    "mrts_native_nginx": "2026-06-16T07:20:58Z",
+    "mrts_native_summary": "2026-06-16T07:20:58Z",
+    "nginx_mrts_http500_cluster_analysis": "2026-06-16T07:20:51Z",
+    "phase_work_queue": "2026-06-16T07:21:03Z",
+    "runtime_build_cache": "2026-06-16T07:18:38Z"
   },
   "summary": {
     "attempted": 3928,
