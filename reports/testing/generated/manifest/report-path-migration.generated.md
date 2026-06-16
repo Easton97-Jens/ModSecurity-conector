@@ -1,12 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:40:38Z`
+> Generated at: `2026-06-16T05:58:01Z`
+> Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
+> Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
-> Framework SHA: `61454d23be52e52d9395e6b091c52d651e16f89b`
+> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
+> Framework SHA: `708183dce7dcd0ad190a5cb5211b1ba3de6a2385`
 > Input status: `unknown`
 
 # Report Path Migration
@@ -23,6 +25,8 @@
 | `reports/testing/generated/coverage-summary.generated.md` | `reports/testing/generated/coverage/coverage-summary.generated.md` | coverage | migrated |
 | `reports/testing/generated/final-consistency-audit.generated.json` | `reports/testing/generated/canonical/final-consistency-audit.generated.json` | canonical | migrated |
 | `reports/testing/generated/final-consistency-audit.generated.md` | `reports/testing/generated/canonical/final-consistency-audit.generated.md` | canonical | migrated |
+| `reports/testing/generated/full-matrix-job-completeness.generated.json` | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | manifest | migrated |
+| `reports/testing/generated/full-matrix-job-completeness.generated.md` | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.md` | manifest | migrated |
 | `reports/testing/generated/full-run-evidence.generated.json` | `reports/testing/generated/canonical/full-run-evidence.generated.json` | canonical | migrated |
 | `reports/testing/generated/full-run-evidence.generated.md` | `reports/testing/generated/canonical/full-run-evidence.generated.md` | canonical | migrated |
 | `reports/testing/generated/full-runtime-matrix.generated.json` | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | canonical | migrated |
@@ -76,7 +80,17 @@
 | `reports/testing/generated/runtime-matrix.generated.md` | `reports/testing/generated/runtime/runtime-matrix.generated.md` | runtime | migrated |
 | `reports/testing/generated/system-environment-proof.generated.json` | `reports/testing/generated/manifest/system-environment-proof.generated.json` | manifest | migrated |
 | `reports/testing/generated/system-environment-proof.generated.md` | `reports/testing/generated/manifest/system-environment-proof.generated.md` | manifest | migrated |
+| `reports/testing/generated/verified-run-manifest.generated.json` | `reports/testing/generated/manifest/verified-run-manifest.generated.json` | manifest | migrated |
+| `reports/testing/generated/verified-run-manifest.generated.md` | `reports/testing/generated/manifest/verified-run-manifest.generated.md` | manifest | migrated |
+| `reports/testing/generated/verified-runtime-mismatch-analysis.generated.json` | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | manifest | migrated |
+| `reports/testing/generated/verified-runtime-mismatch-analysis.generated.md` | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md` | manifest | migrated |
 | `reports/testing/generated/xfail-summary.generated.md` | `reports/testing/generated/coverage/xfail-summary.generated.md` | coverage | migrated |
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared inputs | `-` | `unknown` | `unknown` | unknown |
 
 ## Data Availability / Missing Information
 

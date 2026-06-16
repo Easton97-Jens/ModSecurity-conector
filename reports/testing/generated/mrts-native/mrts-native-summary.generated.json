@@ -1,28 +1,39 @@
 {
-  "generated_at": "2026-06-15T10:39:57Z",
+  "generated_at": "2026-06-16T05:56:38Z",
   "metadata": {
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
     "data_kind": "evidence",
     "data_origin": "mrts",
+    "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
-    "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-15T10:39:57Z",
+    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-16T05:56:38Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "status": "present"
+        "sha256": "410a57c9f3059a1bd9876227185044fdc74896cce1270eeb18434628648e2221",
+        "source_hash": "410a57c9f3059a1bd9876227185044fdc74896cce1270eeb18434628648e2221",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "status": "present"
+        "sha256": "4be1206f0d2f50dd3b08893fc18ae6237b68ecd11476f824802ccea9733cac93",
+        "source_hash": "4be1206f0d2f50dd3b08893fc18ae6237b68ecd11476f824802ccea9733cac93",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       }
     ],
     "make_target": "mrts-native-full-run",
@@ -32,6 +43,7 @@
     "schema_version": 1,
     "severity": "optional",
     "unknown_inputs": [],
+    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
     "working_tree_dirty": "dirty"
   },
   "note": "Native MRTS evidence is separate from connector runtime matrix evidence.",
@@ -46,27 +58,31 @@
   "targets": {
     "apache2_ubuntu": {
       "counts": {
-        "attempted": 0,
+        "attempted": 13,
         "blocked": 0,
-        "fail": 0,
-        "failed_cases": [],
+        "fail": 1,
+        "failed_cases": [
+          "100003-1"
+        ],
         "not_executable": 0,
-        "pass": 0
+        "pass": 12
       },
       "report": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
-      "status": "NOT_RUN"
+      "status": "FAIL"
     },
     "nginx-pr24": {
       "counts": {
-        "attempted": 0,
+        "attempted": 13,
         "blocked": 0,
-        "fail": 0,
-        "failed_cases": [],
+        "fail": 1,
+        "failed_cases": [
+          "100003-1"
+        ],
         "not_executable": 0,
-        "pass": 0
+        "pass": 12
       },
       "report": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
-      "status": "NOT_RUN"
+      "status": "FAIL"
     }
   }
 }

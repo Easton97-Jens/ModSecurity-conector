@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -684,7 +685,7 @@ def post_libcrypt_native_markdown(summary: dict[str, Any]) -> str:
         POST_LIBCRYPT_MARKER_START,
         "## Post-libcrypt Native Rerun",
         "- Scope: requested native rerun after external `libcrypt-dev` availability; the earlier full-matrix sections in this file remain historical evidence from their original generation time.",
-        "- Command: `FRAMEWORK_ROOT=/root/git/ModSecurity-test-Framework BUILD_ROOT=/tmp/modsec-native-after-libcrypt MRTS_NATIVE_TARGETS=\"apache2_ubuntu nginx-pr24\" CONNECTOR_COMPONENT_CACHE=/src/ModSecurity-conector-cache PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run`",
+        "- Command: `BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build SOURCE_ROOT=$HOME/.local/state/ModSecurity-conector-src CONNECTOR_COMPONENT_CACHE=$HOME/.local/state/ModSecurity-conector-build/component-cache MRTS_NATIVE_TARGETS=\"apache2_ubuntu nginx-pr24\" PYTHONDONTWRITEBYTECODE=1 make mrts-native-full-run`",
         f"- BUILD_ROOT: `{summary.get('build_root', '-')}`",
         f"- Apache wrapper: `{summary.get('apachectl_bin', '-')}`",
         f"- Apache module: `{summary.get('apache_module', '-')}`",
@@ -884,8 +885,9 @@ def main() -> int:
     diagnostics = collect_runtime_diagnostics(components)
     update_report_json(report_path_from_root(report_dir, "runtime_component_cache", "json"), components, diagnostics, build_cache)
     update_report_md(report_path_from_root(report_dir, "runtime_component_cache", "md"), components, diagnostics, build_cache)
-    update_report_json(report_path_from_root(report_dir, "full_run_evidence", "json"), components, diagnostics, build_cache)
-    update_report_md(report_path_from_root(report_dir, "full_run_evidence", "md"), components, diagnostics, build_cache)
+    if os.environ.get("SUPPRESS_FULL_RUN_EVIDENCE_SIDE_EFFECTS") != "1":
+        update_report_json(report_path_from_root(report_dir, "full_run_evidence", "json"), components, diagnostics, build_cache)
+        update_report_md(report_path_from_root(report_dir, "full_run_evidence", "md"), components, diagnostics, build_cache)
     return 0
 
 

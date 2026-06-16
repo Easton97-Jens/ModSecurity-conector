@@ -1,23 +1,29 @@
 {
-  "generated_at": "2026-06-15T10:40:09Z",
+  "generated_at": "2026-06-16T05:57:06Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
+    "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "unknown",
     "framework_working_tree_dirty": "unknown",
-    "generated_at": "2026-06-15T10:40:09Z",
+    "generated_at": "2026-06-16T05:57:06Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "status": "present"
+        "sha256": "47b2a590a0e590b1ab1e488256f8e7ee461d0ef38cafddf81901b276737b006f",
+        "source_hash": "47b2a590a0e590b1ab1e488256f8e7ee461d0ef38cafddf81901b276737b006f",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       }
     ],
     "make_target": "generate-remaining-failure-analysis",
@@ -27,17 +33,58 @@
     "schema_version": 1,
     "severity": "important",
     "unknown_inputs": [],
+    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
     "working_tree_dirty": "dirty"
   },
   "priority_plan": {
-    "P0": [],
+    "P0": [
+      {
+        "cluster_name": "nginx_actual_500",
+        "connector": "mixed",
+        "count": 1138,
+        "likely_change": "stop and triage regression before new work",
+        "risk": "high",
+        "tests": [
+          "regenerate full matrix",
+          "targeted smoke for affected connector"
+        ],
+        "why": "previously resolved cluster reappeared"
+      }
+    ],
     "P1": [],
-    "P2": [],
+    "P2": [
+      {
+        "cluster_name": "response_header_backend_setup",
+        "connector": "apache, nginx",
+        "count": 12,
+        "likely_change": "add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path",
+        "risk": "low to medium",
+        "tests": [
+          "targeted response-header cases",
+          "make smoke-apache",
+          "make smoke-nginx"
+        ],
+        "why": "specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged"
+      },
+      {
+        "cluster_name": "multipart_files",
+        "connector": "apache, nginx, haproxy",
+        "count": 46,
+        "likely_change": "compare multipart variable population across connectors with one representative request",
+        "risk": "medium",
+        "tests": [
+          "targeted multipart cases",
+          "connector smoke for touched connector",
+          "full matrix if parser behavior changes"
+        ],
+        "why": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits"
+      }
+    ],
     "P3": [
       {
         "cluster_name": "phase4_hard_abort_capability",
         "connector": "apache, nginx, haproxy",
-        "count": 116,
+        "count": 352,
         "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
         "risk": "high if promoted prematurely or faked",
         "tests": [
@@ -50,7 +97,7 @@
       {
         "cluster_name": "transformation_semantics",
         "connector": "apache, nginx, haproxy",
-        "count": 36,
+        "count": 88,
         "likely_change": "deeper semantic evidence, not harness routing",
         "risk": "high",
         "tests": [
@@ -60,7 +107,19 @@
         "why": "largest semantic cluster; likely needs native/libmodsecurity comparison before any fix"
       }
     ],
-    "P4": []
+    "P4": [
+      {
+        "cluster_name": "rule_chain_semantics and small single-connector leftovers",
+        "connector": "mostly nginx for connector-only leftovers",
+        "count": 110,
+        "likely_change": "focused per-case triage only when runtime-fixable evidence remains",
+        "risk": "low to medium",
+        "tests": [
+          "targeted single-case smokes"
+        ],
+        "why": "small connector-only leftovers after report-only and not-next groups are excluded"
+      }
+    ]
   },
   "recommendation": {
     "not_next": [
@@ -97,8 +156,8 @@
         "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
       }
     ],
-    "reason": "No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.",
-    "recommended_next_fix_cluster": "none"
+    "reason": "previously resolved cluster reappeared",
+    "recommended_next_fix_cluster": "nginx_actual_500"
   },
   "report_kind": "next-fix-plan"
 }

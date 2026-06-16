@@ -1,15 +1,16 @@
 {
-  "generated_at": "2026-06-15T10:40:38Z",
+  "generated_at": "2026-06-16T05:58:01Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
     "data_kind": "manifest",
     "data_origin": "manifest",
+    "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
-    "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-15T10:40:38Z",
+    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-16T05:58:01Z",
     "generated_by": "ci/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "unknown",
@@ -21,6 +22,7 @@
     "schema_version": 1,
     "severity": "important",
     "unknown_inputs": [],
+    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
     "working_tree_dirty": "dirty"
   },
   "paths": [
@@ -82,6 +84,18 @@
       "category": "canonical",
       "new_path": "reports/testing/generated/canonical/final-consistency-audit.generated.md",
       "old_path": "reports/testing/generated/final-consistency-audit.generated.md",
+      "status": "migrated"
+    },
+    {
+      "category": "manifest",
+      "new_path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
+      "old_path": "reports/testing/generated/full-matrix-job-completeness.generated.json",
+      "status": "migrated"
+    },
+    {
+      "category": "manifest",
+      "new_path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.md",
+      "old_path": "reports/testing/generated/full-matrix-job-completeness.generated.md",
       "status": "migrated"
     },
     {
@@ -400,6 +414,30 @@
       "category": "manifest",
       "new_path": "reports/testing/generated/manifest/system-environment-proof.generated.md",
       "old_path": "reports/testing/generated/system-environment-proof.generated.md",
+      "status": "migrated"
+    },
+    {
+      "category": "manifest",
+      "new_path": "reports/testing/generated/manifest/verified-run-manifest.generated.json",
+      "old_path": "reports/testing/generated/verified-run-manifest.generated.json",
+      "status": "migrated"
+    },
+    {
+      "category": "manifest",
+      "new_path": "reports/testing/generated/manifest/verified-run-manifest.generated.md",
+      "old_path": "reports/testing/generated/verified-run-manifest.generated.md",
+      "status": "migrated"
+    },
+    {
+      "category": "manifest",
+      "new_path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+      "old_path": "reports/testing/generated/verified-runtime-mismatch-analysis.generated.json",
+      "status": "migrated"
+    },
+    {
+      "category": "manifest",
+      "new_path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md",
+      "old_path": "reports/testing/generated/verified-runtime-mismatch-analysis.generated.md",
       "status": "migrated"
     },
     {

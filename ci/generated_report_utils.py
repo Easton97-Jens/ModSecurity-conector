@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import stat
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +13,16 @@ from typing import Any, Iterable
 
 GENERATED_ROOT = Path("reports/testing/generated")
 GENERATED_NOTICE = "Generated file - do not edit manually."
+DATA_SOURCE_POLICY = "verified-inputs-only"
+UNKNOWN_VALUES = {
+    "unknown",
+    "missing",
+    "blocked",
+    "skipped",
+    "skipped_missing_input",
+    "not_run",
+    "not_available",
+}
 
 
 @dataclass(frozen=True)
@@ -126,6 +138,20 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         data_origin="manifest",
         data_kind="manifest",
     ),
+    "verified_run_manifest": GeneratedReport(
+        "verified_run_manifest",
+        "manifest",
+        "verified-run-manifest.generated",
+        ("json", "md"),
+        "Verified run manifest with producer, consumer, input, output, and log evidence.",
+        "canonical",
+        "ci/run-verified-report-run.py",
+        "verified-report-run",
+        owner="manifest",
+        severity="critical",
+        data_origin="manifest",
+        data_kind="manifest",
+    ),
     "merge_readiness_dashboard": GeneratedReport(
         "merge_readiness_dashboard",
         "manifest",
@@ -140,6 +166,37 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         data_origin="manifest",
         data_kind="dashboard",
     ),
+    "verified_runtime_mismatch_analysis": GeneratedReport(
+        "verified_runtime_mismatch_analysis",
+        "manifest",
+        "verified-runtime-mismatch-analysis.generated",
+        ("json", "md"),
+        "Verified runtime mismatch analysis from producer result files.",
+        "canonical",
+        "ci/generate-verified-runtime-mismatch-analysis.py",
+        "generate-verified-runtime-mismatch-analysis",
+        owner="manifest",
+        severity="critical",
+        data_origin="runtime",
+        data_kind="analysis",
+        requires_runtime=True,
+    ),
+    "full_matrix_job_completeness": GeneratedReport(
+        "full_matrix_job_completeness",
+        "manifest",
+        "full-matrix-job-completeness.generated",
+        ("json", "md"),
+        "Full-matrix job completeness, missing-job, and slow-job evidence.",
+        "canonical",
+        "ci/generate-full-matrix-job-completeness.py",
+        "generate-full-matrix-job-completeness",
+        owner="manifest",
+        severity="critical",
+        data_origin="runtime",
+        data_kind="analysis",
+        requires_runtime=True,
+        requires_full_matrix=True,
+    ),
     "system_environment_proof": GeneratedReport(
         "system_environment_proof",
         "manifest",
@@ -150,7 +207,7 @@ GENERATED_REPORTS: dict[str, GeneratedReport] = {
         "ci/generate-system-environment-proof.py",
         "generate-system-environment-proof",
         owner="system",
-        severity="important",
+        severity="critical",
         data_origin="external-local",
         data_kind="system-proof",
     ),
@@ -591,6 +648,17 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def current_verified_run_id(connector_root: Path | None = None) -> str:
+    value = os.environ.get("VERIFIED_RUN_ID", "").strip()
+    if value:
+        return value
+    stamp = datetime.now(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H-%M-%SZ")
+    sha = git_sha(connector_root) if connector_root is not None else "unknown"
+    if not sha or sha == "unknown":
+        return f"{stamp}-unknown"
+    return f"{stamp}-{sha[:8]}"
+
+
 def git_sha(root: Path | None) -> str:
     if root is None:
         return "unknown"
@@ -601,6 +669,7 @@ def git_sha(root: Path | None) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
+            timeout=10,
         )
     except Exception:
         return "unknown"
@@ -617,10 +686,18 @@ def git_dirty(root: Path | None) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
+            timeout=10,
         )
     except Exception:
         return "unknown"
     return "dirty" if result.stdout.strip() else "clean"
+
+
+def is_regular_file(path: Path) -> bool:
+    try:
+        return stat.S_ISREG(path.stat(follow_symlinks=False).st_mode)
+    except OSError:
+        return False
 
 
 def report_key_for_filename(filename: str | Path) -> str:
@@ -784,6 +861,7 @@ def input_record(
     framework_root: Path | None = None,
     build_root: Path | None = None,
 ) -> dict[str, str]:
+    expected_verified_run_id = current_verified_run_id(connector_root)
     try:
         path = resolve_input_reference(raw, connector_root, framework_root, build_root)
     except Exception as exc:
@@ -791,20 +869,84 @@ def input_record(
     shown = display_path(path, connector_root, framework_root, build_root)
     if not path.exists():
         return {"path": shown, "status": "missing", "notes": "input file missing"}
-    if path.is_file():
+    if is_regular_file(path):
         try:
             if path.stat().st_size == 0:
-                return {"path": shown, "status": "empty", "notes": "input file exists but is empty"}
+                return {
+                    "path": shown,
+                    "status": "empty",
+                    "sha256": sha256_file(path),
+                    "source_hash": sha256_file(path),
+                    "notes": "input file exists but is empty",
+                }
         except OSError as exc:
             return {"path": shown, "status": "unknown", "notes": f"could not stat input: {exc}"}
-        return {"path": shown, "status": "present", "notes": "input file available"}
+        file_hash = sha256_file(path)
+        record: dict[str, str] = {
+            "path": shown,
+            "status": "present",
+            "sha256": file_hash,
+            "source_hash": file_hash,
+            "notes": "input file available",
+        }
+        if path.name in FILENAME_TO_KEY:
+            report_metadata = read_report_metadata(path)
+            source_report_status = ""
+            if path.suffix == ".json":
+                try:
+                    source_payload = json.loads(path.read_text(encoding="utf-8"))
+                except Exception:
+                    source_payload = {}
+                if isinstance(source_payload, dict):
+                    source_report_status = str(
+                        source_payload.get("status")
+                        or report_metadata.get("run_status")
+                        or ""
+                    )
+            source_run_id = str(report_metadata.get("verified_run_id") or "")
+            if source_run_id:
+                record["verified_run_id"] = source_run_id
+            source_connector_sha = str(report_metadata.get("connector_sha") or "")
+            source_framework_sha = str(report_metadata.get("framework_sha") or "")
+            if source_connector_sha:
+                record["connector_sha"] = source_connector_sha
+            if source_framework_sha:
+                record["framework_sha"] = source_framework_sha
+            stale_reasons: list[str] = []
+            if source_run_id and source_run_id != expected_verified_run_id:
+                stale_reasons.append("verified_run_id differs")
+            current_connector_sha = git_sha(connector_root)
+            current_framework_sha = git_sha(framework_root)
+            if source_connector_sha and current_connector_sha != "unknown" and source_connector_sha != current_connector_sha:
+                stale_reasons.append("connector_sha differs")
+            if source_framework_sha and current_framework_sha != "unknown" and source_framework_sha != current_framework_sha:
+                stale_reasons.append("framework_sha differs")
+            if stale_reasons:
+                record["status"] = "stale"
+                record["notes"] = "generated report input is stale: " + "; ".join(stale_reasons)
+            elif not source_run_id:
+                record["status"] = "stale"
+                record["notes"] = "generated report input has no verified_run_id"
+            elif source_report_status and (
+                source_report_status in {"blocked", "failed", "interrupted"}
+                or source_report_status.startswith("blocked")
+                or source_report_status.startswith("skipped")
+            ):
+                record["status"] = "blocked" if source_report_status.startswith("blocked") else source_report_status
+                record["notes"] = f"generated report input is not usable: status={source_report_status}"
+        return record
     if path.is_dir():
         try:
             if not any(path.iterdir()):
                 return {"path": shown, "status": "empty", "notes": "input directory exists but is empty"}
         except OSError as exc:
             return {"path": shown, "status": "unknown", "notes": f"could not inspect input directory: {exc}"}
-        return {"path": shown, "status": "present", "notes": "input directory available"}
+        return {
+            "path": shown,
+            "status": "present",
+            "source_hash": directory_fingerprint(path),
+            "notes": "input directory available",
+        }
     return {"path": shown, "status": "unknown", "notes": "input exists but is not a regular file or directory"}
 
 
@@ -821,9 +963,13 @@ def input_status_summary(records: list[dict[str, str]]) -> str:
     if not records:
         return "unknown"
     statuses = [record.get("status", "unknown") for record in records]
+    if any(status in {"blocked", "failed", "interrupted"} or status.startswith("blocked") or status.startswith("skipped") for status in statuses):
+        return "blocked"
+    if any(status == "stale" for status in statuses):
+        return "stale"
     if all(status in {"missing", "empty"} for status in statuses):
         return "missing"
-    if any(status in {"missing", "empty", "unknown", "stale"} for status in statuses):
+    if any(status in {"missing", "empty", "unknown", "stale", "blocked", "failed", "interrupted"} or status.startswith("blocked") or status.startswith("skipped") for status in statuses):
         return "partial"
     return "complete"
 
@@ -845,6 +991,8 @@ def build_metadata(
     metadata: dict[str, Any] = {
         "generated_notice": GENERATED_NOTICE,
         "generated_at": generated_at or utc_now(),
+        "verified_run_id": current_verified_run_id(connector_root),
+        "data_source_policy": DATA_SOURCE_POLICY,
         "generated_by": generated_by,
         "make_target": make_target,
         "report_key": registry_key or "unknown",
@@ -887,6 +1035,8 @@ def metadata_block(metadata: dict[str, Any]) -> str:
             f"> {GENERATED_NOTICE}",
             ">",
             f"> Generated at: `{metadata.get('generated_at', 'unknown')}`",
+            f"> Verified run id: `{metadata.get('verified_run_id', 'unknown')}`",
+            f"> Data source policy: `{metadata.get('data_source_policy', DATA_SOURCE_POLICY)}`",
             f"> Generator: `{metadata.get('generated_by', 'unknown')}`",
             f"> Make target: `{metadata.get('make_target', 'unknown')}`",
             f"> Owner: `{metadata.get('owner', 'unknown')}`",
@@ -896,6 +1046,26 @@ def metadata_block(metadata: dict[str, Any]) -> str:
             f"> Input status: `{metadata.get('input_status', 'unknown')}`",
         ]
     )
+
+
+def data_sources_section(metadata: dict[str, Any]) -> str:
+    lines = [
+        "## Data Sources",
+        "",
+        "| Value | Source | Source Hash | Verified Run ID | Status |",
+        "|---|---|---|---|---|",
+    ]
+    records = metadata.get("inputs")
+    if not isinstance(records, list) or not records:
+        lines.append("| Declared inputs | `-` | `unknown` | `unknown` | unknown |")
+    else:
+        for record in records:
+            source = str(record.get("path", "-")).replace("|", "\\|")
+            source_hash = str(record.get("source_hash") or record.get("sha256") or "unknown")
+            source_run_id = str(record.get("verified_run_id") or metadata.get("verified_run_id") or "unknown")
+            status = str(record.get("status", "unknown"))
+            lines.append(f"| Declared input | `{source}` | `{source_hash}` | `{source_run_id}` | {status} |")
+    return "\n".join(lines)
 
 
 def render_empty_table_note(reason: str) -> str:
@@ -937,7 +1107,21 @@ def generated_markdown_text(markdown: str, metadata: dict[str, Any]) -> str:
         body = body.split(marker, 1)[0].rstrip()
     if body.startswith("## Data Availability / Missing Information"):
         body = ""
-    return metadata_block(metadata) + "\n\n" + body + "\n\n" + missing_information_section(metadata) + "\n"
+    data_marker = "\n## Data Sources"
+    if data_marker in body:
+        body = body.split(data_marker, 1)[0].rstrip()
+    if body.startswith("## Data Sources"):
+        body = ""
+    return (
+        metadata_block(metadata)
+        + "\n\n"
+        + body
+        + "\n\n"
+        + data_sources_section(metadata)
+        + "\n\n"
+        + missing_information_section(metadata)
+        + "\n"
+    )
 
 
 def generated_at_from_json(data: dict[str, Any]) -> str:
@@ -946,14 +1130,72 @@ def generated_at_from_json(data: dict[str, Any]) -> str:
 
 
 def generated_at_from_report(path: Path) -> str:
-    if path.suffix == ".json" and path.is_file():
+    if path.suffix == ".json" and is_regular_file(path):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             return "-"
         return generated_at_from_json(data if isinstance(data, dict) else {})
-    if path.is_file():
+    if is_regular_file(path):
         for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[:20]:
             if "Generated at:" in line:
                 return line.split("Generated at:", 1)[1].strip().strip("` ")
     return "-"
+
+
+def sha256_file(path: Path) -> str:
+    import hashlib
+
+    if not is_regular_file(path):
+        return "special"
+    fallback = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            fallback.update(chunk)
+    return fallback.hexdigest()
+
+
+def directory_fingerprint(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    seen = False
+    for item in sorted(path.rglob("*")):
+        try:
+            item_stat = item.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        seen = True
+        try:
+            rel = item.relative_to(path)
+        except ValueError:
+            rel = item
+        digest.update(str(rel).encode("utf-8", errors="replace"))
+        digest.update(b"\0")
+        if stat.S_ISREG(item_stat.st_mode):
+            digest.update(sha256_file(item).encode("ascii"))
+        else:
+            digest.update(f"special:{stat.S_IFMT(item_stat.st_mode):o}".encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest() if seen else "empty"
+
+
+def read_report_metadata(path: Path) -> dict[str, Any]:
+    if path.suffix == ".json":
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        metadata = data.get("metadata") if isinstance(data, dict) else {}
+        return metadata if isinstance(metadata, dict) else {}
+    metadata: dict[str, Any] = {}
+    if path.suffix == ".md":
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[:30]:
+            stripped = line.strip()
+            if "Verified run id:" in stripped:
+                metadata["verified_run_id"] = stripped.split("Verified run id:", 1)[1].strip().strip("` ")
+            elif "Connector SHA:" in stripped:
+                metadata["connector_sha"] = stripped.split("Connector SHA:", 1)[1].strip().strip("` ")
+            elif "Framework SHA:" in stripped:
+                metadata["framework_sha"] = stripped.split("Framework SHA:", 1)[1].strip().strip("` ")
+    return metadata

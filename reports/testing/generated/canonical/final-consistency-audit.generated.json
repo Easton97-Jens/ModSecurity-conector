@@ -1,605 +1,191 @@
 {
-  "active_vs_report_only": {
-    "active_runtime_fixable_clusters": [],
-    "capability_evidence_pending_rows": 68,
-    "categories": [
-      {
-        "category": "with_mrts_detection_only_non_disruptive",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 495,
-        "disposition": "report_only",
-        "fixable": "classification-only; with-MRTS DetectionOnly overlay makes disruptive request-side rules non-blocking",
-        "recommended_next_step": "keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases",
-        "risk": "low; report-only and not a connector blocking bug"
-      },
-      {
-        "category": "phase4_missing_abort_evidence",
-        "connectors": [
-          "apache",
-          "nginx"
-        ],
-        "count": 68,
-        "disposition": "capability_evidence_pending",
-        "fixable": "fixable only through real strict abort/log evidence, not status-only changes",
-        "recommended_next_step": "add real Phase 4 intervention log plus connection-abort evidence before promotion",
-        "risk": "high if promoted without transport proof"
-      },
-      {
-        "category": "response_header_mrts_detection_only",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 60,
-        "disposition": "report_only",
-        "fixable": "classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action",
-        "recommended_next_step": "keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence",
-        "risk": "low; report-only if kept separate from PASS promotion"
-      },
-      {
-        "category": "phase4_connector_gap",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 42,
-        "disposition": "connector_gap",
-        "fixable": "connector capability gap unless a real abort mechanism is implemented and evidenced",
-        "recommended_next_step": "document connector gap unless implementation can prove a real hard abort",
-        "risk": "high if faked; low if reported as gap"
-      },
-      {
-        "category": "transformation_semantics",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 36,
-        "disposition": "semantic_pending_native_or_libmodsecurity_comparison",
-        "fixable": "not a harness quick win; needs semantic comparison against libmodsecurity expectations",
-        "recommended_next_step": "compare transformation-chain cases against native/libmodsecurity evidence before attempting fixes",
-        "risk": "high"
-      },
-      {
-        "category": "collection_name_normalization_semantics",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 30,
-        "disposition": "semantic_pending_native_or_libmodsecurity_comparison",
-        "fixable": "metadata-only semantic split; needs native/libmodsecurity comparison before any fix",
-        "recommended_next_step": "compare collection-name normalization semantics against native/libmodsecurity before treating as a runtime fix",
-        "risk": "medium to high"
-      },
-      {
-        "category": "xml_processor_activation_missing",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 24,
-        "disposition": "report_only",
-        "fixable": "classification-only; XML body exists but the fixture does not enable the XML request body processor",
-        "recommended_next_step": "keep XML processor activation-missing rows report-only; do not change rules or Expected statuses",
-        "risk": "low if kept report-only; high if treated as connector runtime evidence"
-      },
-      {
-        "category": "multipart_processor_activation_missing",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 12,
-        "disposition": "report_only",
-        "fixable": "classification-only; multipart body and boundary exist but the fixture does not enable request body access before expecting FILES/ARGS_NAMES collections",
-        "recommended_next_step": "keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses",
-        "risk": "low if kept report-only; high if treated as connector multipart runtime evidence"
-      },
-      {
-        "category": "nolog_expected_no_audit",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 6,
-        "disposition": "report_only",
-        "fixable": "classification-only; nolog/pass rule is absent from audit evidence and CRS noise is unrelated",
-        "recommended_next_step": "keep as classification-only evidence; do not add artificial audit logs",
-        "risk": "low; no runtime or expected-status change"
-      },
-      {
-        "category": "phase4_log_only_no_abort",
-        "connectors": [
-          "nginx"
-        ],
-        "count": 6,
-        "disposition": "report_only",
-        "fixable": "report-only unless the case is meant to exercise strict hard abort",
-        "recommended_next_step": "keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence",
-        "risk": "low if reported honestly, high if promoted as hard abort"
-      },
-      {
-        "category": "connector_gap",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 3,
-        "disposition": "connector_gap",
-        "fixable": "unknown; review required",
-        "recommended_next_step": "manual review",
-        "risk": "unknown"
-      }
-    ],
-    "connector_gap_rows": 45,
-    "report_only_rows": 603,
-    "semantic_pending_rows": 66
-  },
-  "clusters_no_longer_next": {
-    "not_next": [
-      {
-        "cluster": "phase4_hard_abort_capability",
-        "count": 116,
-        "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes"
-      },
-      {
-        "cluster": "transformation_semantics",
-        "count": 36,
-        "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes"
-      },
-      {
-        "cluster": "nolog_expected_no_audit",
-        "count": 6,
-        "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence"
-      },
-      {
-        "cluster": "response_header_mrts_detection_only",
-        "count": 60,
-        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action"
-      },
-      {
-        "cluster": "with_mrts_detection_only_non_disruptive",
-        "count": 495,
-        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
-      },
-      {
-        "cluster": "xml_processor_activation_missing",
-        "count": 24,
-        "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
-      },
-      {
-        "cluster": "multipart_processor_activation_missing",
-        "count": 12,
-        "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections"
-      },
-      {
-        "cluster": "collection_name_normalization_semantics",
-        "count": 30,
-        "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
-      }
-    ],
-    "not_next_clusters_present": [
-      "collection_name_normalization_semantics",
-      "multipart_processor_activation_missing",
-      "nolog_expected_no_audit",
-      "phase4_hard_abort_capability",
-      "response_header_mrts_detection_only",
-      "transformation_semantics",
-      "with_mrts_detection_only_non_disruptive",
-      "xml_processor_activation_missing"
-    ],
-    "p3_plan": [
-      {
-        "cluster_name": "phase4_hard_abort_capability",
-        "connector": "apache, nginx, haproxy",
-        "count": 116,
-        "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
-        "risk": "high if promoted prematurely or faked",
-        "tests": [
-          "phase4 hard-abort report regeneration",
-          "targeted strict Phase 4 connector evidence",
-          "native report regeneration"
-        ],
-        "why": "Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial"
-      },
-      {
-        "cluster_name": "transformation_semantics",
-        "connector": "apache, nginx, haproxy",
-        "count": 36,
-        "likely_change": "deeper semantic evidence, not harness routing",
-        "risk": "high",
-        "tests": [
-          "targeted transformation cases",
-          "native comparison where available"
-        ],
-        "why": "largest semantic cluster; likely needs native/libmodsecurity comparison before any fix"
-      }
-    ]
-  },
-  "freshness": [
-    {
-      "generated_at": "2026-06-15T10:39:51Z",
-      "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-      "present": true,
-      "report_kind": "-"
-    },
-    {
-      "generated_at": "2026-06-15T10:39:55Z",
-      "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-      "present": true,
-      "report_kind": "-"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:02Z",
-      "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-      "present": true,
-      "report_kind": "-"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:09Z",
-      "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-      "present": true,
-      "report_kind": "remaining-full-matrix-failure-analysis"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:09Z",
-      "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-      "present": true,
-      "report_kind": "next-fix-plan"
-    },
-    {
-      "generated_at": "2026-06-15T08:49:03Z",
-      "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-      "present": true,
-      "report_kind": "full-run-evidence"
-    },
-    {
-      "generated_at": "2026-06-15T10:39:57Z",
-      "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-      "present": true,
-      "report_kind": "native-mrts-summary"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:07Z",
-      "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
-      "present": true,
-      "report_kind": "phase4-hard-abort-capability"
-    },
-    {
-      "generated_at": "2026-06-15T10:39:59Z",
-      "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
-      "present": true,
-      "report_kind": "nolog-audit-evidence-analysis"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:03Z",
-      "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
-      "present": true,
-      "report_kind": "response-header-hook-analysis"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:36Z",
-      "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
-      "present": true,
-      "report_kind": "body-processor-analysis"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:29Z",
-      "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-      "present": true,
-      "report_kind": "intervention-blocking-analysis"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:30Z",
-      "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
-      "present": true,
-      "report_kind": "no-mrts-intervention-nomatch-analysis"
-    },
-    {
-      "generated_at": "2026-06-15T10:40:37Z",
-      "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
-      "present": true,
-      "report_kind": "rule-chain-semantics-analysis"
-    }
+  "command": [
+    "/root/git/ModSecurity-conector/.venv/bin/python",
+    "ci/generate-final-consistency-audit.py",
+    "--connector-root",
+    "/root/git/ModSecurity-conector",
+    "--framework-root",
+    "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
+    "--output-dir",
+    "/root/git/ModSecurity-conector/reports/testing/generated"
   ],
-  "full_matrix_summary": {
-    "attempted": 3928,
-    "blocked": 0,
-    "fail": 782,
-    "not_executable": 72,
-    "pass": 3074,
-    "pending": 2298
-  },
-  "generated_at": "2026-06-15T10:40:37Z",
-  "git_snapshot": {
-    "connector_head": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
-    "framework_head": "61454d23be52e52d9395e6b091c52d651e16f89b",
-    "submodules": [
-      "61454d23be52e52d9395e6b091c52d651e16f89b modules/ModSecurity-test-Framework (heads/runtime-source-https-policy)",
-      " 13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main)"
-    ]
-  },
-  "guardrails": {
-    "connector_core_changed": false,
-    "expected_status_changed": false,
-    "full_matrix_rerun_required": false,
-    "matrix_counts_source": "existing full-runtime-matrix evidence",
-    "mrt_definitions_changed": false,
-    "rules_changed": false,
-    "runtime_pass_fail_manually_changed": false,
-    "tools_mrts_changed": false
-  },
+  "data_source_policy": "verified-inputs-only",
+  "empty_reason": "producer command was not run or verified input is unavailable",
+  "generated_at": "2026-06-16T05:57:59Z",
+  "generator": "ci/generate-final-consistency-audit.py",
+  "make_target": "generate-final-consistency-audit",
   "metadata": {
+    "blocked_reason": "required generated input is blocked",
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
     "data_kind": "evidence",
     "data_origin": "connector",
+    "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
-    "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-15T10:40:37Z",
+    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-16T05:57:59Z",
     "generated_by": "ci/generate-final-consistency-audit.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "complete",
+    "input_status": "blocked",
     "inputs": [
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "status": "present"
+        "sha256": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "source_hash": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "status": "present"
+        "sha256": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
+        "source_hash": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "status": "present"
+        "sha256": "0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7",
+        "source_hash": "0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "status": "present"
+        "sha256": "d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479",
+        "source_hash": "d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "status": "present"
+        "sha256": "6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d",
+        "source_hash": "6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "status": "present"
+        "sha256": "7d6a5dc9ffaf32181caa561e8371b8b73077a42b7350d56dea0c2c497712934d",
+        "source_hash": "7d6a5dc9ffaf32181caa561e8371b8b73077a42b7350d56dea0c2c497712934d",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "notes": "input file available",
+        "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
+        "sha256": "76f13eeeb07f9680bd79fe061b8c3e7283630a80f2ecec31242b108e22c61161",
+        "source_hash": "76f13eeeb07f9680bd79fe061b8c3e7283630a80f2ecec31242b108e22c61161",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
+        "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
+        "sha256": "49bb0bf74ecc0e5ed80a547ccdb0876b7de88d4479df685c0193e0d2d5705da4",
+        "source_hash": "49bb0bf74ecc0e5ed80a547ccdb0876b7de88d4479df685c0193e0d2d5705da4",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
+        "sha256": "1f4c8b9040baccbd172c717c40116e4ea01296d78062886cbaa1a3ccb3cc4654",
+        "source_hash": "1f4c8b9040baccbd172c717c40116e4ea01296d78062886cbaa1a3ccb3cc4654",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "notes": "input file available",
+        "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
+        "sha256": "ea853430a51cf140efe5a29c350ec15cb586c158eb80fe252e8b9213b93c1b42",
+        "source_hash": "ea853430a51cf140efe5a29c350ec15cb586c158eb80fe252e8b9213b93c1b42",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
+        "sha256": "39a4083ed1e26c6fdf9069a83f4b6e428500ef6b7919c784d16a6623244f3d7f",
+        "source_hash": "39a4083ed1e26c6fdf9069a83f4b6e428500ef6b7919c784d16a6623244f3d7f",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+        "sha256": "68d737435a1d14cf21aeaeb32fecf65b0283f5ad6da2192d849dd261b4587eeb",
+        "source_hash": "68d737435a1d14cf21aeaeb32fecf65b0283f5ad6da2192d849dd261b4587eeb",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "notes": "generated report input is not usable: status=blocked",
+        "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
+        "sha256": "063dd8a70bd170aba2eb05c6231787b00bbb6c03a06ffb52e9453689002a7c3c",
+        "source_hash": "063dd8a70bd170aba2eb05c6231787b00bbb6c03a06ffb52e9453689002a7c3c",
+        "status": "blocked",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
+      },
+      {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
+        "sha256": "bee021d0f08bd8e225ab21c6d42a604430dbbab5fa15f12695951827b5dde4bc",
+        "source_hash": "bee021d0f08bd8e225ab21c6d42a604430dbbab5fa15f12695951827b5dde4bc",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       }
     ],
     "make_target": "generate-final-consistency-audit",
     "missing_inputs": [],
     "owner": "connector",
     "report_key": "final_consistency_audit",
+    "run_status": "blocked",
     "schema_version": 1,
     "severity": "critical",
     "unknown_inputs": [],
+    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
     "working_tree_dirty": "dirty"
   },
-  "native_mrts_status": {
-    "note": "Native MRTS evidence remains separate from connector Full-Matrix PASS/FAIL.",
-    "targets": {
-      "apache2_ubuntu": {
-        "attempted": 0,
-        "blocked": 0,
-        "classification": "-",
-        "fail": 0,
-        "failed_cases": [],
-        "pass": 0,
-        "status": "NOT_RUN"
-      },
-      "nginx-pr24": {
-        "attempted": 0,
-        "blocked": 0,
-        "classification": "-",
-        "fail": 0,
-        "failed_cases": [],
-        "pass": 0,
-        "status": "NOT_RUN"
-      }
-    }
-  },
-  "phase4_status": {
-    "connector_summary": {
-      "apache": {
-        "capability_status": "implementation_path_present_no_runtime_hard_abort_evidence",
-        "hard_abort_evidence_rows": 0
-      },
-      "haproxy": {
-        "capability_status": "connector_gap_no_hard_abort_evidence",
-        "hard_abort_evidence_rows": 0
-      },
-      "nginx": {
-        "capability_status": "connector_gap_no_hard_abort_evidence",
-        "hard_abort_evidence_rows": 0
-      }
-    },
-    "hard_abort_evidence_rows": 0,
-    "rows": 868,
-    "sensitive_log_leak_rows": 0
-  },
-  "priority_distribution": {
-    "p0_p1_failure_rows": 0,
-    "queue_totals_non_pass": {
-      "P2": 60,
-      "P3": 263,
-      "report_only": 531
-    },
-    "recomputed_failures": {
-      "P2": 60,
-      "P3": 191,
-      "report_only": 531
-    },
-    "recomputed_non_pass": {
-      "P2": 60,
-      "P3": 263,
-      "report_only": 531
-    }
-  },
-  "recommended_next_fix_cluster": {
-    "justified": true,
-    "reason": "No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.",
-    "value": "none"
-  },
-  "release_checks": {
-    "active_runtime_fixable_clusters_zero": true,
-    "audit_log_evidence_after_zero": true,
-    "blocked_zero": true,
-    "body_processor_active_after_zero": true,
-    "intervention_blocking_true_candidates_zero": true,
-    "p0_p1_failure_rows_zero": true,
-    "p2_rows_are_response_header_mrts_detection_only": true,
-    "phase4_supported_label_absent": true,
-    "queue_totals_consistent": true,
-    "recommended_next_fix_cluster_none": true,
-    "response_header_backend_setup_zero": true,
-    "rule_chain_runtime_fixable_zero": true
-  },
-  "release_readiness": "ready_with_known_reported_gaps",
-  "remaining_known_gaps": {
-    "collection_name_normalization_semantics": 30,
-    "connector_gap": 3,
-    "phase4_connector_gap": 42,
-    "phase4_missing_abort_evidence": 68,
-    "transformation_semantics": 36
-  },
-  "remaining_summary": {
-    "attempted": 3928,
-    "blocked": 0,
-    "fail": 782,
-    "mrt_imported_failures": 0,
-    "non_mrts_framework_failures": 782,
-    "not_executable": 72,
-    "pass": 3074,
-    "pending": 2298,
-    "unique_failure_cases": 113
-  },
-  "report_kind": "final-consistency-audit",
-  "source_reports": {
-    "connector_work_queue": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-    "full_run_evidence": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-    "full_runtime_matrix": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-    "next_fix_plan": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-    "phase_work_queue": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-    "remaining_failure_analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
-  },
-  "stale_cluster_audit": [
-    {
-      "cluster": "audit_log_evidence",
-      "detail": "no active rows",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    },
-    {
-      "cluster": "intervention_blocking",
-      "detail": "no active rows",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    },
-    {
-      "cluster": "request_body_processor",
-      "detail": "remaining work-direction rows are classified as phase1 request-body unavailable connector gap",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 3,
-      "remaining_category_count": 0,
-      "status": "known_connector_gap_not_active_processor_cluster"
-    },
-    {
-      "cluster": "multipart_files",
-      "detail": "no active rows",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    },
-    {
-      "cluster": "xml_processor",
-      "detail": "no active rows",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    },
-    {
-      "cluster": "phase4_hard_abort_supported",
-      "detail": "no active rows",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    },
-    {
-      "cluster": "rule_chain_semantics",
-      "detail": "runtime_fixable_candidates=0",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    },
-    {
-      "cluster": "response_header_backend_setup",
-      "detail": "no active rows",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    },
-    {
-      "cluster": "response_header_hook",
-      "detail": "no active rows",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    },
-    {
-      "cluster": "response_header_multi_value_gap",
-      "detail": "no active rows",
-      "failed_classification_count": 0,
-      "failed_work_direction_count": 0,
-      "remaining_category_count": 0,
-      "status": "clear"
-    }
-  ],
-  "user_decision_required": [
-    {
-      "area": "phase4_hard_abort",
-      "reason": "Apache has implementation-path evidence but no runtime hard-abort proof; HAProxy remains a connector gap.",
-      "safe_next": "collect real transport-abort evidence or keep these rows as capability/gap classifications"
-    },
-    {
-      "area": "transformation_and_collection_semantics",
-      "reason": "remaining no-match rows need native/libmodsecurity comparison before runtime changes.",
-      "safe_next": "decide whether to build comparator evidence; do not change Expected statuses or rules."
-    },
-    {
-      "area": "phase1_request_body_connector_gap",
-      "reason": "three rows remain classified as phase1 request-body unavailable connector gap.",
-      "safe_next": "treat as connector capability discussion before core behavior changes."
-    }
-  ]
+  "reason": "required generated input is blocked",
+  "report_key": "final_consistency_audit",
+  "report_name": "final_consistency_audit",
+  "rows": [],
+  "status": "blocked",
+  "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
 }

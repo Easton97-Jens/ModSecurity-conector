@@ -1,12 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:39:48Z`
+> Generated at: `2026-06-16T05:56:26Z`
+> Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
+> Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
-> Framework SHA: `61454d23be52e52d9395e6b091c52d651e16f89b`
+> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
+> Framework SHA: `708183dce7dcd0ad190a5cb5211b1ba3de6a2385`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -154,6 +156,13 @@
 | v3_operator_pm_digit_block | `tests/cases/transformations/v3_operator_pm_digit_block.yaml` | common | 1 | ARGS:param1 | @pm | - | imported | - | active | - | unknown | no | - |
 | v3_operator_rx_block | `tests/cases/transformations/v3_operator_rx_block.yaml` | common | 2 | ARGS:param1 | @rx | trim | imported | - | active | - | unknown | no | - |
 | v3_transformation_trim_block | `tests/cases/transformations/v3_transformation_trim_block.yaml` | common | 2 | ARGS:param1 | @streq | trim | imported | - | active | - | unknown | no | - |
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `dfeb2c386052d649210cd1b1acaa5dab644396c933eec71daa33e2bbd5f3b5ed` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 
 ## Data Availability / Missing Information
 

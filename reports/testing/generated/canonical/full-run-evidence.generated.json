@@ -1,57 +1,61 @@
 {
-  "body_processor_analysis_report": {
-    "analysis": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.md",
-    "json": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
-    "multipart_activation_missing_subcluster_count": 0,
-    "multipart_active_after_report_sync": 0,
-    "urlencoded_active_after_report_sync": 0,
-    "urlencoded_form_subcluster_count": 0,
-    "xml_activation_missing_subcluster_count": 0,
-    "xml_active_after_report_sync": 0
-  },
-  "final_consistency_audit_report": {
-    "analysis": "reports/testing/generated/canonical/final-consistency-audit.generated.md",
-    "full_matrix_summary": {
-      "attempted": 3928,
-      "blocked": 0,
-      "fail": 782,
-      "not_executable": 72,
-      "pass": 3074,
-      "pending": 2298
-    },
-    "json": "reports/testing/generated/canonical/final-consistency-audit.generated.json",
-    "recommended_next_fix_cluster": "none",
-    "release_readiness": "ready_with_known_reported_gaps"
-  },
-  "generated_at": "2026-06-15T08:49:03Z",
+  "command": [
+    "/root/git/ModSecurity-conector/.venv/bin/python",
+    "ci/generate-remaining-failure-analysis.py",
+    "--connector-root",
+    "/root/git/ModSecurity-conector",
+    "--output-dir",
+    "/root/git/ModSecurity-conector/reports/testing/generated"
+  ],
+  "data_source_policy": "verified-inputs-only",
+  "empty_reason": "producer command was not run or verified input is unavailable",
+  "generated_at": "2026-06-15T23:26:44Z",
+  "generator": "ci/generate-remaining-failure-analysis.py",
+  "make_target": "generate-remaining-failure-analysis",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
+    "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "unknown",
     "framework_working_tree_dirty": "unknown",
-    "generated_at": "2026-06-15T08:49:03Z",
+    "generated_at": "2026-06-15T23:26:44Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "status": "present"
+        "sha256": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "source_hash": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "status": "present"
+        "sha256": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
+        "source_hash": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "status": "present"
+        "sha256": "0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7",
+        "source_hash": "0c993999eb0da54fd0b131b1170d183a7d38c68529d7bd8e63f9d5c45f2a96c7",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       }
     ],
     "make_target": "generate-remaining-failure-analysis",
@@ -61,65 +65,30 @@
     "schema_version": 1,
     "severity": "important",
     "unknown_inputs": [],
+    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
     "working_tree_dirty": "dirty"
   },
-  "no_mrts_intervention_nomatch_analysis_report": {
-    "analysis": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md",
-    "json": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json"
-  },
-  "nolog_audit_evidence_report": {
-    "analysis": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
-    "case_id": "v3_action_nolog_pass_no_audit",
-    "classification": "nolog_expected_no_audit",
-    "json": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json"
-  },
-  "notes": [
-    "Evidence rollup created by remaining-failure-analysis because no categorized rollup existed yet."
-  ],
-  "phase4_hard_abort_capability": {
-    "connector_summary": {
-      "apache": {
-        "capability_status": "implementation_path_present_no_runtime_hard_abort_evidence",
-        "full_delivery_without_abort_rows": 260,
-        "hard_abort_evidence_rows": 0
-      },
-      "haproxy": {
-        "capability_status": "connector_gap_no_hard_abort_evidence",
-        "full_delivery_without_abort_rows": 284,
-        "hard_abort_evidence_rows": 0
-      },
-      "nginx": {
-        "capability_status": "connector_gap_no_hard_abort_evidence",
-        "full_delivery_without_abort_rows": 294,
-        "hard_abort_evidence_rows": 0
-      }
+  "mrts_native": {
+    "generated_at": "2026-06-15T23:26:43Z",
+    "report_json": "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
+    "report_md": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "reports": {
+      "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+      "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+      "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+      "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
     },
-    "json": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
-    "report": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md",
-    "summary": {
-      "category_counts": {
-        "phase4_connector_gap": 76,
-        "phase4_log_only_no_abort": 6,
-        "phase4_missing_abort_evidence": 102,
-        "phase4_no_hard_abort_required": 684
-      },
-      "connection_aborted_rows": 0,
-      "full_delivery_without_abort_rows": 838,
-      "hard_abort_evidence_rows": 0,
-      "log_evidence_rows": 304,
-      "log_only_not_hard_abort_rows": 6,
-      "no_hard_abort_required_rows": 684,
-      "rows": 868,
-      "runtime_status": {
-        "FAIL": 116,
-        "NOT_EXECUTABLE": 12,
-        "PASS": 740
-      },
-      "sensitive_log_leak_rows": 0,
-      "status_200_without_abort_rows": 806,
-      "truncated_not_hard_abort_rows": 0
-    }
+    "summary": {},
+    "target_script_exit_code": 0,
+    "targets": {}
   },
+  "mrts_native_reports": {
+    "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+  },
+  "reason": "required generated input is blocked",
   "remaining_failure_analysis_reports": {
     "analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.md",
     "next_fix_plan": "reports/testing/generated/canonical/next-fix-plan.generated.md",
@@ -127,8 +96,17 @@
     "phase4_hard_abort_capability": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md",
     "response_header_hook_analysis": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md"
   },
-  "report_kind": "full-run-evidence",
+  "report_key": "full_run_evidence",
+  "report_name": "full_run_evidence",
   "reports": [
+    "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-summary.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
     "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
     "reports/testing/generated/canonical/remaining-failure-analysis.generated.md",
     "reports/testing/generated/canonical/next-fix-plan.generated.json",
@@ -138,51 +116,9 @@
     "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
     "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
     "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
-    "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md",
-    "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
-    "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md",
-    "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
-    "reports/testing/generated/focused-analysis/body-processor-analysis.generated.md",
-    "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
-    "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md",
-    "reports/testing/generated/canonical/final-consistency-audit.generated.json",
-    "reports/testing/generated/canonical/final-consistency-audit.generated.md"
+    "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md"
   ],
-  "response_header_hook_analysis_report": {
-    "analysis": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md",
-    "classification": "response_header_hook_split",
-    "json": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json"
-  },
-  "rule_chain_semantics_analysis": {
-    "json": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
-    "report": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md",
-    "summary": {
-      "chain_child_matched_rows": 0,
-      "chain_named_non_rule_chain_groups": 1,
-      "chain_named_non_rule_chain_rows": 6,
-      "chain_parent_matched_rows": 0,
-      "connectors": {
-        "apache": 2,
-        "haproxy": 2,
-        "nginx": 2
-      },
-      "evidence_parser_missing_full_chain_rows": 0,
-      "full_chain_disruptive_rows": 0,
-      "full_chain_matched_rows": 0,
-      "full_chain_non_disruptive_detection_only_rows": 6,
-      "report_only_items": 13,
-      "rule_chain_case_groups": 1,
-      "rule_chain_failure_rows": 6,
-      "runtime_fixable_candidates": 0,
-      "single_connector_classifications": {
-        "phase4_not_next_single_connector_leftover": 4,
-        "with_mrts_detection_only_single_connector_non_disruptive": 3
-      },
-      "single_connector_connectors": {
-        "nginx": 7
-      },
-      "small_single_connector_failure_groups": 7,
-      "small_single_connector_failure_rows": 14
-    }
-  }
+  "rows": [],
+  "status": "blocked",
+  "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
 }

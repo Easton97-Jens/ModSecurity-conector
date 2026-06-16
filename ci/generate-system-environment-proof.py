@@ -19,16 +19,30 @@ from pathlib import Path
 from typing import Any
 
 from generated_report_utils import (
+    DATA_SOURCE_POLICY,
     FILENAME_TO_KEY,
     GENERATED_REPORTS,
     GENERATED_ROOT,
     build_metadata,
+    current_verified_run_id,
     generated_json_text,
     generated_markdown_text,
     report_path,
 )
 
 FRAMEWORK_ENVIRONMENT_VARS = (
+    "BUILD_ROOT",
+    "SOURCE_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+    "CONNECTOR_COMPONENT_CACHE",
+    "NGINX_HARNESS_PARENT",
+    "MATRIX_ROOT",
+    "MRTS_BUILD_ROOT",
+    "MRTS_NATIVE_ROOT",
+    "VERIFIED_RUN_ID",
+    "VERIFIED_RUN_PROFILE",
+    "VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS",
     "GO_FTW_BIN",
     "GO_FTW_SOURCE_URL",
     "GO_FTW_PROMPT_EXPECTED_LATEST",
@@ -1111,6 +1125,157 @@ def runtime_component_readiness(tools: list[dict[str, Any]], framework_env: dict
     ]
 
 
+def runtime_producer_readiness_check(connector_root: Path, framework_root: Path) -> dict[str, Any]:
+    script = connector_root / "ci/check-runtime-producer-readiness.py"
+    if not script.is_file():
+        return {
+            "status": "missing",
+            "return_code": 127,
+            "nginx_runtime_module_readiness": {
+                "NGINX_BIN": "",
+                "NGINX_MODULE_DIR": "",
+                "ModSecurity module path": "",
+                "Module exists": False,
+                "How to prepare": "make prepare-runtime-components",
+            },
+            "components": [],
+            "network_cache": [],
+        }
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--connector-root",
+            str(connector_root),
+            "--framework-root",
+            str(framework_root),
+            "--json",
+        ],
+        cwd=str(connector_root),
+        env=os.environ.copy(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=120,
+    )
+    try:
+        payload = json.loads(proc.stdout)
+    except Exception:
+        payload = {"status": "unknown", "components": [], "network_cache": [], "raw_output": proc.stdout}
+    payload["return_code"] = proc.returncode
+    return payload
+
+
+def read_verified_commands() -> list[dict[str, Any]]:
+    path_value = os.environ.get("VERIFIED_RUN_COMMANDS_FILE", "")
+    if not path_value:
+        return []
+    path = Path(path_value)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    commands = data.get("commands") if isinstance(data, dict) else data
+    return commands if isinstance(commands, list) else []
+
+
+def command_record(commands: list[dict[str, Any]], target: str) -> dict[str, Any]:
+    for record in commands:
+        raw = record.get("command")
+        if record.get("logical_target") == target:
+            return record
+        if isinstance(raw, list) and raw == ["make", target]:
+            return record
+    return {}
+
+
+def tool_missing(tools: list[dict[str, Any]], names: tuple[str, ...]) -> list[str]:
+    rows = []
+    for name in names:
+        record = tool_by_name(tools, name)
+        if record.get("status") != "present":
+            rows.append(name)
+    return rows
+
+
+def producer_status(commands: list[dict[str, Any]], target: str) -> str:
+    record = command_record(commands, target)
+    if not record:
+        return "not_run"
+    return str(record.get("status") or "unknown")
+
+
+def verified_producer_readiness(
+    tools: list[dict[str, Any]],
+    framework_env: dict[str, Any],
+) -> list[dict[str, Any]]:
+    variables = framework_env.get("variables", {})
+    commands = read_verified_commands()
+    runtime_paths = {
+        "BUILD_ROOT": variables.get("BUILD_ROOT") or os.environ.get("BUILD_ROOT") or "$HOME/.local/state/ModSecurity-conector-build",
+        "SOURCE_ROOT": variables.get("SOURCE_ROOT") or os.environ.get("SOURCE_ROOT") or "$HOME/.local/state/ModSecurity-conector-src",
+        "TMP_ROOT": variables.get("TMP_ROOT") or os.environ.get("TMP_ROOT") or "$BUILD_ROOT/tmp",
+        "LOG_ROOT": variables.get("LOG_ROOT") or os.environ.get("LOG_ROOT") or "$BUILD_ROOT/logs",
+        "CONNECTOR_COMPONENT_CACHE": variables.get("CONNECTOR_COMPONENT_CACHE") or os.environ.get("CONNECTOR_COMPONENT_CACHE") or "$BUILD_ROOT/component-cache",
+        "NGINX_HARNESS_PARENT": variables.get("NGINX_HARNESS_PARENT") or os.environ.get("NGINX_HARNESS_PARENT") or "$TMP_ROOT/nginx-harness",
+        "MATRIX_ROOT": variables.get("MATRIX_ROOT") or os.environ.get("MATRIX_ROOT") or "$BUILD_ROOT/full-matrix",
+        "MRTS_NATIVE_ROOT": variables.get("MRTS_NATIVE_ROOT") or os.environ.get("MRTS_NATIVE_ROOT") or "$BUILD_ROOT/mrts-native",
+    }
+    native_missing = tool_missing(
+        tools,
+        ("go-ftw", "albedo", "apachectl", "apache/httpd", "nginx", "apxs"),
+    )
+    full_matrix = command_record(commands, "full-matrix-parallel")
+    full_matrix_status = producer_status(commands, "full-matrix-parallel")
+    full_matrix_fix = (
+        "increase VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS and rerun make verified-report-run"
+        if full_matrix.get("classification") == "blocked_timeout"
+        else "run make verified-report-run with safe BUILD_ROOT/MATRIX_ROOT paths"
+    )
+    return [
+        {
+            "producer": "prepare-runtime-components",
+            "required": True,
+            "status": producer_status(commands, "prepare-runtime-components"),
+            "missing_tools": [],
+            "missing_paths": [
+                f"{key}={value}"
+                for key, value in runtime_paths.items()
+                if key in {"BUILD_ROOT", "SOURCE_ROOT", "CONNECTOR_COMPONENT_CACHE"}
+            ],
+            "how_to_fix": "ensure BUILD_ROOT, SOURCE_ROOT, TMP_ROOT, LOG_ROOT and CONNECTOR_COMPONENT_CACHE are under $HOME/.local/state, then run make prepare-runtime-components",
+        },
+        {
+            "producer": "runtime-matrix-all",
+            "required": True,
+            "status": producer_status(commands, "runtime-matrix-all"),
+            "missing_tools": [],
+            "missing_paths": [
+                f"{key}={value}"
+                for key, value in runtime_paths.items()
+                if key in {"BUILD_ROOT", "TMP_ROOT", "LOG_ROOT", "NGINX_HARNESS_PARENT"}
+            ],
+            "how_to_fix": "run make runtime-matrix-all after prepare-runtime-components; inspect the verified command log on BLOCKED/FAIL",
+        },
+        {
+            "producer": "full-matrix-parallel",
+            "required": True,
+            "status": full_matrix_status,
+            "missing_tools": [],
+            "missing_paths": [f"MATRIX_ROOT={runtime_paths['MATRIX_ROOT']}"],
+            "how_to_fix": full_matrix_fix,
+        },
+        {
+            "producer": "mrts-native-full-run",
+            "required": False,
+            "status": producer_status(commands, "mrts-native-full-run"),
+            "missing_tools": native_missing,
+            "missing_paths": [f"MRTS_NATIVE_ROOT={runtime_paths['MRTS_NATIVE_ROOT']}"],
+            "how_to_fix": "install optional go-ftw/albedo/native webserver tooling or leave native MRTS as optional WARN evidence",
+        },
+    ]
+
+
 def render_markdown(payload: dict[str, Any]) -> str:
     os_info = payload["os"]
     python_info = payload["python"]
@@ -1176,6 +1341,53 @@ def render_markdown(payload: dict[str, Any]) -> str:
             f"| {item['component']} | {item['status']} | {md_code(item['expected_path'])} | "
             f"{md_code(item['source_url'])} | {md_code(item['version_ref'])} | {md_code(item['how_to_prepare'])} |"
         )
+    nginx_module = payload.get("runtime_producer_readiness_check", {}).get("nginx_runtime_module_readiness", {})
+    lines.extend(
+        [
+            "",
+            "## NGINX Runtime Module Readiness",
+            "",
+            "| Field | Value |",
+            "|---|---|",
+            f"| NGINX_BIN | {md_code(nginx_module.get('NGINX_BIN', ''))} |",
+            f"| NGINX_MODULE_DIR | {md_code(nginx_module.get('NGINX_MODULE_DIR', ''))} |",
+            f"| ModSecurity module path | {md_code(nginx_module.get('ModSecurity module path', ''))} |",
+            f"| Module exists | {md_code(str(nginx_module.get('Module exists', False)).lower())} |",
+            f"| How to prepare | {md_code(nginx_module.get('How to prepare', 'make prepare-runtime-components'))} |",
+        ]
+    )
+    lines.extend(
+        [
+            "",
+            "## Verified Producer Readiness",
+            "",
+            "| Producer | Required | Status | Missing Tools | Missing Paths | How to Fix |",
+            "|---|---|---|---|---|---|",
+        ]
+    )
+    for item in payload.get("verified_producer_readiness", []):
+        missing_tools = ", ".join(item.get("missing_tools", [])) or "-"
+        missing_paths = "<br>".join(md_code(path) for path in item.get("missing_paths", [])) or "-"
+        lines.append(
+            f"| {item.get('producer', '-')} | {item.get('required', '-')} | {item.get('status', 'unknown')} | "
+            f"{md_cell(missing_tools)} | {missing_paths} | {md_code(item.get('how_to_fix', '-'))} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Runtime Network / Cache Readiness",
+            "",
+            "| Source | Status | Path | Notes |",
+            "|---|---|---|---|",
+        ]
+    )
+    for item in payload.get("runtime_producer_readiness_check", {}).get("network_cache", []):
+        lines.append(
+            f"| {md_cell(item.get('source', '-'))} | {md_cell(item.get('status', 'unknown'))} | "
+            f"{md_code(item.get('path', '-'))} | {md_cell(item.get('notes', '-'))} |"
+        )
+    if not payload.get("runtime_producer_readiness_check", {}).get("network_cache"):
+        lines.append("| - | unknown | `` | _No rows available. Reason: runtime readiness checker unavailable._ |")
     policy = payload["https_repo_url_policy"]
     lines.extend(
         [
@@ -1318,7 +1530,7 @@ def main() -> int:
     else:
         checks = [
             run(["make", "refresh-connector-reports"], connector_root, timeout=900),
-            run(["make", "check-generated-report-layout"], connector_root, timeout=300),
+            run(["env", "ALLOW_IN_PROGRESS_SYSTEM_PROOF=1", "make", "check-generated-report-layout"], connector_root, timeout=300),
             run(["make", "lint"], connector_root, timeout=900),
             run(["make", "quick-check"], connector_root, timeout=900),
             run(["git", "status", "--short"], connector_root, timeout=120),
@@ -1327,9 +1539,13 @@ def main() -> int:
     pip_version = run([sys.executable, "-m", "pip", "--version"], connector_root, timeout=60)
     tools = resolve_tools(connector_root, framework_environment, initial_env)
     readiness = runtime_component_readiness(tools, framework_environment)
+    runtime_producer_check = runtime_producer_readiness_check(connector_root, framework_root)
+    producer_readiness = verified_producer_readiness(tools, framework_environment)
     https_policy = https_repo_url_policy(connector_root, framework_root)
     payload = {
         "generated_at": generated_at,
+        "verified_run_id": current_verified_run_id(connector_root),
+        "data_source_policy": DATA_SOURCE_POLICY,
         "framework_common_sh_status": framework_environment["common_sh_status"],
         "framework_environment": {
             key: value for key, value in framework_environment.items() if key != "env"
@@ -1346,6 +1562,8 @@ def main() -> int:
         },
         "tools": tools,
         "runtime_component_readiness": readiness,
+        "runtime_producer_readiness_check": runtime_producer_check,
+        "verified_producer_readiness": producer_readiness,
         "https_repo_url_policy": https_policy,
         "python": {
             "sys_version": sys.version,

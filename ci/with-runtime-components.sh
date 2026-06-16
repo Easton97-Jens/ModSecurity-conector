@@ -7,11 +7,7 @@ DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local
 BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
 
 if [ -z "${CONNECTOR_COMPONENT_CACHE:-}" ]; then
-    if [ -d /src ] && [ -w /src ]; then
-        CONNECTOR_COMPONENT_CACHE=/src/ModSecurity-conector-cache
-    else
-        CONNECTOR_COMPONENT_CACHE="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/ModSecurity-conector"
-    fi
+    CONNECTOR_COMPONENT_CACHE="$BUILD_ROOT/component-cache"
 fi
 export CONNECTOR_ROOT FRAMEWORK_ROOT BUILD_ROOT CONNECTOR_COMPONENT_CACHE
 

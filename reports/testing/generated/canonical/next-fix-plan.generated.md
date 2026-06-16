@@ -1,23 +1,25 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:40:09Z`
+> Generated at: `2026-06-16T05:57:06Z`
+> Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
+> Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
+> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
 > Framework SHA: `unknown`
 > Input status: `complete`
 
 # Next Fix Plan
 
-Generated at: `2026-06-15T10:40:09Z`
+Generated at: `2026-06-16T05:57:06Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
 ## Recommendation
-- Empfohlener nächster Fix-Cluster: `none`
-- Begründung: No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.
+- Empfohlener nächster Fix-Cluster: `nginx_actual_500`
+- Begründung: previously resolved cluster reappeared
 - Nicht als nächstes bearbeiten: `phase4_hard_abort_capability`, weil requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes.
 - Nicht als nächstes bearbeiten: `transformation_semantics`, weil large count but likely semantic; needs native/libmodsecurity comparison before fixes.
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.
@@ -28,22 +30,35 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 - Nicht als nächstes bearbeiten: `collection_name_normalization_semantics`, weil metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes.
 
 ## P0
-- None.
+| Cluster | Count | Connector | Why | Likely change | Risk | Tests |
+|---|---|---|---|---|---|---|
+| nginx_actual_500 | 1138 | mixed | previously resolved cluster reappeared | stop and triage regression before new work | high | regenerate full matrix, targeted smoke for affected connector |
 
 ## P1
 - None.
 
 ## P2
-- None.
+| Cluster | Count | Connector | Why | Likely change | Risk | Tests |
+|---|---|---|---|---|---|---|
+| response_header_backend_setup | 12 | apache, nginx | specialized Phase 3 response-header probes need deterministic backend headers before connector behavior can be judged | add or route deterministic Content-Type, Location, and Set-Cookie response headers in the harness/backend path | low to medium | targeted response-header cases, make smoke-apache, make smoke-nginx |
+| multipart_files | 46 | apache, nginx, haproxy | remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits | compare multipart variable population across connectors with one representative request | medium | targeted multipart cases, connector smoke for touched connector, full matrix if parser behavior changes |
 
 ## P3
 | Cluster | Count | Connector | Why | Likely change | Risk | Tests |
 |---|---|---|---|---|---|---|
-| phase4_hard_abort_capability | 116 | apache, nginx, haproxy | Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial | stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists | high if promoted prematurely or faked | phase4 hard-abort report regeneration, targeted strict Phase 4 connector evidence, native report regeneration |
-| transformation_semantics | 36 | apache, nginx, haproxy | largest semantic cluster; likely needs native/libmodsecurity comparison before any fix | deeper semantic evidence, not harness routing | high | targeted transformation cases, native comparison where available |
+| phase4_hard_abort_capability | 352 | apache, nginx, haproxy | Phase 4/RESPONSE_BODY now requires hard-abort evidence, not status-only denial | stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists | high if promoted prematurely or faked | phase4 hard-abort report regeneration, targeted strict Phase 4 connector evidence, native report regeneration |
+| transformation_semantics | 88 | apache, nginx, haproxy | largest semantic cluster; likely needs native/libmodsecurity comparison before any fix | deeper semantic evidence, not harness routing | high | targeted transformation cases, native comparison where available |
 
 ## P4
-- None.
+| Cluster | Count | Connector | Why | Likely change | Risk | Tests |
+|---|---|---|---|---|---|---|
+| rule_chain_semantics and small single-connector leftovers | 110 | mostly nginx for connector-only leftovers | small connector-only leftovers after report-only and not-next groups are excluded | focused per-case triage only when runtime-fixable evidence remains | low to medium | targeted single-case smokes |
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `47b2a590a0e590b1ab1e488256f8e7ee461d0ef38cafddf81901b276737b006f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
 
 ## Data Availability / Missing Information
 

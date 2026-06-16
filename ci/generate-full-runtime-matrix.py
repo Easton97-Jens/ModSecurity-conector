@@ -346,6 +346,29 @@ def markdown(records: list[RunRecord], totals: Counter[str], generated_at: str) 
     return "\n".join(lines) + "\n"
 
 
+def missing_manifest_markdown(manifest: Path, generated_at: str, status: str, reason: str) -> str:
+    return "\n".join(
+        [
+            "# Full MRTS Runtime Matrix",
+            "",
+            f"- Generated at: `{generated_at}`",
+            f"- Status: `{status}`",
+            f"- Reason: {reason}",
+            f"- Manifest: `{manifest}`",
+            "",
+            "## Variant Results",
+            "",
+            "| Connector | Test variant | MRTS variant | Outcome | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending | Duration seconds | Summary | Log |",
+            "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|",
+            "",
+            "_No rows available. Reason: producer command was not run or manifest input is missing/empty._",
+            "",
+            "## Guardrails",
+            "- Runtime PASS/FAIL/BLOCKED values are not inferred when the manifest is unavailable.",
+        ]
+    ) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
@@ -361,6 +384,47 @@ def main() -> int:
     log_root = Path(args.log_root).resolve() if args.log_root else build_root / "logs"
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / GENERATED_ROOT
     manifest = Path(args.manifest).resolve() if args.manifest else build_root / "results/full-matrix/full-runtime-matrix-runs.jsonl"
+
+    if not manifest.is_file() or manifest.stat().st_size == 0:
+        generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        status = "skipped_missing_input"
+        reason = "full-runtime-matrix manifest is missing" if not manifest.exists() else "full-runtime-matrix manifest is empty"
+        payload = {
+            "generated_at": generated_at,
+            "status": status,
+            "reason": reason,
+            "manifest": str(manifest),
+            "build_root": str(build_root),
+            "log_root": str(log_root),
+            "totals": {
+                "attempted": "unknown",
+                "pass": "unknown",
+                "fail": "unknown",
+                "blocked": "unknown",
+                "not_executable": "unknown",
+                "pending": "unknown",
+            },
+            "runs": [],
+            "empty_reason": "producer command was not run or manifest input is missing/empty",
+        }
+        metadata = build_metadata(
+            generated_by="ci/generate-full-runtime-matrix.py",
+            make_target="generate-full-runtime-matrix",
+            connector_root=connector_root,
+            framework_root=Path(args.framework_root).resolve() if args.framework_root else None,
+            inputs=[manifest],
+            generated_at=generated_at,
+            extra={"run_status": status, "blocked_reason": reason},
+        )
+        json_path = report_path_from_root(output_dir, "full_runtime_matrix", "json")
+        md_path = report_path_from_root(output_dir, "full_runtime_matrix", "md")
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+        md_path.write_text(
+            generated_markdown_text(missing_manifest_markdown(manifest, generated_at, status, reason), metadata),
+            encoding="utf-8",
+        )
+        return 2
 
     records = load_manifest(manifest, build_root, log_root)
     records.sort(key=lambda item: (TEST_VARIANTS.index(item.test_variant), MRTS_VARIANTS.index(item.mrts_variant), CONNECTORS.index(item.connector)))

@@ -7,7 +7,13 @@ TMP_ROOT ?= $(BUILD_ROOT)/tmp
 LOG_ROOT ?= $(BUILD_ROOT)/logs
 FRAMEWORK_ROOT ?= $(CURDIR)/modules/ModSecurity-test-Framework
 CONNECTOR_ROOT := $(CURDIR)
-NGINX_HARNESS_PARENT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),$(if $(CONNECTOR_COMPONENT_CACHE),$(CONNECTOR_COMPONENT_CACHE),/src/ModSecurity-conector-cache)/nginx-harness))
+REQUESTED_VERIFIED_RUN_ID := $(VERIFIED_RUN_ID)
+DEFAULT_VERIFIED_RUN_ID := $(shell date -u +%Y-%m-%dT%H-%M-%SZ)-$(shell git rev-parse --short=8 HEAD 2>/dev/null || printf unknown)
+EXISTING_VERIFIED_RUN_ID := $(shell "$(PYTHON)" -c 'import json,pathlib; p=pathlib.Path("reports/testing/generated/manifest/verified-run-manifest.generated.json"); d=json.loads(p.read_text()) if p.is_file() else {}; print(d.get("verified_run_id") or d.get("metadata", {}).get("verified_run_id") or "")' 2>/dev/null)
+VERIFIED_RUN_ID := $(if $(REQUESTED_VERIFIED_RUN_ID),$(REQUESTED_VERIFIED_RUN_ID),$(if $(EXISTING_VERIFIED_RUN_ID),$(EXISTING_VERIFIED_RUN_ID),$(DEFAULT_VERIFIED_RUN_ID)))
+FRESH_VERIFIED_RUN_ID := $(if $(REQUESTED_VERIFIED_RUN_ID),$(REQUESTED_VERIFIED_RUN_ID),$(DEFAULT_VERIFIED_RUN_ID))
+CONNECTOR_COMPONENT_CACHE ?= $(BUILD_ROOT)/component-cache
+NGINX_HARNESS_PARENT ?= $(TMP_ROOT)/nginx-harness
 MRTS_BUILD_ROOT ?= $(BUILD_ROOT)/mrts
 MRTS_NATIVE_ROOT ?= $(BUILD_ROOT)/mrts-native
 MRTS_NATIVE_TARGETS ?= apache2_ubuntu nginx-pr24
@@ -16,7 +22,12 @@ MRTS_NATIVE_NGINX_PORT ?= 19081
 MRTS_NATIVE_BACKEND_PORT ?= 19082
 GO_FTW_BIN ?= go-ftw
 ALBEDO_BIN ?= albedo
-CONNECTOR_COMPONENT_CACHE ?=
+VERIFIED_RUN_RUNTIME_MATRIX_TIMEOUT_SECONDS ?= 1800
+VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS ?= $(if $(filter undefined,$(origin VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS)),7200,$(VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS))
+VERIFIED_RUN_REPORT_REFRESH_TIMEOUT_SECONDS ?= 1800
+VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS ?= 1800
+VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS ?= 3600
+VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS ?= 14400
 SKIP_RUNTIME_COMPONENT_PREPARE ?= 0
 RUNTIME_COMPONENT_STRICT_VERIFY ?= 0
 KEEP_RUNTIME_ARTIFACTS ?= 0
@@ -27,6 +38,13 @@ export BUILD_ROOT
 export SOURCE_ROOT
 export TMP_ROOT
 export LOG_ROOT
+export VERIFIED_RUN_ID
+export VERIFIED_RUN_RUNTIME_MATRIX_TIMEOUT_SECONDS
+export VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS
+export VERIFIED_RUN_REPORT_REFRESH_TIMEOUT_SECONDS
+export VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS
+export VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS
+export VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS
 export RESULTS_DIR
 export FRAMEWORK_ROOT
 export CONNECTOR_ROOT
@@ -137,7 +155,7 @@ export SKIP_RUNTIME_COMPONENT_PREPARE
 export RUNTIME_COMPONENT_STRICT_VERIFY
 export KEEP_RUNTIME_ARTIFACTS
 
-.PHONY: check-framework prepare-runtime-components refresh-connector-reports refresh-all-reports check-generated-report-layout generate-system-environment-proof prove-generated-reports smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel generate-full-runtime-matrix generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-remaining-failure-analysis mrts-native-full-run mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: check-framework prepare-runtime-components check-runtime-producer-readiness refresh-connector-reports refresh-all-reports check-generated-report-layout generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 define RUN_WITH_REFRESH_ALL
 	@set +e; \
@@ -164,6 +182,9 @@ prepare-runtime-components: check-framework
 		PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/prepare-runtime-components.sh; \
 	fi
 
+check-runtime-producer-readiness: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/check-runtime-producer-readiness.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)"
+
 refresh-connector-reports: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --native-root "$(MRTS_NATIVE_ROOT)"
 
@@ -181,12 +202,57 @@ check-generated-report-layout: check-framework
 generate-system-environment-proof: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-system-environment-proof.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
 
+generate-verified-runtime-mismatch-analysis: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/generate-verified-runtime-mismatch-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
+
 prove-generated-reports:
 	$(MAKE) refresh-connector-reports
 	$(MAKE) check-generated-report-layout
 	$(MAKE) lint
 	$(MAKE) quick-check
 	$(MAKE) generate-system-environment-proof
+
+verified-runtime-producers: check-framework
+	VERIFIED_RUN_ID="$(FRESH_VERIFIED_RUN_ID)" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase runtime-producers
+
+verified-report-producers: verified-runtime-producers
+
+verified-report-refresh: check-framework
+	@run_id="$${VERIFIED_RUN_ID:-$$(cat "$(BUILD_ROOT)/verified-runs/current-run-id" 2>/dev/null || true)}"; \
+	if [ -z "$$run_id" ]; then run_id="$(FRESH_VERIFIED_RUN_ID)"; fi; \
+	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase report-refresh
+
+verified-report-consumers: check-framework
+	@run_id="$${VERIFIED_RUN_ID:-$$(cat "$(BUILD_ROOT)/verified-runs/current-run-id" 2>/dev/null || true)}"; \
+	if [ -z "$$run_id" ]; then run_id="$(FRESH_VERIFIED_RUN_ID)"; fi; \
+	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase report-refresh
+
+verified-report-checks: check-framework
+	@run_id="$${VERIFIED_RUN_ID:-$$(cat "$(BUILD_ROOT)/verified-runs/current-run-id" 2>/dev/null || true)}"; \
+	if [ -z "$$run_id" ]; then run_id="$(FRESH_VERIFIED_RUN_ID)"; fi; \
+	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase checks
+
+verified-report-run: check-framework
+	VERIFIED_RUN_ID="$(FRESH_VERIFIED_RUN_ID)" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --mode strict
+
+verified-report-run-soft: check-framework
+	VERIFIED_RUN_ID="$(FRESH_VERIFIED_RUN_ID)" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --mode soft
+
+verified-report-run-smoke: check-framework
+	VERIFIED_RUN_ID="$(FRESH_VERIFIED_RUN_ID)" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --mode soft --profile smoke
+
+verified-full-matrix-job: check-framework
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required, e.g. CONNECTOR=nginx"; exit 2; }
+	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
+	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
+	@run_id="$${VERIFIED_RUN_ID:-$$(cat "$(BUILD_ROOT)/verified-runs/current-run-id" 2>/dev/null || true)}"; \
+	if [ -z "$$run_id" ]; then run_id="$(FRESH_VERIFIED_RUN_ID)"; fi; \
+	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase full-matrix-job --connector "$(CONNECTOR)" --crs "$(CRS)" --mrts "$(MRTS)"
+
+verified-full-matrix-resume: check-framework
+	@run_id="$${VERIFIED_RUN_ID:-$$(cat "$(BUILD_ROOT)/verified-runs/current-run-id" 2>/dev/null || true)}"; \
+	if [ -z "$$run_id" ]; then run_id="$(FRESH_VERIFIED_RUN_ID)"; fi; \
+	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase full-matrix-resume
 
 smoke-common: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CASE_SCOPE=common sh "$(FRAMEWORK_ROOT)/ci/run-connector-smokes.sh"
@@ -282,6 +348,9 @@ runtime-matrix: check-framework prepare-runtime-components
 runtime-matrix-all: check-framework prepare-runtime-components
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh")
 
+runtime-matrix-all-runtime: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FORCE_ALL_CASES=1 sh "$(FRAMEWORK_ROOT)/ci/run-runtime-matrix.sh"
+
 runtime-matrix-haproxy: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" HAPROXY_MATRIX_VARIANT=all sh "$(FRAMEWORK_ROOT)/ci/run-haproxy-runtime-matrix.sh"
 
@@ -295,8 +364,23 @@ full-runtime-matrix: full-matrix-parallel
 full-matrix-parallel: check-framework prepare-runtime-components
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-matrix-parallel.sh)
 
+full-matrix-parallel-runtime: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-full-matrix-parallel.sh
+
+full-matrix-single-job-runtime: check-framework prepare-runtime-components
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required, e.g. CONNECTOR=nginx"; exit 2; }
+	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
+	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" "$(FRAMEWORK_PYTHON)" ci/run-full-matrix-job.py --connector "$(CONNECTOR)" --crs "$(CRS)" --mrts "$(MRTS)" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --timeout-seconds "$(VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS)"
+
+full-matrix-resume-runtime: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" "$(FRAMEWORK_PYTHON)" ci/run-full-matrix-resume.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --job-timeout-seconds "$(VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS)" --total-timeout-seconds "$(VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS)"
+
 generate-full-runtime-matrix: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-full-runtime-matrix.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --log-root "$(LOG_ROOT)"
+
+generate-full-matrix-job-completeness: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/generate-full-matrix-job-completeness.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest" --rewrite-manifest
 
 generate-work-queue: check-framework
 	"$(FRAMEWORK_PYTHON)" "$(FRAMEWORK_ROOT)/ci/generate-connector-work-queue.py" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-root "$(CURDIR)" --full-runtime-matrix "$(CURDIR)/reports/testing/generated/canonical/full-runtime-matrix.generated.json"
@@ -352,6 +436,9 @@ generate-remaining-failure-analysis: check-framework
 
 mrts-native-full-run: check-framework prepare-runtime-components
 	$(call RUN_WITH_REFRESH_ALL,$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh)
+
+mrts-native-full-run-runtime: check-framework prepare-runtime-components
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh
 
 mrts-native-apache-full: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env MRTS_NATIVE_TARGETS=apache2_ubuntu PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh ci/run-mrts-native-full.sh

@@ -1,108 +1,46 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-15T10:40:30Z`
+> Generated at: `2026-06-16T05:57:56Z`
+> Verified run id: `2026-06-15T21-01-39Z-9391a8d0`
+> Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-no-mrts-intervention-nomatch-analysis.py`
 > Make target: `generate-no-mrts-intervention-nomatch-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `b94d4fd3cf130e7c4f28004033d647b2f2de3ad6`
-> Framework SHA: `61454d23be52e52d9395e6b091c52d651e16f89b`
-> Input status: `complete`
+> Connector SHA: `9391a8d0d5bf170f8af994c361f0b9fa50015834`
+> Framework SHA: `708183dce7dcd0ad190a5cb5211b1ba3de6a2385`
+> Input status: `blocked`
 
-# No-MRTS Intervention No-Match Analysis
+# Framework-owned no-MRTS no-match semantics.
 
-- Generated at: `2026-06-15T10:40:30Z`
-- no-MRTS expected `403` / actual `200` rows with loaded rule and no match: **0**
-- Unique cases: **0**
-- Rule not loaded: **0**
-- Rule loaded, no match: **0**
-- Rule matched, no intervention: **0**
-- Intervention created but connector did not return 403: **0**
-- Backend reached: **0**
+Status: `blocked`
 
-## Cause Groups
+Reason: required generated input is blocked
 
-| Cause | Count | Likely cause | Safe fixability | Risk | Examples |
-|---|---|---|---|---|---|
+## Verified Command
 
-## Connector / Phase / Target / Operator
+| Command | Status | Return Code | Notes |
+|---|---|---:|---|
+| `/root/git/ModSecurity-conector/.venv/bin/python ci/generate-no-mrts-intervention-nomatch-analysis.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --output-dir /root/git/ModSecurity-conector/reports/testing/generated` | blocked | - | required generated input is blocked |
 
-### Connectors
-| Value | Count |
-|---|---|
+## Rows
 
-### Phases
-| Value | Count |
-|---|---|
+_No rows available. Reason: producer command was not run or verified input is unavailable._
 
-### Targets
-| Value | Count |
-|---|---|
+## Data Sources
 
-### Operators
-| Value | Count |
-|---|---|
-
-### Source categories
-| Value | Count |
-|---|---|
-
-### Classifications
-| Value | Count |
-|---|---|
-
-### Work directions
-| Value | Count |
-|---|---|
-
-### Priorities
-| Value | Count |
-|---|---|
-
-## Native Comparator
-
-- Status: `no native comparator`
-- Matching native case IDs: `-`
-- Reason: Native MRTS reports cover upstream MRTS target cases; these 105 rows are framework-owned no-MRTS connector cases.
-- Native Apache status: `NOT_RUN`
-- Native NGINX status: `NOT_RUN`
-
-## Safe Subcluster Decision
-
-- Selected: **no**
-- Cluster: `none`
-- Count: **0**
-- Reason: No small safe harness/evidence fix was identified. The smallest clear group is phase1_request_body_unavailable_or_empty_body, but changing its body would change the test definition.
-- Action: analysis only; no runtime, rule, expected-status, or PASS/FAIL change
-
-## Before / After
-
-| Metric | Before | After |
-|---|---|---|
-| no-MRTS no-match |  |  |
-| intervention_blocking true candidates |  |  |
-| P0/P1 intervention_blocking rows |  |  |
-| full-matrix pass | 3074 | 3074 |
-| full-matrix fail | 782 | 782 |
-| full-matrix blocked |  |  |
-
-## Representative Records
-
-| Case | Connector | Variant | Rule | Phase | Target | Operator | Request | Expected value | Classification | Work direction | Priority | Cause |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-
-## Guardrails
-
-- Analysis-only report: no Expected status, runtime PASS/FAIL, rule, request, or MRTS definition was changed.
-- No connector/core code fix is recommended from this evidence alone.
-- No row shows a generated disruptive intervention that a connector later lost.
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `68d737435a1d14cf21aeaeb32fecf65b0283f5ad6da2192d849dd261b4587eeb` | `2026-06-15T21-01-39Z-9391a8d0` | skipped_stale_input |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f` | `2026-06-15T21-01-39Z-9391a8d0` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479` | `2026-06-15T21-01-39Z-9391a8d0` | stale |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d` | `2026-06-15T21-01-39Z-9391a8d0` | stale |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | present | input file available |
+| `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | skipped_stale_input | generated report input is not usable: status=skipped_stale_input |
 | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | present | input file available |
-| `reports/testing/generated/work-queues/connector-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/next-fix-plan.generated.json` | present | input file available |
+| `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | stale | generated report input is stale: framework_sha differs |
+| `reports/testing/generated/canonical/next-fix-plan.generated.json` | stale | generated report input is stale: framework_sha differs |

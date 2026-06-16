@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -172,6 +173,38 @@ def validate_https_url_config(env: dict[str, str]) -> None:
         value = env.get(key, "").strip()
         if value:
             require_https_url(value, key)
+
+
+def network_blocker_reason(exc: Exception, *, optional: bool = False) -> str:
+    prefix = "blocked_network_optional" if optional else "blocked_network"
+    return f"{prefix}:{exc}"
+
+
+def retry_count() -> int:
+    try:
+        return max(1, int(os.environ.get("RUNTIME_COMPONENT_NETWORK_RETRIES", "3")))
+    except ValueError:
+        return 3
+
+
+def retry_delay_seconds() -> float:
+    try:
+        return max(0.0, float(os.environ.get("RUNTIME_COMPONENT_NETWORK_RETRY_DELAY_SECONDS", "2")))
+    except ValueError:
+        return 2.0
+
+
+def urlopen_bytes(url: str, *, timeout: int = 60) -> bytes:
+    last_exc: Exception | None = None
+    for attempt in range(1, retry_count() + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as response:
+                return response.read()
+        except Exception as exc:
+            last_exc = exc
+            if attempt < retry_count():
+                time.sleep(retry_delay_seconds())
+    raise RuntimeError(last_exc or f"network request failed: {url}")
 
 
 def sha256_file(path: Path) -> str:
@@ -366,16 +399,26 @@ def prepare_git_component(
         return record
 
 
-def resolve_latest_github_release_tag(source_url: str) -> tuple[str, str]:
+def resolve_latest_github_release_tag(source_url: str, cache_path: Path | None = None) -> tuple[str, str, str]:
     repo = github_repo_path(source_url)
     api_url = f"https://api.github.com/repos/{repo}/releases/latest"
-    with urllib.request.urlopen(api_url, timeout=60) as response:
-        data = json.loads(response.read().decode("utf-8"))
+    source = "network"
+    try:
+        raw = urlopen_bytes(api_url, timeout=60)
+        data = json.loads(raw.decode("utf-8"))
+        if cache_path is not None:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_bytes(raw)
+    except Exception as exc:
+        if cache_path is None or not cache_path.is_file():
+            raise
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+        source = f"cached_after_network_error:{exc}"
     tag = data.get("tag_name")
     html_url = data.get("html_url") or f"https://github.com/{repo}/releases/tag/{tag or ''}"
     if not isinstance(tag, str) or not tag:
         raise RuntimeError(f"latest release for {source_url} did not include tag_name")
-    return tag, str(html_url)
+    return tag, str(html_url), source
 
 
 def prepare_release_git_component(
@@ -385,9 +428,13 @@ def prepare_release_git_component(
     path: Path,
     previous_records: dict[str, dict[str, Any]],
     strict: bool,
+    optional: bool = False,
 ) -> dict[str, Any]:
     try:
-        release_tag, release_url = resolve_latest_github_release_tag(source_url)
+        release_tag, release_url, release_lookup_status = resolve_latest_github_release_tag(
+            source_url,
+            path.parent / f"{name}-latest-release.json",
+        )
     except Exception as exc:
         return {
             "name": name,
@@ -396,14 +443,21 @@ def prepare_release_git_component(
             "path": str(path),
             "expected_ref": "",
             "release_tag": "",
-            "status": "blocked",
-            "blocker_reason": f"latest_release_lookup_failed:{exc}",
+            "status": "blocked_optional" if optional else "blocked",
+            "optional": optional,
+            "blocker_reason": network_blocker_reason(exc, optional=optional),
         }
     record = prepare_git_component(name, source_url, release_tag, path, previous_records, strict)
+    if optional and record.get("status") in {"blocked", "corrupt"}:
+        record["status"] = "blocked_optional"
+        record["optional"] = True
+        record["blocker_reason"] = f"optional_source_unavailable:{record.get('blocker_reason', 'unknown')}"
     record.update(
         source=source_url,
         release_tag=release_tag,
         release_url=release_url,
+        release_lookup_status=release_lookup_status,
+        optional=optional,
         expected_prompt_latest=expected_prompt_latest,
         release_tag_deviation=bool(expected_prompt_latest and release_tag != expected_prompt_latest),
         release_tag_deviation_note=(
@@ -426,8 +480,7 @@ def archive_can_list(path: Path) -> bool:
 
 def download(url: str, dest: Path) -> None:
     require_https_url(url, "download URL")
-    with urllib.request.urlopen(url, timeout=60) as response, dest.open("wb") as handle:
-        shutil.copyfileobj(response, handle)
+    dest.write_bytes(urlopen_bytes(url, timeout=60))
 
 
 def expected_sha_from_url(url: str, archive_name: str, dest: Path) -> str:
@@ -508,7 +561,7 @@ def github_repo_path(url: str) -> str:
     return f"{parts[0]}/{parts[1]}"
 
 
-def resolve_nginx_archive(env: dict[str, str]) -> tuple[str, str]:
+def resolve_nginx_archive(env: dict[str, str], latest_cache_path: Path | None = None) -> tuple[str, str, str]:
     mode = env.get("NGINX_SOURCE_MODE", "github-release")
     if mode != "github-release":
         raise RuntimeError(f"unsupported NGINX_SOURCE_MODE={mode}")
@@ -517,14 +570,25 @@ def resolve_nginx_archive(env: dict[str, str]) -> tuple[str, str]:
     if not repo_url:
         raise RuntimeError("missing NGINX_SOURCE_REPO_URL")
     repo = github_repo_path(repo_url)
+    lookup_status = "configured"
     if tag == "latest":
         api_url = f"https://api.github.com/repos/{repo}/releases/latest"
-        with urllib.request.urlopen(api_url, timeout=60) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        lookup_status = "network"
+        try:
+            raw = urlopen_bytes(api_url, timeout=60)
+            data = json.loads(raw.decode("utf-8"))
+            if latest_cache_path is not None:
+                latest_cache_path.parent.mkdir(parents=True, exist_ok=True)
+                latest_cache_path.write_bytes(raw)
+        except Exception as exc:
+            if latest_cache_path is None or not latest_cache_path.is_file():
+                raise
+            data = json.loads(latest_cache_path.read_text(encoding="utf-8"))
+            lookup_status = f"cached_after_network_error:{exc}"
         tag = data.get("tag_name")
         if not isinstance(tag, str) or not tag:
             raise RuntimeError("GitHub latest release response missing tag_name")
-    return tag, f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz"
+    return tag, f"https://github.com/{repo}/archive/refs/tags/{tag}.tar.gz", lookup_status
 
 
 def default_state_home() -> Path:
@@ -1319,6 +1383,7 @@ def prepare_go_tool(
     cache_root: Path,
     build_root: Path,
     git_record: dict[str, Any],
+    optional: bool = False,
 ) -> dict[str, Any]:
     binary_path = (cache_root / f"bin/{dependency}").resolve()
     marker_path = cache_root / "build-metadata" / f"{dependency}.json"
@@ -1351,17 +1416,19 @@ def prepare_go_tool(
         "build_log": str(log_path),
         "status": "unknown",
         "blocker_reason": "",
+        "optional": optional,
     }
+    def block(reason: str, **extra: Any) -> dict[str, Any]:
+        record.update(status="blocked_optional" if optional else "blocked", blocker_reason=reason, **extra)
+        return record
+
     if git_record.get("status") != "present":
-        record.update(status="blocked", blocker_reason=git_record.get("blocker_reason") or f"{dependency}_source_unavailable")
-        return record
+        return block(git_record.get("blocker_reason") or f"{dependency}_source_unavailable")
     if is_system_path(binary_path) or not is_within(binary_path, cache_root):
-        record.update(status="blocked", blocker_reason="system_path_write_forbidden")
-        return record
+        return block("system_path_write_forbidden")
     go_bin = shutil.which("go")
     if not go_bin:
-        record.update(status="blocked", blocker_reason="missing_go")
-        return record
+        return block("missing_go")
     previous = read_json(marker_path)
     if executable(binary_path) and previous.get("actual_head") == record["actual_head"]:
         record.update(status="present", build_package=previous.get("build_package", ""), go_version=previous.get("go_version", ""))
@@ -1377,26 +1444,21 @@ def prepare_go_tool(
     packages, list_proc = go_main_packages(source_path, build_env_vars, log_parts)
     if list_proc.returncode != 0:
         write_component_log(log_path, log_parts)
-        record.update(status="blocked", blocker_reason="go_list_failed", build_exit_code=list_proc.returncode)
-        return record
+        return block("go_list_failed", build_exit_code=list_proc.returncode)
     if not packages:
         write_component_log(log_path, log_parts)
-        record.update(status="blocked", blocker_reason="go_main_package_not_found")
-        return record
+        return block("go_main_package_not_found")
     if len(packages) > 1:
         write_component_log(log_path, log_parts)
-        record.update(status="blocked", blocker_reason="go_multiple_main_packages", main_packages=packages)
-        return record
+        return block("go_multiple_main_packages", main_packages=packages)
     build_package = packages[0]
     proc = run_env(["go", "build", "-trimpath", "-mod=readonly", "-o", str(binary_path), build_package], cwd=source_path, env=build_env_vars)
     append_command_log(log_parts, "go-build", proc)
     write_component_log(log_path, log_parts)
     if proc.returncode != 0:
-        record.update(status="blocked", blocker_reason="go_build_failed", build_exit_code=proc.returncode)
-        return record
+        return block("go_build_failed", build_exit_code=proc.returncode)
     if not executable(binary_path):
-        record.update(status="blocked", blocker_reason="go_binary_missing_after_build")
-        return record
+        return block("go_binary_missing_after_build")
     marker = {
         "source": record["source"],
         "release_tag": record["release_tag"],
@@ -2590,6 +2652,7 @@ def main() -> int:
             git_root / "go-ftw",
             previous_git,
             strict,
+            optional=True,
         ),
         prepare_release_git_component(
             "albedo",
@@ -2598,6 +2661,7 @@ def main() -> int:
             git_root / "albedo",
             previous_git,
             strict,
+            optional=True,
         ),
         prepare_release_git_component(
             "expat",
@@ -2637,12 +2701,13 @@ def main() -> int:
         prepare_archive("haproxy", env.get("HAPROXY_SOURCE_URL", ""), env.get("HAPROXY_SHA256", ""), env.get("HAPROXY_SHA256_URL", ""), archives_root / "haproxy"),
     ]
     try:
-        nginx_tag, nginx_url = resolve_nginx_archive(env)
+        nginx_tag, nginx_url, nginx_lookup_status = resolve_nginx_archive(env, archives_root / "nginx/nginx-latest-release.json")
         nginx_record = prepare_archive("nginx", nginx_url, env.get("NGINX_SHA256", ""), "", archives_root / "nginx")
         nginx_record["resolved_tag"] = nginx_tag
+        nginx_record["release_lookup_status"] = nginx_lookup_status
         archives.append(nginx_record)
     except Exception as exc:
-        archives.append({"name": "nginx", "status": "blocked", "blocker_reason": str(exc), "checksum_status": "unknown"})
+        archives.append({"name": "nginx", "status": "blocked", "blocker_reason": network_blocker_reason(exc), "checksum_status": "unknown"})
 
     git_by_name = {str(item.get("name")): item for item in git_components if isinstance(item, dict)}
     expat = prepare_expat(env, cache_root, build_root, git_by_name.get("expat", {}))
@@ -2685,8 +2750,8 @@ def main() -> int:
         modsecurity,
         connector_plans["haproxy"],
     )
-    go_ftw = prepare_go_tool("go-ftw", "GO_FTW_BIN", cache_root, build_root, git_by_name.get("go-ftw", {}))
-    albedo = prepare_go_tool("albedo", "ALBEDO_BIN", cache_root, build_root, git_by_name.get("albedo", {}))
+    go_ftw = prepare_go_tool("go-ftw", "GO_FTW_BIN", cache_root, build_root, git_by_name.get("go-ftw", {}), optional=True)
+    albedo = prepare_go_tool("albedo", "ALBEDO_BIN", cache_root, build_root, git_by_name.get("albedo", {}), optional=True)
 
     runtime_env = {
         "CONNECTOR_COMPONENT_CACHE": str(cache_root),
@@ -2848,7 +2913,8 @@ def main() -> int:
         if item.get("status") in {"blocked", "corrupt"} and item.get("name") not in {"nginx"}
     ]
     nginx_blocked = [item for item in archives if item.get("name") == "nginx" and item.get("status") in {"blocked", "corrupt"}]
-    blocked.extend(nginx_blocked)
+    if nginx.get("status") not in {"present", "built", "reused"}:
+        blocked.extend(nginx_blocked)
     for component_name, component in (("modsecurity", modsecurity), ("apache_httpd", apache_httpd), ("nginx", nginx), ("haproxy", haproxy)):
         if component.get("status") in {"blocked", "corrupt"}:
             blocked.append({"name": component_name, **component})

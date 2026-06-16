@@ -1,125 +1,91 @@
 {
-  "distribution": {
-    "causes": [],
-    "classifications": [],
-    "connectors": [],
-    "operators": [],
-    "phases": [],
-    "priorities": [],
-    "source_categories": [],
-    "targets": [],
-    "transformations": [],
-    "variants": [],
-    "work_directions": []
-  },
-  "generated_at": "2026-06-15T10:40:30Z",
-  "groups": {
-    "by_cause": [],
-    "by_connector": [],
-    "by_operator": [],
-    "by_phase": [],
-    "by_source_category": [],
-    "by_target": []
-  },
+  "command": [
+    "/root/git/ModSecurity-conector/.venv/bin/python",
+    "ci/generate-no-mrts-intervention-nomatch-analysis.py",
+    "--connector-root",
+    "/root/git/ModSecurity-conector",
+    "--framework-root",
+    "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
+    "--output-dir",
+    "/root/git/ModSecurity-conector/reports/testing/generated"
+  ],
+  "data_source_policy": "verified-inputs-only",
+  "empty_reason": "producer command was not run or verified input is unavailable",
+  "generated_at": "2026-06-16T05:57:56Z",
+  "generator": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
+  "make_target": "generate-no-mrts-intervention-nomatch-analysis",
   "metadata": {
+    "blocked_reason": "required generated input is blocked",
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
+    "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
-    "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-15T10:40:30Z",
+    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-16T05:57:56Z",
     "generated_by": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "complete",
+    "input_status": "blocked",
     "inputs": [
       {
-        "notes": "input file available",
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+        "notes": "generated report input is not usable: status=skipped_stale_input",
         "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "status": "present"
+        "sha256": "68d737435a1d14cf21aeaeb32fecf65b0283f5ad6da2192d849dd261b4587eeb",
+        "source_hash": "68d737435a1d14cf21aeaeb32fecf65b0283f5ad6da2192d849dd261b4587eeb",
+        "status": "skipped_stale_input",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "status": "present"
+        "sha256": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "source_hash": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "status": "present"
+        "sha256": "d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479",
+        "source_hash": "d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "notes": "input file available",
-        "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "status": "present"
-      },
-      {
-        "notes": "input file available",
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "status": "present"
+        "sha256": "6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d",
+        "source_hash": "6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       }
     ],
     "make_target": "generate-no-mrts-intervention-nomatch-analysis",
     "missing_inputs": [],
     "owner": "connector",
     "report_key": "no_mrts_intervention_nomatch_analysis",
+    "run_status": "blocked",
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
+    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
     "working_tree_dirty": "dirty"
   },
-  "native_comparator": {
-    "available": false,
-    "matching_case_ids": [],
-    "native_status": {
-      "apache": "NOT_RUN",
-      "nginx": "NOT_RUN",
-      "summary_generated_at": "2026-06-15T10:39:57Z"
-    },
-    "reason": "Native MRTS reports cover upstream MRTS target cases; these 105 rows are framework-owned no-MRTS connector cases.",
-    "status": "no native comparator"
-  },
-  "records": [],
-  "report_kind": "no-mrts-intervention-nomatch-analysis",
-  "safe_subcluster": {
-    "action": "analysis only; no runtime, rule, expected-status, or PASS/FAIL change",
-    "cluster": "none",
-    "count": 0,
-    "reason": "No small safe harness/evidence fix was identified. The smallest clear group is phase1_request_body_unavailable_or_empty_body, but changing its body would change the test definition.",
-    "selected": false
-  },
-  "source_reports": {
-    "connector_work_queue": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-    "full_runtime_matrix": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-    "intervention_blocking_analysis": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-    "next_fix_plan": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-    "remaining_failure_analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
-  },
-  "summary": {
-    "backend_reached": 0,
-    "before_after": {
-      "intervention_blocking_true_candidates_after": 0,
-      "intervention_blocking_true_candidates_before": 0,
-      "no_mrts_no_match_after": 0,
-      "no_mrts_no_match_before": 0,
-      "p0_p1_intervention_blocking_after": 0,
-      "p0_p1_intervention_blocking_before": 0
-    },
-    "full_matrix_totals": {
-      "attempted": 3928,
-      "blocked": 0,
-      "fail": 782,
-      "not_executable": 72,
-      "pass": 3074,
-      "pending": 2298
-    },
-    "intervention_created_connector_missed_403": 0,
-    "no_mrts_no_match": 0,
-    "rule_loaded_no_match": 0,
-    "rule_matched_no_intervention": 0,
-    "rule_not_loaded": 0,
-    "unique_cases": 0
-  }
+  "reason": "required generated input is blocked",
+  "report_key": "no_mrts_intervention_nomatch_analysis",
+  "report_name": "no_mrts_intervention_nomatch_analysis",
+  "rows": [],
+  "status": "blocked",
+  "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
 }

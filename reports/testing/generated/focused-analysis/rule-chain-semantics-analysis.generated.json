@@ -1,682 +1,91 @@
 {
-  "chain_named_non_rule_chain_failures": [
-    {
-      "actual_status": 200,
-      "analysis_classification": "transformation_chain_name_not_secrule_chain",
-      "case_id": "tfn_chain_urldecode_compress_whitespace_gap",
-      "case_path": "tfn_chain_urldecode_compress_whitespace_gap.yaml",
-      "category": "transformations",
-      "classification": "with_mrts_detection_only_non_disruptive",
-      "connector": "apache",
-      "expected_status": 403,
-      "fixability": "not_this_cluster",
-      "root_cause": "The case name contains chain, but the rules are transformation-chain semantics rather than a SecRule chain construct.",
-      "rule_ids": [],
-      "variant": "no-crs/with-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actual_status": 200,
-      "analysis_classification": "transformation_chain_name_not_secrule_chain",
-      "case_id": "tfn_chain_urldecode_compress_whitespace_gap",
-      "case_path": "-",
-      "category": "transformations",
-      "classification": "with_mrts_detection_only_non_disruptive",
-      "connector": "nginx",
-      "expected_status": 403,
-      "fixability": "not_this_cluster",
-      "root_cause": "The case name contains chain, but the rules are transformation-chain semantics rather than a SecRule chain construct.",
-      "rule_ids": [],
-      "variant": "no-crs/with-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actual_status": 200,
-      "analysis_classification": "transformation_chain_name_not_secrule_chain",
-      "case_id": "tfn_chain_urldecode_compress_whitespace_gap",
-      "case_path": "tfn_chain_urldecode_compress_whitespace_gap.yaml",
-      "category": "transformations",
-      "classification": "with_mrts_detection_only_non_disruptive",
-      "connector": "haproxy",
-      "expected_status": 403,
-      "fixability": "not_this_cluster",
-      "root_cause": "The case name contains chain, but the rules are transformation-chain semantics rather than a SecRule chain construct.",
-      "rule_ids": [],
-      "variant": "no-crs/with-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actual_status": 200,
-      "analysis_classification": "transformation_chain_name_not_secrule_chain",
-      "case_id": "tfn_chain_urldecode_compress_whitespace_gap",
-      "case_path": "tfn_chain_urldecode_compress_whitespace_gap.yaml",
-      "category": "transformations",
-      "classification": "with_mrts_detection_only_non_disruptive",
-      "connector": "apache",
-      "expected_status": 403,
-      "fixability": "not_this_cluster",
-      "root_cause": "The case name contains chain, but the rules are transformation-chain semantics rather than a SecRule chain construct.",
-      "rule_ids": [],
-      "variant": "with-crs/with-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actual_status": 200,
-      "analysis_classification": "transformation_chain_name_not_secrule_chain",
-      "case_id": "tfn_chain_urldecode_compress_whitespace_gap",
-      "case_path": "-",
-      "category": "transformations",
-      "classification": "with_mrts_detection_only_non_disruptive",
-      "connector": "nginx",
-      "expected_status": 403,
-      "fixability": "not_this_cluster",
-      "root_cause": "The case name contains chain, but the rules are transformation-chain semantics rather than a SecRule chain construct.",
-      "rule_ids": [],
-      "variant": "with-crs/with-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    },
-    {
-      "actual_status": 200,
-      "analysis_classification": "transformation_chain_name_not_secrule_chain",
-      "case_id": "tfn_chain_urldecode_compress_whitespace_gap",
-      "case_path": "tfn_chain_urldecode_compress_whitespace_gap.yaml",
-      "category": "transformations",
-      "classification": "with_mrts_detection_only_non_disruptive",
-      "connector": "haproxy",
-      "expected_status": 403,
-      "fixability": "not_this_cluster",
-      "root_cause": "The case name contains chain, but the rules are transformation-chain semantics rather than a SecRule chain construct.",
-      "rule_ids": [],
-      "variant": "with-crs/with-mrts",
-      "work_direction": [
-        "classification_only"
-      ]
-    }
+  "command": [
+    "/root/git/ModSecurity-conector/.venv/bin/python",
+    "ci/generate-rule-chain-semantics-analysis.py",
+    "--connector-root",
+    "/root/git/ModSecurity-conector",
+    "--framework-root",
+    "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
+    "--output-dir",
+    "/root/git/ModSecurity-conector/reports/testing/generated"
   ],
-  "conclusion": {
-    "root_cause": "Rule-chain semantics are not the active blocker: no-MRTS Rule-Chain rows pass, while with-MRTS failures are non-disruptive DetectionOnly overlay rows. The remaining NGINX-only rows are either Phase-4 not-next evidence or with-MRTS DetectionOnly rows.",
-    "safe_change": "metadata/report-only classification; no Expected status, rule, MRTS definition, or connector-core change.",
-    "selected_subcluster": "with-MRTS DetectionOnly redirect classification and report-only Rule-Chain triage"
-  },
-  "generated_at": "2026-06-15T10:40:37Z",
+  "data_source_policy": "verified-inputs-only",
+  "empty_reason": "producer command was not run or verified input is unavailable",
+  "generated_at": "2026-06-16T05:57:58Z",
+  "generator": "ci/generate-rule-chain-semantics-analysis.py",
+  "make_target": "generate-rule-chain-semantics-analysis",
   "metadata": {
+    "blocked_reason": "required generated input is stale",
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b94d4fd3cf130e7c4f28004033d647b2f2de3ad6",
+    "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
+    "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "61454d23be52e52d9395e6b091c52d651e16f89b",
-    "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-15T10:40:37Z",
+    "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-16T05:57:58Z",
     "generated_by": "ci/generate-rule-chain-semantics-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "complete",
+    "input_status": "stale",
     "inputs": [
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "status": "present"
+        "sha256": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
+        "source_hash": "8b6bfa1ccfca933d937939b21678b9543df4b9a125b9802c4b4ace67429daa24",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "status": "present"
+        "sha256": "d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479",
+        "source_hash": "d54beb4d40ea472648b5615ad1c493533ae642434a4cd62026a055fca9bda479",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
-        "notes": "input file available",
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "unknown",
+        "notes": "generated report input is stale: framework_sha differs",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "status": "present"
+        "sha256": "6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d",
+        "source_hash": "6a543b34e8941ce08cc523fbb3492eeeeaed4f16ac4b925105f87bdb71c1247d",
+        "status": "stale",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       },
       {
+        "connector_sha": "9391a8d0d5bf170f8af994c361f0b9fa50015834",
+        "framework_sha": "708183dce7dcd0ad190a5cb5211b1ba3de6a2385",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "status": "present"
+        "sha256": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "source_hash": "6ad06c76b68ec65d7a60b26b5409cfa84c7277e45c1c48488bc3c081dec5e49f",
+        "status": "present",
+        "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
       }
     ],
     "make_target": "generate-rule-chain-semantics-analysis",
     "missing_inputs": [],
     "owner": "connector",
     "report_key": "rule_chain_semantics_analysis",
+    "run_status": "skipped_stale_input",
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
+    "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0",
     "working_tree_dirty": "dirty"
   },
-  "next_recommendation": {
-    "not_next": [
-      {
-        "cluster": "phase4_hard_abort_capability",
-        "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes"
-      },
-      {
-        "cluster": "transformation_semantics",
-        "reason": "large count but likely semantic; needs native/libmodsecurity comparison before fixes"
-      },
-      {
-        "cluster": "nolog_expected_no_audit",
-        "reason": "classification-only: explicit nolog means the matching rule should not emit audit evidence"
-      },
-      {
-        "cluster": "response_header_mrts_detection_only",
-        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action"
-      },
-      {
-        "cluster": "with_mrts_detection_only_non_disruptive",
-        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
-      },
-      {
-        "cluster": "xml_processor_activation_missing",
-        "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
-      },
-      {
-        "cluster": "multipart_processor_activation_missing",
-        "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections"
-      },
-      {
-        "cluster": "collection_name_normalization_semantics",
-        "reason": "metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes"
-      }
-    ],
-    "reason": "No remaining runtime-fixable connector Full-Matrix cluster is recommended after report-only and not-next filters.",
-    "recommended_next_fix_cluster": "none"
-  },
-  "report_kind": "rule-chain-semantics-analysis",
-  "rule_chain_failures": [
-    {
-      "actions": [],
-      "actual_status": 200,
-      "analysis_classification": "with_mrts_detection_only_chain_non_disruptive",
-      "audit_error_debug_evidence": "yes",
-      "backend_reached": true,
-      "case_id": "rule_chain_both_match_block",
-      "case_path": "rule_chain_both_match_block.yaml",
-      "chain_child_matched": "unknown",
-      "chain_child_rule_ids": [],
-      "chain_parent_matched": "unknown",
-      "chain_parent_rule_id": "-",
-      "connector": "apache",
-      "corpus": "none",
-      "current_classification": "with_mrts_detection_only_non_disruptive",
-      "current_priority": "report_only",
-      "current_work_direction": [
-        "classification_only"
-      ],
-      "expected_status": 403,
-      "fixability": "report_only",
-      "full_chain_matched": "unknown",
-      "intervention_created": "no",
-      "operators": [
-        "-"
-      ],
-      "phase": "2",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay suppresses the disruptive chain action; no Chain semantic change is indicated.",
-      "rule_id": "-",
-      "rule_loaded": false,
-      "source": "-",
-      "source_kind": "framework-owned",
-      "targets": [
-        "-"
-      ],
-      "transformations": [],
-      "variant": "no-crs/with-mrts"
-    },
-    {
-      "actions": [],
-      "actual_status": 200,
-      "analysis_classification": "with_mrts_detection_only_chain_non_disruptive",
-      "audit_error_debug_evidence": "no",
-      "backend_reached": true,
-      "case_id": "rule_chain_both_match_block",
-      "case_path": "-",
-      "chain_child_matched": "unknown",
-      "chain_child_rule_ids": [],
-      "chain_parent_matched": "unknown",
-      "chain_parent_rule_id": "-",
-      "connector": "nginx",
-      "corpus": "none",
-      "current_classification": "with_mrts_detection_only_non_disruptive",
-      "current_priority": "report_only",
-      "current_work_direction": [
-        "classification_only"
-      ],
-      "expected_status": 403,
-      "fixability": "report_only",
-      "full_chain_matched": "unknown",
-      "intervention_created": "no",
-      "operators": [
-        "-"
-      ],
-      "phase": "2",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay suppresses the disruptive chain action; no Chain semantic change is indicated.",
-      "rule_id": "-",
-      "rule_loaded": false,
-      "source": "-",
-      "source_kind": "framework-owned",
-      "targets": [
-        "-"
-      ],
-      "transformations": [],
-      "variant": "no-crs/with-mrts"
-    },
-    {
-      "actions": [],
-      "actual_status": 200,
-      "analysis_classification": "with_mrts_detection_only_chain_non_disruptive",
-      "audit_error_debug_evidence": "yes",
-      "backend_reached": true,
-      "case_id": "rule_chain_both_match_block",
-      "case_path": "rule_chain_both_match_block.yaml",
-      "chain_child_matched": "unknown",
-      "chain_child_rule_ids": [],
-      "chain_parent_matched": "unknown",
-      "chain_parent_rule_id": "-",
-      "connector": "haproxy",
-      "corpus": "none",
-      "current_classification": "with_mrts_detection_only_non_disruptive",
-      "current_priority": "report_only",
-      "current_work_direction": [
-        "classification_only"
-      ],
-      "expected_status": 403,
-      "fixability": "report_only",
-      "full_chain_matched": "unknown",
-      "intervention_created": "no",
-      "operators": [
-        "-"
-      ],
-      "phase": "2",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay suppresses the disruptive chain action; no Chain semantic change is indicated.",
-      "rule_id": "-",
-      "rule_loaded": false,
-      "source": "-",
-      "source_kind": "framework-owned",
-      "targets": [
-        "-"
-      ],
-      "transformations": [],
-      "variant": "no-crs/with-mrts"
-    },
-    {
-      "actions": [],
-      "actual_status": 200,
-      "analysis_classification": "with_mrts_detection_only_chain_non_disruptive",
-      "audit_error_debug_evidence": "yes",
-      "backend_reached": true,
-      "case_id": "rule_chain_both_match_block",
-      "case_path": "rule_chain_both_match_block.yaml",
-      "chain_child_matched": "unknown",
-      "chain_child_rule_ids": [],
-      "chain_parent_matched": "unknown",
-      "chain_parent_rule_id": "-",
-      "connector": "apache",
-      "corpus": "none",
-      "current_classification": "with_mrts_detection_only_non_disruptive",
-      "current_priority": "report_only",
-      "current_work_direction": [
-        "classification_only"
-      ],
-      "expected_status": 403,
-      "fixability": "report_only",
-      "full_chain_matched": "unknown",
-      "intervention_created": "no",
-      "operators": [
-        "-"
-      ],
-      "phase": "2",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay suppresses the disruptive chain action; no Chain semantic change is indicated.",
-      "rule_id": "-",
-      "rule_loaded": false,
-      "source": "-",
-      "source_kind": "framework-owned",
-      "targets": [
-        "-"
-      ],
-      "transformations": [],
-      "variant": "with-crs/with-mrts"
-    },
-    {
-      "actions": [],
-      "actual_status": 200,
-      "analysis_classification": "with_mrts_detection_only_chain_non_disruptive",
-      "audit_error_debug_evidence": "no",
-      "backend_reached": true,
-      "case_id": "rule_chain_both_match_block",
-      "case_path": "-",
-      "chain_child_matched": "unknown",
-      "chain_child_rule_ids": [],
-      "chain_parent_matched": "unknown",
-      "chain_parent_rule_id": "-",
-      "connector": "nginx",
-      "corpus": "none",
-      "current_classification": "with_mrts_detection_only_non_disruptive",
-      "current_priority": "report_only",
-      "current_work_direction": [
-        "classification_only"
-      ],
-      "expected_status": 403,
-      "fixability": "report_only",
-      "full_chain_matched": "unknown",
-      "intervention_created": "no",
-      "operators": [
-        "-"
-      ],
-      "phase": "2",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay suppresses the disruptive chain action; no Chain semantic change is indicated.",
-      "rule_id": "-",
-      "rule_loaded": false,
-      "source": "-",
-      "source_kind": "framework-owned",
-      "targets": [
-        "-"
-      ],
-      "transformations": [],
-      "variant": "with-crs/with-mrts"
-    },
-    {
-      "actions": [],
-      "actual_status": 200,
-      "analysis_classification": "with_mrts_detection_only_chain_non_disruptive",
-      "audit_error_debug_evidence": "yes",
-      "backend_reached": true,
-      "case_id": "rule_chain_both_match_block",
-      "case_path": "rule_chain_both_match_block.yaml",
-      "chain_child_matched": "unknown",
-      "chain_child_rule_ids": [],
-      "chain_parent_matched": "unknown",
-      "chain_parent_rule_id": "-",
-      "connector": "haproxy",
-      "corpus": "none",
-      "current_classification": "with_mrts_detection_only_non_disruptive",
-      "current_priority": "report_only",
-      "current_work_direction": [
-        "classification_only"
-      ],
-      "expected_status": 403,
-      "fixability": "report_only",
-      "full_chain_matched": "unknown",
-      "intervention_created": "no",
-      "operators": [
-        "-"
-      ],
-      "phase": "2",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay suppresses the disruptive chain action; no Chain semantic change is indicated.",
-      "rule_id": "-",
-      "rule_loaded": false,
-      "source": "-",
-      "source_kind": "framework-owned",
-      "targets": [
-        "-"
-      ],
-      "transformations": [],
-      "variant": "with-crs/with-mrts"
-    }
-  ],
-  "runtime_fixable_candidates": [],
-  "small_single_connector_failures": [
-    {
-      "actual_statuses": {
-        "200": 2
-      },
-      "analysis_classification": "phase4_not_next_single_connector_leftover",
-      "case_id": "nginx_phase4_content_type_out_of_scope",
-      "case_path": "-",
-      "category_counts": {
-        "response-body": 2
-      },
-      "classification_counts": {
-        "response-body-non-promoted": 2
-      },
-      "connector": [
-        "nginx"
-      ],
-      "count": 2,
-      "expected_statuses": {
-        "200": 2
-      },
-      "fixability": "report_only",
-      "phase": "4",
-      "risk": "low",
-      "root_cause": "Phase-4 hard-abort/log-only evidence is already tracked by the Phase-4 capability report and is not a Rule-Chain runtime fix.",
-      "rule_ids": [],
-      "variants": [
-        "no-crs/with-mrts",
-        "with-crs/with-mrts"
-      ]
-    },
-    {
-      "actual_statuses": {
-        "200": 2
-      },
-      "analysis_classification": "phase4_not_next_single_connector_leftover",
-      "case_id": "nginx_phase4_minimal_log_only",
-      "case_path": "-",
-      "category_counts": {
-        "response-body": 2
-      },
-      "classification_counts": {
-        "response-body-non-promoted": 2
-      },
-      "connector": [
-        "nginx"
-      ],
-      "count": 2,
-      "expected_statuses": {
-        "200": 2
-      },
-      "fixability": "report_only",
-      "phase": "4",
-      "risk": "low",
-      "root_cause": "Phase-4 hard-abort/log-only evidence is already tracked by the Phase-4 capability report and is not a Rule-Chain runtime fix.",
-      "rule_ids": [],
-      "variants": [
-        "no-crs/with-mrts",
-        "with-crs/with-mrts"
-      ]
-    },
-    {
-      "actual_statuses": {
-        "200": 2
-      },
-      "analysis_classification": "phase4_not_next_single_connector_leftover",
-      "case_id": "nginx_phase4_safe_log_only",
-      "case_path": "-",
-      "category_counts": {
-        "response-body": 2
-      },
-      "classification_counts": {
-        "response-body-non-promoted": 2
-      },
-      "connector": [
-        "nginx"
-      ],
-      "count": 2,
-      "expected_statuses": {
-        "200": 2
-      },
-      "fixability": "report_only",
-      "phase": "4",
-      "risk": "low",
-      "root_cause": "Phase-4 hard-abort/log-only evidence is already tracked by the Phase-4 capability report and is not a Rule-Chain runtime fix.",
-      "rule_ids": [],
-      "variants": [
-        "no-crs/with-mrts",
-        "with-crs/with-mrts"
-      ]
-    },
-    {
-      "actual_statuses": {
-        "200": 2
-      },
-      "analysis_classification": "phase4_not_next_single_connector_leftover",
-      "case_id": "nginx_phase4_strict_connection_abort",
-      "case_path": "-",
-      "category_counts": {
-        "response-body": 2
-      },
-      "classification_counts": {
-        "response-body-non-promoted": 2
-      },
-      "connector": [
-        "nginx"
-      ],
-      "count": 2,
-      "expected_statuses": {
-        "403": 2
-      },
-      "fixability": "report_only",
-      "phase": "4",
-      "risk": "low",
-      "root_cause": "Phase-4 hard-abort/log-only evidence is already tracked by the Phase-4 capability report and is not a Rule-Chain runtime fix.",
-      "rule_ids": [],
-      "variants": [
-        "no-crs/with-mrts",
-        "with-crs/with-mrts"
-      ]
-    },
-    {
-      "actual_statuses": {
-        "200": 2
-      },
-      "analysis_classification": "with_mrts_detection_only_single_connector_non_disruptive",
-      "case_id": "nginx_redirect_phase1_302",
-      "case_path": "-",
-      "category_counts": {
-        "actions": 2
-      },
-      "classification_counts": {
-        "with_mrts_detection_only_non_disruptive": 2
-      },
-      "connector": [
-        "nginx"
-      ],
-      "count": 2,
-      "expected_statuses": {
-        "302": 2
-      },
-      "fixability": "report_only",
-      "phase": "1",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay keeps the otherwise disruptive NGINX-specific action non-blocking.",
-      "rule_ids": [],
-      "variants": [
-        "no-crs/with-mrts",
-        "with-crs/with-mrts"
-      ]
-    },
-    {
-      "actual_statuses": {
-        "200": 2
-      },
-      "analysis_classification": "with_mrts_detection_only_single_connector_non_disruptive",
-      "case_id": "nginx_tx_scoring_absolute_block",
-      "case_path": "-",
-      "category_counts": {
-        "actions": 2
-      },
-      "classification_counts": {
-        "with_mrts_detection_only_non_disruptive": 2
-      },
-      "connector": [
-        "nginx"
-      ],
-      "count": 2,
-      "expected_statuses": {
-        "403": 2
-      },
-      "fixability": "report_only",
-      "phase": "2",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay keeps the otherwise disruptive NGINX-specific action non-blocking.",
-      "rule_ids": [],
-      "variants": [
-        "no-crs/with-mrts",
-        "with-crs/with-mrts"
-      ]
-    },
-    {
-      "actual_statuses": {
-        "200": 2
-      },
-      "analysis_classification": "with_mrts_detection_only_single_connector_non_disruptive",
-      "case_id": "nginx_tx_scoring_iterative_block",
-      "case_path": "-",
-      "category_counts": {
-        "actions": 2
-      },
-      "classification_counts": {
-        "with_mrts_detection_only_non_disruptive": 2
-      },
-      "connector": [
-        "nginx"
-      ],
-      "count": 2,
-      "expected_statuses": {
-        "403": 2
-      },
-      "fixability": "report_only",
-      "phase": "2",
-      "risk": "low",
-      "root_cause": "with-MRTS DetectionOnly overlay keeps the otherwise disruptive NGINX-specific action non-blocking.",
-      "rule_ids": [],
-      "variants": [
-        "no-crs/with-mrts",
-        "with-crs/with-mrts"
-      ]
-    }
-  ],
-  "source_reports": {
-    "connector_work_queue": "2026-06-15T10:39:55Z",
-    "connector_work_queue_path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-    "full_runtime_matrix": "2026-06-15T10:39:51Z",
-    "full_runtime_matrix_path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-    "next_fix_plan": "2026-06-15T10:40:09Z",
-    "next_fix_plan_path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-    "remaining_failure_analysis": "2026-06-15T10:40:09Z",
-    "remaining_failure_analysis_path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
-  },
-  "summary": {
-    "chain_child_matched_rows": 0,
-    "chain_named_non_rule_chain_groups": 1,
-    "chain_named_non_rule_chain_rows": 6,
-    "chain_parent_matched_rows": 0,
-    "connectors": {
-      "apache": 2,
-      "haproxy": 2,
-      "nginx": 2
-    },
-    "evidence_parser_missing_full_chain_rows": 0,
-    "full_chain_disruptive_rows": 0,
-    "full_chain_matched_rows": 0,
-    "full_chain_non_disruptive_detection_only_rows": 6,
-    "report_only_items": 13,
-    "rule_chain_case_groups": 1,
-    "rule_chain_failure_rows": 6,
-    "runtime_fixable_candidates": 0,
-    "single_connector_classifications": {
-      "phase4_not_next_single_connector_leftover": 4,
-      "with_mrts_detection_only_single_connector_non_disruptive": 3
-    },
-    "single_connector_connectors": {
-      "nginx": 7
-    },
-    "small_single_connector_failure_groups": 7,
-    "small_single_connector_failure_rows": 14
-  }
+  "reason": "required generated input is stale",
+  "report_key": "rule_chain_semantics_analysis",
+  "report_name": "rule_chain_semantics_analysis",
+  "rows": [],
+  "status": "skipped_stale_input",
+  "verified_run_id": "2026-06-15T21-01-39Z-9391a8d0"
 }
