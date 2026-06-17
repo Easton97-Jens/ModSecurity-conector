@@ -32,51 +32,51 @@
     "root_cause": "with-crs variants contain unrelated CRS audit entries while the nolog/pass rule is absent from audit, error, and decision logs",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-16T18:58:27Z",
+  "generated_at": "2026-06-17T02:39:30Z",
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:58:27Z",
+    "generated_at": "2026-06-17T02:39:30Z",
     "generated_by": "ci/generate-nolog-audit-evidence-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "5c25f563cd35ffb52e53618bddd58d85577735d9f165260831af9ba622a101e4",
-        "source_hash": "5c25f563cd35ffb52e53618bddd58d85577735d9f165260831af9ba622a101e4",
+        "sha256": "cf11ec80a5be370b237cd25caf99156078fd818a39ab089fc47d09873fd53ece",
+        "source_hash": "cf11ec80a5be370b237cd25caf99156078fd818a39ab089fc47d09873fd53ece",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
-        "source_hash": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "sha256": "676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576",
+        "source_hash": "676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "27f5f0cdd2b94697fd5bea41e8e39bbc5f3463d3a53931eb8abf5002b910075d",
-        "source_hash": "27f5f0cdd2b94697fd5bea41e8e39bbc5f3463d3a53931eb8abf5002b910075d",
+        "sha256": "8e4db3774f091e7031c19862d57a29ef6291cb2e82469d9626d637869726c1e4",
+        "source_hash": "8e4db3774f091e7031c19862d57a29ef6291cb2e82469d9626d637869726c1e4",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
     "make_target": "generate-nolog-audit-evidence-analysis",
@@ -86,7 +86,7 @@
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "report_kind": "nolog-audit-evidence-analysis",
@@ -204,6 +204,56 @@
       "body": "",
       "case_id": "v3_action_nolog_pass_no_audit",
       "classification_after_analysis": "nolog_expected_no_audit",
+      "connector": "haproxy",
+      "content_type": "-",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "decision_log_rule_ids": [
+        "0"
+      ],
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "error_log_rule_ids": [],
+      "expected_evidence": "rule 3326 must not create an audit entry because the action list contains nolog",
+      "expected_status": 200,
+      "has_auditlog": false,
+      "has_nolog": true,
+      "method": "GET",
+      "modsecurity_processed": true,
+      "original_classification": "pass",
+      "original_work_direction": [
+        "runtime_difference"
+      ],
+      "path": "/",
+      "phase": "1",
+      "query": "foo=bar&a=xxx",
+      "reason_after_analysis": "Rule 3326 has nolog/pass and is absent from audit, error, and decision logs; non-empty with-crs audit entries are unrelated CRS noise.",
+      "rule_id": "3326",
+      "run_log_path": "<runtime-artifact>/run.log",
+      "runtime_status": "PASS",
+      "source_corpus": "framework-owned/none",
+      "target_rule_in_runtime_logs": false,
+      "variant": "no-crs/no-mrts",
+      "with_crs_unrelated_audit_noise": false,
+      "work_direction_after_analysis": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:3326",
+        "phase:1",
+        "nolog",
+        "pass",
+        "msg:'v3 imported nolog pass no audit'"
+      ],
+      "actual_evidence": "audit log absent or empty",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "audit_log_size": 0,
+      "audit_rule_ids": [],
+      "backend_reached": true,
+      "body": "",
+      "case_id": "v3_action_nolog_pass_no_audit",
+      "classification_after_analysis": "nolog_expected_no_audit",
       "connector": "apache",
       "content_type": "-",
       "decision_log_path": "-",
@@ -264,6 +314,56 @@
       "has_nolog": true,
       "method": "GET",
       "modsecurity_processed": false,
+      "original_classification": "pass",
+      "original_work_direction": [
+        "runtime_difference"
+      ],
+      "path": "/",
+      "phase": "1",
+      "query": "foo=bar&a=xxx",
+      "reason_after_analysis": "Rule 3326 has nolog/pass and is absent from audit, error, and decision logs; non-empty with-crs audit entries are unrelated CRS noise.",
+      "rule_id": "3326",
+      "run_log_path": "<runtime-artifact>/run.log",
+      "runtime_status": "PASS",
+      "source_corpus": "framework-owned/none",
+      "target_rule_in_runtime_logs": false,
+      "variant": "no-crs/with-mrts",
+      "with_crs_unrelated_audit_noise": false,
+      "work_direction_after_analysis": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:3326",
+        "phase:1",
+        "nolog",
+        "pass",
+        "msg:'v3 imported nolog pass no audit'"
+      ],
+      "actual_evidence": "audit log absent or empty",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "audit_log_size": 0,
+      "audit_rule_ids": [],
+      "backend_reached": true,
+      "body": "",
+      "case_id": "v3_action_nolog_pass_no_audit",
+      "classification_after_analysis": "nolog_expected_no_audit",
+      "connector": "haproxy",
+      "content_type": "-",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "decision_log_rule_ids": [
+        "0"
+      ],
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "error_log_rule_ids": [],
+      "expected_evidence": "rule 3326 must not create an audit entry because the action list contains nolog",
+      "expected_status": 200,
+      "has_auditlog": false,
+      "has_nolog": true,
+      "method": "GET",
+      "modsecurity_processed": true,
       "original_classification": "pass",
       "original_work_direction": [
         "runtime_difference"
@@ -394,6 +494,58 @@
       "actual_evidence": "audit log contains unrelated rule(s): 920350",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
+      "audit_log_size": 1059,
+      "audit_rule_ids": [
+        "920350"
+      ],
+      "backend_reached": true,
+      "body": "",
+      "case_id": "v3_action_nolog_pass_no_audit",
+      "classification_after_analysis": "nolog_expected_no_audit",
+      "connector": "haproxy",
+      "content_type": "-",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "decision_log_rule_ids": [
+        "920350"
+      ],
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "error_log_rule_ids": [],
+      "expected_evidence": "rule 3326 must not create an audit entry because the action list contains nolog",
+      "expected_status": 200,
+      "has_auditlog": false,
+      "has_nolog": true,
+      "method": "GET",
+      "modsecurity_processed": true,
+      "original_classification": "runtime-difference",
+      "original_work_direction": [
+        "audit_log_evidence"
+      ],
+      "path": "/",
+      "phase": "1",
+      "query": "foo=bar&a=xxx",
+      "reason_after_analysis": "Rule 3326 has nolog/pass and is absent from audit, error, and decision logs; non-empty with-crs audit entries are unrelated CRS noise.",
+      "rule_id": "3326",
+      "run_log_path": "<runtime-artifact>/run.log",
+      "runtime_status": "FAIL",
+      "source_corpus": "framework-owned/none",
+      "target_rule_in_runtime_logs": false,
+      "variant": "with-crs/no-mrts",
+      "with_crs_unrelated_audit_noise": true,
+      "work_direction_after_analysis": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:3326",
+        "phase:1",
+        "nolog",
+        "pass",
+        "msg:'v3 imported nolog pass no audit'"
+      ],
+      "actual_evidence": "audit log contains unrelated rule(s): 920350",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
       "audit_log_size": 1021,
       "audit_rule_ids": [
         "920350"
@@ -479,6 +631,58 @@
       "target_rule_in_runtime_logs": false,
       "variant": "with-crs/with-mrts",
       "with_crs_unrelated_audit_noise": false,
+      "work_direction_after_analysis": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:3326",
+        "phase:1",
+        "nolog",
+        "pass",
+        "msg:'v3 imported nolog pass no audit'"
+      ],
+      "actual_evidence": "audit log contains unrelated rule(s): 920350",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "audit_log_size": 1059,
+      "audit_rule_ids": [
+        "920350"
+      ],
+      "backend_reached": true,
+      "body": "",
+      "case_id": "v3_action_nolog_pass_no_audit",
+      "classification_after_analysis": "nolog_expected_no_audit",
+      "connector": "haproxy",
+      "content_type": "-",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "decision_log_rule_ids": [
+        "920350"
+      ],
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "error_log_rule_ids": [],
+      "expected_evidence": "rule 3326 must not create an audit entry because the action list contains nolog",
+      "expected_status": 200,
+      "has_auditlog": false,
+      "has_nolog": true,
+      "method": "GET",
+      "modsecurity_processed": true,
+      "original_classification": "runtime-difference",
+      "original_work_direction": [
+        "audit_log_evidence"
+      ],
+      "path": "/",
+      "phase": "1",
+      "query": "foo=bar&a=xxx",
+      "reason_after_analysis": "Rule 3326 has nolog/pass and is absent from audit, error, and decision logs; non-empty with-crs audit entries are unrelated CRS noise.",
+      "rule_id": "3326",
+      "run_log_path": "<runtime-artifact>/run.log",
+      "runtime_status": "FAIL",
+      "source_corpus": "framework-owned/none",
+      "target_rule_in_runtime_logs": false,
+      "variant": "with-crs/with-mrts",
+      "with_crs_unrelated_audit_noise": true,
       "work_direction_after_analysis": [
         "classification_only"
       ]
@@ -491,15 +695,16 @@
   },
   "summary": {
     "audit_log_evidence_after": 0,
-    "audit_log_evidence_before": 4,
-    "classification_only_after": 400,
-    "classification_only_before": 396,
+    "audit_log_evidence_before": 6,
+    "classification_only_after": 597,
+    "classification_only_before": 591,
     "connectors": [
       "apache",
+      "haproxy",
       "nginx"
     ],
-    "rows_extracted": 8,
-    "rows_reclassified": 4,
+    "rows_extracted": 12,
+    "rows_reclassified": 6,
     "variants": [
       "no-crs/no-mrts",
       "no-crs/with-mrts",
@@ -507,7 +712,7 @@
       "with-crs/with-mrts"
     ],
     "work_direction_after_analysis": {
-      "classification_only": 8
+      "classification_only": 12
     }
   }
 }

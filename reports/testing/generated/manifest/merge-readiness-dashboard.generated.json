@@ -1,16 +1,10 @@
 {
-  "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-  "critical_missing_reports": [
-    "final_consistency_audit"
-  ],
-  "critical_producer_not_run": [
-    "final_consistency_audit"
-  ],
+  "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+  "critical_missing_reports": [],
+  "critical_producer_not_run": [],
   "critical_run_mismatches": [],
-  "critical_runtime_mismatch_count": 524,
+  "critical_runtime_mismatch_count": 764,
   "critical_stale_reports": [
-    "final_consistency_audit",
-    "merge_readiness_dashboard",
     "report_refresh_manifest"
   ],
   "data_source_policy": "verified-inputs-only",
@@ -21,23 +15,23 @@
       "expected": "-",
       "name": "parent",
       "path": ".",
-      "sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+      "sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
       "status": "present"
     },
     {
       "branch": "master",
       "dirty": "dirty",
-      "expected": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+      "expected": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
       "name": "framework_submodule",
       "path": "modules/ModSecurity-test-Framework",
-      "sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+      "sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
       "status": "present"
     }
   ],
   "evidence_scope": "full",
   "failed_reports": [],
-  "final_consistency_status": "unknown",
-  "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+  "final_consistency_status": "ready_with_known_reported_gaps",
+  "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
   "full_matrix_complete": true,
   "full_matrix_completed_jobs": 12,
   "full_matrix_expected_jobs": 12,
@@ -45,88 +39,88 @@
   "full_matrix_refresh_timeout": false,
   "full_matrix_timeout": false,
   "full_matrix_totals": {
-    "attempted": 2628,
-    "blocked": 4,
-    "fail": 534,
-    "not_executable": 48,
-    "pass": 2046,
-    "pending": 1532
+    "attempted": 3928,
+    "blocked": 0,
+    "fail": 782,
+    "not_executable": 72,
+    "pass": 3074,
+    "pending": 2298
   },
-  "generated_at": "2026-06-16T18:58:49Z",
+  "generated_at": "2026-06-17T02:40:22Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "dashboard",
     "data_origin": "manifest",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:58:49Z",
+    "generated_at": "2026-06-17T02:40:22Z",
     "generated_by": "ci/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "blocked",
+    "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
-        "source_hash": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "sha256": "676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576",
+        "source_hash": "676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
-        "sha256": "5a46b78e9b0b07805bfa70305a7f2fb7f907511087e8952d7ee18b91f6e9f5bb",
-        "source_hash": "5a46b78e9b0b07805bfa70305a7f2fb7f907511087e8952d7ee18b91f6e9f5bb",
+        "sha256": "b6ce3c02e4ed81d078fb8cd9971b03719d558ca1ab79aca20f5d6aada335deee",
+        "source_hash": "b6ce3c02e4ed81d078fb8cd9971b03719d558ca1ab79aca20f5d6aada335deee",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/final-consistency-audit.generated.json",
-        "sha256": "8086864d8051f96776b54d45482eaf4b02e220dedc3ca191547c119ecfc4419b",
-        "source_hash": "8086864d8051f96776b54d45482eaf4b02e220dedc3ca191547c119ecfc4419b",
-        "status": "blocked",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "a59343bebc59e34142df37e8f867b013b9185b07889ff9407d7fbed05fa12f53",
+        "source_hash": "a59343bebc59e34142df37e8f867b013b9185b07889ff9407d7fbed05fa12f53",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560",
-        "source_hash": "f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560",
-        "status": "stale",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "56d43bad850595932f10e7e412d8d7a2a63b60ec8a170535015b7eb12ad7f15d",
+        "source_hash": "56d43bad850595932f10e7e412d8d7a2a63b60ec8a170535015b7eb12ad7f15d",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "dd74444ee2dda65ac29c6c32ad15aa9592fbb95ad095f607e1b02e03b309e6d4",
-        "source_hash": "dd74444ee2dda65ac29c6c32ad15aa9592fbb95ad095f607e1b02e03b309e6d4",
-        "status": "stale",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "6f7c469a2eb7869d6b401cf502cf6195bd3c0efecea4f83192c051a11797dd6a",
+        "source_hash": "6f7c469a2eb7869d6b401cf502cf6195bd3c0efecea4f83192c051a11797dd6a",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/report-freshness.generated.json",
-        "sha256": "42ce0a3c896d910b3661dc67f79c957486c9e774d37b7adfa7eaca3c6edd143d",
-        "source_hash": "42ce0a3c896d910b3661dc67f79c957486c9e774d37b7adfa7eaca3c6edd143d",
+        "sha256": "a641435cfc5eeaa17ca31ae9d560e1c933286f87c8e6f240d3ae3094afb184aa",
+        "source_hash": "a641435cfc5eeaa17ca31ae9d560e1c933286f87c8e6f240d3ae3094afb184aa",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
     "make_target": "refresh-connector-reports",
@@ -136,46 +130,34 @@
     "schema_version": 1,
     "severity": "critical",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
-  "metadata_run_mismatches": [
-    "system_environment_proof"
-  ],
+  "metadata_run_mismatches": [],
   "metadata_verified_run_ids": {
-    "final_consistency_audit": "2026-06-16T16-57-44Z-b53340a8",
-    "full_runtime_matrix": "2026-06-16T16-57-44Z-b53340a8",
-    "system_environment_proof": "2026-06-15T21-01-39Z-9391a8d0",
-    "verified_runtime_mismatch_analysis": "2026-06-16T16-57-44Z-b53340a8"
+    "final_consistency_audit": "2026-06-16T19-12-00Z-614c8049",
+    "full_runtime_matrix": "2026-06-16T19-12-00Z-614c8049",
+    "system_environment_proof": "2026-06-16T19-12-00Z-614c8049",
+    "verified_runtime_mismatch_analysis": "2026-06-16T19-12-00Z-614c8049"
   },
   "optional_blocked_reports": [],
   "optional_failed_reports": [],
   "optional_skipped_reports": [],
   "primary_blocker": "none",
-  "reason": "Full-Matrix runtime completed with critical mismatches; downstream refresh timed out or stale reports remain.",
+  "reason": "Full-Matrix runtime completed with critical mismatches; downstream reports remain blocked, stale, or unknown.",
   "recommended_next_fix_cluster": "none",
   "runtime_mismatch_categories": {
-    "connector_capability_gap": 80,
-    "expected_status_mismatch": 256,
-    "framework_expected_behavior_gap": 16,
-    "known_not_next": 62,
-    "runtime_regression": 110,
-    "timeout_or_incomplete": 52,
-    "unknown": 10
+    "connector_capability_gap": 117,
+    "expected_status_mismatch": 377,
+    "framework_expected_behavior_gap": 24,
+    "known_not_next": 90,
+    "runtime_regression": 162,
+    "timeout_or_incomplete": 72,
+    "unknown": 12
   },
-  "runtime_mismatch_count": 586,
-  "skipped_reports": [
-    "intervention_blocking_analysis",
-    "body_processor_analysis",
-    "rule_chain_semantics_analysis"
-  ],
-  "stale_reports": [
-    "intervention_blocking_analysis",
-    "no_mrts_intervention_nomatch_analysis",
-    "body_processor_analysis",
-    "rule_chain_semantics_analysis",
-    "final_consistency_audit"
-  ],
+  "runtime_mismatch_count": 854,
+  "skipped_reports": [],
+  "stale_reports": [],
   "status": "FAIL",
   "submodules": [
     {
@@ -184,16 +166,16 @@
       "expected": "-",
       "name": "parent",
       "path": ".",
-      "sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+      "sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
       "status": "present"
     },
     {
       "branch": "master",
       "dirty": "dirty",
-      "expected": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+      "expected": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
       "name": "framework_submodule",
       "path": "modules/ModSecurity-test-Framework",
-      "sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+      "sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
       "status": "present"
     },
     {
@@ -215,5 +197,5 @@
       "status": "not_found"
     }
   ],
-  "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+  "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
 }

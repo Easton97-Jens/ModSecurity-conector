@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T18:58:25Z`
-> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Generated at: `2026-06-17T02:39:29Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
-> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
+> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
+> Framework SHA: `24509c107ecf3a22ae9d69875f661690bd6fb95b`
 > Input status: `complete`
 
 # MRTS Native NGINX PR24 Report
 
-Generated at: `2026-06-16T18:58:25Z`
+Generated at: `2026-06-17T02:39:29Z`
 
 ## Target
 - Target: `nginx-pr24`
@@ -32,6 +32,10 @@ Generated at: `2026-06-16T18:58:25Z`
 
 ## Status
 - Status: **FAIL**
+- Classification: `optional_native_modsecurity_semantics_difference`
+- Optional evidence: `true`
+- Critical merge blocker: `false`
+- Notes: Apache and NGINX native MRTS reach the backend and fail only case 100003-1, the phase 4 ARGS comparison.
 
 ## Counts
 - attempted: **13**
@@ -80,7 +84,7 @@ Generated at: `2026-06-16T18:58:25Z`
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `772ec32045669d24351108aff42092c9c714c4a89b1642e1aa1011081e2d3e87` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

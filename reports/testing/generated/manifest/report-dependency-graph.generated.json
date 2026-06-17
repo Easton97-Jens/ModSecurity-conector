@@ -250,48 +250,48 @@
     "full_run_evidence",
     "merge_readiness_dashboard"
   ],
-  "generated_at": "2026-06-16T18:58:49Z",
+  "generated_at": "2026-06-17T02:40:22Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "manifest",
     "data_origin": "manifest",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:58:49Z",
+    "generated_at": "2026-06-17T02:40:22Z",
     "generated_by": "ci/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "blocked",
+    "input_status": "complete",
     "inputs": [
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-        "sha256": "808eb86b9a8c6b19093fc2daf965ca1fd031be11bfaba263f2988a910586c0bf",
-        "source_hash": "808eb86b9a8c6b19093fc2daf965ca1fd031be11bfaba263f2988a910586c0bf",
+        "sha256": "d2e21234df8b14aa214920453961538724f99e195f37d247c91785db79b7db23",
+        "source_hash": "d2e21234df8b14aa214920453961538724f99e195f37d247c91785db79b7db23",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
-        "sha256": "e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7",
-        "source_hash": "e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7",
+        "sha256": "234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda",
+        "source_hash": "234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
-        "sha256": "772ec32045669d24351108aff42092c9c714c4a89b1642e1aa1011081e2d3e87",
-        "source_hash": "772ec32045669d24351108aff42092c9c714c4a89b1642e1aa1011081e2d3e87",
+        "sha256": "161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7",
+        "source_hash": "161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7",
         "status": "present"
       },
       {
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
-        "sha256": "f7092c24374de4f6bf26ea230ed84429b8dfc9cded204a709c9619599d6dd73f",
-        "source_hash": "f7092c24374de4f6bf26ea230ed84429b8dfc9cded204a709c9619599d6dd73f",
+        "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
+        "sha256": "cbdb375cdfd0974fcdb515076272ae2edc7a4f78fcf56e02e35c944f5d2c56c7",
+        "source_hash": "cbdb375cdfd0974fcdb515076272ae2edc7a4f78fcf56e02e35c944f5d2c56c7",
         "status": "present"
       },
       {
@@ -302,220 +302,220 @@
         "status": "present"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
-        "sha256": "58c14894ad3f824f4aaf66730bfa8af0beefaae7674039e3e813c67542cadf54",
-        "source_hash": "58c14894ad3f824f4aaf66730bfa8af0beefaae7674039e3e813c67542cadf54",
+        "sha256": "209214455838f98bb34f32ad8fc4c253c89fbf671db412542638a809cb748d87",
+        "source_hash": "209214455838f98bb34f32ad8fc4c253c89fbf671db412542638a809cb748d87",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/cache/runtime-component-cache.generated.json",
-        "sha256": "bd47303437524a77a8b31743668e6b50041f176dec683c2efe25737f6d0d8ef7",
-        "source_hash": "bd47303437524a77a8b31743668e6b50041f176dec683c2efe25737f6d0d8ef7",
+        "sha256": "8ea0bad90117ba5fcbede1ee8cce97fffff7701297ceb490670faa4ea3c48126",
+        "source_hash": "8ea0bad90117ba5fcbede1ee8cce97fffff7701297ceb490670faa4ea3c48126",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "dd74444ee2dda65ac29c6c32ad15aa9592fbb95ad095f607e1b02e03b309e6d4",
-        "source_hash": "dd74444ee2dda65ac29c6c32ad15aa9592fbb95ad095f607e1b02e03b309e6d4",
-        "status": "stale",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "6f7c469a2eb7869d6b401cf502cf6195bd3c0efecea4f83192c051a11797dd6a",
+        "source_hash": "6f7c469a2eb7869d6b401cf502cf6195bd3c0efecea4f83192c051a11797dd6a",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
-        "source_hash": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "sha256": "676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576",
+        "source_hash": "676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560",
-        "source_hash": "f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560",
-        "status": "stale",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "56d43bad850595932f10e7e412d8d7a2a63b60ec8a170535015b7eb12ad7f15d",
+        "source_hash": "56d43bad850595932f10e7e412d8d7a2a63b60ec8a170535015b7eb12ad7f15d",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "7bbf04c71c0bf6a56e892371205db4618f97e091458c0073ac41952a956eb205",
-        "source_hash": "7bbf04c71c0bf6a56e892371205db4618f97e091458c0073ac41952a956eb205",
-        "status": "stale",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "893fb7f44572f7c5b06974f727c4bd5b56ac2b68eeaf50bd2eb287292a85c567",
+        "source_hash": "893fb7f44572f7c5b06974f727c4bd5b56ac2b68eeaf50bd2eb287292a85c567",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "27f5f0cdd2b94697fd5bea41e8e39bbc5f3463d3a53931eb8abf5002b910075d",
-        "source_hash": "27f5f0cdd2b94697fd5bea41e8e39bbc5f3463d3a53931eb8abf5002b910075d",
+        "sha256": "8e4db3774f091e7031c19862d57a29ef6291cb2e82469d9626d637869726c1e4",
+        "source_hash": "8e4db3774f091e7031c19862d57a29ef6291cb2e82469d9626d637869726c1e4",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
-        "sha256": "bca39fdc9484e13668b49c73a89db6f0e90ac73d976d8c125d5e49a80591d447",
-        "source_hash": "bca39fdc9484e13668b49c73a89db6f0e90ac73d976d8c125d5e49a80591d447",
-        "status": "skipped_stale_input",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "cda756a42874f999e3bfe3944e8c3862c9b6ecbd19e57886986a25b4074cad5c",
+        "source_hash": "cda756a42874f999e3bfe3944e8c3862c9b6ecbd19e57886986a25b4074cad5c",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "sha256": "a20c5dd83c2a4ab1b072d6f61a472e55a675a8be48212b1bf108621e052f6e69",
-        "source_hash": "a20c5dd83c2a4ab1b072d6f61a472e55a675a8be48212b1bf108621e052f6e69",
-        "status": "skipped_stale_input",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "c1bafe3651af877ed965d9b22cdeb6175f4df1d478e28b603ebf0bdc2b68f6e9",
+        "source_hash": "c1bafe3651af877ed965d9b22cdeb6175f4df1d478e28b603ebf0bdc2b68f6e9",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
-        "sha256": "b3e54024c30f3b3a31a5800714e6b65658ec01f5610a39560b5d925e5fccf07b",
-        "source_hash": "b3e54024c30f3b3a31a5800714e6b65658ec01f5610a39560b5d925e5fccf07b",
-        "status": "blocked",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "0134c972c63d349496e01fea4e0c56d8ed8a9177de05b0b6b76474435304f567",
+        "source_hash": "0134c972c63d349496e01fea4e0c56d8ed8a9177de05b0b6b76474435304f567",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
-        "sha256": "88c93af067aff9d0039f0fdb70588e0b760ba950e249375081b65ef346d318b2",
-        "source_hash": "88c93af067aff9d0039f0fdb70588e0b760ba950e249375081b65ef346d318b2",
+        "sha256": "c47d344d78abd4861c0ce03b3ecf4f2a9e114e10efbdb6e5329673bd190b3ccd",
+        "source_hash": "c47d344d78abd4861c0ce03b3ecf4f2a9e114e10efbdb6e5329673bd190b3ccd",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
-        "sha256": "5bc32041708470287a9581441360673a6d1ecbfffa00cdc32eb25fed93aa3cb9",
-        "source_hash": "5bc32041708470287a9581441360673a6d1ecbfffa00cdc32eb25fed93aa3cb9",
-        "status": "stale",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "0a712de6297bbe398f7a20ba2fdcbb01edd616a1478df412f56276feced9a0d8",
+        "source_hash": "0a712de6297bbe398f7a20ba2fdcbb01edd616a1478df412f56276feced9a0d8",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
-        "sha256": "29a64da4865de4f551ffd230b36ce8c8ff8261e43c1d88ecfac1ca8249b9bd43",
-        "source_hash": "29a64da4865de4f551ffd230b36ce8c8ff8261e43c1d88ecfac1ca8249b9bd43",
+        "sha256": "a15344a1c08d56859ace139142727648a985f759d9c5e5f439361843e62371ca",
+        "source_hash": "a15344a1c08d56859ace139142727648a985f759d9c5e5f439361843e62371ca",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
-        "sha256": "34c111cc26bc25e09ed6d820ef127bdd830bd55a76e896ebf7fc6f8cd39cd06e",
-        "source_hash": "34c111cc26bc25e09ed6d820ef127bdd830bd55a76e896ebf7fc6f8cd39cd06e",
-        "status": "skipped_stale_input",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "217d6fc0d4e3acf725e772745aafa930045013eed839d6009a188b60c39d1ddd",
+        "source_hash": "217d6fc0d4e3acf725e772745aafa930045013eed839d6009a188b60c39d1ddd",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
-        "sha256": "b3ac7d2737b2859e60b8a624cd1e5500fffda8052a874d3c47dafdd35d47d07a",
-        "source_hash": "b3ac7d2737b2859e60b8a624cd1e5500fffda8052a874d3c47dafdd35d47d07a",
+        "sha256": "c8b4c767c507a9f9d8151f814727e31f344588358aaef07c2def27d43e9057ce",
+        "source_hash": "c8b4c767c507a9f9d8151f814727e31f344588358aaef07c2def27d43e9057ce",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
-        "sha256": "5a46b78e9b0b07805bfa70305a7f2fb7f907511087e8952d7ee18b91f6e9f5bb",
-        "source_hash": "5a46b78e9b0b07805bfa70305a7f2fb7f907511087e8952d7ee18b91f6e9f5bb",
+        "sha256": "b6ce3c02e4ed81d078fb8cd9971b03719d558ca1ab79aca20f5d6aada335deee",
+        "source_hash": "b6ce3c02e4ed81d078fb8cd9971b03719d558ca1ab79aca20f5d6aada335deee",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "cf4fc89931e535da77cd91f57eda28d65fdeb44a3af07c568303a87db7c8867a",
-        "source_hash": "cf4fc89931e535da77cd91f57eda28d65fdeb44a3af07c568303a87db7c8867a",
+        "sha256": "9aa3ecd89fbfce7a5c4eba7fdee9b0ba04eda8ec365a1b347aa7c1bba546c900",
+        "source_hash": "9aa3ecd89fbfce7a5c4eba7fdee9b0ba04eda8ec365a1b347aa7c1bba546c900",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "d1d6c1592ae4287cf93001eb543aa75d99dc4ef267489498737f470fe5f9fa6a",
-        "source_hash": "d1d6c1592ae4287cf93001eb543aa75d99dc4ef267489498737f470fe5f9fa6a",
+        "sha256": "03ea2803bcd564284e704492dee86dcb19afa74b281581aae987bb099ace7a8f",
+        "source_hash": "03ea2803bcd564284e704492dee86dcb19afa74b281581aae987bb099ace7a8f",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "sha256": "56f68e0495da29c03f847d077d74a6f79b2608c9624f3217a2f725e28d953644",
-        "source_hash": "56f68e0495da29c03f847d077d74a6f79b2608c9624f3217a2f725e28d953644",
+        "sha256": "3b861a5183e0369b87af5ade6366668b088b07a5f36ac14dd73a991b2d2d93c6",
+        "source_hash": "3b861a5183e0369b87af5ade6366668b088b07a5f36ac14dd73a991b2d2d93c6",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c",
-        "source_hash": "ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c",
+        "sha256": "7d7a581758867799859f481971e56c0e7da57ca399f5a7e016b2ce839ac83063",
+        "source_hash": "7d7a581758867799859f481971e56c0e7da57ca399f5a7e016b2ce839ac83063",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "36f90db93c8a3a554305350d2a745835c1a9d8773742ef5359192beb364299ea",
-        "source_hash": "36f90db93c8a3a554305350d2a745835c1a9d8773742ef5359192beb364299ea",
+        "sha256": "b21bba0ae1115efd9761ed2317324b8e142f221801b35359b024704fb2e4c657",
+        "source_hash": "b21bba0ae1115efd9761ed2317324b8e142f221801b35359b024704fb2e4c657",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "notes": "input file available",
         "path": "reports/testing/runtime-validation-snapshot.json",
-        "sha256": "d46979910100376ddf0937db13dcaa6e5c45597aafa545a29d1688b8130b1636",
-        "source_hash": "d46979910100376ddf0937db13dcaa6e5c45597aafa545a29d1688b8130b1636",
+        "sha256": "c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9",
+        "source_hash": "c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9",
         "status": "present"
       }
     ],
@@ -526,7 +526,7 @@
     "schema_version": 1,
     "severity": "important",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "nodes": [
@@ -765,7 +765,7 @@
       "full_matrix_required": false,
       "generator": "ci/generate-verified-runtime-mismatch-analysis.py",
       "inputs": [
-        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
+        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
         "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl"
       ],
       "key": "verified_runtime_mismatch_analysis",
@@ -796,7 +796,7 @@
       "full_matrix_required": true,
       "generator": "ci/generate-full-matrix-job-completeness.py",
       "inputs": [
-        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
+        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
         "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl"
       ],
       "key": "full_matrix_job_completeness",
@@ -830,7 +830,7 @@
       "full_matrix_required": true,
       "generator": "ci/generate-nginx-mrts-http500-cluster-analysis.py",
       "inputs": [
-        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
+        "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
         "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
         "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
         "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
@@ -1868,7 +1868,7 @@
     "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
     "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
     "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
-    "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json",
+    "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
     "config/testing/import-status.json",
     "reports/testing/generated/cache/runtime-build-cache.generated.json",
     "reports/testing/generated/cache/runtime-component-cache.generated.json",

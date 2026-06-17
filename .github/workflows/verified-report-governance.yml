@@ -48,8 +48,7 @@ jobs:
       - name: Generated report governance
         run: |
           set -eu
-          make generate-system-environment-proof
-          make check-generated-report-layout
+          make report-governance
 
       - name: Runtime producer readiness
         run: |

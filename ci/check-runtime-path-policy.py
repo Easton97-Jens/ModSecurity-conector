@@ -105,9 +105,40 @@ def check_shell_policy() -> None:
     if rc == 0:
         fail("shell accepted old /root runtime path")
 
+    haproxy_allowed = haproxy_policy_selftest(str(VERIFIED_ROOT / "component-cache" / "sources"))
+    rc = shell_status(haproxy_allowed)
+    if rc != 0:
+        fail(f"HAProxy smoke policy rejected verified component-cache SOURCE_ROOT: {VERIFIED_ROOT / 'component-cache' / 'sources'}")
+
+    for blocked_path in ("/var/lib/foo", "/var/log/foo", "/usr/local/foo", "/etc/foo"):
+        rc = shell_status(haproxy_policy_selftest(blocked_path))
+        if rc == 0:
+            fail(f"HAProxy smoke policy accepted blocked SOURCE_ROOT: {blocked_path}")
+
 
 def sh_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
+
+
+def haproxy_policy_selftest(source_root: str) -> str:
+    build_root = VERIFIED_ROOT / "build" / "haproxy-policy-selftest"
+    log_root = build_root / "logs"
+    return " ".join(
+        [
+            "set -eu;",
+            f"VERIFIED_RUN_ROOT={sh_quote(str(VERIFIED_ROOT))}",
+            f"CONNECTOR_COMPONENT_CACHE={sh_quote(str(VERIFIED_ROOT / 'component-cache'))}",
+            f"SOURCE_ROOT={sh_quote(source_root)}",
+            f"BUILD_ROOT={sh_quote(str(build_root))}",
+            f"RESULTS_DIR={sh_quote(str(build_root / 'results'))}",
+            f"TMP_ROOT={sh_quote(str(build_root / 'tmp'))}",
+            f"LOG_ROOT={sh_quote(str(log_root))}",
+            f"LOG_DIR={sh_quote(str(log_root / 'haproxy-runtime'))}",
+            f"RUNTIME_BASE={sh_quote(str(build_root / 'haproxy-runtime-cases'))}",
+            "HAPROXY_SMOKE_POLICY_SELFTEST=1",
+            "connectors/haproxy/harness/run_haproxy_smoke.sh",
+        ]
+    )
 
 
 def main() -> int:

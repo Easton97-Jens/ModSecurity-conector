@@ -36,6 +36,7 @@ VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS ?= $(if $(filter undefined,$(or
 VERIFIED_RUN_REPORT_REFRESH_TIMEOUT_SECONDS ?= 1800
 VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS ?= 1800
 VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS ?= 3600
+VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS ?= 60
 VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS ?= 14400
 SKIP_RUNTIME_COMPONENT_PREPARE ?= 0
 RUNTIME_COMPONENT_STRICT_VERIFY ?= 0
@@ -61,6 +62,7 @@ export VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS
 export VERIFIED_RUN_REPORT_REFRESH_TIMEOUT_SECONDS
 export VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS
 export VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS
+export VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS
 export VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS
 export RESULTS_DIR
 export FRAMEWORK_ROOT
@@ -172,7 +174,7 @@ export SKIP_RUNTIME_COMPONENT_PREPARE
 export RUNTIME_COMPONENT_STRICT_VERIFY
 export KEEP_RUNTIME_ARTIFACTS
 
-.PHONY: check-framework prepare-runtime-components check-runtime-producer-readiness check-runtime-path-policy refresh-connector-reports refresh-all-reports check-generated-report-layout generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: check-framework prepare-runtime-components check-runtime-producer-readiness check-runtime-path-policy refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 define RUN_WITH_REFRESH_ALL
 	@set +e; \
@@ -218,6 +220,13 @@ refresh-all-reports: check-framework
 
 check-generated-report-layout: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/check-generated-report-layout.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)"
+
+report-governance: check-framework
+	$(MAKE) check-runtime-path-policy
+	"$(FRAMEWORK_PYTHON)" ci/check-generated-report-layout.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --governance-only
+
+verified-report-evidence-gate: check-generated-report-layout
+	@echo "verified-report-evidence-gate: strict generated-report evidence gate passed"
 
 generate-system-environment-proof: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-system-environment-proof.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
@@ -495,8 +504,7 @@ lint: check-framework
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile ci/*.py
-	$(MAKE) check-runtime-path-policy
-	$(MAKE) check-generated-report-layout
+	$(MAKE) report-governance
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-workflow-yaml.py"
@@ -573,16 +581,24 @@ cloud-quick-check: setup-dev lint generate-test-matrix check-test-matrix quick-c
 generate-test-matrix: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" OUTPUT_ROOT="$(CURDIR)" SKIP_ROOT_SUMMARY=1 $(MAKE) -C "$(FRAMEWORK_ROOT)" generate-test-matrix
 
-check-test-matrix: generate-test-matrix
+TEST_MATRIX_DIFF_PATHS = reports/testing/generated/coverage reports/testing/generated/runtime reports/testing/test-coverage-overview.md
+
+check-test-matrix: check-framework
 	@test ! -f TEST-COVERAGE-SUMMARY.md || { \
 		echo "Generated root coverage summary moved to $(FRAMEWORK_ROOT)/TEST-COVERAGE-SUMMARY.md; remove parent TEST-COVERAGE-SUMMARY.md"; \
 		exit 1; \
 	}
-	@git diff --exit-code -- reports/testing >/dev/null || { \
+	@mkdir -p "$(BUILD_ROOT)/check-test-matrix"
+	@before="$(BUILD_ROOT)/check-test-matrix/before.diff"; \
+	after="$(BUILD_ROOT)/check-test-matrix/after.diff"; \
+	framework_before="$(BUILD_ROOT)/check-test-matrix/framework-before.diff"; \
+	framework_after="$(BUILD_ROOT)/check-test-matrix/framework-after.diff"; \
+	git diff --binary -- $(TEST_MATRIX_DIFF_PATHS) > "$$before"; \
+	git -C "$(FRAMEWORK_ROOT)" diff --binary -- TEST-COVERAGE-SUMMARY.md > "$$framework_before"; \
+	$(MAKE) generate-test-matrix; \
+	git diff --binary -- $(TEST_MATRIX_DIFF_PATHS) > "$$after"; \
+	git -C "$(FRAMEWORK_ROOT)" diff --binary -- TEST-COVERAGE-SUMMARY.md > "$$framework_after"; \
+	if ! cmp -s "$$before" "$$after" || ! cmp -s "$$framework_before" "$$framework_after"; then \
 		echo "Generated test matrix docs are out of date. Run make generate-test-matrix"; \
 		exit 1; \
-	}
-	@git -C "$(FRAMEWORK_ROOT)" diff --exit-code -- TEST-COVERAGE-SUMMARY.md >/dev/null || { \
-		echo "Framework coverage summary is out of date. Run make generate-test-matrix"; \
-		exit 1; \
-	}
+	fi

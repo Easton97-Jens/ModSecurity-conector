@@ -199,11 +199,25 @@ def verified_command_for_target(env: dict[str, str], target: str) -> dict[str, A
     return {}
 
 
+def full_matrix_job_evidence_complete(env: dict[str, str]) -> bool:
+    connector_root_value = env.get("CONNECTOR_ROOT") or "."
+    connector_root = Path(connector_root_value).resolve()
+    data = read_json(report_path(connector_root, "full_matrix_job_completeness", "json"))
+    try:
+        complete = int(data.get("complete_jobs") or 0)
+        total = int(data.get("total_jobs") or 0)
+    except (TypeError, ValueError):
+        return False
+    return total > 0 and complete >= total and str(data.get("evidence_scope") or "") == "full"
+
+
 def full_matrix_producer_block(spec: ReportSpec, env: dict[str, str]) -> tuple[str, str]:
     if spec.name != "full_runtime_matrix":
         return "", ""
     if env.get("VERIFIED_RUN_PROFILE") == "smoke":
         return "blocked_smoke_only", "smoke verified run does not produce merge-ready full matrix evidence"
+    if full_matrix_job_evidence_complete(env):
+        return "", ""
     command = verified_command_for_target(env, "full-matrix-parallel")
     if not command:
         return "", ""
@@ -1679,7 +1693,9 @@ def merge_dashboard_payload(manifest: dict[str, Any], freshness: dict[str, Any],
             if full_matrix_incomplete
             else "Failed generator records block merge readiness."
             if failed
-            else "Full-Matrix runtime completed with critical mismatches; downstream refresh timed out or stale reports remain."
+            else "Full-Matrix runtime completed with critical mismatches; downstream report refresh timed out."
+            if full_matrix_complete and critical_mismatch_count > 0 and full_matrix_refresh_timeout
+            else "Full-Matrix runtime completed with critical mismatches; downstream reports remain blocked, stale, or unknown."
             if full_matrix_complete and critical_mismatch_count > 0 and (full_matrix_refresh_timeout or stale or critical_stale)
             else "Full-Matrix completed and critical runtime mismatches are present."
             if full_matrix_complete and critical_mismatch_count > 0

@@ -81,6 +81,63 @@ def write_commands_file(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def count_jsonl_rows(path: Path) -> int:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return 0
+    return sum(1 for line in lines if line.strip())
+
+
+def full_matrix_job_tokens(logical_target: str) -> tuple[str, str, str] | None:
+    prefix = "full-matrix-job:"
+    if not logical_target.startswith(prefix):
+        return None
+    parts = logical_target.removeprefix(prefix).split(":")
+    if len(parts) != 3:
+        return None
+    connector, crs, mrts = parts
+    if connector not in {"apache", "nginx", "haproxy"} or crs not in {"no-crs", "with-crs"} or mrts not in {"no-mrts", "with-mrts"}:
+        return None
+    return connector, crs, mrts
+
+
+def full_matrix_job_artifacts(env: dict[str, str], logical_target: str) -> dict[str, Any]:
+    tokens = full_matrix_job_tokens(logical_target)
+    if tokens is None:
+        return {"complete": False}
+    connector, crs, mrts = tokens
+    matrix_root = Path(env.get("MATRIX_ROOT", ""))
+    root = matrix_root / crs / mrts / connector
+    job_path = root / "job.json"
+    job = read_json(job_path)
+    summary_path = Path(str(job.get("summary_path") or ""))
+    if not summary_path.is_absolute():
+        summary_path = root / "results" / "force-all" / f"{connector}-summary.json"
+    results_jsonl = root / "results" / "force-all" / f"{connector}-results.jsonl"
+    summary = read_json(summary_path)
+    connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
+    cases = connector_summary.get("cases") if isinstance(connector_summary.get("cases"), dict) else {}
+    result_rows = count_jsonl_rows(results_jsonl)
+    status = str(job.get("status") or "")
+    complete = (
+        bool(job.get("ended_at"))
+        and "return_code" in job
+        and status in {"completed", "completed_with_mismatches"}
+        and summary_path.is_file()
+        and (bool(cases) or result_rows > 0)
+    )
+    return {
+        "complete": complete,
+        "job": job,
+        "job_path": str(job_path),
+        "summary_path": str(summary_path),
+        "results_jsonl": str(results_jsonl),
+        "result_rows": result_rows,
+        "summary_cases": len(cases),
+    }
+
+
 def run_command(
     command: list[str],
     *,
@@ -92,6 +149,7 @@ def run_command(
     required: bool,
     optional: bool,
     timeout_seconds: int | None,
+    finalize_grace_seconds: int,
     affected_reports: list[str],
     logical_target: str,
 ) -> dict[str, Any]:
@@ -117,21 +175,43 @@ def run_command(
             return_code = process.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
             classification = "blocked_timeout"
+            return_code = None
             log_handle.write(
                 f"\nverified-report-run: timeout after {timeout_seconds} seconds; terminating process group\n"
             )
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                return_code = process.wait(timeout=30)
-            except subprocess.TimeoutExpired:
+            if logical_target.startswith("full-matrix-job:") and finalize_grace_seconds > 0:
+                log_handle.write(
+                    f"verified-report-run: waiting {finalize_grace_seconds} seconds for full-matrix job finalization\n"
+                )
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                return_code = process.wait()
+                    return_code = process.wait(timeout=finalize_grace_seconds)
+                    classification = ""
+                except subprocess.TimeoutExpired:
+                    artifacts = full_matrix_job_artifacts(env, logical_target)
+                    if artifacts.get("complete"):
+                        log_handle.write(
+                            "verified-report-run: full-matrix job artifacts completed during timeout finalization\n"
+                        )
+                    else:
+                        return_code = None
+            if return_code is None:
+                artifacts = full_matrix_job_artifacts(env, logical_target)
+                if artifacts.get("complete"):
+                    return_code = int(artifacts.get("job", {}).get("return_code", 2))
+                else:
+                    return_code = 0
+                    try:
+                        os.killpg(process.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        return_code = process.wait(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        return_code = process.wait()
         except KeyboardInterrupt:
             classification = "interrupted"
             log_handle.write("\nverified-report-run: interrupted; terminating process group\n")
@@ -563,16 +643,56 @@ def simple_runtime_state(record: dict[str, Any]) -> dict[str, Any]:
     return {"runtime_status": runtime_status, "runtime_complete": runtime_status != "runtime_timeout"}
 
 
-def full_matrix_job_state(record: dict[str, Any]) -> dict[str, Any]:
+def full_matrix_job_state(record: dict[str, Any], env: dict[str, str]) -> dict[str, Any]:
+    artifacts = full_matrix_job_artifacts(env, str(record.get("logical_target") or ""))
+    if artifacts.get("complete"):
+        job = artifacts.get("job", {}) if isinstance(artifacts.get("job"), dict) else {}
+        status = str(job.get("status") or "completed")
+        return_code = job.get("return_code", record.get("return_code"))
+        try:
+            duration_seconds = float(record.get("duration_seconds") or 0)
+            timeout_seconds = float(record.get("timeout_seconds") or 0)
+        except (TypeError, ValueError):
+            duration_seconds = 0
+            timeout_seconds = 0
+        wrapper_status = (
+            "timeout_after_completion"
+            if record.get("classification") in {"blocked_timeout", "timeout_after_completion"}
+            or record.get("wrapper_status") == "timeout_after_completion"
+            or (bool(record.get("signal")) and timeout_seconds > 0 and duration_seconds >= timeout_seconds)
+            else "completed"
+        )
+        return {
+            "wrapper_status": wrapper_status,
+            "runtime_status": status,
+            "runtime_complete": True,
+            "overall_job_status": status,
+            "return_code": return_code,
+            "job_artifact_path": artifacts.get("job_path"),
+            "summary_path": artifacts.get("summary_path"),
+            "results_jsonl": artifacts.get("results_jsonl"),
+            "result_rows": artifacts.get("result_rows"),
+            "summary_cases": artifacts.get("summary_cases"),
+            "classification": "timeout_after_completion" if wrapper_status == "timeout_after_completion" else "completed",
+            "status": "FAIL" if return_code not in {0, None} else "PASS",
+            "notes": "wrapper timed out after completed job artifacts were written"
+            if wrapper_status == "timeout_after_completion"
+            else "job artifacts completed; job.json is source of truth",
+        }
     if record.get("classification") == "blocked_timeout" or record.get("return_code") == 77:
         runtime_status = "runtime_timeout"
     elif record.get("return_code") == 0:
-        runtime_status = "runtime_completed"
+        runtime_status = "completed"
     elif record.get("return_code") in {1, 2}:
-        runtime_status = "runtime_completed_with_mismatches"
+        runtime_status = "completed_with_mismatches"
     else:
         runtime_status = "runtime_failed"
-    return {"runtime_status": runtime_status, "runtime_complete": runtime_status != "runtime_timeout"}
+    return {
+        "wrapper_status": "timeout" if runtime_status == "runtime_timeout" else "completed",
+        "runtime_status": runtime_status,
+        "runtime_complete": runtime_status != "runtime_timeout",
+        "overall_job_status": runtime_status,
+    }
 
 
 def refresh_state(record: dict[str, Any]) -> dict[str, Any]:
@@ -607,8 +727,8 @@ def apply_command_semantics(record: dict[str, Any], env: dict[str, str], profile
         record.update(native_runtime_state(record, env))
         record["overall_status"] = record["runtime_status"]
     elif target.startswith("full-matrix-job:") or target == "full-matrix-resume":
-        record.update(full_matrix_job_state(record))
-        record["overall_status"] = record["runtime_status"]
+        record.update(full_matrix_job_state(record, env))
+        record["overall_status"] = record.get("overall_job_status") or record["runtime_status"]
     elif target in {"refresh-all-reports", "generate-system-environment-proof"}:
         record.update(refresh_state(record))
     elif target == "check-generated-report-layout":
@@ -1181,6 +1301,7 @@ def main() -> int:
     native_mrts_timeout = timeout_from_env(env, "VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS", 1800)
     full_matrix_job_timeout = timeout_from_env(env, "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS", 3600)
     full_matrix_total_timeout = timeout_from_env(env, "VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS", 14400)
+    job_finalize_grace = timeout_from_env(env, "VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS", 60)
     env.update(
         {
             "CONNECTOR_ROOT": str(connector_root),
@@ -1214,6 +1335,7 @@ def main() -> int:
             "VERIFIED_RUN_NATIVE_MRTS_TIMEOUT_SECONDS": str(native_mrts_timeout),
             "VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS": str(full_matrix_job_timeout),
             "VERIFIED_RUN_FULL_MATRIX_TOTAL_TIMEOUT_SECONDS": str(full_matrix_total_timeout),
+            "VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS": str(job_finalize_grace),
             "PYTHONDONTWRITEBYTECODE": env.get("PYTHONDONTWRITEBYTECODE", "1"),
         }
     )
@@ -1293,13 +1415,18 @@ def main() -> int:
         "full_matrix_runtime": full_matrix_runtime_timeout,
         "full_matrix_job": full_matrix_job_timeout,
         "full_matrix_total": full_matrix_total_timeout,
+        "job_finalize_grace": job_finalize_grace,
         "report_refresh": report_refresh_timeout,
         "native_mrts": native_mrts_timeout,
     }
     existing_payload = read_json(commands_file)
     existing_commands = existing_payload.get("commands") if isinstance(existing_payload.get("commands"), list) else []
     append_phases = {"report-refresh", "consumers", "checks", "full-matrix-job", "full-matrix-resume"}
-    command_records: list[dict[str, Any]] = list(existing_commands) if args.phase in append_phases else []
+    command_records: list[dict[str, Any]] = (
+        [apply_command_semantics(dict(record), env, args.profile) for record in existing_commands]
+        if args.phase in append_phases
+        else []
+    )
     run_started_at = str(existing_payload.get("started_at_utc") or started_at) if command_records else started_at
     write_commands_file(
         commands_file,
@@ -1359,6 +1486,7 @@ def main() -> int:
                 required=bool(item["required"]),
                 optional=bool(item["optional"]),
                 timeout_seconds=item.get("timeout_seconds"),
+                finalize_grace_seconds=job_finalize_grace,
                 affected_reports=list(item.get("affected_reports", [])),
                 logical_target=target,
             )

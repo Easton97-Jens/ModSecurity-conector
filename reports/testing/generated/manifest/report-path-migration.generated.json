@@ -1,16 +1,16 @@
 {
-  "generated_at": "2026-06-16T18:58:49Z",
+  "generated_at": "2026-06-17T02:40:22Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "manifest",
     "data_origin": "manifest",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:58:49Z",
+    "generated_at": "2026-06-17T02:40:22Z",
     "generated_by": "ci/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "unknown",
@@ -22,7 +22,7 @@
     "schema_version": 1,
     "severity": "important",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "paths": [

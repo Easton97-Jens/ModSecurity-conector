@@ -1,39 +1,39 @@
 {
-  "generated_at": "2026-06-16T18:58:25Z",
+  "generated_at": "2026-06-17T02:39:29Z",
   "metadata": {
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:58:25Z",
+    "generated_at": "2026-06-17T02:39:29Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "cf4fc89931e535da77cd91f57eda28d65fdeb44a3af07c568303a87db7c8867a",
-        "source_hash": "cf4fc89931e535da77cd91f57eda28d65fdeb44a3af07c568303a87db7c8867a",
+        "sha256": "9aa3ecd89fbfce7a5c4eba7fdee9b0ba04eda8ec365a1b347aa7c1bba546c900",
+        "source_hash": "9aa3ecd89fbfce7a5c4eba7fdee9b0ba04eda8ec365a1b347aa7c1bba546c900",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "d1d6c1592ae4287cf93001eb543aa75d99dc4ef267489498737f470fe5f9fa6a",
-        "source_hash": "d1d6c1592ae4287cf93001eb543aa75d99dc4ef267489498737f470fe5f9fa6a",
+        "sha256": "03ea2803bcd564284e704492dee86dcb19afa74b281581aae987bb099ace7a8f",
+        "source_hash": "03ea2803bcd564284e704492dee86dcb19afa74b281581aae987bb099ace7a8f",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
     "make_target": "mrts-native-full-run",
@@ -43,7 +43,7 @@
     "schema_version": 1,
     "severity": "optional",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "note": "Native MRTS evidence is separate from connector runtime matrix evidence.",
@@ -57,6 +57,7 @@
   "separate_from_connector_full_matrix": true,
   "targets": {
     "apache2_ubuntu": {
+      "classification": "optional_native_modsecurity_semantics_difference",
       "counts": {
         "attempted": 13,
         "blocked": 0,
@@ -67,10 +68,13 @@
         "not_executable": 0,
         "pass": 12
       },
+      "critical_merge_blocker": false,
+      "optional": true,
       "report": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
       "status": "FAIL"
     },
     "nginx-pr24": {
+      "classification": "optional_native_modsecurity_semantics_difference",
       "counts": {
         "attempted": 13,
         "blocked": 0,
@@ -81,6 +85,8 @@
         "not_executable": 0,
         "pass": 12
       },
+      "critical_merge_blocker": false,
+      "optional": true,
       "report": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
       "status": "FAIL"
     }

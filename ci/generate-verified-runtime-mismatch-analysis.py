@@ -507,8 +507,8 @@ def command_summary(commands: list[dict[str, Any]], manifest_rows: list[dict[str
         "full_matrix_return_code": full_rc,
         "full_matrix_classification": full.get("classification") or "not_run",
         "full_matrix_timeout": str(full.get("classification") or "") == "blocked_timeout" and not full_complete,
-        "full_matrix_refresh_timeout": str(full.get("refresh_status") or "") == "refresh_timeout"
-        or (str(full.get("classification") or "") == "blocked_timeout" and full_complete),
+        "full_matrix_refresh_timeout": str(full.get("refresh_status") or "") == "refresh_timeout",
+        "report_refresh_status": str(full.get("refresh_status") or "not_recorded"),
     }
 
 
@@ -628,12 +628,16 @@ def main() -> int:
             for job in completeness_jobs
         ]
         if command_state["full_matrix_complete"]:
+            mismatched_jobs = any(job.get("return_code") not in {0, None} for job in completed_completeness_jobs)
             command_state["full_matrix_runtime_status"] = (
-                "runtime_completed_with_mismatches"
-                if any(job.get("return_code") not in {0, None} for job in completed_completeness_jobs)
+                "completed_with_mismatches"
+                if mismatched_jobs
                 else "runtime_completed"
             )
             command_state["full_matrix_timeout"] = False
+            command_state["full_matrix_refresh_timeout"] = False
+            command_state["full_matrix_status"] = "complete"
+            command_state["full_matrix_classification"] = "completed_with_mismatches" if mismatched_jobs else "complete"
         else:
             command_state["full_matrix_runtime_status"] = "runtime_timeout"
             command_state["full_matrix_timeout"] = True
@@ -717,6 +721,8 @@ def main() -> int:
             "classification": command_state["full_matrix_classification"],
             "timeout": command_state["full_matrix_timeout"],
             "refresh_timeout": command_state["full_matrix_refresh_timeout"],
+            "report_refresh_status": command_state.get("report_refresh_status", "not_recorded"),
+            "completeness": f"{command_state['full_matrix_completed_jobs']}/{command_state['full_matrix_expected_jobs']}",
             "manifest_path": str(manifest_path),
             "manifest_present": manifest_path.is_file(),
             "manifest_recorded_jobs": completeness.get("manifest_recorded_jobs", len(manifest_rows)),

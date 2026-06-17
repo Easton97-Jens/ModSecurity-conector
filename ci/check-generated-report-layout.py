@@ -166,7 +166,7 @@ def check_no_flat_reports(connector_root: Path, errors: list[str]) -> None:
             errors.append(f"{rel(path, connector_root)}: stale flat generated report remains")
 
 
-def check_manifest(connector_root: Path, errors: list[str]) -> None:
+def check_manifest(connector_root: Path, errors: list[str], *, strict_evidence: bool) -> None:
     manifest_path = report_path(connector_root, "report_refresh_manifest", "json")
     if not manifest_path.is_file():
         errors.append(f"{rel(manifest_path, connector_root)}: refresh manifest is missing")
@@ -192,9 +192,9 @@ def check_manifest(connector_root: Path, errors: list[str]) -> None:
         for key in ("category", "kind", "owner", "severity", "input_status", "inputs", "missing_inputs", "empty_inputs", "unknown_inputs"):
             if key not in record:
                 errors.append(f"{rel(manifest_path, connector_root)}: report {record.get('report_name', '<unknown>')} missing {key}")
-        if record.get("severity") == "critical" and record.get("input_status") in {"stale", "blocked"}:
+        if strict_evidence and record.get("severity") == "critical" and record.get("input_status") in {"stale", "blocked"}:
             errors.append(f"{rel(manifest_path, connector_root)}: critical report {record.get('report_name', '<unknown>')} has {record.get('input_status')} input_status")
-        if record.get("severity") == "critical" and record.get("stale_inputs"):
+        if strict_evidence and record.get("severity") == "critical" and record.get("stale_inputs"):
             errors.append(f"{rel(manifest_path, connector_root)}: critical report {record.get('report_name', '<unknown>')} has stale inputs")
 
 
@@ -423,7 +423,7 @@ def critical_run_keys() -> set[str]:
     } | {"system_environment_proof"}
 
 
-def check_critical_report_run_consistency(connector_root: Path, errors: list[str]) -> None:
+def check_critical_report_run_consistency(connector_root: Path, errors: list[str], *, strict_evidence: bool) -> None:
     run_ids: dict[str, set[str]] = {}
     keys = critical_run_keys()
     if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1":
@@ -446,17 +446,19 @@ def check_critical_report_run_consistency(connector_root: Path, errors: list[str
             if path.suffix == ".json":
                 data = load_json(path, errors, connector_root)
                 metadata_obj = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
-                if metadata_obj.get("input_status") in {"stale", "blocked"}:
+                if strict_evidence and metadata_obj.get("input_status") in {"stale", "blocked"}:
                     errors.append(f"{rel(path, connector_root)}: critical report metadata.input_status is {metadata_obj.get('input_status')}")
                 for item in metadata_obj.get("inputs", []) if isinstance(metadata_obj.get("inputs"), list) else []:
-                    if isinstance(item, dict) and item.get("status") in {"stale", "blocked"}:
+                    if strict_evidence and isinstance(item, dict) and item.get("status") in {"stale", "blocked"}:
                         errors.append(f"{rel(path, connector_root)}: critical report input is {item.get('status')}: {item.get('path', 'unknown')}")
     if len(run_ids) > 1:
         summary = "; ".join(f"{run_id}: {', '.join(sorted(items))}" for run_id, items in sorted(run_ids.items()))
         errors.append(f"critical generated reports use multiple verified_run_id values: {summary}")
 
 
-def check_verified_runtime_diagnostics(connector_root: Path, errors: list[str]) -> None:
+def check_verified_runtime_diagnostics(connector_root: Path, errors: list[str], *, strict_evidence: bool) -> None:
+    if not strict_evidence:
+        return
     dashboard_path = report_path(connector_root, "merge_readiness_dashboard", "json")
     mismatch_path = report_path(connector_root, "verified_runtime_mismatch_analysis", "json")
     if not dashboard_path.is_file() or not mismatch_path.is_file():
@@ -491,6 +493,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", default=".")
     parser.add_argument("--framework-root", default=None)
+    parser.add_argument(
+        "--governance-only",
+        action="store_true",
+        help="Validate generated-report layout, metadata, registry paths, URL policy, and runtime path governance without enforcing full verified runtime evidence freshness or mismatch gates.",
+    )
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
@@ -502,10 +509,12 @@ def main() -> int:
     check_registry_paths(connector_root, errors)
     check_no_flat_reports(connector_root, errors)
     check_no_orphan_generated_reports(connector_root, errors)
-    check_manifest(connector_root, errors)
+    strict_evidence = not args.governance_only
+
+    check_manifest(connector_root, errors, strict_evidence=strict_evidence)
     check_existing_generated_reports(connector_root, errors)
-    check_critical_report_run_consistency(connector_root, errors)
-    check_verified_runtime_diagnostics(connector_root, errors)
+    check_critical_report_run_consistency(connector_root, errors, strict_evidence=strict_evidence)
+    check_verified_runtime_diagnostics(connector_root, errors, strict_evidence=strict_evidence)
     check_system_environment_proof(connector_root, errors)
     check_no_legacy_references(connector_root, errors)
     check_no_flat_generator_writes(connector_root, framework_root, errors)

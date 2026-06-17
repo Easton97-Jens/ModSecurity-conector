@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T18:58:20Z`
-> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Generated at: `2026-06-17T02:39:23Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-verified-runtime-mismatch-analysis.py`
 > Make target: `generate-verified-runtime-mismatch-analysis`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
-> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
+> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
+> Framework SHA: `24509c107ecf3a22ae9d69875f661690bd6fb95b`
 > Input status: `complete`
 
 # Verified Runtime Mismatch Analysis
 
-Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+Verified run id: `2026-06-16T19-12-00Z-614c8049`
 
 This report is generated only from verified runtime producer files. It does not invent missing PASS/FAIL values.
 
@@ -21,12 +21,12 @@ This report is generated only from verified runtime producer files. It does not 
 
 | Field | Value |
 |---|---|
-| Mismatches | `586` |
-| Critical mismatches | `524` |
+| Mismatches | `854` |
+| Critical mismatches | `764` |
 | Full matrix complete | `true` |
-| Full matrix runtime status | `runtime_completed_with_mismatches` |
+| Full matrix runtime status | `completed_with_mismatches` |
 | Full matrix jobs | `12/12` |
-| Full matrix status | `FAIL` |
+| Full matrix status | `complete` |
 | Full matrix timeout | `false` |
 | Full matrix refresh timeout | `false` |
 | Evidence scope | `full` |
@@ -35,65 +35,65 @@ This report is generated only from verified runtime producer files. It does not 
 
 | Input | Status | SHA256 |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | `808eb86b9a8c6b19093fc2daf965ca1fd031be11bfaba263f2988a910586c0bf` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | `d2e21234df8b14aa214920453961538724f99e195f37d247c91785db79b7db23` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `056fd01f02ef7665d48072916e692a369e993e423504ef8c19d5cdb05ae3f933` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/job.json` | present | `08652610c757311206bf4a3a33b79490dd3814a5891c61751bafc0e3ddac7d97` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `dd59a95c72855986b3d85bdc4f7130ede9155f9e8f9ec4511ed2c5e5ffd9cab1` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `6b786b2af4a2058528b6f25c352773c3c7a540699888de46fbaa9a08ba5007ef` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `0b8eb3359e8f27a0941eb834026b92ea31730acb1c61882dc1429d82f7d60ebf` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/job.json` | present | `24ddaa455062edc3b5c5a112e72f2a00db41133f445de701d0c15d0af8ecdac2` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `8b95c8d25b729f1fc3aae852021cac3b216a3e2a6d6272ac17e562511dfafabc` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `d72de57df3d0b25cd973e11de3f65b5dfce551ce31c7283404dc0b87f4072bc1` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `44b196bb61b6b29157be63c7b2ef3f54fecc7db62d92ecb279514eaea261baa9` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/job.json` | present | `d424f4de305b39b5b75a023d407b5a2a49dac1d3c6941942370e79a3cfc0d8e6` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `1eaa0e3dddd9efa5e703af28d4f74a54089cfeab0c6f5ca50c092b99af1ac3ea` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `4332e809ba8efbb0fb5b7c87bd9ae94994edb77a4a68041214927ba23be10c87` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `ba3e820dd192da52ce9f7f59e894b809d66c536bf90cc2e670648c377f28d65d` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/job.json` | present | `158169e9f708a0d2a23dfc2f81340778a6db6b0f78e3ff98ddc8ef60212b19b2` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `c337a70247dff017797ab857ed1bb932a48652ed15eee9e106c6fcf5b41fb4a4` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `ebb0b75de09d92c6e4f6dabb733867c64bbc7054422a7392ceb9bbcc0697f3da` |
-| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json` | present | `f7092c24374de4f6bf26ea230ed84429b8dfc9cded204a709c9619599d6dd73f` |
+| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | `cbdb375cdfd0974fcdb515076272ae2edc7a4f78fcf56e02e35c944f5d2c56c7` |
 
 ## By Connector
 
 | Connector | Count |
 |---|---:|
 | apache | 272 |
-| haproxy | 4 |
+| haproxy | 272 |
 | nginx | 310 |
 
 ## By Category
 
 | Category | Count |
 |---|---:|
-| connector_capability_gap | 80 |
-| expected_status_mismatch | 256 |
-| framework_expected_behavior_gap | 16 |
-| known_not_next | 62 |
-| runtime_regression | 110 |
-| timeout_or_incomplete | 52 |
-| unknown | 10 |
+| connector_capability_gap | 117 |
+| expected_status_mismatch | 377 |
+| framework_expected_behavior_gap | 24 |
+| known_not_next | 90 |
+| runtime_regression | 162 |
+| timeout_or_incomplete | 72 |
+| unknown | 12 |
 
 ## Top Cases
 
 | Case | Count |
 |---|---:|
-| `duplicate_args_encoded_separator_edge` | 8 |
-| `duplicate_header_case_normalization_gap` | 8 |
-| `edge_semicolon_query_args_names` | 8 |
-| `files_empty_part_future_compatibility` | 8 |
-| `files_names_mixed_case_filename_gap` | 8 |
-| `json_empty_body_future_compatibility` | 8 |
-| `multipart_duplicate_field_names_gap` | 8 |
-| `multipart_empty_filename_connector_gap` | 8 |
-| `parser_xml_partial_body_future_target` | 8 |
-| `phase3_response_headers_server_presence_pending` | 8 |
-| `phase4_auditlog_outbound_multiline_section_gap` | 8 |
-| `phase4_response_body_empty_future_target` | 8 |
-| `sqli_like_keyword_spacing_probe` | 8 |
-| `sqli_like_quote_encoding_runtime_difference` | 8 |
-| `unicode_double_encoded_uri_runtime_difference` | 8 |
-| `unicode_whitespace_normalization_gap` | 8 |
-| `v2_transformation_url_decode_invalid_sequence_mapped_candidate` | 8 |
-| `v3_request_cookies_names_case_runtime_difference` | 8 |
-| `v3_request_headers_names_lowercase_runtime_difference` | 8 |
-| `xml_deep_nesting_future_target` | 8 |
+| `duplicate_args_encoded_separator_edge` | 12 |
+| `duplicate_header_case_normalization_gap` | 12 |
+| `edge_semicolon_query_args_names` | 12 |
+| `files_empty_part_future_compatibility` | 12 |
+| `files_names_mixed_case_filename_gap` | 12 |
+| `json_empty_body_future_compatibility` | 12 |
+| `multipart_duplicate_field_names_gap` | 12 |
+| `multipart_empty_filename_connector_gap` | 12 |
+| `parser_xml_partial_body_future_target` | 12 |
+| `phase3_response_headers_server_presence_pending` | 12 |
+| `phase4_auditlog_outbound_multiline_section_gap` | 12 |
+| `phase4_response_body_empty_future_target` | 12 |
+| `sqli_like_keyword_spacing_probe` | 12 |
+| `sqli_like_quote_encoding_runtime_difference` | 12 |
+| `unicode_double_encoded_uri_runtime_difference` | 12 |
+| `unicode_whitespace_normalization_gap` | 12 |
+| `v2_transformation_url_decode_invalid_sequence_mapped_candidate` | 12 |
+| `v3_request_cookies_names_case_runtime_difference` | 12 |
+| `v3_request_headers_names_lowercase_runtime_difference` | 12 |
+| `xml_deep_nesting_future_target` | 12 |
 
 ## Mismatch Table
 
@@ -299,18 +299,18 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | with-crs/with-mrts | `phase2_args_block` | `403` | `200` | fail | expected_status_mismatch | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase2_args_block/result.json` |
 | apache | with-crs/with-mrts | `phase3_response_headers_content_type_charset_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_content_type_charset_gap/result.json` |
 | apache | with-crs/with-mrts | `phase3_response_headers_duplicate_value_runtime_difference` | `403` | `200` | fail | runtime_regression | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_duplicate_value_runtime_difference/result.json` |
-| ... | ... | `386 more rows in JSON` | ... | ... | ... | ... | ... |
+| ... | ... | `654 more rows in JSON` | ... | ... | ... | ... | ... |
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json` | `f7092c24374de4f6bf26ea230ed84429b8dfc9cded204a709c9619599d6dd73f` | `2026-06-16T16-57-44Z-b53340a8` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `808eb86b9a8c6b19093fc2daf965ca1fd031be11bfaba263f2988a910586c0bf` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `cbdb375cdfd0974fcdb515076272ae2edc7a4f78fcf56e02e35c944f5d2c56c7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `d2e21234df8b14aa214920453961538724f99e195f37d247c91785db79b7db23` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T16-57-44Z-b53340a8/verified-commands.json` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | input file available |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | input file available |

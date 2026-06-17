@@ -1,8 +1,8 @@
 {
   "snapshot_date": "2026-06-16",
-  "captured_at": "2026-06-16 19:07:10 CEST",
+  "captured_at": "2026-06-16 21:13:26 CEST",
   "branch": "master",
-  "commit": "b53340a",
+  "commit": "614c804",
   "build_root": "/var/tmp/ModSecurity-conector-verified/build",
   "force_all_cases": true,
   "notes": [

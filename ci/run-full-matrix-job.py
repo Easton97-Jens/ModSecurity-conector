@@ -35,9 +35,51 @@ def job_root(matrix_root: Path, connector: str, crs: str, mrts: str) -> Path:
     return matrix_root / crs / mrts / connector
 
 
+def count_jsonl_rows(path: Path) -> int:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return 0
+    count = 0
+    for line in lines:
+        if line.strip():
+            count += 1
+    return count
+
+
+def job_artifacts(root: Path, connector: str) -> dict:
+    job_path = root / "job.json"
+    data = read_json(job_path)
+    summary_path = Path(str(data.get("summary_path") or ""))
+    if not summary_path.is_absolute():
+        summary_path = root / "results" / "force-all" / f"{connector}-summary.json"
+    results_jsonl = root / "results" / "force-all" / f"{connector}-results.jsonl"
+    summary = read_json(summary_path)
+    connector_summary = summary.get(connector) if isinstance(summary.get(connector), dict) else {}
+    cases = connector_summary.get("cases") if isinstance(connector_summary.get("cases"), dict) else {}
+    result_rows = count_jsonl_rows(results_jsonl)
+    status = str(data.get("status") or "")
+    complete = (
+        bool(data.get("ended_at"))
+        and "return_code" in data
+        and status in {"completed", "completed_with_mismatches"}
+        and summary_path.is_file()
+        and (result_rows > 0 or bool(cases))
+    )
+    return {
+        "complete": complete,
+        "job": data,
+        "summary_path": str(summary_path),
+        "results_jsonl": str(results_jsonl),
+        "result_rows": result_rows,
+        "summary_cases": len(cases),
+    }
+
+
 def job_complete(path: Path) -> bool:
     data = read_json(path)
-    return bool(data.get("ended_at")) and "return_code" in data
+    status = str(data.get("status") or "")
+    return bool(data.get("ended_at")) and "return_code" in data and status in {"completed", "completed_with_mismatches"}
 
 
 def run_completeness(
@@ -92,6 +134,7 @@ def main() -> int:
     parser.add_argument("--framework-root", default=None)
     parser.add_argument("--build-root", default=os.environ.get("BUILD_ROOT"))
     parser.add_argument("--timeout-seconds", type=int, default=int(os.environ.get("VERIFIED_RUN_FULL_MATRIX_JOB_TIMEOUT_SECONDS", "3600")))
+    parser.add_argument("--finalize-grace-seconds", type=int, default=int(os.environ.get("VERIFIED_RUN_JOB_FINALIZE_GRACE_SECONDS", "60")))
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -107,7 +150,7 @@ def main() -> int:
     verified_commands_file = os.environ.get("VERIFIED_RUN_COMMANDS_FILE", "")
 
     root = job_root(matrix_root, args.connector, args.crs, args.mrts)
-    if not args.force and job_complete(root / "job.json"):
+    if not args.force and job_artifacts(root, args.connector)["complete"]:
         print(f"full-matrix-job: skip complete job {args.connector}:{args.crs}:{args.mrts}")
         return run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
 
@@ -145,6 +188,32 @@ def main() -> int:
             f"full-matrix-job: timeout after {args.timeout_seconds}s for {args.connector}:{args.crs}:{args.mrts}",
             flush=True,
         )
+        if args.finalize_grace_seconds > 0:
+            print(
+                f"full-matrix-job: waiting {args.finalize_grace_seconds}s finalize grace for job artifacts",
+                flush=True,
+            )
+            try:
+                rc = process.wait(timeout=args.finalize_grace_seconds)
+            except subprocess.TimeoutExpired:
+                rc = None
+            if rc is not None:
+                artifacts = job_artifacts(root, args.connector)
+                if artifacts["complete"]:
+                    print(
+                        "full-matrix-job: completed during finalize grace; using job artifacts as source of truth",
+                        flush=True,
+                    )
+                    run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+                    return int(artifacts["job"].get("return_code", rc))
+        artifacts = job_artifacts(root, args.connector)
+        if artifacts["complete"]:
+            print(
+                "full-matrix-job: timeout after completed job artifacts were written; using job artifacts as source of truth",
+                flush=True,
+            )
+            run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+            return int(artifacts["job"].get("return_code", 2))
         try:
             os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:
@@ -157,6 +226,14 @@ def main() -> int:
             except ProcessLookupError:
                 pass
             rc = process.wait()
+        artifacts = job_artifacts(root, args.connector)
+        if artifacts["complete"]:
+            print(
+                "full-matrix-job: timeout wrapper ended after complete artifacts; using job artifacts as source of truth",
+                flush=True,
+            )
+            run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
+            return int(artifacts["job"].get("return_code", 2))
         write_timeout_record(root, args.connector, args.crs, args.mrts, started_at, time.monotonic() - started)
         run_completeness(connector_root, framework_root, build_root, verified_run_id, verified_commands_file)
         return 77

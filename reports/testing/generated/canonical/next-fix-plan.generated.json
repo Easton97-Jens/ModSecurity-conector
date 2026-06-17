@@ -1,29 +1,29 @@
 {
-  "generated_at": "2026-06-16T18:58:35Z",
+  "generated_at": "2026-06-17T02:39:43Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "unknown",
-    "framework_working_tree_dirty": "unknown",
-    "generated_at": "2026-06-16T18:58:35Z",
+    "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-17T02:39:43Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "d76478030a4008d696c028237490a1e4643fb5d7d73248443dfdc87921c9a548",
-        "source_hash": "d76478030a4008d696c028237490a1e4643fb5d7d73248443dfdc87921c9a548",
+        "sha256": "0ececd49b9fe19cb970583996dae8a1c4965a87d9ad19aa5bfb7ac6323beb382",
+        "source_hash": "0ececd49b9fe19cb970583996dae8a1c4965a87d9ad19aa5bfb7ac6323beb382",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
     "make_target": "generate-remaining-failure-analysis",
@@ -33,7 +33,7 @@
     "schema_version": 1,
     "severity": "important",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "priority_plan": {
@@ -44,7 +44,7 @@
       {
         "cluster_name": "phase4_hard_abort_capability",
         "connector": "apache, nginx, haproxy",
-        "count": 88,
+        "count": 116,
         "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
         "risk": "high if promoted prematurely or faked",
         "tests": [
@@ -57,7 +57,7 @@
       {
         "cluster_name": "transformation_semantics",
         "connector": "apache, nginx, haproxy",
-        "count": 24,
+        "count": 36,
         "likely_change": "deeper semantic evidence, not harness routing",
         "risk": "high",
         "tests": [

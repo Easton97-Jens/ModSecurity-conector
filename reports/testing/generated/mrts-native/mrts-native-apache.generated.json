@@ -1,4 +1,6 @@
 {
+  "classification": "optional_native_modsecurity_semantics_difference",
+  "classification_notes": "Apache and NGINX native MRTS reach the backend and fail only case 100003-1, the phase 4 ARGS comparison.",
   "counts": {
     "attempted": 13,
     "blocked": 0,
@@ -9,6 +11,7 @@
     "not_executable": 0,
     "pass": 12
   },
+  "critical_merge_blocker": false,
   "first_failing_cases": [
     {
       "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
@@ -25,7 +28,7 @@
       "variable": "ARGS"
     }
   ],
-  "generated_at": "2026-06-16T18:58:25Z",
+  "generated_at": "2026-06-17T02:39:29Z",
   "guardrails": [
     "tools/MRTS read-only",
     "system paths read-only",
@@ -34,6 +37,8 @@
   ],
   "infrastructure": "MRTS upstream Apache2 Ubuntu native infra",
   "job": {
+    "classification": "optional_native_modsecurity_semantics_difference",
+    "classification_notes": "Apache and NGINX native MRTS reach the backend and fail only case 100003-1, the phase 4 ARGS comparison.",
     "counts": {
       "attempted": 13,
       "blocked": 0,
@@ -44,7 +49,9 @@
       "not_executable": 0,
       "pass": 12
     },
+    "critical_merge_blocker": false,
     "duration_seconds": 13,
+    "evidence_role": "optional_native_mrts",
     "exit_code": 1,
     "first_failing_cases": [
       {
@@ -62,12 +69,23 @@
         "variable": "ARGS"
       }
     ],
+    "go_ftw": {
+      "attempted": 13,
+      "failed": 1,
+      "failed_cases": [
+        "100003-1"
+      ],
+      "passed": 12,
+      "skipped": 0
+    },
     "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
     "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
     "known_limitations": [
       "phase4_native_limitation",
       "RESPONSE_BODY non-promoted"
     ],
+    "native_runtime_reached": true,
+    "optional": true,
     "paths": {
       "job_json_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
       "run_log_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
@@ -87,14 +105,14 @@
   "metadata": {
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:58:25Z",
+    "generated_at": "2026-06-17T02:39:29Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -102,8 +120,8 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
-        "sha256": "e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7",
-        "source_hash": "e96e44c569545c49fcc90c24065687e4302e38937f1077de194f2956bd88e7c7",
+        "sha256": "234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda",
+        "source_hash": "234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda",
         "status": "present"
       }
     ],
@@ -114,9 +132,10 @@
     "schema_version": 1,
     "severity": "optional",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
+  "optional": true,
   "paths": {
     "job_json_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
     "run_log_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",

@@ -6,75 +6,75 @@
     "root_cause": "monolithic response_header_hook cluster is reduced to MRTS DetectionOnly overlay after backend setup and HAProxy Set-Cookie multi-value evidence are stabilized",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-16T18:58:29Z",
+  "generated_at": "2026-06-17T02:39:34Z",
   "groups": {
     "by_case": [
       {
         "case_id": "phase3_response_headers_content_type_charset_gap",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_content_type_charset_gap",
         "header_name": "Content-Type"
       },
       {
         "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
         "header_name": "Set-Cookie"
       },
       {
         "case_id": "phase3_response_headers_encoded_value_future_target",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_encoded_value_future_target",
         "header_name": "Location"
       },
       {
         "case_id": "phase3_response_headers_location_encoded_runtime_diff",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_location_encoded_runtime_diff",
         "header_name": "Location"
       },
       {
         "case_id": "phase3_response_headers_mixed_case_connector_gap",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_mixed_case_connector_gap",
         "header_name": "content-type"
       },
       {
         "case_id": "phase3_response_headers_multi_value_connector_gap",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_multi_value_connector_gap",
         "header_name": "Set-Cookie"
       },
       {
         "case_id": "phase3_response_headers_set_cookie_multi_gap",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_set_cookie_multi_gap",
         "header_name": "Set-Cookie"
       },
       {
         "case_id": "pr70_phase3_audit_response_header",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "pr70_phase3_audit_response_header",
         "header_name": "Last-Modified"
       },
       {
         "case_id": "response_header_basic",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "response_header_basic",
         "header_name": "Last-Modified"
       },
       {
         "case_id": "response_headers_multi_value_runtime_gap",
-        "count": 4,
+        "count": 6,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "response_headers_multi_value_runtime_gap",
         "header_name": "Set-Cookie"
@@ -84,6 +84,16 @@
       {
         "actual_status": 200,
         "connector": "apache",
+        "count": 8,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
+        "expected_status": 403,
+        "header_name": "Set-Cookie",
+        "phase": "3"
+      },
+      {
+        "actual_status": 200,
+        "connector": "haproxy",
         "count": 8,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_duplicate_value_runtime_difference",
@@ -114,6 +124,26 @@
       {
         "actual_status": 200,
         "connector": "apache",
+        "count": 4,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_encoded_value_future_target",
+        "expected_status": 403,
+        "header_name": "Location",
+        "phase": "3"
+      },
+      {
+        "actual_status": 200,
+        "connector": "haproxy",
+        "count": 4,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "pr70_phase3_audit_response_header",
+        "expected_status": 403,
+        "header_name": "Last-Modified",
+        "phase": "3"
+      },
+      {
+        "actual_status": 200,
+        "connector": "haproxy",
         "count": 4,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_encoded_value_future_target",
@@ -154,6 +184,26 @@
       {
         "actual_status": 200,
         "connector": "apache",
+        "count": 2,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_mixed_case_connector_gap",
+        "expected_status": 403,
+        "header_name": "content-type",
+        "phase": "3"
+      },
+      {
+        "actual_status": 200,
+        "connector": "haproxy",
+        "count": 2,
+        "evidence_classification": "response_header_mrts_detection_only",
+        "example_case": "phase3_response_headers_content_type_charset_gap",
+        "expected_status": 403,
+        "header_name": "Content-Type",
+        "phase": "3"
+      },
+      {
+        "actual_status": 200,
+        "connector": "haproxy",
         "count": 2,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_mixed_case_connector_gap",
@@ -184,7 +234,7 @@
     ],
     "by_source": [
       {
-        "count": 40,
+        "count": 60,
         "evidence_classification": "response_header_mrts_detection_only",
         "example_case": "phase3_response_headers_content_type_charset_gap",
         "source_corpus": "framework-owned/none"
@@ -194,47 +244,47 @@
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:58:29Z",
+    "generated_at": "2026-06-17T02:39:34Z",
     "generated_by": "ci/generate-response-header-hook-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c",
-        "source_hash": "ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c",
+        "sha256": "7d7a581758867799859f481971e56c0e7da57ca399f5a7e016b2ce839ac83063",
+        "source_hash": "7d7a581758867799859f481971e56c0e7da57ca399f5a7e016b2ce839ac83063",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
-        "source_hash": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "sha256": "676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576",
+        "source_hash": "676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
+        "framework_sha": "24509c107ecf3a22ae9d69875f661690bd6fb95b",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "27f5f0cdd2b94697fd5bea41e8e39bbc5f3463d3a53931eb8abf5002b910075d",
-        "source_hash": "27f5f0cdd2b94697fd5bea41e8e39bbc5f3463d3a53931eb8abf5002b910075d",
+        "sha256": "8e4db3774f091e7031c19862d57a29ef6291cb2e82469d9626d637869726c1e4",
+        "source_hash": "8e4db3774f091e7031c19862d57a29ef6291cb2e82469d9626d637869726c1e4",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
     "make_target": "generate-response-header-hook-analysis",
@@ -244,7 +294,7 @@
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "pass_controls": [
@@ -447,6 +497,105 @@
       "variant": "no-crs/no-mrts"
     },
     {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_content_type_charset_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Content-Type",
+      "rule_id": "4902",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4803",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_encoded_value_future_target",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4804",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4903",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_missing_pass_through",
+      "connector": "haproxy",
+      "expected_status": 200,
+      "header_name": "X-Missing",
+      "rule_id": "4801",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_mixed_case_connector_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "content-type",
+      "rule_id": "4802",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_multi_value_connector_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4805",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_set_cookie_multi_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4904",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "pr70_phase3_audit_response_header",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Last-Modified",
+      "rule_id": "5703",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "response_header_basic",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Last-Modified",
+      "rule_id": "1301",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "response_headers_multi_value_runtime_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4410",
+      "variant": "no-crs/no-mrts"
+    },
+    {
       "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "apache",
@@ -459,6 +608,15 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "nginx",
+      "expected_status": 200,
+      "header_name": "X-Missing",
+      "rule_id": "4801",
+      "variant": "no-crs/with-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_missing_pass_through",
+      "connector": "haproxy",
       "expected_status": 200,
       "header_name": "X-Missing",
       "rule_id": "4801",
@@ -657,6 +815,105 @@
       "actual_status": 403,
       "case_id": "response_headers_multi_value_runtime_gap",
       "connector": "nginx",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4410",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_content_type_charset_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Content-Type",
+      "rule_id": "4902",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4803",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_encoded_value_future_target",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4804",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Location",
+      "rule_id": "4903",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_missing_pass_through",
+      "connector": "haproxy",
+      "expected_status": 200,
+      "header_name": "X-Missing",
+      "rule_id": "4801",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_mixed_case_connector_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "content-type",
+      "rule_id": "4802",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_multi_value_connector_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4805",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "phase3_response_headers_set_cookie_multi_gap",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "rule_id": "4904",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "pr70_phase3_audit_response_header",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Last-Modified",
+      "rule_id": "5703",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "response_header_basic",
+      "connector": "haproxy",
+      "expected_status": 403,
+      "header_name": "Last-Modified",
+      "rule_id": "1301",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 403,
+      "case_id": "response_headers_multi_value_runtime_gap",
+      "connector": "haproxy",
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "rule_id": "4410",
@@ -675,6 +932,15 @@
       "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "nginx",
+      "expected_status": 200,
+      "header_name": "X-Missing",
+      "rule_id": "4801",
+      "variant": "with-crs/with-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_missing_pass_through",
+      "connector": "haproxy",
       "expected_status": 200,
       "header_name": "X-Missing",
       "rule_id": "4801",
@@ -1559,6 +1825,436 @@
       "case_id": "phase3_response_headers_content_type_charset_gap",
       "classification_after": "response-header-mrts-detection-only",
       "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
+      "expected_log_evidence": "rule 4902 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Content-Type",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains charset",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4902",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Content-Type",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4803",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 duplicate response header runtime diff'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
+      "expected_log_evidence": "rule 4803 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains a=b",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4803",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Set-Cookie",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4804",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 encoded response header future target'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_encoded_value_future_target",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
+      "expected_log_evidence": "rule 4804 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Location",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains %2F",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4804",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Location",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4903",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 location encoded runtime diff'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
+      "expected_log_evidence": "rule 4903 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Location",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains %2F",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4903",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Location",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4802",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 mixed-case response header gap'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_mixed_case_connector_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:content-type @contains text/html",
+      "expected_log_evidence": "rule 4802 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "content-type",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains text/html",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4802",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:content-type",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4805",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 multi value header gap'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_multi_value_connector_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
+      "expected_log_evidence": "rule 4805 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains session",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4805",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Set-Cookie",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4904",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 set-cookie multi gap'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_set_cookie_multi_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
+      "expected_log_evidence": "rule 4904 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains token",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4904",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Set-Cookie",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:5703",
+        "phase:3",
+        "deny",
+        "status:403",
+        "auditlog",
+        "msg:'pr70 phase3 audit response header'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "pr70_phase3_audit_response_header",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Last-Modified @rx .",
+      "expected_log_evidence": "rule 5703 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Last-Modified",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@rx .",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "5703",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Last-Modified",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:1301",
+        "phase:3",
+        "deny",
+        "status:403"
+      ],
+      "actual_header_evidence": "target rule missing from logs",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "-",
+      "backend_header_set": true,
+      "case_id": "response_header_basic",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Last-Modified .",
+      "expected_log_evidence": "rule 1301 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Last-Modified",
+      "method": "GET",
+      "modsecurity_sees_header": false,
+      "mrts_variant": "with-mrts",
+      "operator": ".",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "1301",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Last-Modified",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4410",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL response headers multi-value gap'"
+      ],
+      "actual_header_evidence": "target rule missing from logs",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "-",
+      "backend_header_set": true,
+      "case_id": "response_headers_multi_value_runtime_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
+      "expected_log_evidence": "rule 4410 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "method": "GET",
+      "modsecurity_sees_header": false,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains session",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4410",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Set-Cookie",
+      "target_rule_disruptive": false,
+      "test_variant": "no-crs",
+      "variant": "no-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4902",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 content-type charset gap'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_content_type_charset_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
       "connector": "apache",
       "decision_log_path": "-",
       "error_log_path": "<runtime-artifact>/error.log",
@@ -2402,6 +3098,436 @@
       "work_direction_before": [
         "classification_only"
       ]
+    },
+    {
+      "action_list": [
+        "id:4902",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 content-type charset gap'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_content_type_charset_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Content-Type @contains charset",
+      "expected_log_evidence": "rule 4902 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Content-Type",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains charset",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4902",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Content-Type",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4803",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 duplicate response header runtime diff'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_duplicate_value_runtime_difference",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains a=b",
+      "expected_log_evidence": "rule 4803 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains a=b",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4803",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Set-Cookie",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4804",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 encoded response header future target'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_encoded_value_future_target",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
+      "expected_log_evidence": "rule 4804 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Location",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains %2F",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4804",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Location",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4903",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 location encoded runtime diff'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_location_encoded_runtime_diff",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Location @contains %2F",
+      "expected_log_evidence": "rule 4903 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Location",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains %2F",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4903",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Location",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4802",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 mixed-case response header gap'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_mixed_case_connector_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:content-type @contains text/html",
+      "expected_log_evidence": "rule 4802 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "content-type",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains text/html",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4802",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:content-type",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4805",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 multi value header gap'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_multi_value_connector_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
+      "expected_log_evidence": "rule 4805 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains session",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4805",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Set-Cookie",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4904",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'phase3 set-cookie multi gap'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "phase3_response_headers_set_cookie_multi_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains token",
+      "expected_log_evidence": "rule 4904 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains token",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4904",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Set-Cookie",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:5703",
+        "phase:3",
+        "deny",
+        "status:403",
+        "auditlog",
+        "msg:'pr70 phase3 audit response header'"
+      ],
+      "actual_header_evidence": "target rule matched",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "<runtime-artifact>/audit.log",
+      "backend_header_set": true,
+      "case_id": "pr70_phase3_audit_response_header",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Last-Modified @rx .",
+      "expected_log_evidence": "rule 5703 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Last-Modified",
+      "method": "GET",
+      "modsecurity_sees_header": true,
+      "mrts_variant": "with-mrts",
+      "operator": "@rx .",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "5703",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Last-Modified",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:1301",
+        "phase:3",
+        "deny",
+        "status:403"
+      ],
+      "actual_header_evidence": "target rule missing from logs",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "-",
+      "backend_header_set": true,
+      "case_id": "response_header_basic",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Last-Modified .",
+      "expected_log_evidence": "rule 1301 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Last-Modified",
+      "method": "GET",
+      "modsecurity_sees_header": false,
+      "mrts_variant": "with-mrts",
+      "operator": ".",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "1301",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Last-Modified",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
+    },
+    {
+      "action_list": [
+        "id:4410",
+        "phase:3",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL response headers multi-value gap'"
+      ],
+      "actual_header_evidence": "target rule missing from logs",
+      "actual_log_evidence": "with-mrts loads MRTS init, which sets ctl:ruleEngine=DetectionOnly; matching Phase 3 rules log but do not block",
+      "actual_status": 200,
+      "audit_log_path": "-",
+      "backend_header_set": true,
+      "case_id": "response_headers_multi_value_runtime_gap",
+      "classification_after": "response-header-mrts-detection-only",
+      "classification_before": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "decision_log_path": "<runtime-artifact>/decision.jsonl",
+      "error_log_path": "<runtime-artifact>/spoa-agent.log",
+      "evidence_classification": "response_header_mrts_detection_only",
+      "expected_header": "RESPONSE_HEADERS:Set-Cookie @contains session",
+      "expected_log_evidence": "rule 4410 should deny in phase 3",
+      "expected_status": 403,
+      "header_name": "Set-Cookie",
+      "method": "GET",
+      "modsecurity_sees_header": false,
+      "mrts_variant": "with-mrts",
+      "operator": "@contains session",
+      "path": "/",
+      "phase": "3",
+      "rule_id": "4410",
+      "source_corpus": "framework-owned/none",
+      "target": "RESPONSE_HEADERS:Set-Cookie",
+      "target_rule_disruptive": false,
+      "test_variant": "with-crs",
+      "variant": "with-crs/with-mrts",
+      "work_direction_after": [
+        "response_header_mrts_detection_only"
+      ],
+      "work_direction_before": [
+        "classification_only"
+      ]
     }
   ],
   "source_reports": {
@@ -2411,22 +3537,23 @@
   },
   "summary": {
     "classification_counts": {
-      "response_header_mrts_detection_only": 40
+      "response_header_mrts_detection_only": 60
     },
     "connectors": [
       "apache",
+      "haproxy",
       "nginx"
     ],
-    "failure_rows": 40,
-    "pass_control_rows": 48,
+    "failure_rows": 60,
+    "pass_control_rows": 72,
     "phases": [
       "3"
     ],
-    "response_header_custom_after": 40,
+    "response_header_custom_after": 60,
     "response_header_custom_before": 0,
     "response_header_hook_after": 0,
-    "response_header_hook_before": 40,
-    "rows_reclassified": 40,
+    "response_header_hook_before": 60,
+    "rows_reclassified": 60,
     "variants": [
       "no-crs/no-mrts",
       "no-crs/with-mrts",

@@ -61,19 +61,87 @@ write_job_json() {
     summary_path=$8
     "$PYTHON" - "$job_json" "$target" "$status" "$reason" "$exit_code" "$duration" "$run_log" "$summary_path" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
+def read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+
+def first_match(pattern: str, text: str) -> str:
+    match = re.search(pattern, text, flags=re.MULTILINE)
+    return match.group(1) if match else ""
+
+def parse_failed_cases(run_text: str) -> list[str]:
+    failed = []
+    payload = first_match(r"failed to run:\s+\[(.*?)\]", run_text)
+    if payload:
+        for item in payload.split(","):
+            case_id = item.strip().strip("\"'")
+            if case_id and case_id not in failed:
+                failed.append(case_id)
+    for case_id in re.findall(r"\b([0-9]+-[0-9]+)\s+failed\b", run_text):
+        if case_id not in failed:
+            failed.append(case_id)
+    return failed
+
+def classify_native_job(status: str, reason: str, run_text: str, failed_cases: list[str]) -> tuple[str, str]:
+    native_runtime_reached = "Received default request" in run_text
+    if status == "PASS":
+        return ("optional_native_evidence_pass", "Native MRTS optional evidence completed.")
+    if status == "BLOCKED" and "missing native dependencies" in reason:
+        return ("missing_optional_native_runtime", "Native MRTS optional evidence is blocked by missing native runtime dependencies.")
+    if status == "BLOCKED":
+        return ("optional_native_infrastructure_blocked", "Native MRTS optional evidence is blocked before a complete go-ftw comparison.")
+    if status == "FAIL" and failed_cases == ["100003-1"] and native_runtime_reached:
+        return (
+            "optional_native_modsecurity_semantics_difference",
+            "Apache and NGINX native MRTS reach the backend and fail only case 100003-1, the phase 4 ARGS comparison.",
+        )
+    if status == "FAIL" and native_runtime_reached:
+        return ("optional_native_go_ftw_case_failure", "Native runtime was reached, but go-ftw reported failing MRTS cases.")
+    if status == "FAIL":
+        return ("optional_native_infra_or_overlay_failure", "go-ftw failed before runtime request evidence was observed.")
+    return ("optional_native_evidence_unknown", "Native MRTS optional evidence status could not be classified.")
+
 path = Path(sys.argv[1])
+run_log = Path(sys.argv[7])
+status = sys.argv[3]
+reason = sys.argv[4]
+run_text = read_text(run_log)
+failed_cases = parse_failed_cases(run_text)
+attempted = int(first_match(r"run\s+([0-9]+)\s+total tests", run_text) or 0)
+skipped = int(first_match(r"skipped\s+([0-9]+)\s+tests", run_text) or 0)
+failed_count = len(failed_cases) or int(first_match(r"([0-9]+)\s+test\(s\)\s+failed", run_text) or 0)
+passed_count = run_text.count("passed in")
+if attempted and failed_count and passed_count + failed_count < attempted:
+    passed_count = attempted - failed_count
+classification, classification_notes = classify_native_job(status, reason, run_text, failed_cases)
 data = {
     "target": sys.argv[2],
-    "status": sys.argv[3],
-    "reason": sys.argv[4],
+    "status": status,
+    "reason": reason,
     "exit_code": int(sys.argv[5]),
     "duration_seconds": int(sys.argv[6]),
     "run_log": sys.argv[7],
     "summary_path": sys.argv[8],
     "job_json": str(path),
+    "evidence_role": "optional_native_mrts",
+    "optional": True,
+    "critical_merge_blocker": False,
+    "classification": classification,
+    "classification_notes": classification_notes,
+    "native_runtime_reached": "Received default request" in run_text,
+    "go_ftw": {
+        "attempted": attempted,
+        "passed": passed_count,
+        "failed": failed_count,
+        "skipped": skipped,
+        "failed_cases": failed_cases,
+    },
 }
 path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY

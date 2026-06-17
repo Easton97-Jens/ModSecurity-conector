@@ -922,7 +922,10 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append("")
         lines.append("| value | count |")
         lines.append("| --- | ---: |")
-        for item in report["distribution"][key]:
+        items = report["distribution"][key]
+        if not items:
+            lines.append("_No rows available. Reason: no active body-processor rows remain after report-only classification._")
+        for item in items:
             lines.append(f"| `{sanitize_report_text(item['value'])}` | {item['count']} |")
         lines.append("")
     lines.extend(
@@ -933,6 +936,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             "| ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- | --- |",
         ]
     )
+    if not report["groups"]:
+        lines.append("_No rows available. Reason: no active body-processor grouped rows remain after report-only classification._")
     for group in report["groups"]:
         lines.append(
             "| {count} | {connector} | {body_kind} | `{content_type}` | {phase} | `{target}` | {status_pair} | {category} | {variants} | {matched} | {cause} | {fixability} |".format(

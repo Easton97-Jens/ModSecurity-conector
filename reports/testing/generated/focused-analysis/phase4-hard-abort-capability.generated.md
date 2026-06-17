@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T18:58:32Z`
-> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Generated at: `2026-06-17T02:39:40Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-phase4-hard-abort-capability.py`
 > Make target: `generate-phase4-hard-abort-capability`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
-> Framework SHA: `unknown`
+> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
+> Framework SHA: `24509c107ecf3a22ae9d69875f661690bd6fb95b`
 > Input status: `complete`
 
 # Phase 4 Hard Abort Capability
 
-Generated at: `2026-06-16T18:58:32Z`
+Generated at: `2026-06-17T02:39:40Z`
 
 ## Capability Contract
 - Capability: `phase4_hard_abort` / `phase4-hard-abort`.
@@ -24,22 +24,22 @@ Generated at: `2026-06-16T18:58:32Z`
 ## Summary
 | Rows | Runtime status | Hard abort evidence | Connection aborted | No hard abort required | Log-only not hard abort | Truncated not hard abort | Status 200 without abort | Sensitive log leaks |
 |---|---|---|---|---|---|---|---|---|
-| 584 | {'PASS': 488, 'FAIL': 88, 'NOT_EXECUTABLE': 8} | 0 | 0 | 456 | 6 | 0 | 550 | 0 |
+| 868 | {'PASS': 740, 'FAIL': 116, 'NOT_EXECUTABLE': 12} | 0 | 0 | 684 | 6 | 0 | 806 | 0 |
 
 ## Category Rollup
 | Category | Count |
 |---|---|
-| phase4_no_hard_abort_required | 456 |
+| phase4_no_hard_abort_required | 684 |
 | phase4_log_only_no_abort | 6 |
 | phase4_missing_abort_evidence | 102 |
-| phase4_connector_gap | 20 |
+| phase4_connector_gap | 76 |
 
 ## Connector Capability
 | Connector | Status | Rows | Hard abort rows | Finding | Next step |
 |---|---|---|---|---|---|
 | apache | implementation_path_present_no_runtime_hard_abort_evidence | 284 | 0 | Apache emits Phase 4 intervention logs and deny-status evidence before commit; current matrix does not prove a connection abort. | Add or run a strict after-commit Apache evidence case before setting phase4-hard-abort as supported. |
 | nginx | connector_gap_no_hard_abort_evidence | 300 | 0 | HAProxy response-body decisions are logged, but current SPOA evidence shows HTTP status decisions rather than transport aborts. | Do not promote to PASS on hard-abort semantics unless HAProxy can produce real close/abort evidence. |
-| haproxy | connector_gap_no_hard_abort_evidence | 0 | 0 | HAProxy response-body decisions are logged, but current SPOA evidence shows HTTP status decisions rather than transport aborts. | Do not promote to PASS on hard-abort semantics unless HAProxy can produce real close/abort evidence. |
+| haproxy | connector_gap_no_hard_abort_evidence | 284 | 0 | HAProxy response-body decisions are logged, but current SPOA evidence shows HTTP status decisions rather than transport aborts. | Do not promote to PASS on hard-abort semantics unless HAProxy can produce real close/abort evidence. |
 
 ## Native MRTS Relation
 | Native target | Status | Counts | Case | Classification | Secondary |
@@ -346,6 +346,290 @@ Generated at: `2026-06-16T18:58:32Z`
 | apache | no-crs/with-mrts | response_body_pass | 2701 | 4 | RESPONSE_BODY | none | 200 | 200 | PASS | full | False | False | response-body-non-promoted | phase4_no_hard_abort_required |
 | apache | with-crs/no-mrts | response_body_pass | 2701 | 4 | RESPONSE_BODY | none | 200 | 200 | PASS | full | False | False | response-body-non-promoted | phase4_no_hard_abort_required |
 | apache | with-crs/with-mrts | response_body_pass | 2701 | 4 | RESPONSE_BODY | none | 200 | 200 | PASS | full | False | False | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100007_mrts_002_args_a_get_100007_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100007_mrts_002_args_a_get_100007_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100011_mrts_002_args_a_get_100011_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100011_mrts_002_args_a_get_100011_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100011_mrts_002_args_a_get_100011_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100011_mrts_002_args_a_get_100011_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100015_mrts_002_args_a_get_100015_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100015_mrts_002_args_a_get_100015_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100018_mrts_002_args_b_post_100018_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100018_mrts_002_args_b_post_100018_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100018_mrts_002_args_b_post_100018_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100018_mrts_002_args_b_post_100018_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100018_mrts_002_args_b_post_100018_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100018_mrts_002_args_b_post_100018_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100018_mrts_002_args_b_post_100018_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100018_mrts_002_args_b_post_100018_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100021_mrts_002_args_b_post_100021_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100021_mrts_002_args_b_post_100021_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100024_mrts_002_args_b_post_100024_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100024_mrts_002_args_b_post_100024_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100024_mrts_002_args_b_post_100024_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100024_mrts_002_args_b_post_100024_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100027_mrts_002_args_b_post_100027_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100027_mrts_002_args_b_post_100027_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100031_mrts_003_args_combined_size_100031_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100031_mrts_003_args_combined_size_100031_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100031_mrts_003_args_combined_size_100031_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100031_mrts_003_args_combined_size_100031_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100031_mrts_003_args_combined_size_100031_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100031_mrts_003_args_combined_size_100031_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100035_mrts_004_args_get_100035_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100035_mrts_004_args_get_100035_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100035_mrts_004_args_get_100035_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100035_mrts_004_args_get_100035_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100035_mrts_004_args_get_100035_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100035_mrts_004_args_get_100035_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100035_mrts_004_args_get_100035_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100035_mrts_004_args_get_100035_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100039_mrts_004_args_get_100039_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100039_mrts_004_args_get_100039_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100043_mrts_004_args_get_100043_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100043_mrts_004_args_get_100043_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100043_mrts_004_args_get_100043_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100043_mrts_004_args_get_100043_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100047_mrts_004_args_get_100047_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100047_mrts_004_args_get_100047_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100051_mrts_005_args_get_names_100051_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100051_mrts_005_args_get_names_100051_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100051_mrts_005_args_get_names_100051_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100051_mrts_005_args_get_names_100051_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100051_mrts_005_args_get_names_100051_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100051_mrts_005_args_get_names_100051_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100051_mrts_005_args_get_names_100051_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100051_mrts_005_args_get_names_100051_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100055_mrts_005_args_get_names_100055_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100055_mrts_005_args_get_names_100055_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100059_mrts_005_args_get_names_100059_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100059_mrts_005_args_get_names_100059_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100059_mrts_005_args_get_names_100059_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100059_mrts_005_args_get_names_100059_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100063_mrts_005_args_get_names_100063_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100063_mrts_005_args_get_names_100063_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100067_mrts_006_args_names_a_get_100067_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100067_mrts_006_args_names_a_get_100067_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100067_mrts_006_args_names_a_get_100067_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100067_mrts_006_args_names_a_get_100067_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100067_mrts_006_args_names_a_get_100067_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100067_mrts_006_args_names_a_get_100067_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100067_mrts_006_args_names_a_get_100067_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100067_mrts_006_args_names_a_get_100067_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100071_mrts_006_args_names_a_get_100071_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100071_mrts_006_args_names_a_get_100071_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100075_mrts_006_args_names_a_get_100075_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100075_mrts_006_args_names_a_get_100075_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100075_mrts_006_args_names_a_get_100075_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100075_mrts_006_args_names_a_get_100075_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100079_mrts_006_args_names_a_get_100079_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100079_mrts_006_args_names_a_get_100079_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100082_mrts_006_args_names_b_post_100082_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100082_mrts_006_args_names_b_post_100082_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100082_mrts_006_args_names_b_post_100082_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100082_mrts_006_args_names_b_post_100082_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100082_mrts_006_args_names_b_post_100082_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100082_mrts_006_args_names_b_post_100082_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100082_mrts_006_args_names_b_post_100082_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100082_mrts_006_args_names_b_post_100082_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100085_mrts_006_args_names_b_post_100085_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100085_mrts_006_args_names_b_post_100085_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100088_mrts_006_args_names_b_post_100088_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100088_mrts_006_args_names_b_post_100088_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100088_mrts_006_args_names_b_post_100088_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100088_mrts_006_args_names_b_post_100088_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100091_mrts_006_args_names_b_post_100091_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100091_mrts_006_args_names_b_post_100091_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100094_mrts_007_args_post_100094_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100094_mrts_007_args_post_100094_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100094_mrts_007_args_post_100094_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100094_mrts_007_args_post_100094_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100094_mrts_007_args_post_100094_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100094_mrts_007_args_post_100094_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100094_mrts_007_args_post_100094_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100094_mrts_007_args_post_100094_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100097_mrts_007_args_post_100097_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100097_mrts_007_args_post_100097_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100100_mrts_007_args_post_100100_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100100_mrts_007_args_post_100100_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100100_mrts_007_args_post_100100_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100100_mrts_007_args_post_100100_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100103_mrts_007_args_post_100103_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100103_mrts_007_args_post_100103_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100106_mrts_008_args_post_names_100106_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100106_mrts_008_args_post_names_100106_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100106_mrts_008_args_post_names_100106_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100106_mrts_008_args_post_names_100106_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100106_mrts_008_args_post_names_100106_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100106_mrts_008_args_post_names_100106_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100106_mrts_008_args_post_names_100106_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100106_mrts_008_args_post_names_100106_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100109_mrts_008_args_post_names_100109_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100109_mrts_008_args_post_names_100109_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100112_mrts_008_args_post_names_100112_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100112_mrts_008_args_post_names_100112_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100112_mrts_008_args_post_names_100112_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100112_mrts_008_args_post_names_100112_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100115_mrts_008_args_post_names_100115_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100115_mrts_008_args_post_names_100115_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_5 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_5 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_6 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_6 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_7 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100119_mrts_059_request_cookies_100119_7 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100123_mrts_059_request_cookies_100123_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100123_mrts_059_request_cookies_100123_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100123_mrts_059_request_cookies_100123_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100123_mrts_059_request_cookies_100123_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100127_mrts_059_request_cookies_100127_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100127_mrts_059_request_cookies_100127_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100127_mrts_059_request_cookies_100127_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100127_mrts_059_request_cookies_100127_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100127_mrts_059_request_cookies_100127_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100127_mrts_059_request_cookies_100127_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100127_mrts_059_request_cookies_100127_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100127_mrts_059_request_cookies_100127_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100131_mrts_059_request_cookies_100131_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100131_mrts_059_request_cookies_100131_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100131_mrts_059_request_cookies_100131_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100131_mrts_059_request_cookies_100131_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_5 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_5 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_6 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_6 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_7 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100135_mrts_060_request_cookies_names_100135_7 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100139_mrts_060_request_cookies_names_100139_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100139_mrts_060_request_cookies_names_100139_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100139_mrts_060_request_cookies_names_100139_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100139_mrts_060_request_cookies_names_100139_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100143_mrts_060_request_cookies_names_100143_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100143_mrts_060_request_cookies_names_100143_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100143_mrts_060_request_cookies_names_100143_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100143_mrts_060_request_cookies_names_100143_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100143_mrts_060_request_cookies_names_100143_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100143_mrts_060_request_cookies_names_100143_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100143_mrts_060_request_cookies_names_100143_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100143_mrts_060_request_cookies_names_100143_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100147_mrts_060_request_cookies_names_100147_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100147_mrts_060_request_cookies_names_100147_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100147_mrts_060_request_cookies_names_100147_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100147_mrts_060_request_cookies_names_100147_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100151_mrts_061_request_filename_100151_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100151_mrts_061_request_filename_100151_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100151_mrts_061_request_filename_100151_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100151_mrts_061_request_filename_100151_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100151_mrts_061_request_filename_100151_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100151_mrts_061_request_filename_100151_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100151_mrts_061_request_filename_100151_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100151_mrts_061_request_filename_100151_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100152_mrts_069_response_body_100152_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100152_mrts_069_response_body_100152_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100152_mrts_069_response_body_100152_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100152_mrts_069_response_body_100152_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100152_mrts_069_response_body_100152_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100152_mrts_069_response_body_100152_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100152_mrts_069_response_body_100152_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100152_mrts_069_response_body_100152_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100153_mrts_069_response_body_100153_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100153_mrts_069_response_body_100153_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100153_mrts_069_response_body_100153_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100153_mrts_069_response_body_100153_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100153_mrts_069_response_body_100153_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100153_mrts_069_response_body_100153_3 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100153_mrts_069_response_body_100153_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100153_mrts_069_response_body_100153_4 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | mrts_100156_mrts_110_xml_100156_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | mrts_100156_mrts_110_xml_100156_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/no-mrts | phase4_auditlog_outbound_escaped_value_gap | - | 4 | - | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_auditlog_outbound_escaped_value_gap | - | 4 | - | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_auditlog_outbound_escaped_value_gap | - | 4 | - | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_auditlog_outbound_escaped_value_gap | - | 4 | - | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_auditlog_outbound_matched_var_future | 4908 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_auditlog_outbound_matched_var_future | 4908 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_auditlog_outbound_matched_var_future | 4908 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_auditlog_outbound_matched_var_future | 4908 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | 4811 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | 4811 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | 4811 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | 4811 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_response_body_buffering_order_future_target | 4906 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_response_body_buffering_order_future_target | 4906 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_response_body_buffering_order_future_target | 4906 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_response_body_buffering_order_future_target | 4906 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_response_body_chunk_assumption_connector_gap | 4808 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_response_body_chunk_assumption_connector_gap | 4808 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_response_body_chunk_assumption_connector_gap | 4808 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_response_body_chunk_assumption_connector_gap | 4808 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_response_body_compressed_assumption_experimental | 4809 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_response_body_compressed_assumption_experimental | 4809 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_response_body_compressed_assumption_experimental | 4809 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_response_body_compressed_assumption_experimental | 4809 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_response_body_empty_future_target | 4806 | 4 | RESPONSE_BODY | deny | 403 | None | NOT_EXECUTABLE | full | False | False | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_response_body_empty_future_target | 4806 | 4 | RESPONSE_BODY | deny | 403 | None | NOT_EXECUTABLE | full | False | False | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_response_body_empty_future_target | 4806 | 4 | RESPONSE_BODY | deny | 403 | None | NOT_EXECUTABLE | full | False | False | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_response_body_empty_future_target | 4806 | 4 | RESPONSE_BODY | deny | 403 | None | NOT_EXECUTABLE | full | False | False | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_response_body_html_entity_decode_gap | 4907 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_response_body_html_entity_decode_gap | 4907 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_response_body_html_entity_decode_gap | 4907 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_response_body_html_entity_decode_gap | 4907 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_response_body_html_text_normalization_probe | 4810 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_response_body_html_text_normalization_probe | 4810 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_response_body_html_text_normalization_probe | 4810 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_response_body_html_text_normalization_probe | 4810 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_response_body_pass_no_match_experimental | 4905 | 4 | RESPONSE_BODY | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | phase4_response_body_pass_no_match_experimental | 4905 | 4 | RESPONSE_BODY | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/no-mrts | phase4_response_body_pass_no_match_experimental | 4905 | 4 | RESPONSE_BODY | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | phase4_response_body_pass_no_match_experimental | 4905 | 4 | RESPONSE_BODY | pass | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/no-mrts | phase4_response_body_unicode_runtime_difference | 4807 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | phase4_response_body_unicode_runtime_difference | 4807 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_response_body_unicode_runtime_difference | 4807 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | phase4_response_body_unicode_runtime_difference | 4807 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | pr70_phase4_response_body_audit_xfail | 5704 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | pr70_phase4_response_body_audit_xfail | 5704 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | pr70_phase4_response_body_audit_xfail | 5704 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | pr70_phase4_response_body_audit_xfail | 5704 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | response_body_basic_block | 1801 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/with-mrts | response_body_basic_block | 1801 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | response_body_basic_block | 1801 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/with-mrts | response_body_basic_block | 1801 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | response_body_pass | 2701 | 4 | RESPONSE_BODY | none | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | no-crs/with-mrts | response_body_pass | 2701 | 4 | RESPONSE_BODY | none | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/no-mrts | response_body_pass | 2701 | 4 | RESPONSE_BODY | none | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
+| haproxy | with-crs/with-mrts | response_body_pass | 2701 | 4 | RESPONSE_BODY | none | 200 | 200 | PASS | full | False | True | response-body-non-promoted | phase4_no_hard_abort_required |
 | nginx | no-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | False | response-body-non-promoted | phase4_no_hard_abort_required |
 | nginx | with-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_1 | - | 4 | - | pass | 200 | 200 | PASS | full | False | False | response-body-non-promoted | phase4_no_hard_abort_required |
 | nginx | no-crs/with-mrts | mrts_100003_mrts_002_args_a_get_100003_2 | - | 4 | - | pass | 200 | 200 | PASS | full | False | False | response-body-non-promoted | phase4_no_hard_abort_required |
@@ -651,11 +935,11 @@ Generated at: `2026-06-16T18:58:32Z`
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `ec37c9971529b06b80763ce9c360dd9164c46f80f63e8d69526854253daf7e7c` | `2026-06-16T16-57-44Z-b53340a8` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d` | `2026-06-16T16-57-44Z-b53340a8` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `d76478030a4008d696c028237490a1e4643fb5d7d73248443dfdc87921c9a548` | `2026-06-16T16-57-44Z-b53340a8` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `cf4fc89931e535da77cd91f57eda28d65fdeb44a3af07c568303a87db7c8867a` | `2026-06-16T16-57-44Z-b53340a8` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `d1d6c1592ae4287cf93001eb543aa75d99dc4ef267489498737f470fe5f9fa6a` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `7d7a581758867799859f481971e56c0e7da57ca399f5a7e016b2ce839ac83063` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `0ececd49b9fe19cb970583996dae8a1c4965a87d9ad19aa5bfb7ac6323beb382` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `9aa3ecd89fbfce7a5c4eba7fdee9b0ba04eda8ec365a1b347aa7c1bba546c900` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `03ea2803bcd564284e704492dee86dcb19afa74b281581aae987bb099ace7a8f` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

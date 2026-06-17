@@ -222,14 +222,14 @@
       "access": "local-build/read-only-executable",
       "env_var": "HAPROXY_BIN",
       "name": "haproxy",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy",
+      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
       "status": "present"
     },
     {
       "access": "local-build/read-only-executable",
       "env_var": "SPOA_RUNTIME_BIN",
       "name": "haproxy-modsecurity-spoa",
-      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+      "path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
       "status": "present"
     }
   ],
@@ -279,7 +279,7 @@
     "GO_FTW_PROMPT_EXPECTED_LATEST": "v2.2.0",
     "GO_FTW_SOURCE_URL": "https://github.com/coreruleset/go-ftw"
   },
-  "generated_at": "2026-06-16T18:55:12Z",
+  "generated_at": "2026-06-17T02:44:44Z",
   "git_components": [
     {
       "actual_head": "2fd49292d751fc383b8faf7da6a8d480904774d0",
@@ -319,9 +319,9 @@
       "submodule_status_clean": true,
       "tree": {
         "exists": true,
-        "file_count": 694,
-        "sha256_manifest": "c0d708bf574a8524d2d06f082cfc18fe87265c0370437c04613ddc7dc44fc7df",
-        "total_size": 21299641
+        "file_count": 718,
+        "sha256_manifest": "a1d0886df3d3bcca2574ad23c2a6af57999ce362cab0ffff88b7eff92d7ad5ea",
+        "total_size": 21328142
       },
       "url": "https://github.com/coreruleset/coreruleset.git"
     },
@@ -459,22 +459,22 @@
   "haproxy": {
     "blocker_reason": "",
     "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"\", \"CXXFLAGS\": \"\", \"HAPROXY_VERSION\": \"3.2.19\", \"HTTPD_VERSION\": \"2.4.67\", \"LDFLAGS\": \"\", \"LIBS\": \"\", \"NGINX_RELEASE_TAG\": \"latest\", \"NGINX_SOURCE_GIT_REF\": \"latest\"}",
-    "build_path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d",
+    "build_path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
     "connector": "haproxy",
-    "connector_build_id": "3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d",
-    "haproxy_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy",
-    "haproxy_runtime_build_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime-build",
-    "haproxy_runtime_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy",
-    "modsecurity_binding_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding",
+    "connector_build_id": "599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
+    "haproxy_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
+    "haproxy_runtime_build_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime-build",
+    "haproxy_runtime_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy",
+    "modsecurity_binding_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding",
     "modsecurity_build_id": "0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72",
     "output_paths": {
-      "binary": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy",
-      "config": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding/paths.env",
-      "module": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
+      "binary": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
+      "config": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding/paths.env",
+      "module": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
     },
-    "paths_env": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding/paths.env",
-    "source_hash": "57fabb9bb5f8b393e4fe0cf31f128bebd40bc49f80f0eb31becd20dc09e0537c",
-    "spoa_runtime_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+    "paths_env": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding/paths.env",
+    "source_hash": "38759dbb53e048dbc31949d34d9cb5691589e0554af1bae536c4938de76332ea",
+    "spoa_runtime_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
     "status": "reused",
     "tree": {
       "exists": true,
@@ -486,14 +486,14 @@
   "metadata": {
     "category": "cache",
     "commit_policy": "local-only",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
     "data_kind": "cache",
     "data_origin": "cache",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:55:12Z",
+    "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-17T02:44:44Z",
     "generated_by": "ci/prepare-runtime-components.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -501,8 +501,8 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-        "sha256": "c43ce0fc302eadf9202ff5514d99b27f433d520bc39f1438f850cac0d7467a77",
-        "source_hash": "c43ce0fc302eadf9202ff5514d99b27f433d520bc39f1438f850cac0d7467a77",
+        "sha256": "b2d52ba128ed49f0a99053acfb8d9fde2ef7a8f5811b1556cf53023f27f22d05",
+        "source_hash": "b2d52ba128ed49f0a99053acfb8d9fde2ef7a8f5811b1556cf53023f27f22d05",
         "status": "present"
       }
     ],
@@ -513,7 +513,7 @@
     "schema_version": 1,
     "severity": "cache",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "modsecurity": {
@@ -530,7 +530,7 @@
     },
     "component": "modsecurity",
     "dependency_hash": "6520718cfc3861c8b4bd8046bfb3c50674a89f771041673ed3b132f5cbf8fea4",
-    "generated_at": "2026-06-16T18:55:10Z",
+    "generated_at": "2026-06-17T02:44:42Z",
     "include_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/include",
     "lib_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib",
     "lib_file": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",
@@ -712,22 +712,22 @@
       {
         "blocker_reason": "",
         "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"\", \"CXXFLAGS\": \"\", \"HAPROXY_VERSION\": \"3.2.19\", \"HTTPD_VERSION\": \"2.4.67\", \"LDFLAGS\": \"\", \"LIBS\": \"\", \"NGINX_RELEASE_TAG\": \"latest\", \"NGINX_SOURCE_GIT_REF\": \"latest\"}",
-        "build_path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d",
+        "build_path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
         "connector": "haproxy",
-        "connector_build_id": "3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d",
-        "haproxy_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy",
-        "haproxy_runtime_build_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime-build",
-        "haproxy_runtime_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy",
-        "modsecurity_binding_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding",
+        "connector_build_id": "599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
+        "haproxy_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
+        "haproxy_runtime_build_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime-build",
+        "haproxy_runtime_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy",
+        "modsecurity_binding_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding",
         "modsecurity_build_id": "0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72",
         "output_paths": {
-          "binary": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy",
-          "config": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding/paths.env",
-          "module": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
+          "binary": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
+          "config": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding/paths.env",
+          "module": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
         },
-        "paths_env": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding/paths.env",
-        "source_hash": "57fabb9bb5f8b393e4fe0cf31f128bebd40bc49f80f0eb31becd20dc09e0537c",
-        "spoa_runtime_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+        "paths_env": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding/paths.env",
+        "source_hash": "38759dbb53e048dbc31949d34d9cb5691589e0554af1bae536c4938de76332ea",
+        "spoa_runtime_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
         "status": "reused",
         "tree": {
           "exists": true,
@@ -737,18 +737,18 @@
         }
       }
     ],
-    "generated_at": "2026-06-16T18:55:12Z",
+    "generated_at": "2026-06-17T02:44:44Z",
     "metadata": {
       "category": "cache",
       "commit_policy": "local-only",
-      "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+      "connector_sha": "614c80493b6ebd25a17e1d27979071e5e30584d4",
       "data_kind": "cache",
       "data_origin": "cache",
       "data_source_policy": "verified-inputs-only",
       "empty_inputs": [],
-      "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
-      "framework_working_tree_dirty": "dirty",
-      "generated_at": "2026-06-16T18:55:12Z",
+      "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+      "framework_working_tree_dirty": "clean",
+      "generated_at": "2026-06-17T02:44:44Z",
       "generated_by": "ci/prepare-runtime-components.py",
       "generated_notice": "Generated file - do not edit manually.",
       "input_status": "complete",
@@ -756,8 +756,8 @@
         {
           "notes": "input file available",
           "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
-          "sha256": "3907d11216940c11807390c0ae5aab3eba2dd59c95196b46b2319494f6ff5cb9",
-          "source_hash": "3907d11216940c11807390c0ae5aab3eba2dd59c95196b46b2319494f6ff5cb9",
+          "sha256": "87188127b17897e96f4e79be597755779142554a5a0a6636d3bbe93b0e33df74",
+          "source_hash": "87188127b17897e96f4e79be597755779142554a5a0a6636d3bbe93b0e33df74",
           "status": "present"
         }
       ],
@@ -768,7 +768,7 @@
       "schema_version": 1,
       "severity": "cache",
       "unknown_inputs": [],
-      "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+      "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
       "working_tree_dirty": "dirty"
     },
     "shared_modsecurity_build": {
@@ -785,7 +785,7 @@
       },
       "component": "modsecurity",
       "dependency_hash": "6520718cfc3861c8b4bd8046bfb3c50674a89f771041673ed3b132f5cbf8fea4",
-      "generated_at": "2026-06-16T18:55:10Z",
+      "generated_at": "2026-06-17T02:44:42Z",
       "include_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/include",
       "lib_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib",
       "lib_file": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",
@@ -967,22 +967,22 @@
     "haproxy": {
       "blocker_reason": "",
       "build_flags": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"\", \"CXXFLAGS\": \"\", \"HAPROXY_VERSION\": \"3.2.19\", \"HTTPD_VERSION\": \"2.4.67\", \"LDFLAGS\": \"\", \"LIBS\": \"\", \"NGINX_RELEASE_TAG\": \"latest\", \"NGINX_SOURCE_GIT_REF\": \"latest\"}",
-      "build_path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d",
+      "build_path": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
       "connector": "haproxy",
-      "connector_build_id": "3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d",
-      "haproxy_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy",
-      "haproxy_runtime_build_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime-build",
-      "haproxy_runtime_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy",
-      "modsecurity_binding_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding",
+      "connector_build_id": "599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
+      "haproxy_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
+      "haproxy_runtime_build_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime-build",
+      "haproxy_runtime_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy",
+      "modsecurity_binding_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding",
       "modsecurity_build_id": "0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72",
       "output_paths": {
-        "binary": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy",
-        "config": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding/paths.env",
-        "module": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
+        "binary": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
+        "config": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding/paths.env",
+        "module": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
       },
-      "paths_env": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding/paths.env",
-      "source_hash": "57fabb9bb5f8b393e4fe0cf31f128bebd40bc49f80f0eb31becd20dc09e0537c",
-      "spoa_runtime_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
+      "paths_env": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding/paths.env",
+      "source_hash": "38759dbb53e048dbc31949d34d9cb5691589e0554af1bae536c4938de76332ea",
+      "spoa_runtime_bin": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa",
       "status": "reused",
       "tree": {
         "exists": true,
@@ -1005,7 +1005,7 @@
       },
       "component": "modsecurity",
       "dependency_hash": "6520718cfc3861c8b4bd8046bfb3c50674a89f771041673ed3b132f5cbf8fea4",
-      "generated_at": "2026-06-16T18:55:10Z",
+      "generated_at": "2026-06-17T02:44:42Z",
       "include_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/include",
       "lib_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib",
       "lib_file": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",
@@ -1080,18 +1080,18 @@
     "CRS_SOURCE_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/sources/coreruleset",
     "EXPAT_PREFIX": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat",
     "GO_FTW_BIN": "/var/tmp/ModSecurity-conector-verified/component-cache/bin/go-ftw",
-    "HAPROXY_BIN": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy",
-    "HAPROXY_CONNECTOR_BUILD_ID": "3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d",
+    "HAPROXY_BIN": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy",
+    "HAPROXY_CONNECTOR_BUILD_ID": "599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048",
     "HAPROXY_DOWNLOAD_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/archives/haproxy",
-    "HAPROXY_RUNTIME_BUILD_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime-build",
-    "HAPROXY_RUNTIME_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy",
+    "HAPROXY_RUNTIME_BUILD_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime-build",
+    "HAPROXY_RUNTIME_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy",
     "HAPROXY_SOURCE_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/sources/haproxy/haproxy-3.2.19",
     "HAPROXY_SOURCE_ROOT": "/var/tmp/ModSecurity-conector-verified/component-cache/sources/haproxy",
     "HTTPD_PREFIX": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd",
     "LDFLAGS": "-L/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat/lib",
     "LD_LIBRARY_PATH": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat/lib",
     "LIBS": "-lcrypt",
-    "MODSECURITY_BINDING_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding",
+    "MODSECURITY_BINDING_DIR": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding",
     "MODSECURITY_BUILD_FLAGS": "{\"CFLAGS\": \"\", \"CPPFLAGS\": \"-I/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat/include\", \"CXXFLAGS\": \"\", \"LDFLAGS\": \"-L/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat/lib\", \"LIBS\": \"\", \"PKG_CONFIG_PATH\": \"/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat/lib/pkgconfig\", \"configure_args\": \"\"}",
     "MODSECURITY_BUILD_ID": "0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72",
     "MODSECURITY_DEPENDENCY_HASH": "6520718cfc3861c8b4bd8046bfb3c50674a89f771041673ed3b132f5cbf8fea4",
@@ -1118,7 +1118,7 @@
     "PKG_CONFIG_PATH": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/expat/lib/pkgconfig",
     "RUNTIME_BUILD_CACHE_MANIFEST": "/root/git/ModSecurity-conector/reports/testing/generated/cache/runtime-build-cache.generated.json",
     "SOURCE_ROOT": "/var/tmp/ModSecurity-conector-verified/component-cache/sources",
-    "SPOA_RUNTIME_BIN": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
+    "SPOA_RUNTIME_BIN": "/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa"
   },
   "strict_verify": false
 }
