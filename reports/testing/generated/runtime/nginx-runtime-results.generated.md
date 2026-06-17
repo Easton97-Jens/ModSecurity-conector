@@ -1,13 +1,13 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T02:43:54Z`
+> Generated at: `2026-06-17T07:40:31Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
+> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
 > Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
 > Input status: `complete`
 

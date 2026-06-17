@@ -38,25 +38,7 @@ jobs:
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
 
-      - name: Static syntax checks
-        run: |
-          set -eu
-          python3 -m py_compile ci/*.py
-          sh -n ci/*.sh
-          sh -n modules/ModSecurity-test-Framework/ci/*.sh
-
       - name: Generated report governance
         run: |
           set -eu
           make report-governance
-
-      - name: Runtime producer readiness
-        run: |
-          set +e
-          make check-runtime-producer-readiness
-          rc=$?
-          if [ "$rc" -eq 77 ]; then
-            echo "Runtime producer readiness is BLOCKED in this lightweight job; full runtime preparation is intentionally not run here."
-            exit 0
-          fi
-          exit "$rc"

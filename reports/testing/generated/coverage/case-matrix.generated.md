@@ -1,13 +1,13 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T02:43:54Z`
+> Generated at: `2026-06-17T09:22:06Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
+> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
 > Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
 > Input status: `complete`
 
@@ -40,11 +40,11 @@
 | json_request_body_block | `tests/cases/body/json/json_request_body_block.yaml` | common | 2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
 | request_body_json_block | `tests/cases/body/json/request_body_json_block.yaml` | common | 2 | REQUEST_BODY | @contains | - | active | - | active | - | false | no | - |
 | request_body_json_invalid_runtime_difference | `tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml` | common | 2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
-| files_empty_part_future_compatibility | `tests/cases/body/multipart/files_empty_part_future_compatibility.yaml` | common | 2 | FILES | @contains | - | imported | - | active | - | unknown | no | - |
+| files_empty_part_future_compatibility | `tests/cases/body/multipart/files_empty_part_future_compatibility.yaml` | common | 2 | FILES | @rx | - | imported | - | active | - | unknown | no | - |
 | files_names_mixed_case_filename_gap | `tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml` | common | 2 | FILES_NAMES | @contains | - | imported | - | active | - | unknown | no | - |
 | multipart_basic_block | `tests/cases/body/multipart/multipart_basic_block.yaml` | common | 2 | ARGS:name | @streq | - | imported | - | active | - | unknown | no | - |
 | multipart_duplicate_field_names_gap | `tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml` | common | 2 | ARGS_NAMES | @contains | - | imported | - | active | - | unknown | no | - |
-| multipart_empty_filename_connector_gap | `tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml` | common | 2 | MULTIPART_FILENAME | @streq | - | imported | - | active | - | unknown | no | - |
+| multipart_empty_filename_connector_gap | `tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml` | common | 2 | MULTIPART_FILENAME | @rx | - | imported | - | active | - | unknown | no | - |
 | multipart_encoded_filename_runtime_difference | `tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml` | common | 2 | MULTIPART_FILENAME | @contains | - | imported | - | active | - | unknown | no | - |
 | multipart_filename_block | `tests/cases/body/multipart/multipart_filename_block.yaml` | common | 2 | MULTIPART_FILENAME | @contains | - | imported | - | active | - | unknown | no | - |
 | multipart_files_combined_size | `tests/cases/body/multipart/multipart_files_combined_size.yaml` | common | 2 | FILES_COMBINED_SIZE | @gt | - | imported | - | active | - | unknown | no | - |

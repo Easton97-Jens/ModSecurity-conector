@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 from collections import Counter, defaultdict
@@ -35,6 +36,16 @@ CRITICAL_CATEGORIES = {
     "timeout_or_incomplete",
     "unknown",
 }
+DISRUPTIVE_EXPECTED_STATUSES = {"302", "401", "403", "406", "429", "503"}
+MRTS_DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_overlay"
+MRTS_DETECTION_ONLY_NOTE = "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only"
+HAPROXY_MRTS_DETECTION_ONLY_NOTE = "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only"
+MODSECURITY_SMOKE_FILE_RE = re.compile(r'\[file "([^"]*modsecurity-smoke\.conf)"\]')
+RULES_ERROR_SMOKE_FILE_RE = re.compile(r"Rules error\. File: ([^.]*modsecurity-smoke\.conf)\.")
+EMPTY_MULTIPART_OPERATOR_RE = re.compile(
+    r'SecRule\s+(?:FILES|MULTIPART_FILENAME)\s+"@(?:contains|streq)\s*"\s+"id:(?:4701|4706)\b'
+)
+INCLUDE_RE = re.compile(r'^\s*Include\s+"([^"]+)"\s*$', re.MULTILINE)
 
 
 def progress(message: str) -> None:
@@ -268,6 +279,220 @@ def expected_actual(case: dict[str, Any]) -> tuple[str, str]:
     return str(expected), str(actual)
 
 
+def resolve_evidence_file(value: str, *, connector_root: Path, build_root: Path) -> Path:
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    build_candidate = build_root / path
+    if build_candidate.exists():
+        return build_candidate
+    return connector_root / path
+
+
+def result_error_log_path(result_path: Path, result: dict[str, Any]) -> Path:
+    for key in ("nginx_error_log_path", "apache_error_log_path", "haproxy_error_log_path", "error_log_path"):
+        value = result.get(key)
+        if value:
+            return Path(str(value))
+    return result_path.parent / "error.log"
+
+
+def result_decision_log_path(result_path: Path, result: dict[str, Any]) -> Path:
+    for key in ("decision_log_path", "decision_log"):
+        value = result.get(key)
+        if value:
+            return Path(str(value))
+    return result_path.parent / "decision.jsonl"
+
+
+def detection_only_rule_paths_from_smoke_file(smoke_rules_file: Path) -> list[Path]:
+    try:
+        smoke_text = smoke_rules_file.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    candidate_paths: list[Path] = []
+    if "ctl:ruleEngine=DetectionOnly" in smoke_text:
+        candidate_paths.append(smoke_rules_file)
+    for include in INCLUDE_RE.findall(smoke_text):
+        include_path = Path(include)
+        if not include_path.is_absolute():
+            include_path = smoke_rules_file.parent / include_path
+        if include_path.name == "mrts.load" or "mrts" in str(include_path):
+            try:
+                load_text = include_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "ctl:ruleEngine=DetectionOnly" in load_text:
+                candidate_paths.append(include_path)
+            for nested in INCLUDE_RE.findall(load_text):
+                nested_path = Path(nested)
+                if not nested_path.is_absolute():
+                    nested_path = include_path.parent / nested_path
+                try:
+                    nested_text = nested_path.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                if "ctl:ruleEngine=DetectionOnly" in nested_text:
+                    candidate_paths.append(nested_path)
+    return candidate_paths
+
+
+def haproxy_report_only_decisions(decision_log_path: Path) -> tuple[bool, dict[str, str]]:
+    entries = read_jsonl(decision_log_path)
+    if not entries:
+        return False, {}
+    phases: list[str] = []
+    for entry in entries:
+        if entry.get("live_executed") is not True or entry.get("modsecurity_processed") is not True:
+            return False, {}
+        if entry.get("decision") != "pass" or entry.get("disruptive") is not False:
+            return False, {}
+        if str(entry.get("intervention_status")) != "200":
+            return False, {}
+        phase = entry.get("phase")
+        if phase is not None:
+            phases.append(str(phase))
+    return True, {
+        "decision_entries": str(len(entries)),
+        "decision": "pass",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "phases": ",".join(phases),
+    }
+
+
+def haproxy_with_mrts_detection_only_overlay(
+    result_path: Path,
+    result: dict[str, Any],
+    *,
+    build_root: Path,
+) -> dict[str, str] | None:
+    decision_log_path = result_decision_log_path(result_path, result)
+    decisions_ok, decision_evidence = haproxy_report_only_decisions(decision_log_path)
+    if not decisions_ok:
+        return None
+    spoa_runtime_log_path = result_path.parent / "spoa-runtime.stderr.log"
+    try:
+        spoa_runtime_text = spoa_runtime_log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if "ModSecurity:" not in spoa_runtime_text:
+        return None
+    smoke_match = MODSECURITY_SMOKE_FILE_RE.search(spoa_runtime_text)
+    if not smoke_match:
+        return None
+    smoke_rules_file = Path(smoke_match.group(1))
+    detection_only_paths = detection_only_rule_paths_from_smoke_file(smoke_rules_file)
+    if not detection_only_paths:
+        return None
+    spoa_log_path = Path(str(result.get("spoa_log_path") or result_path.parent / "spoa-agent.log"))
+    try:
+        spoa_log_text = spoa_log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if f"rules_file={smoke_rules_file}" not in spoa_log_text:
+        return None
+    return {
+        "decision_log": rel(decision_log_path, build_root),
+        "spoa_runtime_log": rel(spoa_runtime_log_path, build_root),
+        "spoa_log": rel(spoa_log_path, build_root),
+        "rules_file": rel(smoke_rules_file, build_root),
+        "detection_only_rule": rel(detection_only_paths[0], build_root),
+        "decision": decision_evidence["decision"],
+        "disruptive": decision_evidence["disruptive"],
+        "intervention_status": decision_evidence["intervention_status"],
+        "decision_entries": decision_evidence["decision_entries"],
+        "phases": decision_evidence["phases"],
+        "note": HAPROXY_MRTS_DETECTION_ONLY_NOTE,
+    }
+
+
+def with_mrts_detection_only_overlay(
+    row: dict[str, Any],
+    *,
+    evidence: str,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, str] | None:
+    if row["connector"] not in {"apache", "haproxy", "nginx"} or not row["variant"].endswith("/with-mrts"):
+        return None
+    if row["status"] != "fail" or row["actual"] != "200" or row["expected"] not in DISRUPTIVE_EXPECTED_STATUSES:
+        return None
+    result_path = resolve_evidence_file(evidence, connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    if row["connector"] == "haproxy":
+        return haproxy_with_mrts_detection_only_overlay(result_path, result, build_root=build_root)
+    error_log_path = result_error_log_path(result_path, result)
+    try:
+        error_text = error_log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if "ModSecurity:" not in error_text:
+        return None
+    smoke_match = MODSECURITY_SMOKE_FILE_RE.search(error_text)
+    if not smoke_match:
+        return None
+    smoke_rules_file = Path(smoke_match.group(1))
+    detection_only_paths = detection_only_rule_paths_from_smoke_file(smoke_rules_file)
+    if not detection_only_paths:
+        return None
+    return {
+        "error_log": rel(error_log_path, build_root),
+        "rules_file": rel(smoke_rules_file, build_root),
+        "detection_only_rule": rel(detection_only_paths[0], build_root),
+        "note": MRTS_DETECTION_ONLY_NOTE,
+    }
+
+
+def multipart_fixture_gap(
+    row: dict[str, Any],
+    *,
+    evidence: str,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, str] | None:
+    if row["category"] != "multipart" or row["status"] not in {"not_executable", "not-executable"}:
+        return None
+    result_path = resolve_evidence_file(evidence, connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    candidates = [
+        result_path.parent / "configtest.log",
+        result_path.parent / "spoa-runtime.stderr.log",
+        result_path.parent / "haproxy-configtest.log",
+        result_path.parent / "error.log",
+    ]
+    for value in result.values():
+        if isinstance(value, str) and value.endswith((".log", ".txt")):
+            candidates.append(Path(value))
+
+    for log_path in candidates:
+        try:
+            log_text = log_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "Rules error" not in log_text or "syntax error" not in log_text:
+            continue
+        if "unexpected Id" not in log_text and "unexpected id" not in log_text:
+            continue
+        smoke_match = RULES_ERROR_SMOKE_FILE_RE.search(log_text)
+        if not smoke_match:
+            continue
+        smoke_rules_file = Path(smoke_match.group(1))
+        try:
+            smoke_text = smoke_rules_file.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if not EMPTY_MULTIPART_OPERATOR_RE.search(smoke_text):
+            continue
+        return {
+            "result": rel(result_path, build_root),
+            "parse_error_log": rel(log_path, build_root),
+            "rules_file": rel(smoke_rules_file, build_root),
+            "note": "Multipart fixture generated an invalid empty-argument ModSecurity rule; no comparable runtime decision was produced.",
+        }
+    return None
+
+
 def row_from_case(
     *,
     case: dict[str, Any],
@@ -311,6 +536,42 @@ def row_from_case(
         row["evidence_file"] = rel(evidence, build_root)
     if row["source_file"].startswith("/"):
         row["source_file"] = rel(source_file, build_root)
+    fixture_evidence = multipart_fixture_gap(
+        row,
+        evidence=evidence,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    if fixture_evidence is not None and row["classification"] in CRITICAL_CATEGORIES:
+        row["classification"] = "multipart_fixture_gap"
+        row["technical_cause"] = (
+            "Multipart smoke fixture emitted an empty-argument ModSecurity operator, so the connector rejected "
+            "the generated rules before a live runtime result could be compared."
+        )
+        row["code_fix_needed"] = True
+        row["test_expectation_wrong"] = False
+        row["document_only"] = True
+        row["classification_note"] = fixture_evidence["note"]
+        row["classification_evidence"] = fixture_evidence
+    detection_only_evidence = with_mrts_detection_only_overlay(
+        row,
+        evidence=evidence,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    if detection_only_evidence is not None and row["classification"] in CRITICAL_CATEGORIES:
+        connector_label = {"apache": "Apache", "haproxy": "HAProxy", "nginx": "NGINX"}[row["connector"]]
+        classification_note = str(detection_only_evidence.get("note") or MRTS_DETECTION_ONLY_NOTE)
+        row["classification"] = MRTS_DETECTION_ONLY_CLASSIFICATION
+        row["technical_cause"] = (
+            f"{connector_label} with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; "
+            "the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay."
+        )
+        row["code_fix_needed"] = False
+        row["test_expectation_wrong"] = False
+        row["document_only"] = True
+        row["classification_note"] = classification_note
+        row["classification_evidence"] = detection_only_evidence
     return row
 
 

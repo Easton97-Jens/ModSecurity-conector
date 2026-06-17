@@ -1,68 +1,31 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T02:39:29Z`
+> Generated at: `2026-06-17T15:47:51Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
-> Framework SHA: `24509c107ecf3a22ae9d69875f661690bd6fb95b`
+> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
+> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
 > Input status: `complete`
 
-# MRTS Native Infrastructure Report
+# Combined native MRTS infrastructure evidence.
 
-Generated at: `2026-06-17T02:39:29Z`
+Status: `skipped_stale_input`
 
-## Executive Summary
-- PASS: **0**
-- FAIL: **2**
-- BLOCKED: **0**
-- NOT_RUN: **0**
+Reason: required generated input is stale
 
-## Split Native Reports
-- Apache native: `reports/testing/generated/mrts-native/mrts-native-apache.generated.md`
-- NGINX PR24 native: `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md`
-- Native summary: `reports/testing/generated/mrts-native/mrts-native-summary.generated.md`
-- Combined native report: `reports/testing/generated/mrts-native/mrts-native-full.generated.md`
+## Verified Command
 
-These native MRTS reports are separate from connector full-matrix evidence.
+| Command | Status | Return Code | Notes |
+|---|---|---:|---|
+| `/root/git/ModSecurity-conector/.venv/bin/python /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/generate-mrts-native-report.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --native-root /var/tmp/ModSecurity-conector-verified/build/mrts-native --output-root /root/git/ModSecurity-conector` | skipped_stale_input | - | required generated input is stale |
 
-## Native Target Summary
-| Target | Status | Classification | Critical blocker | Attempted | PASS | FAIL | BLOCKED | Reason | Run log | Summary |
-|---|---|---|---:|---:|---:|---:|---:|---|---|---|
-| apache2_ubuntu | FAIL | `optional_native_modsecurity_semantics_difference` | false | 13 | 12 | 1 | 0 | native MRTS go-ftw run failed | `$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log` | `$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json` |
-| nginx-pr24 | FAIL | `optional_native_modsecurity_semantics_difference` | false | 13 | 12 | 1 | 0 | native MRTS go-ftw run failed | `$MRTS_NATIVE_ROOT/nginx-pr24/run.log` | `$MRTS_NATIVE_ROOT/nginx-pr24/job.json` |
+## Rows
 
-## Apache2 Ubuntu Native Infra
-- Source: `$MRTS_ROOT/config_infra/apache2_ubuntu` staged under `MRTS_NATIVE_ROOT`.
-- Evidence is native MRTS infrastructure evidence and does not replace connector smoke evidence.
-
-## NGINX PR24 Native Infra
-- PR URL: https://github.com/owasp-modsecurity/MRTS/pull/24
-- PR number: 24
-- PR head SHA: `134ea7e35d72e7d72294b66d80dafa07daa5fc92`
-- Captured at UTC: `2026-06-09T15:18:21Z`
-- Upstream status: `open-pr`
-- Stability: `experimental`
-- Replacement note: replace with $MRTS_ROOT/config_infra/nginx_linux once merged upstream
-
-## Known Limitations
-- Phase 4 and RESPONSE_BODY native evidence remains non-promoted.
-- Missing native binaries, modules, go-ftw, or backend tooling is reported as BLOCKED.
-
-## Missing Dependency Remediation
-- No missing native dependencies were reported in this run.
-
-## Comparison Hints
-- Compare native MRTS results with connector smoke evidence by target and corpus.
-- Classification metadata explains gaps but never changes runtime PASS/FAIL/BLOCKED.
-
-## Guardrails
-- Native staging happens under `MRTS_NATIVE_ROOT`; repository sources are read-only inputs.
-- `tools/MRTS` and MRTS definitions are not edited by native report generation.
-- Generated MRTS rules, go-ftw YAML, load files, logs, and native results are not committed.
+_No rows available. Reason: producer command was not run or verified input is unavailable._
 
 ## Data Sources
 

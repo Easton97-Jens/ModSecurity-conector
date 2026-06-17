@@ -1,16 +1,16 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T02:38:33Z`
+> Generated at: `2026-06-17T15:48:19Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/run-verified-report-run.py`
 > Make target: `verified-report-run`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
-> Framework SHA: `24509c107ecf3a22ae9d69875f661690bd6fb95b`
+> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
+> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
 > MRTS SHA: `13aa91291adea12d5c607fdd165d010fcfb1da78`
-> Input status: `complete`
+> Input status: `blocked`
 
 # Verified Run Manifest
 
@@ -22,16 +22,16 @@
 | Data source policy | `verified-inputs-only` |
 | Profile | `full` |
 | Start time UTC | `2026-06-16T19:12:00Z` |
-| End time UTC | `2026-06-17T02:38:33Z` |
-| Duration seconds | `26793.0` |
-| Input status | `complete` |
+| End time UTC | `2026-06-17T15:48:19Z` |
+| Duration seconds | `74179.0` |
+| Input status | `blocked` |
 
 ## Runtime Environment
 
 | Field | Value |
 |---|---|
-| Connector SHA | `614c80493b6ebd25a17e1d27979071e5e30584d4` |
-| Framework SHA | `24509c107ecf3a22ae9d69875f661690bd6fb95b` |
+| Connector SHA | `dd6e0455c4838949ce86cff81ce89dccd4e524f8` |
+| Framework SHA | `ee23a10d5224401d9e63f28ad374969ac129e5f0` |
 | MRTS SHA | `13aa91291adea12d5c607fdd165d010fcfb1da78` |
 | Connector branch | `master` |
 | Framework branch | `master` |
@@ -175,12 +175,26 @@
 | `make mrts-native-full-run-runtime` | FAILED_OPTIONAL | 2 | 50.088 | runtime_completed | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/06-make-mrts-native-full-run-runtime.log` |
 | `make generate-verified-runtime-mismatch-analysis` | PASS | 0 | 1.721 | - | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/07-make-generate-verified-runtime-mismatch-analysis.log` |
 | `make full-matrix-single-job-runtime CONNECTOR=nginx CRS=with-crs MRTS=with-mrts` | FAIL | 2 | 3600.006 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/08-make-full-matrix-single-job-runtime-CONNECTOR-nginx-CRS-with-crs-MRTS-with-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=apache CRS=no-crs MRTS=no-mrts` | FAIL | 2 | 662.744 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/19-make-full-matrix-single-job-runtime-CONNECTOR-apache-CRS-no-crs-MRTS-no-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=apache CRS=no-crs MRTS=with-mrts` | FAIL | 2 | 1593.675 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/21-make-full-matrix-single-job-runtime-CONNECTOR-apache-CRS-no-crs-MRTS-with-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=apache CRS=with-crs MRTS=no-mrts` | FAIL | 2 | 687.44 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/23-make-full-matrix-single-job-runtime-CONNECTOR-apache-CRS-with-crs-MRTS-no-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=apache CRS=with-crs MRTS=with-mrts` | FAIL | 2 | 1707.546 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/25-make-full-matrix-single-job-runtime-CONNECTOR-apache-CRS-with-crs-MRTS-with-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=nginx CRS=no-crs MRTS=no-mrts` | FAIL | 2 | 877.15 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/27-make-full-matrix-single-job-runtime-CONNECTOR-nginx-CRS-no-crs-MRTS-no-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=nginx CRS=no-crs MRTS=with-mrts` | FAIL | 2 | 3523.191 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/29-make-full-matrix-single-job-runtime-CONNECTOR-nginx-CRS-no-crs-MRTS-with-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=nginx CRS=with-crs MRTS=no-mrts` | FAIL | 2 | 934.575 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/31-make-full-matrix-single-job-runtime-CONNECTOR-nginx-CRS-with-crs-MRTS-no-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=nginx CRS=with-crs MRTS=with-mrts` | FAIL | 2 | 3660.01 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/33-make-full-matrix-single-job-runtime-CONNECTOR-nginx-CRS-with-crs-MRTS-with-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=haproxy CRS=no-crs MRTS=no-mrts` | FAIL | 2 | 617.9 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/35-make-full-matrix-single-job-runtime-CONNECTOR-haproxy-CRS-no-crs-MRTS-no-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=haproxy CRS=no-crs MRTS=with-mrts` | FAIL | 2 | 1412.258 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/37-make-full-matrix-single-job-runtime-CONNECTOR-haproxy-CRS-no-crs-MRTS-with-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=haproxy CRS=with-crs MRTS=no-mrts` | FAIL | 2 | 650.082 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/39-make-full-matrix-single-job-runtime-CONNECTOR-haproxy-CRS-with-crs-MRTS-no-mrts.log` |
+| `make full-matrix-single-job-runtime CONNECTOR=haproxy CRS=with-crs MRTS=with-mrts` | FAIL | 2 | 1510.347 | completed_with_mismatches | - | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/41-make-full-matrix-single-job-runtime-CONNECTOR-haproxy-CRS-with-crs-MRTS-with-mrts.log` |
 
 ## Consumer / Refresh Commands
 
 | Command | Status | RC | Duration | Runtime Status | Refresh Status | Log |
 |---|---:|---:|---:|---|---|---|
-| `-` | not_run | - | - | - | - | `-` |
+| `make refresh-all-reports` | FAIL | 2 | 33.131 | - | consumer_stale | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/43-make-refresh-all-reports.log` |
+| `make generate-system-environment-proof` | FAIL | 2 | 55.57 | - | refresh_failed | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/44-make-generate-system-environment-proof.log` |
+| `make refresh-all-reports` | FAIL | 2 | 52.236 | - | consumer_stale | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/45-make-refresh-all-reports.log` |
 
 ## Checks
 
@@ -207,18 +221,18 @@
 
 | Slowest Job | Duration Seconds | Status |
 |---|---:|---|
-| `nginx:with-crs:with-mrts` | 3593 | completed_with_mismatches |
-| `nginx:no-crs:with-mrts` | 3391 | completed_with_mismatches |
-| `apache:with-crs:with-mrts` | 1502 | completed_with_mismatches |
-| `apache:no-crs:with-mrts` | 1378 | completed_with_mismatches |
-| `haproxy:with-crs:with-mrts` | 1360 | completed_with_mismatches |
+| `nginx:with-crs:with-mrts` | 3419 | completed_with_mismatches |
+| `nginx:no-crs:with-mrts` | 3200 | completed_with_mismatches |
+| `apache:with-crs:with-mrts` | 1383 | completed_with_mismatches |
+| `apache:no-crs:with-mrts` | 1270 | completed_with_mismatches |
+| `haproxy:with-crs:with-mrts` | 1185 | completed_with_mismatches |
 
 ## Runtime Mismatch Summary
 
 | Field | Value |
 |---|---|
-| Total mismatches | `854` |
-| Critical mismatches | `764` |
+| Total mismatches | `836` |
+| Critical mismatches | `264` |
 | Top connector | `nginx` |
 | Primary blocker | `completed_with_mismatches` |
 | Merge readiness | `FAIL` |
@@ -227,7 +241,14 @@
 
 | Item | Status | Reason | Affected Reports |
 |---|---|---|---|
-| `-` | zero_result_verified | No missing, skipped, blocked, stale, or failed reports were recorded. | - |
+| `native_mrts_reports` | skipped_stale_input | required generated input is stale | reports/testing/generated/mrts-native/mrts-native-full.generated.json, reports/testing/generated/mrts-native/mrts-native-full.generated.md, reports/testing/generated/mrts-native/mrts-native-apache.generated.json, reports/testing/generated/mrts-native/mrts-native-apache.generated.md, reports/testing/generated/mrts-native/mrts-native-nginx.generated.json, reports/testing/generated/mrts-native/mrts-native-nginx.generated.md, reports/testing/generated/mrts-native/mrts-native-summary.generated.json, reports/testing/generated/mrts-native/mrts-native-summary.generated.md |
+| `phase4_hard_abort_capability` | blocked | required generated input is blocked | reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json, reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md, reports/testing/generated/work-queues/phase-work-queue.generated.json, reports/testing/generated/work-queues/phase-work-queue.generated.md |
+| `remaining_failure_analysis` | blocked | required generated input is blocked | reports/testing/generated/canonical/remaining-failure-analysis.generated.json, reports/testing/generated/canonical/remaining-failure-analysis.generated.md, reports/testing/generated/canonical/next-fix-plan.generated.json, reports/testing/generated/canonical/next-fix-plan.generated.md, reports/testing/generated/canonical/full-run-evidence.generated.json, reports/testing/generated/canonical/full-run-evidence.generated.md |
+| `intervention_blocking_analysis` | blocked | required generated input is blocked | reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json, reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md |
+| `no_mrts_intervention_nomatch_analysis` | blocked | required generated input is blocked | reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json, reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md |
+| `body_processor_analysis` | blocked | required generated input is blocked | reports/testing/generated/focused-analysis/body-processor-analysis.generated.json, reports/testing/generated/focused-analysis/body-processor-analysis.generated.md |
+| `rule_chain_semantics_analysis` | blocked | required generated input is blocked | reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json, reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md |
+| `final_consistency_audit` | blocked | required generated input is blocked | reports/testing/generated/canonical/final-consistency-audit.generated.json, reports/testing/generated/canonical/final-consistency-audit.generated.md |
 
 ## Tool Versions
 
@@ -258,8 +279,8 @@
 
 | Repository | SHA | Branch | Dirty Status |
 |---|---|---|---|
-| connector | `614c80493b6ebd25a17e1d27979071e5e30584d4` | `master` | `dirty` |
-| framework | `24509c107ecf3a22ae9d69875f661690bd6fb95b` | `master` | `dirty` |
+| connector | `dd6e0455c4838949ce86cff81ce89dccd4e524f8` | `master` | `dirty` |
+| framework | `ee23a10d5224401d9e63f28ad374969ac129e5f0` | `master` | `dirty` |
 | MRTS | `13aa91291adea12d5c607fdd165d010fcfb1da78` | `HEAD` | `dirty` |
 
 ## Proof Summary
@@ -274,10 +295,10 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `cbdb375cdfd0974fcdb515076272ae2edc7a4f78fcf56e02e35c944f5d2c56c7` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `5784ed74599b6eba223064e70397e5ab9e9ec7dfa4333942c4bc32890e94bfe2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/system-environment-proof.generated.json` | `463409b8922bb2de4f6cfac35701b087db2b251f17684d1da604e91fa8c80b01` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `eae9308c2f3172281bd18a885deddbf0351215235e81532fc76c8c8bb6fe33b9` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `0bb9214483188e3b133bf05175593346bc03e690b5a1b9c3b2bf0a2b0cff9999` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/system-environment-proof.generated.json` | `e0b0211225f5cb7aad9cb724a7819810b0c43de8fa0c5ca436f407267d8d1b24` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `4bcd8974231779d1a792c923d74e43a534a689110fda69bf619eede9a5098508` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

@@ -1,15 +1,15 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T02:40:01Z`
+> Generated at: `2026-06-17T15:47:58Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
-> Make target: `generate-remaining-failure-analysis`
+> Make target: `refresh-connector-reports`
 > Owner: `connector`
-> Severity: `important`
-> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
-> Framework SHA: `24509c107ecf3a22ae9d69875f661690bd6fb95b`
-> Input status: `complete`
+> Severity: `critical`
+> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
+> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
+> Input status: `blocked`
 
 # Evidence rollup shared by focused analysis and consistency checks.
 
@@ -31,9 +31,10 @@ _No rows available. Reason: producer command was not run or verified input is un
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `676cc8d9b51b9294387e0b73fe8a7ff1f78a4fe5ff268f5996cb1967b906c576` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `7d7a581758867799859f481971e56c0e7da57ca399f5a7e016b2ce839ac83063` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `b21bba0ae1115efd9761ed2317324b8e142f221801b35359b024704fb2e4c657` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `b73e9279de250d71c12b771bc4c24bb4b712dac0fed0008c60f6075116916797` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c747640b424f6aa6fbbf98f07407ce1dfc47c8ae2295220454554acdd5e70aa8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `29210f6193c70c53ff0d6fb934005c9e2f29129f88cb322eabb328198ae25dbf` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `eb9242e77b1ed5456b66e3a9ccb94ffff873edf23b955d35254937cb8b77c040` | `2026-06-16T19-12-00Z-614c8049` | skipped_stale_input |
 
 ## Data Availability / Missing Information
 
@@ -42,23 +43,4 @@ _No rows available. Reason: producer command was not run or verified input is un
 | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | present | input file available |
 | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | present | input file available |
 | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
-
-## MRTS Native Summary
-- Report generated at: `-`
-- Native MRTS evidence is separate from connector runtime matrix evidence.
-
-| Target | Status | Exit code | Attempted | PASS | FAIL | BLOCKED | Reason | Run log | Summary |
-|---|---|---:|---:|---:|---:|---:|---|---|---|
-| apache2_ubuntu | NOT_RUN | - | 0 | 0 | 0 | 0 | - | `-` | `-` |
-| nginx-pr24 | NOT_RUN | - | 0 | 0 | 0 | 0 | - | `-` | `-` |
-
-<!-- mrts-native-infrastructure-evidence:start -->
-## MRTS Native Infrastructure Evidence
-
-- Apache native: `reports/testing/generated/mrts-native/mrts-native-apache.generated.md`
-- NGINX PR24 native: `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md`
-- Native summary: `reports/testing/generated/mrts-native/mrts-native-summary.generated.md`
-- Combined native report: `reports/testing/generated/mrts-native/mrts-native-full.generated.md`
-
-These native MRTS reports are separate from connector full-matrix evidence.
-<!-- mrts-native-infrastructure-evidence:end -->
+| `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | skipped_stale_input | generated report input is not usable: status=skipped_stale_input |

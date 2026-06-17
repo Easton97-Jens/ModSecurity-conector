@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T02:44:44Z`
+> Generated at: `2026-06-17T15:19:04Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/prepare-runtime-components.py`
 > Make target: `prepare-runtime-components`
 > Owner: `cache`
 > Severity: `cache`
-> Connector SHA: `614c80493b6ebd25a17e1d27979071e5e30584d4`
+> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
 > Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
 > Input status: `complete`
 
 # Runtime Component Cache
 
-Generated at: `2026-06-17T02:44:44Z`
+Generated at: `2026-06-17T15:19:04Z`
 Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 
 ## Prepare Phases
@@ -106,11 +106,11 @@ Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 ## Git Components
 | Name | Status | Ref | Head | Submodules | fsck | Blocker |
 |---|---|---|---|---:|---|---|
-| modsecurity-v3 | present | `v3/master` | `2fd49292d751fc383b8faf7da6a8d480904774d0` | 8 | PASS | - |
-| coreruleset | present | `v4.26.0` | `955649c1221633cc3ea63674904e94fbc5fb6356` | 0 | PASS | - |
-| go-ftw | present | `v2.4.0` | `23db497e3a6133888fcd5e087b8cf456556df041` | 0 | PASS | - |
-| albedo | present | `v0.3.0` | `3f7d0238b32d1f98059f5c70e0ffcafad514952c` | 0 | PASS | - |
-| expat | present | `R_2_8_1` | `c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19` | 0 | PASS | - |
+| modsecurity-v3 | present | `v3/master` | `2fd49292d751fc383b8faf7da6a8d480904774d0` | 8 | SKIPPED_CACHED_PASS | - |
+| coreruleset | present | `v4.26.0` | `955649c1221633cc3ea63674904e94fbc5fb6356` | 0 | SKIPPED_CACHED_PASS | - |
+| go-ftw | present | `v2.4.0` | `23db497e3a6133888fcd5e087b8cf456556df041` | 0 | SKIPPED_CACHED_PASS | - |
+| albedo | present | `v0.3.0` | `3f7d0238b32d1f98059f5c70e0ffcafad514952c` | 0 | SKIPPED_CACHED_PASS | - |
+| expat | present | `R_2_8_1` | `c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19` | 0 | SKIPPED_CACHED_PASS | - |
 
 ## Archives
 | Name | Status | Checksum | Path | Blocker |
@@ -146,7 +146,7 @@ Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `b2d52ba128ed49f0a99053acfb8d9fde2ef7a8f5811b1556cf53023f27f22d05` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `6c65674a7b58c4b3beb6d65a1a1d8b1d4054a728148a8be7fd9671be3ce53d27` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
