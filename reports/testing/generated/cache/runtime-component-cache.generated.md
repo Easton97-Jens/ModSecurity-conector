@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-16T18:55:12Z`
-> Verified run id: `2026-06-16T16-57-44Z-b53340a8`
+> Generated at: `2026-06-17T15:19:04Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/prepare-runtime-components.py`
 > Make target: `prepare-runtime-components`
 > Owner: `cache`
 > Severity: `cache`
-> Connector SHA: `b53340a84f9acd5fbc3aff3de136c92ac122c3fa`
-> Framework SHA: `2b2e402708fca5ff40664926ff01c2c5e520a48a`
+> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
+> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
 > Input status: `complete`
 
 # Runtime Component Cache
 
-Generated at: `2026-06-16T18:55:12Z`
+Generated at: `2026-06-17T15:19:04Z`
 Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 
 ## Prepare Phases
@@ -80,11 +80,11 @@ Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 ## HAProxy
 - Status: `reused`
 - Blocker: `-`
-- Connector build ID: `3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d`
+- Connector build ID: `599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048`
 - Uses ModSecurity build ID: `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72`
-- HAPROXY_BIN: `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy`
-- SPOA_RUNTIME_BIN: `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa`
-- MODSECURITY_BINDING_DIR: `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-modsecurity-binding`
+- HAPROXY_BIN: `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy`
+- SPOA_RUNTIME_BIN: `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa`
+- MODSECURITY_BINDING_DIR: `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-modsecurity-binding`
 
 ## Expat
 - Status: `present`
@@ -106,11 +106,11 @@ Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 ## Git Components
 | Name | Status | Ref | Head | Submodules | fsck | Blocker |
 |---|---|---|---|---:|---|---|
-| modsecurity-v3 | present | `v3/master` | `2fd49292d751fc383b8faf7da6a8d480904774d0` | 8 | PASS | - |
-| coreruleset | present | `v4.26.0` | `955649c1221633cc3ea63674904e94fbc5fb6356` | 0 | PASS | - |
-| go-ftw | present | `v2.4.0` | `23db497e3a6133888fcd5e087b8cf456556df041` | 0 | PASS | - |
-| albedo | present | `v0.3.0` | `3f7d0238b32d1f98059f5c70e0ffcafad514952c` | 0 | PASS | - |
-| expat | present | `R_2_8_1` | `c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19` | 0 | PASS | - |
+| modsecurity-v3 | present | `v3/master` | `2fd49292d751fc383b8faf7da6a8d480904774d0` | 8 | SKIPPED_CACHED_PASS | - |
+| coreruleset | present | `v4.26.0` | `955649c1221633cc3ea63674904e94fbc5fb6356` | 0 | SKIPPED_CACHED_PASS | - |
+| go-ftw | present | `v2.4.0` | `23db497e3a6133888fcd5e087b8cf456556df041` | 0 | SKIPPED_CACHED_PASS | - |
+| albedo | present | `v0.3.0` | `3f7d0238b32d1f98059f5c70e0ffcafad514952c` | 0 | SKIPPED_CACHED_PASS | - |
+| expat | present | `R_2_8_1` | `c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19` | 0 | SKIPPED_CACHED_PASS | - |
 
 ## Archives
 | Name | Status | Checksum | Path | Blocker |
@@ -132,8 +132,8 @@ Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 | apachectl | present | `APACHECTL_BIN` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/apachectl-mrts` | local-wrapper/read-only-executable |
 | nginx | present | `MRTS_NATIVE_NGINX_BIN` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/sbin/nginx` | local-build/read-only-executable |
 | ngx_http_modsecurity_module.so | present | `MRTS_NATIVE_NGINX_MODULE_DIR` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/nginx/d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12/nginx/modules/ngx_http_modsecurity_module.so` | local-build/module-reference |
-| haproxy | present | `HAPROXY_BIN` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-runtime/haproxy/sbin/haproxy` | local-build/read-only-executable |
-| haproxy-modsecurity-spoa | present | `SPOA_RUNTIME_BIN` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d/haproxy-spoa-runtime/haproxy-modsecurity-spoa` | local-build/read-only-executable |
+| haproxy | present | `HAPROXY_BIN` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-runtime/haproxy/sbin/haproxy` | local-build/read-only-executable |
+| haproxy-modsecurity-spoa | present | `SPOA_RUNTIME_BIN` | `/var/tmp/ModSecurity-conector-verified/component-cache/builds/connectors/haproxy/599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048/haproxy-spoa-runtime/haproxy-modsecurity-spoa` | local-build/read-only-executable |
 
 ## Guardrails
 - System paths are not used for runtime component writes.
@@ -146,7 +146,7 @@ Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `c43ce0fc302eadf9202ff5514d99b27f433d520bc39f1438f850cac0d7467a77` | `2026-06-16T16-57-44Z-b53340a8` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `6c65674a7b58c4b3beb6d65a1a1d8b1d4054a728148a8be7fd9671be3ce53d27` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
@@ -221,7 +221,7 @@ Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 |---|---|---|---|---|
 | apache | reused | `898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67` | `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72` | - |
 | nginx | reused | `d2677435815a2aede4a9886c78a8bc4c79d43ddaa387735b77e0ea9480e32f12` | `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72` | - |
-| haproxy | reused | `3df6f06e06e8ec8079230edef2cefc065c9ff4cec090bbf32ab4844547089f5d` | `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72` | - |
+| haproxy | reused | `599b09c9a142d357cf043c4b2046ec7dee4f3585edab18520c52968b06936048` | `0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72` | - |
 <!-- runtime-build-cache:end -->
 
 <!-- runtime-diagnostics:start -->

@@ -709,6 +709,15 @@ def git_dirty(root: Path | None) -> str:
     return "dirty" if result.stdout.strip() else "clean"
 
 
+def infer_framework_root(connector_root: Path, framework_root: Path | None = None) -> Path | None:
+    if framework_root is not None:
+        return framework_root
+    candidate = connector_root / "modules/ModSecurity-test-Framework"
+    if candidate.exists():
+        return candidate
+    return None
+
+
 def is_regular_file(path: Path) -> bool:
     try:
         return stat.S_ISREG(path.stat(follow_symlinks=False).st_mode)
@@ -1001,6 +1010,7 @@ def build_metadata(
     report_key: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    framework_root = infer_framework_root(connector_root, framework_root)
     records = input_records(inputs, connector_root, framework_root)
     registry_key = report_key or infer_report_key(generated_by, make_target)
     registry = registry_record(registry_key) if registry_key else {}

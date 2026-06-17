@@ -43,6 +43,8 @@ MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 export MODSECURITY_TEST_VARIANT
 
+. "$FRAMEWORK_ROOT/ci/common.sh"
+
 CONNECTOR_ORIGIN_SOURCE="${CONNECTOR_ORIGIN_SOURCE:-}"
 CONNECTOR_ORIGIN_SOURCE_REPO="${CONNECTOR_ORIGIN_SOURCE_REPO:-}"
 CONNECTOR_ORIGIN_SOURCE_URL="${CONNECTOR_ORIGIN_SOURCE_URL:-}"
@@ -87,21 +89,48 @@ require_absolute() {
     esac
 }
 
+path_is_under_any_root() {
+    path=$1
+    shift
+    for root in "$@"; do
+        [ -n "$root" ] || continue
+        case "$path" in
+            "$root"|"$root"/*) return 0 ;;
+        esac
+    done
+    return 1
+}
+
+require_not_system_or_root_path() {
+    path=$1
+    label=$2
+    if ci_path_is_system_path "$path"; then
+        blocked "$label must not use a system path: $path"
+    fi
+    case "$path" in
+        /root|/root/*) blocked "$label must not use /root runtime paths: $path" ;;
+    esac
+}
+
 require_under_source_root() {
     path=$1
     label=$2
     state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
 
     require_absolute "$path" "$label"
+    require_not_system_or_root_path "$path" "$label"
     case "$path" in
         /src|/src/*) return 0 ;;
     esac
-    if [ -n "$state_root" ]; then
-        case "$path" in
-            "$state_root"|"$state_root"/*) return 0 ;;
-        esac
+    if path_is_under_any_root "$path" \
+        "$VERIFIED_RUN_ROOT" \
+        "$VERIFIED_SOURCE_ROOT" \
+        "$CONNECTOR_COMPONENT_CACHE" \
+        "$VERIFIED_COMPONENT_CACHE" \
+        "$state_root"; then
+        return 0
     fi
-    blocked "$label must be under /src or XDG state home: $path"
+    blocked "$label must be under /src, VERIFIED_RUN_ROOT, CONNECTOR_COMPONENT_CACHE, or XDG state home: $path"
 }
 
 require_under_runtime_root() {
@@ -110,15 +139,18 @@ require_under_runtime_root() {
     state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
 
     require_absolute "$path" "$label"
+    require_not_system_or_root_path "$path" "$label"
     case "$path" in
         /src|/src/*|/tmp|/tmp/*) return 0 ;;
     esac
-    if [ -n "$state_root" ]; then
-        case "$path" in
-            "$state_root"|"$state_root"/*) return 0 ;;
-        esac
+    if path_is_under_any_root "$path" \
+        "$VERIFIED_RUN_ROOT" \
+        "$CONNECTOR_COMPONENT_CACHE" \
+        "$VERIFIED_COMPONENT_CACHE" \
+        "$state_root"; then
+        return 0
     fi
-    blocked "$label must be under /src, /tmp, or XDG state home: $path"
+    blocked "$label must be under /src, /tmp, VERIFIED_RUN_ROOT, CONNECTOR_COMPONENT_CACHE, or XDG state home: $path"
 }
 
 require_under_build_root() {
@@ -141,6 +173,12 @@ require_generated_roots() {
     require_under_build_root "$RUNTIME_BASE" RUNTIME_BASE
     [ -f "$CASE_CLI" ] || blocked "shared case CLI missing: $CASE_CLI"
 }
+
+if [ "${HAPROXY_SMOKE_POLICY_SELFTEST:-0}" = "1" ]; then
+    require_generated_roots
+    echo "haproxy_smoke: path-policy-selftest PASS"
+    exit 0
+fi
 
 find_curl() {
     if [ -n "$CURL_BIN" ]; then

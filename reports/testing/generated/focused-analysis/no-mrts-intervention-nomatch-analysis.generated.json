@@ -11,64 +11,64 @@
   ],
   "data_source_policy": "verified-inputs-only",
   "empty_reason": "producer command was not run or verified input is unavailable",
-  "generated_at": "2026-06-16T18:58:45Z",
+  "generated_at": "2026-06-17T15:48:01Z",
   "generator": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
   "make_target": "generate-no-mrts-intervention-nomatch-analysis",
   "metadata": {
     "blocked_reason": "required generated input is blocked",
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
+    "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+    "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-16T18:58:45Z",
+    "generated_at": "2026-06-17T15:48:01Z",
     "generated_by": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "blocked",
     "inputs": [
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "notes": "generated report input is not usable: status=blocked",
         "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "sha256": "a20c5dd83c2a4ab1b072d6f61a472e55a675a8be48212b1bf108621e052f6e69",
-        "source_hash": "a20c5dd83c2a4ab1b072d6f61a472e55a675a8be48212b1bf108621e052f6e69",
-        "status": "skipped_stale_input",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "68692c6831e04ee96e716010e2d8cfee87fc5351914df21816c508f6346e77e4",
+        "source_hash": "68692c6831e04ee96e716010e2d8cfee87fc5351914df21816c508f6346e77e4",
+        "status": "blocked",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "2b2e402708fca5ff40664926ff01c2c5e520a48a",
+        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
-        "source_hash": "f2c570c502a53acd154797e1b2b9bc6d6b2b49f76de90402a9a13b3d47d5077d",
+        "sha256": "b73e9279de250d71c12b771bc4c24bb4b712dac0fed0008c60f6075116916797",
+        "source_hash": "b73e9279de250d71c12b771bc4c24bb4b712dac0fed0008c60f6075116916797",
         "status": "present",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
+        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "notes": "generated report input is not usable: status=blocked",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "7bbf04c71c0bf6a56e892371205db4618f97e091458c0073ac41952a956eb205",
-        "source_hash": "7bbf04c71c0bf6a56e892371205db4618f97e091458c0073ac41952a956eb205",
-        "status": "stale",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "781564315ab245d2dd9d89e2ed9445f71d222553697e36daec83189a8d3d998b",
+        "source_hash": "781564315ab245d2dd9d89e2ed9445f71d222553697e36daec83189a8d3d998b",
+        "status": "blocked",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "b53340a84f9acd5fbc3aff3de136c92ac122c3fa",
-        "framework_sha": "unknown",
-        "notes": "generated report input is stale: framework_sha differs",
+        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "notes": "generated report input is not usable: status=blocked",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560",
-        "source_hash": "f6134d5f7cc94e181c222e627cd7b4f3bb0a95a9ef85e0b63fb5b55b85268560",
-        "status": "stale",
-        "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+        "sha256": "18f53c9539c3c8d74bd89e6549062846275bbb678857522f3f76ab99af603989",
+        "source_hash": "18f53c9539c3c8d74bd89e6549062846275bbb678857522f3f76ab99af603989",
+        "status": "blocked",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
     "make_target": "generate-no-mrts-intervention-nomatch-analysis",
@@ -79,7 +79,7 @@
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-16T16-57-44Z-b53340a8",
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
   "reason": "required generated input is blocked",
@@ -87,5 +87,5 @@
   "report_name": "no_mrts_intervention_nomatch_analysis",
   "rows": [],
   "status": "blocked",
-  "verified_run_id": "2026-06-16T16-57-44Z-b53340a8"
+  "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
 }

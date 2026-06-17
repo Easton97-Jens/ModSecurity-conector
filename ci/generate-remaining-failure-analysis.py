@@ -9,7 +9,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from generated_report_utils import GENERATED_ROOT, build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, report_relpath
+from generated_report_utils import (
+    GENERATED_ROOT,
+    build_metadata,
+    current_verified_run_id,
+    generated_json_text,
+    generated_markdown_text,
+    report_path_from_root,
+    report_relpath,
+)
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, resolve_output_dir, safe_existing_file, write_json_file, write_text_file
 
 try:
@@ -1043,15 +1051,30 @@ def render_plan_markdown(plan: dict[str, Any], generated_at: str, recommendation
     return "\n".join(lines) + "\n"
 
 
-def update_full_run_evidence(report_dir: Path) -> None:
-    connector_root = report_dir.parents[2]
+def update_full_run_evidence(report_dir: Path, connector_root: Path) -> None:
     json_path = report_path_from_root(report_dir, "full_run_evidence", "json")
+    generated_at = utc_now()
     data = read_json(json_path) or {
-        "generated_at": utc_now(),
         "report_kind": "full-run-evidence",
         "reports": [],
         "notes": ["Evidence rollup created by remaining-failure-analysis because no categorized rollup existed yet."],
     }
+    for stale_key in (
+        "status",
+        "reason",
+        "empty_reason",
+        "report_key",
+        "report_name",
+        "rows",
+        "command",
+        "generator",
+        "make_target",
+    ):
+        data.pop(stale_key, None)
+    data["status"] = "generated"
+    data["report_kind"] = "full-run-evidence"
+    data["generated_at"] = generated_at
+    data["verified_run_id"] = current_verified_run_id(connector_root)
     data["remaining_failure_analysis_reports"] = {
         "analysis": report_relpath("remaining_failure_analysis", "md"),
         "next_fix_plan": report_relpath("next_fix_plan", "md"),
@@ -1082,7 +1105,7 @@ def update_full_run_evidence(report_dir: Path) -> None:
         make_target="generate-remaining-failure-analysis",
         connector_root=connector_root,
         inputs=SOURCE_REPORT_INPUTS[:3],
-        generated_at=str(data.get("generated_at") or utc_now()),
+        generated_at=generated_at,
     )
     write_text_file(json_path, generated_json_text(data, metadata))
 
@@ -1156,7 +1179,7 @@ def main() -> int:
     write_text_file(analysis_md, generated_markdown_text(render_analysis_markdown(analysis), analysis_metadata))
     write_text_file(plan_json, generated_json_text(plan, plan_metadata))
     write_text_file(plan_md, generated_markdown_text(render_plan_markdown(plan["priority_plan"], plan["generated_at"], plan["recommendation"]), plan_metadata))
-    update_full_run_evidence(output_dir)
+    update_full_run_evidence(output_dir, connector_root)
     print(analysis_md)
     print(plan_md)
     return 0
