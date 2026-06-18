@@ -1,17 +1,26 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T15:46:26Z`
+> Generated at: `2026-06-18T16:58:56Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-system-environment-proof.py`
 > Make target: `generate-system-environment-proof`
 > Owner: `system`
 > Severity: `critical`
-> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
-> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # System Environment Proof
+
+## Proof Status
+
+| Field | Value |
+|---|---|
+| Proof generation status | `PASS` |
+| Embedded strict evidence gate | `FAIL` |
+| Overall target status | `FAIL` |
+| Strict gate reason | check-generated-report-layout: FAIL; - full-matrix critical mismatches detected: 107; merge dashboard cannot PASS |
 
 ## OS / System
 
@@ -50,8 +59,8 @@
 | MRTS_BUILD_ROOT | `/var/tmp/ModSecurity-conector-verified/build/mrts` |
 | MRTS_NATIVE_ROOT | `/var/tmp/ModSecurity-conector-verified/build/mrts-native` |
 | VERIFIED_RUN_ID | `2026-06-16T19-12-00Z-614c8049` |
-| VERIFIED_RUN_PROFILE | `full` |
-| VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS | `7200` |
+| VERIFIED_RUN_PROFILE | `unset` |
+| VERIFIED_RUN_FULL_MATRIX_TIMEOUT_SECONDS | `unset` |
 | GO_FTW_BIN | `go-ftw` |
 | GO_FTW_SOURCE_URL | `https://github.com/coreruleset/go-ftw` |
 | GO_FTW_PROMPT_EXPECTED_LATEST | `v2.2.0` |
@@ -139,10 +148,10 @@
 
 | Producer | Required | Status | Missing Tools | Missing Paths | How to Fix |
 |---|---|---|---|---|---|
-| prepare-runtime-components | True | PASS | - | `BUILD_ROOT=/var/tmp/ModSecurity-conector-verified/build`<br>`SOURCE_ROOT=/var/tmp/ModSecurity-conector-verified/src`<br>`CONNECTOR_COMPONENT_CACHE=/var/tmp/ModSecurity-conector-verified/component-cache` | `ensure VERIFIED_RUN_ROOT points outside /root and rerun make prepare-runtime-components` |
-| runtime-matrix-all | True | FAIL | - | `BUILD_ROOT=/var/tmp/ModSecurity-conector-verified/build`<br>`TMP_ROOT=/var/tmp/ModSecurity-conector-verified/tmp`<br>`LOG_ROOT=/var/tmp/ModSecurity-conector-verified/logs`<br>`NGINX_HARNESS_PARENT=/var/tmp/ModSecurity-conector-verified/nginx-harness` | `run make runtime-matrix-all after prepare-runtime-components; inspect the verified command log on BLOCKED/FAIL` |
-| full-matrix-parallel | True | BLOCKED_TIMEOUT | - | `MATRIX_ROOT=/var/tmp/ModSecurity-conector-verified/build/full-matrix` | `increase VERIFIED_RUN_FULL_MATRIX_RUNTIME_TIMEOUT_SECONDS and rerun make verified-report-run` |
-| mrts-native-full-run | False | FAILED_OPTIONAL | go-ftw, albedo, apachectl, apache/httpd, nginx, apxs | `MRTS_NATIVE_ROOT=/var/tmp/ModSecurity-conector-verified/build/mrts-native` | `install optional go-ftw/albedo/native webserver tooling or leave native MRTS as optional WARN evidence` |
+| prepare-runtime-components | True | not_run | - | `BUILD_ROOT=/var/tmp/ModSecurity-conector-verified/build`<br>`SOURCE_ROOT=/var/tmp/ModSecurity-conector-verified/src`<br>`CONNECTOR_COMPONENT_CACHE=/var/tmp/ModSecurity-conector-verified/component-cache` | `ensure VERIFIED_RUN_ROOT points outside /root and rerun make prepare-runtime-components` |
+| runtime-matrix-all | True | not_run | - | `BUILD_ROOT=/var/tmp/ModSecurity-conector-verified/build`<br>`TMP_ROOT=/var/tmp/ModSecurity-conector-verified/tmp`<br>`LOG_ROOT=/var/tmp/ModSecurity-conector-verified/logs`<br>`NGINX_HARNESS_PARENT=/var/tmp/ModSecurity-conector-verified/nginx-harness` | `run make runtime-matrix-all after prepare-runtime-components; inspect the verified command log on BLOCKED/FAIL` |
+| full-matrix-parallel | True | not_run | - | `MATRIX_ROOT=/var/tmp/ModSecurity-conector-verified/build/full-matrix` | `run make verified-report-run with safe BUILD_ROOT/MATRIX_ROOT paths` |
+| mrts-native-full-run | False | not_run | go-ftw, albedo, apachectl, apache/httpd, nginx, apxs | `MRTS_NATIVE_ROOT=/var/tmp/ModSecurity-conector-verified/build/mrts-native` | `install optional go-ftw/albedo/native webserver tooling or leave native MRTS as optional WARN evidence` |
 
 ## Runtime Network / Cache Readiness
 
@@ -179,42 +188,42 @@
 
 | Command | Status | Return Code | Duration | Notes |
 |---|---|---:|---:|---|
-| `make refresh-connector-reports` | PASS | 0 | 41.056 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
-| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.278 | - reports/testing/generated/manifest/report-refresh-m |
-| `make lint` | PASS | 0 | 5.003 | make[2]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make quick-check` | PASS | 0 | 6.001 | make[2]: Leaving directory '/root/git/ModSecurity-conector' |
-| `git status --short` | PASS | 0 | 0.032 |  M reports/testing/generated/manifest/report-refresh-manifest.g |
+| `make refresh-connector-reports` | PASS | 0 | 75.303 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
+| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.378 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `make lint` | PASS | 0 | 5.211 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `make quick-check` | PASS | 0 | 6.138 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `git status --short` | PASS | 0 | 0.102 |  M reports/testing/generated/manifest/report-freshness.generated.js |
 
 ## Report Layout Evidence
 
 | Metric | Value |
 |---|---|
-| Generated report files | 72 |
+| Generated report files | 76 |
 | Flat files in generated root | 0 |
 | Categories | 8 (cache, canonical, coverage, focused-analysis, manifest, mrts-native, runtime, work-queues) |
 | Missing registry outputs | 0 |
 | Orphan generated reports | 0 |
-| Skipped reports | 1 |
+| Skipped reports | 0 |
 | Failed reports | 0 |
 
 ## Known Skipped Inputs
 
 | Report | Status | Missing Inputs | Reason |
 |---|---|---|---|
-| `native_mrts_reports` | skipped_stale_input | - | local optional inputs are missing or unavailable |
+| `-` | none | - | no skipped reports |
 
 ## Git Evidence
 
 | Command | Status | Return Code | Output Hash |
 |---|---|---:|---|
-| `git_status_short` | PASS | 0 | `47aecaf664fb268d77d7d515b3764cfc71023c32d5823344b3af8509040b343f` |
-| `git_head` | PASS | 0 | `b5f0700584e619f73d4eddbf330a7c60272d8edcad57c0bdff9403d0c4dea123` |
+| `git_status_short` | PASS | 0 | `1d11d2b09f58e17169de822599b761387d27cd02de0a162ca566313fe4b06632` |
+| `git_head` | PASS | 0 | `067ff0cc29e1a0f577f277eecf9c7bb7c555b5817b8ebf03a2257d1f0f9c600b` |
 | `git_branch` | PASS | 0 | `9b3162498c21d7f960877099174ecea13410bd21d12440b2ea8868117fc08ae0` |
-| `git_submodule_status` | PASS | 0 | `307387b2606b29944415f367a05ddbc9f1ab519a2388e2c2458cf1db49d914ba` |
-| `git_diff_stat` | PASS | 0 | `43dff0226570695256a3ab3a662772eff37fc4a1b43b9ebc94b5a31c98d7b274` |
-| `framework_status_short` | PASS | 0 | `3a23ccc7f47c5561ed3580d536958313d041d17d80ee2934f1ef806a6728a330` |
-| `framework_head` | PASS | 0 | `a54c8fd84de3fbcd495b88323b9763dfd30353e999c097c4b88ed82eaada1cd4` |
-| `framework_diff_stat` | PASS | 0 | `9cc45a72f5b499670a18ff330d553f70f7056db82235ef21bf7e95b05b078c1b` |
+| `git_submodule_status` | PASS | 0 | `237dddac9f414e5d5f51d7aec87b5bdcd892939f5694837b513b3a9ea7f0f16d` |
+| `git_diff_stat` | PASS | 0 | `6597e62dcf644154cdfafde0444634de749a80104f091ac6335017ae61b8d751` |
+| `framework_status_short` | PASS | 0 | `727e3a732222f17a214b166a94cd2b144b91ee20aafa5d7f02681a640cc3edf7` |
+| `framework_head` | PASS | 0 | `143e8cf8b0060a5428e91484c03e0ced9c26066340ce3ac02e904d60bbffd111` |
+| `framework_diff_stat` | PASS | 0 | `a8a9ebc597efc32f3539d235057b0d82f6850ca898cd0bbbf4d5005383565de9` |
 
 ## Proof Summary
 
@@ -225,16 +234,15 @@ The generated report layout was validated on the system above.
 - `make quick-check`: PASS
 - `git status --short`: PASS
 - Flat generated root files: 0
-- Categorized generated report files: 72
-- Known skipped report: runtime/cache reports due to missing optional local inputs
+- Categorized generated report files: 76
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `2810e08b9a1b2109f08bd56ef2e87b85de5f42364979cf80f8279ee13b527571` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `f243edd243becd56f32bfd2be41d3960859edce381d99145c17400113e7636f2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `4826940f78bd92590ec96dcc5614a72ddbb1fc6e3f0251ee013dca8be1ce3535` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `f2fec01176472827ca6feb6dcacff79845aa04a2c5dda1fedfca78bc5fd98600` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `535ebad8af46a8d5de7b79f029d182f57293029c0b42a1cea00c377e97be52d9` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `7bf42c93572f947bfa048b3b92f5168c282f59c652ab5716a43d2b61cc0c31e5` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

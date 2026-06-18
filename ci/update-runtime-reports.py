@@ -2,13 +2,21 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 from pathlib import Path
 from typing import Any
 
-from generated_report_utils import GENERATED_ROOT, report_path_from_root, report_relpath
+from generated_report_utils import (
+    GENERATED_ROOT,
+    build_metadata,
+    generated_json_text,
+    generated_markdown_text,
+    report_path_from_root,
+    report_relpath,
+)
 from report_path_safety import add_report_roots, add_safe_roots, read_json_file, read_text_file, safe_existing_file, safe_path, write_json_file, write_text_file
 
 
@@ -41,6 +49,227 @@ def read_json(path: Any) -> dict[str, Any]:
 
 def write_json(path: Any, data: dict[str, Any]) -> None:
     write_json_file(path, data)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def local_cache_root(explicit: str | None = None) -> Path:
+    if explicit:
+        return Path(explicit).resolve()
+    if os.environ.get("CONNECTOR_COMPONENT_CACHE"):
+        return Path(os.environ["CONNECTOR_COMPONENT_CACHE"]).resolve()
+    if os.environ.get("VERIFIED_COMPONENT_CACHE"):
+        return Path(os.environ["VERIFIED_COMPONENT_CACHE"]).resolve()
+    verified_root = Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified"))
+    return (verified_root / "component-cache").resolve()
+
+
+def file_proof(name: str, path_value: Any) -> dict[str, Any]:
+    path_text = str(path_value or "")
+    if not path_text:
+        return {"name": name, "path": "-", "status": "missing", "sha256": "-", "size": 0}
+    path = Path(path_text)
+    if not path.is_file():
+        return {"name": name, "path": path_text, "status": "missing", "sha256": "-", "size": 0}
+    return {
+        "name": name,
+        "path": path_text,
+        "status": "present",
+        "sha256": sha256_file(path),
+        "size": path.stat().st_size,
+    }
+
+
+def component_status_rows(components: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = []
+    for name in COMPONENT_KEYS:
+        item = components.get(name) if isinstance(components.get(name), dict) else {}
+        rows.append(
+            {
+                "name": name,
+                "status": item.get("status", "missing"),
+                "build_id": item.get("build_id") or item.get("connector_build_id") or "-",
+                "source_ref": item.get("source_ref") or item.get("expected_ref") or item.get("release_tag") or "-",
+                "path": item.get("prefix") or item.get("path") or item.get("build_path") or item.get("binary") or "-",
+            }
+        )
+    return rows
+
+
+def important_cache_files(component_manifest: dict[str, Any], build_cache: dict[str, Any]) -> list[dict[str, Any]]:
+    modsecurity = component_manifest.get("modsecurity") if isinstance(component_manifest.get("modsecurity"), dict) else {}
+    apache = component_manifest.get("apache_httpd") if isinstance(component_manifest.get("apache_httpd"), dict) else {}
+    nginx = component_manifest.get("nginx") if isinstance(component_manifest.get("nginx"), dict) else {}
+    haproxy = component_manifest.get("haproxy") if isinstance(component_manifest.get("haproxy"), dict) else {}
+    go_ftw = component_manifest.get("go_ftw") if isinstance(component_manifest.get("go_ftw"), dict) else {}
+    albedo = component_manifest.get("albedo") if isinstance(component_manifest.get("albedo"), dict) else {}
+    expat = component_manifest.get("expat") if isinstance(component_manifest.get("expat"), dict) else {}
+    files = [
+        file_proof("libmodsecurity", modsecurity.get("lib_file")),
+        file_proof("apache_httpd", apache.get("httpd_bin")),
+        file_proof("apache_apxs", apache.get("apxs_bin")),
+        file_proof("apache_mod_security3", apache.get("module_file")),
+        file_proof("nginx", nginx.get("nginx_bin") or nginx.get("local_nginx_bin")),
+        file_proof("nginx_modsecurity_module", nginx.get("module_file") or nginx.get("local_module_file")),
+        file_proof("haproxy", haproxy.get("haproxy_bin")),
+        file_proof("haproxy_spoa", haproxy.get("spoa_runtime_bin")),
+        file_proof("go-ftw", go_ftw.get("binary") or go_ftw.get("path")),
+        file_proof("albedo", albedo.get("binary") or albedo.get("path")),
+        file_proof("expat_header", expat.get("include") or expat.get("expat_h")),
+    ]
+    shared = build_cache.get("shared_modsecurity_build") if isinstance(build_cache.get("shared_modsecurity_build"), dict) else {}
+    if shared.get("lib_file"):
+        files.append(file_proof("shared_build_libmodsecurity", shared.get("lib_file")))
+    return files
+
+
+def runtime_cache_index_payload(cache_root: Path, component_manifest: dict[str, Any], build_cache: dict[str, Any]) -> dict[str, Any]:
+    manifest_path = cache_root / "manifest.json"
+    build_cache_path = cache_root / "runtime-build-cache.json"
+    git_components_path = cache_root / "git-components.json"
+    runtime_env_path = cache_root / "runtime-env.sh"
+    component_status = component_status_rows(component_manifest)
+    important_files = important_cache_files(component_manifest, build_cache)
+    return {
+        "report_kind": "runtime-cache-index",
+        "status": "generated",
+        "cache_status": "cache_input_present",
+        "generated_at": component_manifest.get("generated_at") or build_cache.get("generated_at"),
+        "verified_run_id": os.environ.get("VERIFIED_RUN_ID", ""),
+        "component_cache_root": str(cache_root),
+        "build_root": component_manifest.get("build_root") or "-",
+        "local_artifact_policy": "Local cache directories and binaries are not committed; this generated index records provenance only.",
+        "manifests": [
+            file_proof("component-cache manifest", manifest_path),
+            file_proof("runtime build-cache manifest", build_cache_path),
+            file_proof("git components manifest", git_components_path),
+            file_proof("runtime env", runtime_env_path),
+        ],
+        "components": component_status,
+        "important_files": important_files,
+        "summary": {
+            "components_present": sum(1 for item in component_status if item["status"] in {"present", "built", "reused"}),
+            "components_total": len(component_status),
+            "important_files_present": sum(1 for item in important_files if item["status"] == "present"),
+            "important_files_total": len(important_files),
+        },
+    }
+
+
+def runtime_component_cache_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Runtime Component Cache",
+        "",
+        f"- Cache root: `{payload.get('cache_root', '-')}`",
+        f"- Build root: `{payload.get('build_root', '-')}`",
+        f"- Generated at: `{payload.get('generated_at', '-')}`",
+        "- Local cache binaries and source trees are not committed; this report records provenance.",
+        "",
+        "| Component | Status | Build ID / Ref | Path |",
+        "|---|---|---|---|",
+    ]
+    for row in component_status_rows(payload):
+        lines.append(
+            f"| {row['name']} | {row['status']} | `{row['build_id'] if row['build_id'] != '-' else row['source_ref']}` | `{row['path']}` |"
+        )
+    return "\n".join(lines)
+
+
+def runtime_cache_index_markdown(payload: dict[str, Any]) -> str:
+    summary = payload.get("summary", {})
+    lines = [
+        "# Runtime Cache Index",
+        "",
+        f"- Status: `{payload.get('cache_status', payload.get('status', '-'))}`",
+        f"- Component cache root: `{payload.get('component_cache_root', '-')}`",
+        f"- Build root: `{payload.get('build_root', '-')}`",
+        f"- Component presence: `{summary.get('components_present', '-')}/{summary.get('components_total', '-')}`",
+        f"- Important files present: `{summary.get('important_files_present', '-')}/{summary.get('important_files_total', '-')}`",
+        f"- Policy: {payload.get('local_artifact_policy', '-')}",
+        "",
+        "## Manifests",
+        "",
+        "| Item | Status | SHA256 | Path |",
+        "|---|---|---|---|",
+    ]
+    for item in payload.get("manifests", []):
+        lines.append(f"| {item.get('name', '-')} | {item.get('status', '-')} | `{item.get('sha256', '-')}` | `{item.get('path', '-')}` |")
+    lines.extend(["", "## Components", "", "| Component | Status | Build ID | Source / Path |", "|---|---|---|---|"])
+    for item in payload.get("components", []):
+        lines.append(f"| {item.get('name', '-')} | {item.get('status', '-')} | `{item.get('build_id', '-')}` | `{item.get('path', '-')}` |")
+    lines.extend(["", "## Important Files", "", "| Item | Status | SHA256 | Path |", "|---|---|---|---|"])
+    for item in payload.get("important_files", []):
+        lines.append(f"| {item.get('name', '-')} | {item.get('status', '-')} | `{item.get('sha256', '-')}` | `{item.get('path', '-')}` |")
+    return "\n".join(lines)
+
+
+def write_cache_reports_from_local_cache(connector_root: Path, report_dir: Path, cache_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    manifest_path = cache_root / "manifest.json"
+    build_cache_path = cache_root / "runtime-build-cache.json"
+    component_manifest = read_json(manifest_path)
+    build_cache = read_json(build_cache_path)
+    if not component_manifest or not build_cache:
+        return component_manifest, build_cache
+    framework_root = Path(str(component_manifest.get("framework_root") or connector_root / "modules/ModSecurity-test-Framework"))
+    component_metadata = build_metadata(
+        generated_by="ci/prepare-runtime-components.py",
+        make_target="prepare-runtime-components",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[manifest_path],
+        generated_at=str(component_manifest.get("generated_at") or ""),
+        report_key="runtime_component_cache",
+    )
+    build_metadata_payload = build_metadata(
+        generated_by="ci/prepare-runtime-components.py",
+        make_target="prepare-runtime-components",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[build_cache_path],
+        generated_at=str(build_cache.get("generated_at") or component_manifest.get("generated_at") or ""),
+        report_key="runtime_build_cache",
+    )
+    index_payload = runtime_cache_index_payload(cache_root, component_manifest, build_cache)
+    index_metadata = build_metadata(
+        generated_by="ci/update-runtime-reports.py",
+        make_target="prepare-runtime-components",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[manifest_path, build_cache_path, cache_root / "git-components.json", cache_root / "runtime-env.sh"],
+        generated_at=str(index_payload.get("generated_at") or component_manifest.get("generated_at") or ""),
+        report_key="runtime_cache_index",
+    )
+    write_json(
+        report_path_from_root(report_dir, "runtime_component_cache", "json"),
+        json.loads(generated_json_text(component_manifest, component_metadata)),
+    )
+    write_text_file(
+        report_path_from_root(report_dir, "runtime_component_cache", "md"),
+        generated_markdown_text(runtime_component_cache_markdown(component_manifest), component_metadata),
+    )
+    write_json(
+        report_path_from_root(report_dir, "runtime_build_cache", "json"),
+        json.loads(generated_json_text(build_cache, build_metadata_payload)),
+    )
+    write_text_file(
+        report_path_from_root(report_dir, "runtime_build_cache", "md"),
+        generated_markdown_text(runtime_build_cache_markdown(build_cache), build_metadata_payload),
+    )
+    write_json(
+        report_path_from_root(report_dir, "runtime_cache_index", "json"),
+        json.loads(generated_json_text(index_payload, index_metadata)),
+    )
+    write_text_file(
+        report_path_from_root(report_dir, "runtime_cache_index", "md"),
+        generated_markdown_text(runtime_cache_index_markdown(index_payload), index_metadata),
+    )
+    return component_manifest, build_cache
 
 
 def component_inventory(report_dir: Path) -> dict[str, Any]:
@@ -874,12 +1103,16 @@ def update_report_md(path: Path, components: dict[str, Any], diagnostics: dict[s
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", required=True)
+    parser.add_argument("--cache-root", default=None)
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
     report_dir = connector_root / GENERATED_ROOT
+    cache_root = local_cache_root(args.cache_root)
     add_safe_roots(connector_root, report_dir)
+    add_safe_roots(cache_root)
     add_report_roots(report_dir)
+    write_cache_reports_from_local_cache(connector_root, report_dir, cache_root)
     components = component_inventory(report_dir)
     build_cache = build_cache_inventory(report_dir)
     diagnostics = collect_runtime_diagnostics(components)

@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T15:48:04Z`
+> Generated at: `2026-06-18T17:48:43Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
-> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `unknown`
 
 # Report Path Migration
@@ -45,6 +45,8 @@
 | `reports/testing/generated/mrts-native-nginx.generated.md` | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.md` | mrts-native | migrated |
 | `reports/testing/generated/mrts-native-summary.generated.json` | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | mrts-native | migrated |
 | `reports/testing/generated/mrts-native-summary.generated.md` | `reports/testing/generated/mrts-native/mrts-native-summary.generated.md` | mrts-native | migrated |
+| `reports/testing/generated/native-semantics-comparison.generated.json` | `reports/testing/generated/manifest/native-semantics-comparison.generated.json` | manifest | migrated |
+| `reports/testing/generated/native-semantics-comparison.generated.md` | `reports/testing/generated/manifest/native-semantics-comparison.generated.md` | manifest | migrated |
 | `reports/testing/generated/next-fix-plan.generated.json` | `reports/testing/generated/canonical/next-fix-plan.generated.json` | canonical | migrated |
 | `reports/testing/generated/next-fix-plan.generated.md` | `reports/testing/generated/canonical/next-fix-plan.generated.md` | canonical | migrated |
 | `reports/testing/generated/nginx-mrts-http500-cluster-analysis.generated.json` | `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json` | manifest | migrated |
@@ -59,6 +61,8 @@
 | `reports/testing/generated/phase-work-queue.generated.md` | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | work-queues | migrated |
 | `reports/testing/generated/phase4-hard-abort-capability.generated.json` | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | focused-analysis | migrated |
 | `reports/testing/generated/phase4-hard-abort-capability.generated.md` | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md` | focused-analysis | migrated |
+| `reports/testing/generated/remaining-critical-batch-analysis.generated.json` | `reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.json` | manifest | migrated |
+| `reports/testing/generated/remaining-critical-batch-analysis.generated.md` | `reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md` | manifest | migrated |
 | `reports/testing/generated/remaining-failure-analysis.generated.json` | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | canonical | migrated |
 | `reports/testing/generated/remaining-failure-analysis.generated.md` | `reports/testing/generated/canonical/remaining-failure-analysis.generated.md` | canonical | migrated |
 | `reports/testing/generated/report-data-lineage.generated.json` | `reports/testing/generated/manifest/report-data-lineage.generated.json` | manifest | migrated |
@@ -77,6 +81,8 @@
 | `reports/testing/generated/rule-chain-semantics-analysis.generated.md` | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md` | focused-analysis | migrated |
 | `reports/testing/generated/runtime-build-cache.generated.json` | `reports/testing/generated/cache/runtime-build-cache.generated.json` | cache | migrated |
 | `reports/testing/generated/runtime-build-cache.generated.md` | `reports/testing/generated/cache/runtime-build-cache.generated.md` | cache | migrated |
+| `reports/testing/generated/runtime-cache-index.generated.json` | `reports/testing/generated/cache/runtime-cache-index.generated.json` | cache | migrated |
+| `reports/testing/generated/runtime-cache-index.generated.md` | `reports/testing/generated/cache/runtime-cache-index.generated.md` | cache | migrated |
 | `reports/testing/generated/runtime-component-cache.generated.json` | `reports/testing/generated/cache/runtime-component-cache.generated.json` | cache | migrated |
 | `reports/testing/generated/runtime-component-cache.generated.md` | `reports/testing/generated/cache/runtime-component-cache.generated.md` | cache | migrated |
 | `reports/testing/generated/runtime-matrix.generated.md` | `reports/testing/generated/runtime/runtime-matrix.generated.md` | runtime | migrated |

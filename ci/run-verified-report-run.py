@@ -1255,6 +1255,7 @@ def main() -> int:
     parser.add_argument("--mode", choices=("strict", "soft"), default="strict")
     parser.add_argument("--profile", choices=("full", "smoke"), default="full")
     parser.add_argument("--soft", action="store_true")
+    parser.add_argument("--manifest-only", action="store_true", help="rewrite verified-run manifest from existing verified command records without running commands")
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
@@ -1424,10 +1425,27 @@ def main() -> int:
     append_phases = {"report-refresh", "consumers", "checks", "full-matrix-job", "full-matrix-resume"}
     command_records: list[dict[str, Any]] = (
         [apply_command_semantics(dict(record), env, args.profile) for record in existing_commands]
-        if args.phase in append_phases
+        if args.manifest_only or args.phase in append_phases
         else []
     )
     run_started_at = str(existing_payload.get("started_at_utc") or started_at) if command_records else started_at
+    if args.manifest_only:
+        finished_at = str(existing_payload.get("finished_at_utc") or utc_now())
+        write_verified_manifest(
+            connector_root=connector_root,
+            framework_root=framework_root,
+            build_root=build_root,
+            verified_run_id=verified_run_id,
+            started_at=run_started_at,
+            finished_at=finished_at,
+            commands=command_records,
+            commands_file=commands_file,
+            env=env,
+            profile=args.profile,
+            full_matrix_timeout=full_matrix_runtime_timeout,
+            timeout_budgets=timeout_budgets,
+        )
+        return 0
     write_commands_file(
         commands_file,
         {

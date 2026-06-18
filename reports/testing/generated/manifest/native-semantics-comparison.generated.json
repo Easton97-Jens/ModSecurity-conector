@@ -1,0 +1,1804 @@
+{
+  "cases": [
+    {
+      "case": "unicode_whitespace_normalization_gap",
+      "case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
+      "classification_hint": "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics",
+      "compile": {
+        "binary": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/native_modsecurity_oracle",
+        "compile_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/compile.log",
+        "return_code": 0,
+        "status": "compiled"
+      },
+      "connector_comparison": [
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/unicode_whitespace_normalization_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        }
+      ],
+      "decision": "DOCUMENT",
+      "duration_seconds": 0.418,
+      "ended_at": "2026-06-18T17:21:31Z",
+      "expected_status": 403,
+      "full_matrix_refresh_needed": false,
+      "input_hash": "2edc02ac99a59619c73b35fd78251b9fd44e56ae79a15bc18d91cbc0d27f2215",
+      "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+      "log_evidence": {
+        "matched_data": [],
+        "messages": [],
+        "rule_ids": []
+      },
+      "logs_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/logs",
+      "native_actual": 200,
+      "native_match": false,
+      "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-result.json",
+      "official_mismatch_context": {
+        "classifications": {
+          "libmodsecurity_transformation_semantics": 12
+        },
+        "report": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "row_count": 12,
+        "rows": [
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_whitespace_normalization_gap",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/unicode_whitespace_normalization_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          }
+        ]
+      },
+      "reason": "no native intervention",
+      "report_kind": "native-case-run",
+      "request": {
+        "body_bytes": 0,
+        "body_preview": "",
+        "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "headers": {
+          "Host": "127.0.0.1"
+        },
+        "method": "GET",
+        "path": "/?q=a%E2%80%83b"
+      },
+      "request_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/request.json",
+      "request_sha256": "9a873304f36d7be7940945ab7944333bf0f63946903abd935ad4650c688ce3ba",
+      "return_code": 1,
+      "rules_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/rules.conf",
+      "rules_sha256": "9dd692a64477d6dd7a6436e42c0fc8c17233ee79c7eadd7e4084c8735ddf40b2",
+      "run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap",
+      "schema_version": 1,
+      "started_at": "2026-06-18T17:21:31Z",
+      "status": "fail"
+    },
+    {
+      "case": "unicode_double_encoded_uri_runtime_difference",
+      "case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
+      "classification_hint": "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics",
+      "compile": {
+        "binary": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/native_modsecurity_oracle",
+        "compile_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/compile.log",
+        "status": "reused"
+      },
+      "connector_comparison": [
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "libmodsecurity_transformation_semantics",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/unicode_double_encoded_uri_runtime_difference/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        }
+      ],
+      "decision": "DOCUMENT",
+      "duration_seconds": 0.052,
+      "ended_at": "2026-06-18T17:21:42Z",
+      "expected_status": 403,
+      "full_matrix_refresh_needed": false,
+      "input_hash": "203ffda472f785602e448b17c040f26ea44cebb5a7de5c60072194c5bab8809c",
+      "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+      "log_evidence": {
+        "matched_data": [],
+        "messages": [],
+        "rule_ids": []
+      },
+      "logs_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/logs",
+      "native_actual": 200,
+      "native_match": false,
+      "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-result.json",
+      "official_mismatch_context": {
+        "classifications": {
+          "libmodsecurity_transformation_semantics": 12
+        },
+        "report": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "row_count": 12,
+        "rows": [
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "unicode_double_encoded_uri_runtime_difference",
+            "category": "transformations",
+            "classification": "libmodsecurity_transformation_semantics",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/unicode_double_encoded_uri_runtime_difference/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          }
+        ]
+      },
+      "reason": "no native intervention",
+      "report_kind": "native-case-run",
+      "request": {
+        "body_bytes": 0,
+        "body_preview": "",
+        "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "headers": {
+          "Host": "127.0.0.1"
+        },
+        "method": "GET",
+        "path": "/?q=%25u0063%25u0061%25u0066%25u00E9"
+      },
+      "request_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/request.json",
+      "request_sha256": "e8f82dd83a17b670e94995e4e7a10c2fe74a6bc14848b3919fd50f954489028c",
+      "return_code": 1,
+      "rules_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/rules.conf",
+      "rules_sha256": "e566be7a65257ce96a77f622a0c7237a9ab089307e6e550c0b511237af217a78",
+      "run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference",
+      "schema_version": 1,
+      "started_at": "2026-06-18T17:21:42Z",
+      "status": "fail"
+    },
+    {
+      "case": "xml_namespace_edge_connector_gap",
+      "case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
+      "classification_hint": "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics",
+      "compile": {
+        "binary": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/native_modsecurity_oracle",
+        "compile_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/compile.log",
+        "status": "reused"
+      },
+      "connector_comparison": [
+        {
+          "classification": "connector_capability_gap",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "connector_capability_gap",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_namespace_edge_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        }
+      ],
+      "decision": "DOCUMENT",
+      "duration_seconds": 0.052,
+      "ended_at": "2026-06-18T17:21:42Z",
+      "expected_status": 403,
+      "full_matrix_refresh_needed": false,
+      "input_hash": "ea239e4788b46b94f4e08f92701ec9c99448a1186886bf9a3a00af6762b588f0",
+      "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+      "log_evidence": {
+        "matched_data": [],
+        "messages": [],
+        "rule_ids": []
+      },
+      "logs_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_namespace_edge_connector_gap/logs",
+      "native_actual": 200,
+      "native_match": false,
+      "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_namespace_edge_connector_gap/native-result.json",
+      "official_mismatch_context": {
+        "classifications": {
+          "connector_capability_gap": 12
+        },
+        "report": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "row_count": 12,
+        "rows": [
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_namespace_edge_connector_gap",
+            "category": "body-processors",
+            "classification": "connector_capability_gap",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_namespace_edge_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          }
+        ]
+      },
+      "reason": "no native intervention",
+      "report_kind": "native-case-run",
+      "request": {
+        "body_bytes": 53,
+        "body_preview": "<ns:root xmlns:ns=\"urn:test\"><ns:a>1</ns:a></ns:root>",
+        "body_sha256": "7eebe35c1d4703c2ed4df34cea9d4149c8aa61bbc104d7c2db81978128ae96e4",
+        "headers": {
+          "Content-Type": "application/xml",
+          "Host": "127.0.0.1"
+        },
+        "method": "POST",
+        "path": "/"
+      },
+      "request_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_namespace_edge_connector_gap/request.json",
+      "request_sha256": "4b2630f5cdf87947f70aaa74fef6e850f2fd6f1f694c379d6ebdecefcbf76549",
+      "return_code": 1,
+      "rules_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_namespace_edge_connector_gap/rules.conf",
+      "rules_sha256": "effadffe7a648de0219c958a1089d096309558918f41f7942160dcbb0a92c73a",
+      "run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_namespace_edge_connector_gap",
+      "schema_version": 1,
+      "started_at": "2026-06-18T17:21:42Z",
+      "status": "fail"
+    },
+    {
+      "case": "xml_request_body_malformed_connector_gap",
+      "case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+      "classification_hint": "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics",
+      "compile": {
+        "binary": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/native_modsecurity_oracle",
+        "compile_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/compile.log",
+        "status": "reused"
+      },
+      "connector_comparison": [
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "apache",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "haproxy",
+          "connector_actual": "200",
+          "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "expected_status_mismatch",
+          "connector": "nginx",
+          "connector_actual": "200",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_request_body_malformed_connector_gap/result.json",
+          "full_matrix_refresh_needed": false,
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true,
+          "variant": "with-crs/with-mrts"
+        }
+      ],
+      "decision": "DOCUMENT",
+      "duration_seconds": 0.053,
+      "ended_at": "2026-06-18T17:21:42Z",
+      "expected_status": 403,
+      "full_matrix_refresh_needed": false,
+      "input_hash": "fa410d07a641d670da238da67164c2669f508db4cd087ae68dbe70d006f6e865",
+      "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+      "log_evidence": {
+        "matched_data": [],
+        "messages": [],
+        "rule_ids": []
+      },
+      "logs_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_request_body_malformed_connector_gap/logs",
+      "native_actual": 200,
+      "native_match": false,
+      "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_request_body_malformed_connector_gap/native-result.json",
+      "official_mismatch_context": {
+        "classifications": {
+          "expected_status_mismatch": 12
+        },
+        "report": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "row_count": 12,
+        "rows": [
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "200",
+            "case": "xml_request_body_malformed_connector_gap",
+            "category": "body-processors",
+            "classification": "expected_status_mismatch",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_request_body_malformed_connector_gap/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": false,
+            "variant": "with-crs/with-mrts"
+          }
+        ]
+      },
+      "reason": "no native intervention",
+      "report_kind": "native-case-run",
+      "request": {
+        "body_bytes": 21,
+        "body_preview": "<root><broken></root>",
+        "body_sha256": "0c13b76b5721981c5ae77b5629399200d777a7e3b54e6c6d1dbbd43b0d5b75d6",
+        "headers": {
+          "Content-Type": "application/xml",
+          "Host": "127.0.0.1"
+        },
+        "method": "POST",
+        "path": "/"
+      },
+      "request_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_request_body_malformed_connector_gap/request.json",
+      "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+      "return_code": 1,
+      "rules_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_request_body_malformed_connector_gap/rules.conf",
+      "rules_sha256": "997decde7d37c35dab0494efa8af5925af26356725785ede5d41fea381d57e66",
+      "run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_request_body_malformed_connector_gap",
+      "schema_version": 1,
+      "started_at": "2026-06-18T17:21:42Z",
+      "status": "fail"
+    },
+    {
+      "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+      "case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml",
+      "classification_hint": "full_matrix_refresh_needed",
+      "compile": {
+        "binary": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/native_modsecurity_oracle",
+        "compile_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/native-oracle-bin/compile.log",
+        "status": "reused"
+      },
+      "connector_comparison": [
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "apache",
+          "connector_actual": "http_status",
+          "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "apache",
+          "connector_actual": "http_status",
+          "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "apache",
+          "connector_actual": "http_status",
+          "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "apache",
+          "connector_actual": "http_status",
+          "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "haproxy",
+          "connector_actual": "http_status",
+          "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "haproxy",
+          "connector_actual": "http_status",
+          "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "haproxy",
+          "connector_actual": "http_status",
+          "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "haproxy",
+          "connector_actual": "http_status",
+          "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "with-crs/with-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "nginx",
+          "connector_actual": "http_status",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "nginx",
+          "connector_actual": "http_status",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "no-crs/with-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "nginx",
+          "connector_actual": "http_status",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "with-crs/no-mrts"
+        },
+        {
+          "classification": "timeout_or_incomplete",
+          "connector": "nginx",
+          "connector_actual": "http_status",
+          "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "full_matrix_refresh_needed": true,
+          "meaning": "connector_differs_from_native_expected",
+          "native_actual": "403",
+          "same": false,
+          "variant": "with-crs/with-mrts"
+        }
+      ],
+      "decision": "REFRESH",
+      "duration_seconds": 0.056,
+      "ended_at": "2026-06-18T17:44:41Z",
+      "expected_status": 403,
+      "full_matrix_refresh_needed": false,
+      "input_hash": "fd275374035fe513d63ba9e62f3d80733989e4ca6cd8e3be76c2874c3762fc8d",
+      "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+      "log_evidence": {
+        "matched_data": [],
+        "messages": [
+          "invalid-urlDecode-sequence-mapped-candidate"
+        ],
+        "rule_ids": [
+          "4406"
+        ]
+      },
+      "logs_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/logs",
+      "native_actual": 403,
+      "native_match": true,
+      "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/native-result.json",
+      "official_mismatch_context": {
+        "classifications": {
+          "timeout_or_incomplete": 12
+        },
+        "report": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "row_count": 12,
+        "rows": [
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "apache",
+            "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "apache",
+            "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "haproxy",
+            "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "with-crs/with-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "no-crs/no-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "no-crs/with-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "with-crs/no-mrts"
+          },
+          {
+            "actual": "http_status",
+            "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            "category": "transformations",
+            "classification": "timeout_or_incomplete",
+            "connector": "nginx",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+            "expected": "403",
+            "full_matrix_refresh_needed": true,
+            "variant": "with-crs/with-mrts"
+          }
+        ]
+      },
+      "reason": "native intervention observed",
+      "report_kind": "native-case-run",
+      "request": {
+        "body_bytes": 0,
+        "body_preview": "",
+        "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "headers": {
+          "Host": "127.0.0.1"
+        },
+        "method": "GET",
+        "path": "/?q=%ZZ"
+      },
+      "request_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/request.json",
+      "request_sha256": "ca5334520914c5311c9a910a165cf6547b7251828d71448f99f705e8c9706ecf",
+      "return_code": 0,
+      "rules_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/rules.conf",
+      "rules_sha256": "007a86e31ecb24474ed2d9d7f6cb6c9879a99d1b5ccb8208224cda06873075d9",
+      "run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+      "schema_version": 1,
+      "started_at": "2026-06-18T17:44:41Z",
+      "status": "pass"
+    }
+  ],
+  "data_source_policy": "verified-inputs-only",
+  "fixed": [],
+  "full_matrix_refresh_needed": false,
+  "generated_at": "2026-06-18T17:47:53Z",
+  "metadata": {
+    "category": "manifest",
+    "commit_policy": "versioned-generated",
+    "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+    "data_kind": "analysis",
+    "data_origin": "native",
+    "data_source_policy": "verified-inputs-only",
+    "empty_inputs": [],
+    "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-18T17:47:53Z",
+    "generated_by": "ci/run-native-case-comparison.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "complete",
+    "inputs": [
+      {
+        "notes": "input file available",
+        "path": "ci/run-native-case-comparison.py",
+        "sha256": "88f122170fc7625f250d12ccd8590353b4a5e08fbea8b4751c03ae61cb8134ce",
+        "source_hash": "88f122170fc7625f250d12ccd8590353b4a5e08fbea8b4751c03ae61cb8134ce",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "ci/native_modsecurity_oracle.c",
+        "sha256": "57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db",
+        "source_hash": "57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db",
+        "status": "present"
+      },
+      {
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "sha256": "06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49",
+        "source_hash": "06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+      },
+      {
+        "notes": "input file available",
+        "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
+        "sha256": "d712ede8bab7f74851255571299327a0e166e562798e4d5ac64d3a122b45a61d",
+        "source_hash": "d712ede8bab7f74851255571299327a0e166e562798e4d5ac64d3a122b45a61d",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json",
+        "sha256": "9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3",
+        "source_hash": "9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
+        "sha256": "889068df10e66f52e5f5cbce49d5640be4f55e33ac09bbd21a469826e65a74ec",
+        "source_hash": "889068df10e66f52e5f5cbce49d5640be4f55e33ac09bbd21a469826e65a74ec",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json",
+        "sha256": "97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820",
+        "source_hash": "97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
+        "sha256": "37652618368231240de64e7c80bcd405056ccf79ecc3a57fdc6180e2b8f4b438",
+        "source_hash": "37652618368231240de64e7c80bcd405056ccf79ecc3a57fdc6180e2b8f4b438",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_namespace_edge_connector_gap/native-case-run.json",
+        "sha256": "f39d89ef54667786d28c009ee065e295effb85ba8fc5314ccd28962932991d27",
+        "source_hash": "f39d89ef54667786d28c009ee065e295effb85ba8fc5314ccd28962932991d27",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "sha256": "3a77f805aa8989e85f9ba512172e0cc13d8eec062874bacef1bb3ed73aeebd4f",
+        "source_hash": "3a77f805aa8989e85f9ba512172e0cc13d8eec062874bacef1bb3ed73aeebd4f",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "sha256": "07ea67bcf7252f1ad9d1f1695be57baf415501d0e115a74a8121a937b8a8437c",
+        "source_hash": "07ea67bcf7252f1ad9d1f1695be57baf415501d0e115a74a8121a937b8a8437c",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml",
+        "sha256": "66a559e2c72e40e78dfc04723dfa823f495dbad75789d1e8becc81892be426df",
+        "source_hash": "66a559e2c72e40e78dfc04723dfa823f495dbad75789d1e8becc81892be426df",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/native-case-run.json",
+        "sha256": "a7dae3db2178486d2f0d91702be394aaaa60390a6b3df0654119aac198cdd942",
+        "source_hash": "a7dae3db2178486d2f0d91702be394aaaa60390a6b3df0654119aac198cdd942",
+        "status": "present"
+      }
+    ],
+    "make_target": "generate-native-semantics-comparison",
+    "missing_inputs": [],
+    "owner": "manifest",
+    "report_key": "native_semantics_comparison",
+    "schema_version": 1,
+    "severity": "important",
+    "unknown_inputs": [],
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
+    "working_tree_dirty": "dirty"
+  },
+  "native_tool": {
+    "runner": "ci/run-native-case-comparison.py",
+    "source": "ci/native_modsecurity_oracle.c"
+  },
+  "reclassified": [
+    {
+      "case": "unicode_whitespace_normalization_gap",
+      "classification": "libmodsecurity_transformation_semantics",
+      "decision": "DOCUMENT",
+      "native_actual": "200",
+      "rows": 12
+    },
+    {
+      "case": "unicode_double_encoded_uri_runtime_difference",
+      "classification": "libmodsecurity_transformation_semantics",
+      "decision": "DOCUMENT",
+      "native_actual": "200",
+      "rows": 12
+    }
+  ],
+  "report_kind": "native-semantics-comparison",
+  "tool_inventory": [
+    {
+      "inputs": "MRTS config_tests YAML",
+      "outputs": "$BUILD_ROOT/mrts/*/rules and ftw",
+      "purpose": "Generate MRTS rules and go-ftw tests from upstream MRTS YAML definitions.",
+      "single_case": "no; corpus generator",
+      "tool_target": "tools/MRTS/mrts/generate-rules.py"
+    },
+    {
+      "inputs": "MRTS corpus definitions and infra config",
+      "outputs": "generated framework cases, rules, go-ftw results",
+      "purpose": "Prepare/import MRTS corpora and optionally run go-ftw.",
+      "single_case": "not for framework YAML cases",
+      "tool_target": "framework Makefile mrts-generate/mrts-import/mrts-ftw"
+    },
+    {
+      "inputs": "MRTS generated corpus, native Apache/NGINX binaries, libmodsecurity",
+      "outputs": "$BUILD_ROOT/mrts-native/*/job.json and logs",
+      "purpose": "Stage native Apache/NGINX MRTS infra and run the MRTS suite through go-ftw.",
+      "single_case": "no; suite-oriented MRTS evidence",
+      "tool_target": "ci/run-mrts-native-full.sh"
+    },
+    {
+      "inputs": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json and nginx-pr24/job.json",
+      "outputs": "reports/testing/generated/mrts-native/*.generated.*",
+      "purpose": "Summarize native MRTS jobs into generated reports.",
+      "single_case": "no; summarizes completed native MRTS jobs",
+      "tool_target": "framework:ci/generate-mrts-native-report.py"
+    },
+    {
+      "inputs": "framework case YAML, native_modsecurity_oracle.c, libmodsecurity runtime-env",
+      "outputs": "$VERIFIED_RUN_ROOT/native-case-runs/<timestamp>-<case>/ and native-semantics-comparison.generated.*",
+      "purpose": "Run one framework YAML case through connector-free libmodsecurity C API.",
+      "single_case": "yes",
+      "tool_target": "ci/run-native-case-comparison.py"
+    }
+  ],
+  "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+}

@@ -272,10 +272,11 @@ NATIVE_OUTPUTS = generated_report_outputs(
     ["mrts_native_full", "mrts_native_apache", "mrts_native_nginx", "mrts_native_summary"]
 )
 FULL_RUN_EVIDENCE_OUTPUTS = generated_report_outputs(["full_run_evidence"])
-RUNTIME_CACHE_OUTPUTS = generated_report_outputs(["runtime_component_cache", "runtime_build_cache"])
+RUNTIME_CACHE_OUTPUTS = generated_report_outputs(["runtime_component_cache", "runtime_build_cache", "runtime_cache_index"])
 FULL_MATRIX_JOB_COMPLETENESS_OUTPUTS = generated_report_outputs(["full_matrix_job_completeness"])
 VERIFIED_RUNTIME_MISMATCH_OUTPUTS = generated_report_outputs(["verified_runtime_mismatch_analysis"])
 NGINX_MRTS_HTTP500_OUTPUTS = generated_report_outputs(["nginx_mrts_http500_cluster_analysis"])
+NATIVE_SEMANTICS_OUTPUTS = generated_report_outputs(["native_semantics_comparison"])
 NOLOG_OUTPUTS = generated_report_outputs(["nolog_audit_evidence"])
 RESPONSE_HEADER_OUTPUTS = generated_report_outputs(["response_header_hook_analysis"])
 PHASE4_OUTPUTS = generated_report_outputs(["phase4_hard_abort_capability"])
@@ -289,6 +290,12 @@ REMAINING_OUTPUTS = generated_report_outputs(["remaining_failure_analysis", "nex
 
 def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, native_root: Path, python: str) -> list[ReportSpec]:
     report_dir = connector_root / REPORT_DIR
+    verified_run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified"))
+    component_cache_root = Path(
+        os.environ.get("CONNECTOR_COMPONENT_CACHE")
+        or os.environ.get("VERIFIED_COMPONENT_CACHE")
+        or verified_run_root / "component-cache"
+    ).resolve()
     existing_full_matrix = read_json(report_path(connector_root, "full_runtime_matrix", "json"))
     if not existing_full_matrix:
         existing_full_matrix = read_json(legacy_report_path(connector_root, "full_runtime_matrix", "json"))
@@ -527,6 +534,36 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
             optional=True,
         ),
         ReportSpec(
+            name="native_semantics_comparison",
+            owner="connector",
+            generator="ci/run-native-case-comparison.py",
+            make_target="generate-native-semantics-comparison",
+            inputs=(
+                "ci/run-native-case-comparison.py",
+                "ci/native_modsecurity_oracle.c",
+                report_relpath("verified_runtime_mismatch_analysis", "json"),
+            ),
+            outputs=NATIVE_SEMANTICS_OUTPUTS,
+            command=(
+                python,
+                "ci/run-native-case-comparison.py",
+                "--connector-root",
+                str(connector_root),
+                "--framework-root",
+                str(framework_root),
+                "--build-root",
+                str(build_root),
+                "--verified-run-root",
+                str(verified_run_root),
+                "--output-dir",
+                str(report_dir / "manifest"),
+                "--report-only",
+            ),
+            requires_runtime=True,
+            requires_full_matrix=True,
+            optional=True,
+        ),
+        ReportSpec(
             name="nolog_audit_evidence",
             owner="connector",
             generator="ci/generate-nolog-audit-evidence-analysis.py",
@@ -758,12 +795,12 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
         ),
         ReportSpec(
             name="runtime_cache_reports",
-            owner="connector",
+            owner="cache",
             generator="ci/update-runtime-reports.py",
             make_target="prepare-runtime-components",
             inputs=(
-                report_relpath("runtime_component_cache", "json"),
-                report_relpath("runtime_build_cache", "json"),
+                str(component_cache_root / "manifest.json"),
+                str(component_cache_root / "runtime-build-cache.json"),
             ),
             outputs=RUNTIME_CACHE_OUTPUTS,
             command=(
@@ -771,8 +808,11 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
                 "ci/update-runtime-reports.py",
                 "--connector-root",
                 str(connector_root),
+                "--cache-root",
+                str(component_cache_root),
             ),
             requires_runtime=True,
+            optional=True,
         ),
     ]
 
@@ -1477,6 +1517,12 @@ def build_governance_record(
     report = GENERATED_REPORTS[key]
     outputs = [report_path(connector_root, key, ext) for ext in report.formats]
     input_paths = [resolve_input(raw, connector_root, framework_root, build_root) for raw in inputs]
+    input_records = [input_record(raw, connector_root, framework_root, build_root) for raw in inputs]
+    input_status = input_status_summary(input_records)
+    input_fingerprint = combined_fingerprint(input_paths)
+    if key == "report_refresh_manifest" and not inputs:
+        input_status = "self_generated_no_direct_input"
+        input_fingerprint = "self_generated_no_direct_input"
     record = {
         "report_name": key,
         "verified_run_id": current_verified_run_id(connector_root),
@@ -1492,8 +1538,8 @@ def build_governance_record(
         "generator": report.generator,
         "make_target": report.make_target,
         "status": "generated" if all(path.is_file() for path in outputs) else "missing-output",
-        "input_status": input_status_summary([input_record(raw, connector_root, framework_root, build_root) for raw in inputs]),
-        "inputs": [input_record(raw, connector_root, framework_root, build_root) for raw in inputs],
+        "input_status": input_status,
+        "inputs": input_records,
         "input_files": list(inputs),
         "output_files": [display_path(path, connector_root, framework_root, build_root) for path in outputs],
         "generated_at": generated_at,
@@ -1501,7 +1547,7 @@ def build_governance_record(
         "empty_inputs": [],
         "unknown_inputs": [],
         "missing_outputs": [display_path(path, connector_root, framework_root, build_root) for path in outputs if not path.exists()],
-        "input_fingerprint": combined_fingerprint(input_paths),
+        "input_fingerprint": input_fingerprint,
         "output_fingerprint": combined_fingerprint(outputs),
         "started_at": generated_at,
         "finished_at": generated_at,

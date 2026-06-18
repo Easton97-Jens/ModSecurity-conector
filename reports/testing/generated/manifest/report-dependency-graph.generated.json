@@ -233,12 +233,8 @@
       "to": "final_consistency_audit"
     },
     {
-      "from": "runtime_build_cache",
-      "to": "runtime_component_cache"
-    },
-    {
-      "from": "runtime_component_cache",
-      "to": "runtime_build_cache"
+      "from": "verified_runtime_mismatch_analysis",
+      "to": "native_semantics_comparison"
     },
     {
       "from": "verified_runtime_mismatch_analysis",
@@ -250,27 +246,27 @@
     "full_run_evidence",
     "merge_readiness_dashboard"
   ],
-  "generated_at": "2026-06-17T15:48:04Z",
+  "generated_at": "2026-06-18T17:48:43Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+    "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
     "data_kind": "manifest",
     "data_origin": "manifest",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+    "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T15:48:04Z",
+    "generated_at": "2026-06-18T17:48:43Z",
     "generated_by": "ci/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "blocked",
+    "input_status": "complete",
     "inputs": [
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-        "sha256": "8378473bbc7146a7ed3e077973aece4dc85d4b2ffce29cd77c39b5ea5c9b3362",
-        "source_hash": "8378473bbc7146a7ed3e077973aece4dc85d4b2ffce29cd77c39b5ea5c9b3362",
+        "sha256": "05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4",
+        "source_hash": "05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4",
         "status": "present"
       },
       {
@@ -290,8 +286,36 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
-        "sha256": "4a82546f163707fb800b44dcf86ecd7f1722f0e84428c1b41020d15f1d228dd2",
-        "source_hash": "4a82546f163707fb800b44dcf86ecd7f1722f0e84428c1b41020d15f1d228dd2",
+        "sha256": "dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7",
+        "source_hash": "dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
+        "sha256": "3904de5ba72723df9e99e34169abd8ba43423752dc66626f0e69c8d5bd6f7d6e",
+        "source_hash": "3904de5ba72723df9e99e34169abd8ba43423752dc66626f0e69c8d5bd6f7d6e",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
+        "sha256": "964c9388125b93f11548f80f1efc1e7d8b317131b89d14370f824b39bf0be6f9",
+        "source_hash": "964c9388125b93f11548f80f1efc1e7d8b317131b89d14370f824b39bf0be6f9",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "ci/native_modsecurity_oracle.c",
+        "sha256": "57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db",
+        "source_hash": "57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "ci/run-native-case-comparison.py",
+        "sha256": "88f122170fc7625f250d12ccd8590353b4a5e08fbea8b4751c03ae61cb8134ce",
+        "source_hash": "88f122170fc7625f250d12ccd8590353b4a5e08fbea8b4751c03ae61cb8134ce",
         "status": "present"
       },
       {
@@ -302,212 +326,192 @@
         "status": "present"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
-        "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
-        "sha256": "4821cf6619bec7a71578285267d8115e31224583d46a7d0f1d68f2e433cd602f",
-        "source_hash": "4821cf6619bec7a71578285267d8115e31224583d46a7d0f1d68f2e433cd602f",
-        "status": "present",
-        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
-      },
-      {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "input file available",
-        "path": "reports/testing/generated/cache/runtime-component-cache.generated.json",
-        "sha256": "3686a53ddbc220907f8a00c168efa62fbd55938611134ba70092fc4f2fe98fb2",
-        "source_hash": "3686a53ddbc220907f8a00c168efa62fbd55938611134ba70092fc4f2fe98fb2",
-        "status": "present",
-        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
-      },
-      {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "df41566492fb236cb03508161261b1eedb8745fc8aa07feff56de02969cb50fb",
-        "source_hash": "df41566492fb236cb03508161261b1eedb8745fc8aa07feff56de02969cb50fb",
-        "status": "blocked",
+        "sha256": "dc80194255be5520bb8d5768e95f9b0990ae0256bf9264458ac1b5449be5e600",
+        "source_hash": "dc80194255be5520bb8d5768e95f9b0990ae0256bf9264458ac1b5449be5e600",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "b73e9279de250d71c12b771bc4c24bb4b712dac0fed0008c60f6075116916797",
-        "source_hash": "b73e9279de250d71c12b771bc4c24bb4b712dac0fed0008c60f6075116916797",
+        "sha256": "890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2",
+        "source_hash": "890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "18f53c9539c3c8d74bd89e6549062846275bbb678857522f3f76ab99af603989",
-        "source_hash": "18f53c9539c3c8d74bd89e6549062846275bbb678857522f3f76ab99af603989",
-        "status": "blocked",
+        "sha256": "23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8",
+        "source_hash": "23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "781564315ab245d2dd9d89e2ed9445f71d222553697e36daec83189a8d3d998b",
-        "source_hash": "781564315ab245d2dd9d89e2ed9445f71d222553697e36daec83189a8d3d998b",
-        "status": "blocked",
+        "sha256": "41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0",
+        "source_hash": "41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "cde76d3bbc7355f8c9e8c9dc7b53049c56e19459e4d1fc5818fc85f62c4e63bd",
-        "source_hash": "cde76d3bbc7355f8c9e8c9dc7b53049c56e19459e4d1fc5818fc85f62c4e63bd",
+        "sha256": "af2f261979262ecd57d0aa89cdf95a0b74058f5b7ac08c703f4f1d92cdf64483",
+        "source_hash": "af2f261979262ecd57d0aa89cdf95a0b74058f5b7ac08c703f4f1d92cdf64483",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
-        "sha256": "0e48530472eb758d223f427075d5c03f65f78fc16e3b2e534aee95aa238293b3",
-        "source_hash": "0e48530472eb758d223f427075d5c03f65f78fc16e3b2e534aee95aa238293b3",
-        "status": "blocked",
+        "sha256": "626871623f617bfb6b9ebef84ebfa66e5659040c211a8b720dd55196c4fe357a",
+        "source_hash": "626871623f617bfb6b9ebef84ebfa66e5659040c211a8b720dd55196c4fe357a",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "sha256": "68692c6831e04ee96e716010e2d8cfee87fc5351914df21816c508f6346e77e4",
-        "source_hash": "68692c6831e04ee96e716010e2d8cfee87fc5351914df21816c508f6346e77e4",
-        "status": "blocked",
+        "sha256": "73d795ebf64608c9a3db9d38e2559410ddb07a45c807a42979ced4f1d9ff3fc2",
+        "source_hash": "73d795ebf64608c9a3db9d38e2559410ddb07a45c807a42979ced4f1d9ff3fc2",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
-        "sha256": "3f52c0b718d8e8b65705890c1540609646f224f4bac4409f7c3d39e4c177a297",
-        "source_hash": "3f52c0b718d8e8b65705890c1540609646f224f4bac4409f7c3d39e4c177a297",
-        "status": "blocked",
+        "sha256": "25fbb5e192d45e52e1d507aa061f8cc9b4b5f0e2562e483127a9070d4a711fb5",
+        "source_hash": "25fbb5e192d45e52e1d507aa061f8cc9b4b5f0e2562e483127a9070d4a711fb5",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
-        "sha256": "90aeb81722723302cc20ba6994c3868717cb3056ec6a4c0b57b52b6329dbd894",
-        "source_hash": "90aeb81722723302cc20ba6994c3868717cb3056ec6a4c0b57b52b6329dbd894",
+        "sha256": "f4bb4d2fcc6079c1d53e1cdaf7a437a4cee83bfe1d6e9102e9ff0ea6c2b4da48",
+        "source_hash": "f4bb4d2fcc6079c1d53e1cdaf7a437a4cee83bfe1d6e9102e9ff0ea6c2b4da48",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
-        "sha256": "70b4612471c9b05902042bac06a3fdeb02558aab7b3d3f5fb923dfb34d1ee66c",
-        "source_hash": "70b4612471c9b05902042bac06a3fdeb02558aab7b3d3f5fb923dfb34d1ee66c",
-        "status": "blocked",
+        "sha256": "6de06d49c33846c4d0abe69591707ea9d7f1ea7143274211f504b65b982a9e19",
+        "source_hash": "6de06d49c33846c4d0abe69591707ea9d7f1ea7143274211f504b65b982a9e19",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
-        "sha256": "883fdce904c304d9ea0b2557badb239635568e14ae49b9d5bb54a4b4357816d1",
-        "source_hash": "883fdce904c304d9ea0b2557badb239635568e14ae49b9d5bb54a4b4357816d1",
+        "sha256": "575134eb78ee77ab492f82913766dd44a129021c69c9d028e0fd586f9eaf426f",
+        "source_hash": "575134eb78ee77ab492f82913766dd44a129021c69c9d028e0fd586f9eaf426f",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
-        "sha256": "9060fe37e06facf05ca49cf4bb37ea42ac07acac63d8b9c721293b426265658b",
-        "source_hash": "9060fe37e06facf05ca49cf4bb37ea42ac07acac63d8b9c721293b426265658b",
-        "status": "blocked",
+        "sha256": "97a6e5ca137bc5f49774585b43b5e7530914562098ab0afb9eb389b95dbd4014",
+        "source_hash": "97a6e5ca137bc5f49774585b43b5e7530914562098ab0afb9eb389b95dbd4014",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
-        "sha256": "bd7f3ba3382d7800e5de9bcf7eb1d28a26b0317b1a5aae2089b5f5812acddc78",
-        "source_hash": "bd7f3ba3382d7800e5de9bcf7eb1d28a26b0317b1a5aae2089b5f5812acddc78",
+        "sha256": "0df0accb88ed8f025ce283acc22ab0f792b49b29a74bdbc71b71edf35e764e4f",
+        "source_hash": "0df0accb88ed8f025ce283acc22ab0f792b49b29a74bdbc71b71edf35e764e4f",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
-        "sha256": "6bc04b7e3157faa5f7d32e333051db6fe568b604eef038f0706c32d1f2028cac",
-        "source_hash": "6bc04b7e3157faa5f7d32e333051db6fe568b604eef038f0706c32d1f2028cac",
+        "sha256": "06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49",
+        "source_hash": "06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "90ff4ac6d2ba5a41121be9c56fd637f52b9b7ac5c9854524ea13cd1a94266df9",
-        "source_hash": "90ff4ac6d2ba5a41121be9c56fd637f52b9b7ac5c9854524ea13cd1a94266df9",
-        "status": "skipped_stale_input",
+        "sha256": "03bb0aefae70d11b6fdf0c7bdbf372bdfce9285c160a675deadc08ff526a01d3",
+        "source_hash": "03bb0aefae70d11b6fdf0c7bdbf372bdfce9285c160a675deadc08ff526a01d3",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "ebc4b664b9e7a9e5b8d69e1f22a719a1e725426085240726172c08c00fb66c33",
-        "source_hash": "ebc4b664b9e7a9e5b8d69e1f22a719a1e725426085240726172c08c00fb66c33",
-        "status": "skipped_stale_input",
+        "sha256": "425f99fe2b96bf291a2c688f8dd34a4eb756f8c496aecb909b8ce996f616f5a8",
+        "source_hash": "425f99fe2b96bf291a2c688f8dd34a4eb756f8c496aecb909b8ce996f616f5a8",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=skipped_stale_input",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "sha256": "eb9242e77b1ed5456b66e3a9ccb94ffff873edf23b955d35254937cb8b77c040",
-        "source_hash": "eb9242e77b1ed5456b66e3a9ccb94ffff873edf23b955d35254937cb8b77c040",
-        "status": "skipped_stale_input",
+        "sha256": "48f9f3e71041a9a865f438af408bf5196f56184aa0d07f60bab5e7b5c1e42a87",
+        "source_hash": "48f9f3e71041a9a865f438af408bf5196f56184aa0d07f60bab5e7b5c1e42a87",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "c747640b424f6aa6fbbf98f07407ce1dfc47c8ae2295220454554acdd5e70aa8",
-        "source_hash": "c747640b424f6aa6fbbf98f07407ce1dfc47c8ae2295220454554acdd5e70aa8",
+        "sha256": "c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d",
+        "source_hash": "c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "29210f6193c70c53ff0d6fb934005c9e2f29129f88cb322eabb328198ae25dbf",
-        "source_hash": "29210f6193c70c53ff0d6fb934005c9e2f29129f88cb322eabb328198ae25dbf",
+        "sha256": "a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975",
+        "source_hash": "a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
@@ -782,6 +786,68 @@
       "runtime_required": true,
       "severity": "critical",
       "stem": "verified-runtime-mismatch-analysis.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "analysis",
+      "data_origin": "runtime",
+      "dependencies": [],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/generate-remaining-critical-batch-analysis.py",
+      "inputs": [],
+      "key": "remaining_critical_batch_analysis",
+      "kind": "canonical",
+      "make_target": "generate-remaining-critical-batch-analysis",
+      "native_mrts_required": false,
+      "optional": false,
+      "outputs": [
+        "reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.json",
+        "reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Batch analysis for selected remaining critical mismatch clusters.",
+      "runtime_required": true,
+      "severity": "important",
+      "stem": "remaining-critical-batch-analysis.generated"
+    },
+    {
+      "category": "manifest",
+      "commit_policy": "versioned-generated",
+      "data_kind": "analysis",
+      "data_origin": "native",
+      "dependencies": [
+        "verified_runtime_mismatch_analysis"
+      ],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": true,
+      "generator": "ci/run-native-case-comparison.py",
+      "inputs": [
+        "ci/run-native-case-comparison.py",
+        "ci/native_modsecurity_oracle.c",
+        "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
+      ],
+      "key": "native_semantics_comparison",
+      "kind": "canonical",
+      "make_target": "generate-native-semantics-comparison",
+      "native_mrts_required": false,
+      "optional": true,
+      "outputs": [
+        "reports/testing/generated/manifest/native-semantics-comparison.generated.json",
+        "reports/testing/generated/manifest/native-semantics-comparison.generated.md"
+      ],
+      "owner": "manifest",
+      "purpose": "Targeted connector-free libmodsecurity native semantics comparison.",
+      "runtime_required": true,
+      "severity": "important",
+      "stem": "native-semantics-comparison.generated"
     },
     {
       "category": "manifest",
@@ -1802,9 +1868,7 @@
       "commit_policy": "local-only",
       "data_kind": "cache",
       "data_origin": "cache",
-      "dependencies": [
-        "runtime_component_cache"
-      ],
+      "dependencies": [],
       "formats": [
         "json",
         "md"
@@ -1812,14 +1876,14 @@
       "full_matrix_required": false,
       "generator": "ci/prepare-runtime-components.py",
       "inputs": [
-        "reports/testing/generated/cache/runtime-component-cache.generated.json",
-        "reports/testing/generated/cache/runtime-build-cache.generated.json"
+        "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
+        "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json"
       ],
       "key": "runtime_build_cache",
       "kind": "cache",
       "make_target": "prepare-runtime-components",
       "native_mrts_required": false,
-      "optional": false,
+      "optional": true,
       "outputs": [
         "reports/testing/generated/cache/runtime-build-cache.generated.json",
         "reports/testing/generated/cache/runtime-build-cache.generated.md"
@@ -1835,9 +1899,7 @@
       "commit_policy": "local-only",
       "data_kind": "cache",
       "data_origin": "cache",
-      "dependencies": [
-        "runtime_build_cache"
-      ],
+      "dependencies": [],
       "formats": [
         "json",
         "md"
@@ -1845,14 +1907,14 @@
       "full_matrix_required": false,
       "generator": "ci/prepare-runtime-components.py",
       "inputs": [
-        "reports/testing/generated/cache/runtime-component-cache.generated.json",
-        "reports/testing/generated/cache/runtime-build-cache.generated.json"
+        "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
+        "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json"
       ],
       "key": "runtime_component_cache",
       "kind": "cache",
       "make_target": "prepare-runtime-components",
       "native_mrts_required": false,
-      "optional": false,
+      "optional": true,
       "outputs": [
         "reports/testing/generated/cache/runtime-component-cache.generated.json",
         "reports/testing/generated/cache/runtime-component-cache.generated.md"
@@ -1862,6 +1924,37 @@
       "runtime_required": true,
       "severity": "cache",
       "stem": "runtime-component-cache.generated"
+    },
+    {
+      "category": "cache",
+      "commit_policy": "versioned-generated",
+      "data_kind": "cache-index",
+      "data_origin": "cache",
+      "dependencies": [],
+      "formats": [
+        "json",
+        "md"
+      ],
+      "full_matrix_required": false,
+      "generator": "ci/update-runtime-reports.py",
+      "inputs": [
+        "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
+        "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json"
+      ],
+      "key": "runtime_cache_index",
+      "kind": "cache",
+      "make_target": "prepare-runtime-components",
+      "native_mrts_required": false,
+      "optional": true,
+      "outputs": [
+        "reports/testing/generated/cache/runtime-cache-index.generated.json",
+        "reports/testing/generated/cache/runtime-cache-index.generated.md"
+      ],
+      "owner": "cache",
+      "purpose": "Runtime cache provenance index.",
+      "runtime_required": true,
+      "severity": "cache",
+      "stem": "runtime-cache-index.generated"
     }
   ],
   "root_inputs": [
@@ -1869,9 +1962,11 @@
     "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
     "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
     "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
+    "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
+    "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
+    "ci/native_modsecurity_oracle.c",
+    "ci/run-native-case-comparison.py",
     "config/testing/import-status.json",
-    "reports/testing/generated/cache/runtime-build-cache.generated.json",
-    "reports/testing/generated/cache/runtime-component-cache.generated.json",
     "reports/testing/runtime-validation-snapshot.json"
   ]
 }

@@ -31,6 +31,22 @@ coverage rows do not add verified variables.
 `RESPONSE_BODY` is intentionally not emitted in `verified_variables` while
 `response_body_basic_block` remains former expected-failure/mapped-only.
 
+## Collection Semantics Decisions
+
+`ARGS_NAMES` is verified by active control cases such as
+`v3_args_names_get_block`, where a normal ampersand-separated query reaches
+libmodsecurity and produces a disruptive intervention through the real
+connector path.
+
+Semicolon query separator probes are tracked separately. When Apache, NGINX,
+and HAProxy all execute the semicolon collection probes with expected `403` and
+actual `200`, while the `ARGS_NAMES` control case passes in the no-MRTS
+variants, the mismatch is classified as
+`libmodsecurity_collection_semantics`. That classification is report-only: it
+does not change YAML expectations or PASS/FAIL values, and it does not count as
+a connector-specific runtime regression unless new evidence shows a connector
+diverges from the shared libmodsecurity behavior.
+
 ## Validation Rules
 
 YAML cases may express capabilities as a list or as a mapping of booleans.

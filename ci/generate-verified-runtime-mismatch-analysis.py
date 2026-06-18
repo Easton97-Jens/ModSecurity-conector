@@ -40,8 +40,57 @@ DISRUPTIVE_EXPECTED_STATUSES = {"302", "401", "403", "406", "429", "503"}
 MRTS_DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_overlay"
 MRTS_DETECTION_ONLY_NOTE = "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only"
 HAPROXY_MRTS_DETECTION_ONLY_NOTE = "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only"
+COLLECTION_SEMANTICS_CLASSIFICATION = "libmodsecurity_collection_semantics"
+COLLECTION_SEMANTICS_NOTE = (
+    "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; "
+    "control ARGS_NAMES case passes."
+)
+COLLECTION_NAME_CASE_SEMANTICS_CLASSIFICATION = "libmodsecurity_collection_name_case_semantics"
+COLLECTION_NAME_CASE_SEMANTICS_NOTE = (
+    "Observed libmodsecurity runtime preserves request header/cookie collection-name case; "
+    "exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass."
+)
+NOLOG_EXPECTED_NO_AUDIT_CLASSIFICATION = "nolog_expected_no_audit"
+NOLOG_EXPECTED_NO_AUDIT_NOTE = (
+    "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; "
+    "with-CRS audit entries are unrelated CRS noise."
+)
+TRANSFORMATION_NATIVE_SEMANTICS_CLASSIFICATION = "libmodsecurity_transformation_semantics"
+TRANSFORMATION_NATIVE_SEMANTICS_NOTE = (
+    "Connector-free libmodsecurity C API oracle returns the same non-disruptive status as all "
+    "Apache, NGINX, and HAProxy full-matrix variants for this transformation fixture."
+)
+TRANSFORMATION_NATIVE_SEMANTICS_CASES = {
+    "unicode_whitespace_normalization_gap",
+    "unicode_double_encoded_uri_runtime_difference",
+}
+SEMICOLON_COLLECTION_CASES = {
+    "duplicate_args_encoded_separator_edge",
+    "edge_semicolon_query_args_names",
+}
+SEMICOLON_COLLECTION_CONNECTORS = {"apache", "haproxy", "nginx"}
+SEMICOLON_COLLECTION_VARIANTS = {
+    "no-crs/no-mrts",
+    "no-crs/with-mrts",
+    "with-crs/no-mrts",
+    "with-crs/with-mrts",
+}
+ARGS_NAMES_CONTROL_CASE = "v3_args_names_get_block"
+COLLECTION_NAME_CASE_CASES = {
+    "duplicate_header_case_normalization_gap",
+    "v3_request_cookies_names_case_runtime_difference",
+    "v3_request_headers_names_lowercase_runtime_difference",
+}
+COLLECTION_NAME_CASE_CONTROL_CASES = {
+    "duplicate_header_case_normalization_gap": "v3_request_headers_names_block",
+    "v3_request_cookies_names_case_runtime_difference": "v3_request_cookies_names_block",
+    "v3_request_headers_names_lowercase_runtime_difference": "v3_request_headers_names_block",
+}
+NOLOG_EXPECTED_NO_AUDIT_CASE = "v3_action_nolog_pass_no_audit"
+NOLOG_EXPECTED_NO_AUDIT_RULE_ID = "3326"
 MODSECURITY_SMOKE_FILE_RE = re.compile(r'\[file "([^"]*modsecurity-smoke\.conf)"\]')
 RULES_ERROR_SMOKE_FILE_RE = re.compile(r"Rules error\. File: ([^.]*modsecurity-smoke\.conf)\.")
+MODSECURITY_RULE_ID_RE = re.compile(r'\[id "([^"]+)"\]')
 EMPTY_MULTIPART_OPERATOR_RE = re.compile(
     r'SecRule\s+(?:FILES|MULTIPART_FILENAME)\s+"@(?:contains|streq)\s*"\s+"id:(?:4701|4706)\b'
 )
@@ -157,6 +206,7 @@ def input_records_for_sources(
     mismatches: list[dict[str, Any]],
     connector_root: Path,
     build_root: Path,
+    native_semantics_inputs: list[Path] | None = None,
 ) -> list[dict[str, Any]]:
     records: list[tuple[Path, str]] = [
         (commands_file, "verified commands"),
@@ -172,6 +222,12 @@ def input_records_for_sources(
             continue
         seen.add(key)
         records.append((source, f"{row.get('source_scope', 'runtime')} source"))
+    for native_input in native_semantics_inputs or []:
+        key = str(native_input)
+        if key in seen:
+            continue
+        seen.add(key)
+        records.append((native_input, "native libmodsecurity case oracle"))
     return [input_record(path, label) for path, label in sorted(records, key=lambda item: str(item[0]))]
 
 
@@ -279,6 +335,57 @@ def expected_actual(case: dict[str, Any]) -> tuple[str, str]:
     return str(expected), str(actual)
 
 
+def runtime_evidence_state(case: dict[str, Any], expected: str, actual: str) -> str:
+    status = str(case.get("status") or case.get("case_status") or "").lower()
+    if status in {"blocked", "not_executable", "not-executable", "skipped"}:
+        return "not_reached_not_executable"
+    if expected != "-" and actual != "-" and expected != actual:
+        return "runtime_reached_actual_mismatch"
+    if expected != "-" and actual != "-" and expected == actual:
+        return "runtime_reached_actual_match"
+    return "unknown"
+
+
+def configtest_log_from_reason(reason: str) -> Path | None:
+    match = re.search(r"see\s+(\S*configtest\.log)", reason)
+    return Path(match.group(1)) if match else None
+
+
+def runtime_failure_mode(case: dict[str, Any], case_name: str) -> str:
+    state = runtime_evidence_state(case, *expected_actual(case))
+    if state == "runtime_reached_actual_mismatch":
+        return "runtime_reached_actual_mismatch"
+    if state != "not_reached_not_executable":
+        return state
+    if case_name == "v2_transformation_url_decode_invalid_sequence_mapped_candidate":
+        return "fixture_syntax_error"
+    reason = str(case.get("reason") or "")
+    log_path = configtest_log_from_reason(reason)
+    log_text = ""
+    if log_path is not None:
+        try:
+            log_text = log_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            log_text = ""
+    combined = f"{reason}\n{log_text}"
+    if "Rules error" in combined or "Rules must have an ID" in combined or "configuration file" in combined:
+        if case_name == "v2_transformation_url_decode_invalid_sequence_mapped_candidate":
+            return "fixture_syntax_error"
+        return "parser_config_error"
+    return "not_reached_not_executable"
+
+
+def full_matrix_refresh_needed_for_case(case: dict[str, Any], evidence: str) -> bool:
+    case_path = Path(str(case.get("path") or ""))
+    evidence_path = Path(evidence)
+    if not case_path.is_file() or not evidence_path.is_file():
+        return False
+    try:
+        return case_path.stat().st_mtime > evidence_path.stat().st_mtime
+    except OSError:
+        return False
+
+
 def resolve_evidence_file(value: str, *, connector_root: Path, build_root: Path) -> Path:
     path = Path(value)
     if path.is_absolute():
@@ -303,6 +410,24 @@ def result_decision_log_path(result_path: Path, result: dict[str, Any]) -> Path:
         if value:
             return Path(str(value))
     return result_path.parent / "decision.jsonl"
+
+
+def rule_ids_from_text_log(path: Path) -> set[str]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    return set(MODSECURITY_RULE_ID_RE.findall(text))
+
+
+def rule_ids_from_decision_log(path: Path) -> set[str]:
+    ids: set[str] = set()
+    for item in read_jsonl(path):
+        rule_id = item.get("rule_id")
+        if rule_id in (None, "", 0, "0"):
+            continue
+        ids.add(str(rule_id))
+    return ids
 
 
 def detection_only_rule_paths_from_smoke_file(smoke_rules_file: Path) -> list[Path]:
@@ -493,6 +618,546 @@ def multipart_fixture_gap(
     return None
 
 
+def full_matrix_summary_case(build_root: Path, connector: str, variant: str, case_name: str) -> dict[str, Any]:
+    try:
+        crs, mrts = variant.split("/", 1)
+    except ValueError:
+        return {}
+    base = build_root / "full-matrix" / crs / mrts / connector / "results"
+    summary_paths = [
+        base / "force-all" / f"{connector}-summary.json",
+        base / f"{connector}-summary.json",
+    ]
+    for summary_path in summary_paths:
+        data = read_json(summary_path)
+        summary = data.get(connector)
+        if not isinstance(summary, dict):
+            continue
+        cases = summary.get("cases")
+        if isinstance(cases, dict) and isinstance(cases.get(case_name), dict):
+            return cases[case_name]
+    return {}
+
+
+def full_matrix_control_evidence(build_root: Path) -> dict[str, dict[str, str]]:
+    evidence: dict[str, dict[str, str]] = {}
+    for connector in sorted(SEMICOLON_COLLECTION_CONNECTORS):
+        for variant in ("no-crs/no-mrts", "with-crs/no-mrts"):
+            case = full_matrix_summary_case(build_root, connector, variant, ARGS_NAMES_CONTROL_CASE)
+            key = f"{connector}:{variant}:{ARGS_NAMES_CONTROL_CASE}"
+            if (
+                str(case.get("status") or "").lower() == "pass"
+                and str(case.get("expected_status") or "") == "403"
+                and str(case.get("actual_status", case.get("observed_status")) or "") == "403"
+                and case.get("live_executed") is True
+            ):
+                evidence[key] = {
+                    "status": "pass",
+                    "expected": "403",
+                    "actual": "403",
+                    "evidence_file": str(case.get("evidence_path") or "-"),
+                }
+            else:
+                evidence[key] = {
+                    "status": str(case.get("status") or "missing"),
+                    "expected": str(case.get("expected_status") or "-"),
+                    "actual": str(case.get("actual_status", case.get("observed_status")) or "-"),
+                    "evidence_file": str(case.get("evidence_path") or "-"),
+                }
+    return evidence
+
+
+def full_matrix_case_control_evidence(build_root: Path, control_case_name: str) -> dict[str, dict[str, str]]:
+    evidence: dict[str, dict[str, str]] = {}
+    for connector in sorted(SEMICOLON_COLLECTION_CONNECTORS):
+        for variant in ("no-crs/no-mrts", "with-crs/no-mrts"):
+            case = full_matrix_summary_case(build_root, connector, variant, control_case_name)
+            key = f"{connector}:{variant}:{control_case_name}"
+            if (
+                str(case.get("status") or "").lower() == "pass"
+                and str(case.get("expected_status") or "") == "403"
+                and str(case.get("actual_status", case.get("observed_status")) or "") == "403"
+                and case.get("live_executed") is True
+            ):
+                evidence[key] = {
+                    "status": "pass",
+                    "expected": "403",
+                    "actual": "403",
+                    "evidence_file": str(case.get("evidence_path") or "-"),
+                }
+            else:
+                evidence[key] = {
+                    "status": str(case.get("status") or "missing"),
+                    "expected": str(case.get("expected_status") or "-"),
+                    "actual": str(case.get("actual_status", case.get("observed_status")) or "-"),
+                    "evidence_file": str(case.get("evidence_path") or "-"),
+                }
+    return evidence
+
+
+def semicolon_collection_result_evidence(
+    row: dict[str, Any],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, str] | None:
+    if row["connector"] not in SEMICOLON_COLLECTION_CONNECTORS:
+        return None
+    if row["variant"] not in SEMICOLON_COLLECTION_VARIANTS:
+        return None
+    if row["case"] not in SEMICOLON_COLLECTION_CASES:
+        return None
+    if row["category"] != "collections":
+        return None
+    if row["status"] != "fail" or row["expected"] != "403" or row["actual"] != "200":
+        return None
+    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    if result.get("live_executed") is not True:
+        return None
+    if str(result.get("expected_status") or "") != "403":
+        return None
+    if str(result.get("actual_status", result.get("observed_status")) or "") != "200":
+        return None
+    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
+        return None
+    if row["connector"] == "haproxy" and result.get("modsecurity_processed") is not True:
+        return None
+    return {
+        "result": rel(result_path, build_root),
+        "expected": "403",
+        "actual": "200",
+        "live_executed": "true",
+        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
+        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
+    }
+
+
+def apply_semicolon_collection_semantics_classification(
+    mismatches: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> list[dict[str, Any]]:
+    expected_matrix = {
+        (case, connector, variant)
+        for case in SEMICOLON_COLLECTION_CASES
+        for connector in SEMICOLON_COLLECTION_CONNECTORS
+        for variant in SEMICOLON_COLLECTION_VARIANTS
+    }
+    candidates = {
+        (row["case"], row["connector"], row["variant"]): row
+        for row in mismatches
+        if row.get("case") in SEMICOLON_COLLECTION_CASES
+        and row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
+        and row.get("variant") in SEMICOLON_COLLECTION_VARIANTS
+    }
+    if set(candidates) != expected_matrix:
+        return mismatches
+
+    row_evidence: dict[tuple[str, str, str], dict[str, str]] = {}
+    for key, row in candidates.items():
+        evidence = semicolon_collection_result_evidence(row, connector_root=connector_root, build_root=build_root)
+        if evidence is None:
+            return mismatches
+        row_evidence[key] = evidence
+
+    control_evidence = full_matrix_control_evidence(build_root)
+    if not control_evidence or any(item.get("status") != "pass" for item in control_evidence.values()):
+        return mismatches
+
+    for key, row in candidates.items():
+        row["classification"] = COLLECTION_SEMANTICS_CLASSIFICATION
+        row["technical_cause"] = COLLECTION_SEMANTICS_NOTE
+        row["code_fix_needed"] = False
+        row["test_expectation_wrong"] = False
+        row["document_only"] = True
+        row["classification_note"] = COLLECTION_SEMANTICS_NOTE
+        row["classification_evidence"] = {
+            "note": COLLECTION_SEMANTICS_NOTE,
+            "row_evidence": row_evidence[key],
+            "control_case": ARGS_NAMES_CONTROL_CASE,
+            "control_evidence": control_evidence,
+        }
+    return mismatches
+
+
+def collection_name_case_result_evidence(
+    row: dict[str, Any],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, str] | None:
+    if row["connector"] not in SEMICOLON_COLLECTION_CONNECTORS:
+        return None
+    if row["variant"] not in SEMICOLON_COLLECTION_VARIANTS:
+        return None
+    if row["case"] not in COLLECTION_NAME_CASE_CASES:
+        return None
+    if row["category"] != "collections":
+        return None
+    if row["status"] != "fail" or row["expected"] != "403" or row["actual"] != "200":
+        return None
+    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    if result.get("live_executed") is not True:
+        return None
+    if str(result.get("expected_status") or "") != "403":
+        return None
+    if str(result.get("actual_status", result.get("observed_status")) or "") != "200":
+        return None
+    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
+        return None
+    if row["connector"] == "haproxy" and result.get("modsecurity_processed") is not True:
+        return None
+    return {
+        "result": rel(result_path, build_root),
+        "expected": "403",
+        "actual": "200",
+        "live_executed": "true",
+        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
+        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
+    }
+
+
+def apply_collection_name_case_semantics_classification(
+    mismatches: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> list[dict[str, Any]]:
+    expected_matrix = {
+        (case, connector, variant)
+        for case in COLLECTION_NAME_CASE_CASES
+        for connector in SEMICOLON_COLLECTION_CONNECTORS
+        for variant in SEMICOLON_COLLECTION_VARIANTS
+    }
+    candidates = {
+        (row["case"], row["connector"], row["variant"]): row
+        for row in mismatches
+        if row.get("case") in COLLECTION_NAME_CASE_CASES
+        and row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
+        and row.get("variant") in SEMICOLON_COLLECTION_VARIANTS
+    }
+    if set(candidates) != expected_matrix:
+        return mismatches
+
+    row_evidence: dict[tuple[str, str, str], dict[str, str]] = {}
+    for key, row in candidates.items():
+        evidence = collection_name_case_result_evidence(row, connector_root=connector_root, build_root=build_root)
+        if evidence is None:
+            return mismatches
+        row_evidence[key] = evidence
+
+    control_evidence_by_case: dict[str, dict[str, dict[str, str]]] = {}
+    for control_case in sorted(set(COLLECTION_NAME_CASE_CONTROL_CASES.values())):
+        control_evidence = full_matrix_case_control_evidence(build_root, control_case)
+        if not control_evidence or any(item.get("status") != "pass" for item in control_evidence.values()):
+            return mismatches
+        control_evidence_by_case[control_case] = control_evidence
+
+    for key, row in candidates.items():
+        control_case = COLLECTION_NAME_CASE_CONTROL_CASES[str(row["case"])]
+        row["classification"] = COLLECTION_NAME_CASE_SEMANTICS_CLASSIFICATION
+        row["technical_cause"] = COLLECTION_NAME_CASE_SEMANTICS_NOTE
+        row["code_fix_needed"] = False
+        row["test_expectation_wrong"] = False
+        row["document_only"] = True
+        row["classification_note"] = COLLECTION_NAME_CASE_SEMANTICS_NOTE
+        row["classification_evidence"] = {
+            "note": COLLECTION_NAME_CASE_SEMANTICS_NOTE,
+            "row_evidence": row_evidence[key],
+            "control_case": control_case,
+            "control_evidence": control_evidence_by_case[control_case],
+        }
+    return mismatches
+
+
+def nolog_expected_no_audit_evidence(
+    row: dict[str, Any],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, Any] | None:
+    if row["case"] != NOLOG_EXPECTED_NO_AUDIT_CASE:
+        return None
+    if row["category"] != "actions":
+        return None
+    if row["status"] != "fail" or row["expected"] != "200" or row["actual"] != "200":
+        return None
+    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    if result.get("live_executed") is not True:
+        return None
+    if str(result.get("expected_status") or "") != "200":
+        return None
+    if str(result.get("actual_status", result.get("observed_status")) or "") != "200":
+        return None
+
+    audit_log_path = Path(str(result.get("audit_log_path") or result_path.parent / "audit.log"))
+    error_log_path = result_error_log_path(result_path, result)
+    decision_log_path = result_decision_log_path(result_path, result)
+    audit_rule_ids = rule_ids_from_text_log(audit_log_path)
+    error_rule_ids = rule_ids_from_text_log(error_log_path)
+    decision_rule_ids = rule_ids_from_decision_log(decision_log_path)
+    all_rule_ids = audit_rule_ids | error_rule_ids | decision_rule_ids
+    if NOLOG_EXPECTED_NO_AUDIT_RULE_ID in all_rule_ids:
+        return None
+    return {
+        "result": rel(result_path, build_root),
+        "expected": "200",
+        "actual": "200",
+        "target_rule": NOLOG_EXPECTED_NO_AUDIT_RULE_ID,
+        "audit_rule_ids": sorted(audit_rule_ids),
+        "error_rule_ids": sorted(error_rule_ids),
+        "decision_rule_ids": sorted(decision_rule_ids),
+        "audit_log": rel(audit_log_path, build_root),
+        "error_log": rel(error_log_path, build_root),
+        "decision_log": rel(decision_log_path, build_root) if decision_log_path.exists() else "-",
+    }
+
+
+def apply_nolog_expected_no_audit_classification(
+    mismatches: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> list[dict[str, Any]]:
+    expected_matrix = {
+        (NOLOG_EXPECTED_NO_AUDIT_CASE, connector, variant)
+        for connector in SEMICOLON_COLLECTION_CONNECTORS
+        for variant in ("with-crs/no-mrts", "with-crs/with-mrts")
+    }
+    candidates = {
+        (row["case"], row["connector"], row["variant"]): row
+        for row in mismatches
+        if row.get("case") == NOLOG_EXPECTED_NO_AUDIT_CASE
+        and row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
+        and row.get("variant") in {"with-crs/no-mrts", "with-crs/with-mrts"}
+    }
+    if set(candidates) != expected_matrix:
+        return mismatches
+
+    row_evidence: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for key, row in candidates.items():
+        evidence = nolog_expected_no_audit_evidence(row, connector_root=connector_root, build_root=build_root)
+        if evidence is None:
+            return mismatches
+        row_evidence[key] = evidence
+
+    for key, row in candidates.items():
+        row["classification"] = NOLOG_EXPECTED_NO_AUDIT_CLASSIFICATION
+        row["technical_cause"] = NOLOG_EXPECTED_NO_AUDIT_NOTE
+        row["code_fix_needed"] = False
+        row["test_expectation_wrong"] = False
+        row["document_only"] = True
+        row["classification_note"] = NOLOG_EXPECTED_NO_AUDIT_NOTE
+        row["classification_evidence"] = {
+            "note": NOLOG_EXPECTED_NO_AUDIT_NOTE,
+            "row_evidence": row_evidence[key],
+        }
+    return mismatches
+
+
+def status_string(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def latest_native_case_run(verified_run_root: Path, case_name: str) -> tuple[dict[str, Any], Path] | None:
+    native_root = verified_run_root / "native-case-runs"
+    paths = sorted(native_root.glob(f"*-{case_name}/native-case-run.json"))
+    for path in reversed(paths):
+        data = read_json(path)
+        if data.get("case") == case_name:
+            return data, path
+    return None
+
+
+def native_semantics_result_evidence(
+    row: dict[str, Any],
+    *,
+    connector_root: Path,
+    build_root: Path,
+    expected_status: str,
+    native_actual: str,
+) -> dict[str, str] | None:
+    if row.get("connector") not in SEMICOLON_COLLECTION_CONNECTORS:
+        return None
+    if row.get("variant") not in SEMICOLON_COLLECTION_VARIANTS:
+        return None
+    if row.get("case") not in TRANSFORMATION_NATIVE_SEMANTICS_CASES:
+        return None
+    if row.get("category") != "transformations":
+        return None
+    if row.get("status") != "fail" or row.get("expected") != expected_status or row.get("actual") != native_actual:
+        return None
+    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    if result.get("live_executed") is not True:
+        return None
+    if status_string(result.get("expected_status")) != expected_status:
+        return None
+    if status_string(result.get("actual_status", result.get("observed_status"))) != native_actual:
+        return None
+    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
+        return None
+    if row["connector"] == "haproxy" and result.get("modsecurity_processed") is not True:
+        return None
+    return {
+        "result": rel(result_path, build_root),
+        "expected": expected_status,
+        "actual": native_actual,
+        "live_executed": "true",
+        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
+        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
+    }
+
+
+def valid_native_transformation_semantics_evidence(
+    native_case_run: dict[str, Any],
+    candidates: dict[tuple[str, str], dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, Any] | None:
+    if str(native_case_run.get("status") or "") != "fail":
+        return None
+    if str(native_case_run.get("decision") or "") != "DOCUMENT":
+        return None
+    if str(native_case_run.get("classification_hint") or "") != "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics":
+        return None
+    if native_case_run.get("native_match") is not False:
+        return None
+    input_hash = str(native_case_run.get("input_hash") or "")
+    if not input_hash:
+        return None
+
+    expected_status = status_string(native_case_run.get("expected_status"))
+    native_actual = status_string(native_case_run.get("native_actual"))
+    if expected_status != "403" or native_actual != "200":
+        return None
+    if expected_status == native_actual:
+        return None
+
+    expected_matrix = {
+        (connector, variant)
+        for connector in SEMICOLON_COLLECTION_CONNECTORS
+        for variant in SEMICOLON_COLLECTION_VARIANTS
+    }
+    comparisons = native_case_run.get("connector_comparison")
+    if not isinstance(comparisons, list):
+        return None
+    comparison_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in comparisons:
+        if not isinstance(item, dict):
+            return None
+        key = (str(item.get("connector") or ""), str(item.get("variant") or ""))
+        comparison_by_key[key] = item
+    if set(comparison_by_key) != expected_matrix:
+        return None
+    if set(candidates) != expected_matrix:
+        return None
+
+    row_evidence: dict[str, dict[str, str]] = {}
+    comparison_evidence: dict[str, dict[str, Any]] = {}
+    for key, item in comparison_by_key.items():
+        if item.get("same") is not True:
+            return None
+        if status_string(item.get("native_actual")) != native_actual:
+            return None
+        if status_string(item.get("connector_actual")) != native_actual:
+            return None
+        if str(item.get("meaning") or "") != "same_as_native":
+            return None
+        row = candidates[key]
+        evidence = native_semantics_result_evidence(
+            row,
+            connector_root=connector_root,
+            build_root=build_root,
+            expected_status=expected_status,
+            native_actual=native_actual,
+        )
+        if evidence is None:
+            return None
+        evidence_key = f"{key[0]}:{key[1]}"
+        row_evidence[evidence_key] = evidence
+        comparison_evidence[evidence_key] = {
+            "connector_actual": status_string(item.get("connector_actual")),
+            "native_actual": status_string(item.get("native_actual")),
+            "same": True,
+            "meaning": str(item.get("meaning") or ""),
+        }
+
+    return {
+        "expected": expected_status,
+        "native_actual": native_actual,
+        "input_hash": input_hash,
+        "request_sha256": str(native_case_run.get("request_sha256") or ""),
+        "rules_sha256": str(native_case_run.get("rules_sha256") or ""),
+        "libmodsecurity": str(native_case_run.get("libmodsecurity") or ""),
+        "native_result_path": str(native_case_run.get("native_result_path") or ""),
+        "run_dir": str(native_case_run.get("run_dir") or ""),
+        "row_evidence": row_evidence,
+        "connector_comparison": comparison_evidence,
+    }
+
+
+def apply_native_transformation_semantics_classification(
+    mismatches: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+    verified_run_root: Path,
+) -> tuple[list[dict[str, Any]], list[Path]]:
+    native_inputs: list[Path] = []
+    for case_name in sorted(TRANSFORMATION_NATIVE_SEMANTICS_CASES):
+        candidates = {
+            (str(row["connector"]), str(row["variant"])): row
+            for row in mismatches
+            if row.get("case") == case_name
+            and row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
+            and row.get("variant") in SEMICOLON_COLLECTION_VARIANTS
+        }
+        latest = latest_native_case_run(verified_run_root, case_name)
+        if latest is None:
+            continue
+        native_case_run, native_path = latest
+        evidence = valid_native_transformation_semantics_evidence(
+            native_case_run,
+            candidates,
+            connector_root=connector_root,
+            build_root=build_root,
+        )
+        if evidence is None:
+            continue
+        native_inputs.append(native_path)
+        for key, row in candidates.items():
+            evidence_key = f"{key[0]}:{key[1]}"
+            row["classification"] = TRANSFORMATION_NATIVE_SEMANTICS_CLASSIFICATION
+            row["technical_cause"] = TRANSFORMATION_NATIVE_SEMANTICS_NOTE
+            row["code_fix_needed"] = False
+            row["test_expectation_wrong"] = False
+            row["document_only"] = True
+            row["classification_note"] = TRANSFORMATION_NATIVE_SEMANTICS_NOTE
+            row["classification_evidence"] = {
+                "note": TRANSFORMATION_NATIVE_SEMANTICS_NOTE,
+                "native_case_run": str(native_path),
+                "native_run_dir": evidence["run_dir"],
+                "native_result_path": evidence["native_result_path"],
+                "expected": evidence["expected"],
+                "native_actual": evidence["native_actual"],
+                "input_hash": evidence["input_hash"],
+                "request_sha256": evidence["request_sha256"],
+                "rules_sha256": evidence["rules_sha256"],
+                "libmodsecurity": evidence["libmodsecurity"],
+                "row_evidence": evidence["row_evidence"][evidence_key],
+                "connector_comparison": evidence["connector_comparison"][evidence_key],
+            }
+    return mismatches, native_inputs
+
+
 def row_from_case(
     *,
     case: dict[str, Any],
@@ -510,14 +1175,20 @@ def row_from_case(
     expected, actual = expected_actual(case)
     classification, cause, code_fix, expectation_wrong, document_only = classify_case(case)
     evidence = str(case.get("evidence_path") or evidence_file)
+    case_name = str(case.get("name") or case.get("case") or Path(str(case.get("path") or "unknown")).stem)
+    runtime_state = runtime_evidence_state(case, expected, actual)
     row = {
         "connector": connector,
         "variant": variant,
-        "case": str(case.get("name") or case.get("case") or Path(str(case.get("path") or "unknown")).stem),
+        "case": case_name,
         "expected": expected,
         "actual": actual,
         "status": status,
         "classification": classification,
+        "runtime_evidence_state": runtime_state,
+        "failure_mode": runtime_failure_mode(case, case_name),
+        "runtime_reached": runtime_state.startswith("runtime_reached"),
+        "full_matrix_refresh_needed": full_matrix_refresh_needed_for_case(case, evidence),
         "technical_cause": cause,
         "code_fix_needed": code_fix,
         "test_expectation_wrong": expectation_wrong,
@@ -844,6 +1515,7 @@ def main() -> int:
     framework_root = Path(args.framework_root).resolve() if args.framework_root else connector_root / "modules/ModSecurity-test-Framework"
     default_paths = verified_runtime_paths(os.environ)
     build_root = Path(args.build_root or default_paths["BUILD_ROOT"]).resolve()
+    verified_run_root = Path(default_paths["VERIFIED_RUN_ROOT"]).resolve()
     verified_run_id = args.verified_run_id or current_verified_run_id(connector_root)
     os.environ["VERIFIED_RUN_ID"] = verified_run_id
     output_dir = Path(args.output_dir).resolve() if args.output_dir else connector_root / "reports/testing/generated/manifest"
@@ -941,6 +1613,27 @@ def main() -> int:
         )
         rows.extend(collect_incomplete_jobs(full_matrix_root, connector_root, build_root, full_cutoff))
     mismatches = dedupe_rows(rows)
+    mismatches = apply_semicolon_collection_semantics_classification(
+        mismatches,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    mismatches = apply_collection_name_case_semantics_classification(
+        mismatches,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    mismatches = apply_nolog_expected_no_audit_classification(
+        mismatches,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    mismatches, native_semantics_inputs = apply_native_transformation_semantics_classification(
+        mismatches,
+        connector_root=connector_root,
+        build_root=build_root,
+        verified_run_root=verified_run_root,
+    )
 
     by_connector = Counter(row["connector"] for row in mismatches)
     by_classification = Counter(row["classification"] for row in mismatches)
@@ -959,10 +1652,12 @@ def main() -> int:
             mismatches=mismatches,
             connector_root=connector_root,
             build_root=build_root,
+            native_semantics_inputs=native_semantics_inputs,
         ),
         "artifact_roots": {
             "runtime_matrix_results": str(results_root),
             "full_matrix_results": str(full_matrix_root),
+            "native_case_runs": str(verified_run_root / "native-case-runs"),
         },
         "commands": command_state,
         "artifact_filters": {
@@ -1003,7 +1698,7 @@ def main() -> int:
         make_target=GENERATED_REPORTS["verified_runtime_mismatch_analysis"].make_target,
         connector_root=connector_root,
         framework_root=framework_root,
-        inputs=[commands_file, manifest_path],
+        inputs=[commands_file, manifest_path, *native_semantics_inputs],
         generated_at=payload["generated_at"],
         report_key="verified_runtime_mismatch_analysis",
     )

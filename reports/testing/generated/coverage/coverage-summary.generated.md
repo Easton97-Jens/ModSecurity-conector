@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T07:40:30Z`
+> Generated at: `2026-06-18T16:37:01Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
-> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Generated Coverage Summary
@@ -37,18 +37,18 @@
 - `RESPONSE_BODY`: 20
 - `ARGS:q`: 18
 - `REQUEST_BODY`: 10
-- `ARGS_NAMES`: 7
 - `REQUEST_URI`: 7
+- `ARGS_NAMES`: 6
 - `ARGS:test`: 6
 - `REQUEST_HEADERS_NAMES`: 5
 - `ARGS:a`: 4
 - `REQUEST_COOKIES_NAMES`: 4
 - `XML`: 4
 - `ARGS:param1`: 4
+- `MULTIPART_FILENAME`: 4
 - `ARGS`: 4
 - `RESPONSE_HEADERS:Set-Cookie`: 4
 - `ARGS:probe`: 4
-- `MULTIPART_FILENAME`: 3
 - `ARGS:chain_a`: 3
 - `ARGS:chain_b`: 3
 - `FILES_NAMES`: 2
