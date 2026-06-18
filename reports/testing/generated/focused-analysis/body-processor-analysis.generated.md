@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T11:26:35Z`
+> Generated at: `2026-06-18T16:15:38Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-body-processor-analysis.py`
 > Make target: `generate-body-processor-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
-> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
+> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
+> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
 > Input status: `complete`
 
 # Body Processor Failure Analysis
 
-- Generated at: `2026-06-18T11:26:35Z`
+- Generated at: `2026-06-18T16:15:38Z`
 - Before selected metadata fix: request_body_processor **9**, multipart_files **6**, xml_processor **16**, combined **31**.
 - After selected metadata fix: request_body_processor **0**, multipart_files **6**, xml_processor **0**, combined **6**.
 - Selected subcluster rows: **9**
@@ -211,10 +211,10 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

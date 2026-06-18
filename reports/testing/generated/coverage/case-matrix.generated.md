@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T07:15:57Z`
+> Generated at: `2026-06-18T11:55:59Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
-> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
+> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
+> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -35,7 +35,7 @@
 | v3_action_nolog_pass_no_audit | `tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml` | common | 1 | ARGS:foo | @rx | - | imported | - | active | - | unknown | no | - |
 | v3_auditlog_serial_fields_block | `tests/cases/audit-log/v3_auditlog_serial_fields_block.yaml` | common | 1 | ARGS:param1 | @contains | - | imported | - | active | - | unknown | no | - |
 | json_duplicate_keys_runtime_difference | `tests/cases/body/json/json_duplicate_keys_runtime_difference.yaml` | common | 2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
-| json_empty_body_future_compatibility | `tests/cases/body/json/json_empty_body_future_compatibility.yaml` | common | 2 | REQUEST_BODY | @streq | - | imported | - | active | - | unknown | no | - |
+| json_empty_body_future_compatibility | `tests/cases/body/json/json_empty_body_future_compatibility.yaml` | common | 2 | REQUEST_BODY | @rx | - | imported | - | active | - | unknown | no | - |
 | json_nested_object_future_compatibility | `tests/cases/body/json/json_nested_object_future_compatibility.yaml` | common | 2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
 | json_request_body_block | `tests/cases/body/json/json_request_body_block.yaml` | common | 2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
 | request_body_json_block | `tests/cases/body/json/request_body_json_block.yaml` | common | 2 | REQUEST_BODY | @contains | - | active | - | active | - | false | no | - |
@@ -115,7 +115,7 @@
 | phase4_response_body_buffering_order_future_target | `tests/cases/response/body/phase4_response_body_buffering_order_future_target.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_response_body_chunk_assumption_connector_gap | `tests/cases/response/body/phase4_response_body_chunk_assumption_connector_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_response_body_compressed_assumption_experimental | `tests/cases/response/body/phase4_response_body_compressed_assumption_experimental.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
-| phase4_response_body_empty_future_target | `tests/cases/response/body/phase4_response_body_empty_future_target.yaml` | common | 4 | RESPONSE_BODY | @streq | - | imported | - | active | - | unknown | yes | - |
+| phase4_response_body_empty_future_target | `tests/cases/response/body/phase4_response_body_empty_future_target.yaml` | common | 4 | RESPONSE_BODY | @rx | - | imported | - | active | - | unknown | yes | - |
 | phase4_response_body_html_entity_decode_gap | `tests/cases/response/body/phase4_response_body_html_entity_decode_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | htmlEntityDecode | imported | - | active | - | unknown | yes | - |
 | phase4_response_body_html_text_normalization_probe | `tests/cases/response/body/phase4_response_body_html_text_normalization_probe.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_response_body_pass_no_match_experimental | `tests/cases/response/body/phase4_response_body_pass_no_match_experimental.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
@@ -129,7 +129,7 @@
 | phase3_response_headers_missing_pass_through | `tests/cases/response/headers/phase3_response_headers_missing_pass_through.yaml` | common | 3 | RESPONSE_HEADERS:X-Missing | @streq | - | imported | - | active | - | unknown | no | - |
 | phase3_response_headers_mixed_case_connector_gap | `tests/cases/response/headers/phase3_response_headers_mixed_case_connector_gap.yaml` | common | 3 | RESPONSE_HEADERS:content-type | @contains | - | imported | - | active | - | unknown | no | - |
 | phase3_response_headers_multi_value_connector_gap | `tests/cases/response/headers/phase3_response_headers_multi_value_connector_gap.yaml` | common | 3 | RESPONSE_HEADERS:Set-Cookie | @contains | - | imported | - | active | - | unknown | no | - |
-| phase3_response_headers_server_presence_pending | `tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml` | common | 3 | RESPONSE_HEADERS:Server | @contains | - | imported | - | active | - | unknown | yes | - |
+| phase3_response_headers_server_presence_pending | `tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml` | common | 3 | RESPONSE_HEADERS:Server | @rx | - | imported | - | active | - | unknown | yes | - |
 | phase3_response_headers_set_cookie_multi_gap | `tests/cases/response/headers/phase3_response_headers_set_cookie_multi_gap.yaml` | common | 3 | RESPONSE_HEADERS:Set-Cookie | @contains | - | imported | - | active | - | unknown | yes | - |
 | response_header_basic | `tests/cases/response/headers/response_header_basic.yaml` | common | 3 | - | - | - | active | - | active | - | false | no | - |
 | response_headers_multi_value_runtime_gap | `tests/cases/response/headers/response_headers_multi_value_runtime_gap.yaml` | common | 3 | RESPONSE_HEADERS:Set-Cookie | @contains | - | imported | - | active | - | unknown | no | - |

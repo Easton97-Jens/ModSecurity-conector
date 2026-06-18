@@ -2,39 +2,39 @@
   "distribution": {
     "connectors": [
       {
-        "count": 187,
+        "count": 189,
         "value": "nginx"
       },
       {
-        "count": 183,
+        "count": 185,
         "value": "apache"
       },
       {
-        "count": 183,
+        "count": 185,
         "value": "haproxy"
       }
     ],
     "detection_only_connectors": [
       {
-        "count": 170,
+        "count": 172,
         "value": "nginx"
       },
       {
-        "count": 166,
+        "count": 168,
         "value": "apache"
       },
       {
-        "count": 166,
+        "count": 168,
         "value": "haproxy"
       }
     ],
     "detection_only_variants": [
       {
-        "count": 254,
+        "count": 257,
         "value": "with-crs/with-mrts"
       },
       {
-        "count": 248,
+        "count": 251,
         "value": "no-crs/with-mrts"
       }
     ],
@@ -78,7 +78,7 @@
     ],
     "phases": [
       {
-        "count": 373,
+        "count": 379,
         "value": "2"
       },
       {
@@ -100,7 +100,7 @@
         "value": "multipart"
       },
       {
-        "count": 60,
+        "count": 66,
         "value": "body-processors"
       },
       {
@@ -138,7 +138,7 @@
     ],
     "targets": [
       {
-        "count": 201,
+        "count": 203,
         "value": "-"
       },
       {
@@ -146,7 +146,7 @@
         "value": "ARGS:q"
       },
       {
-        "count": 38,
+        "count": 42,
         "value": "REQUEST_BODY"
       },
       {
@@ -220,11 +220,11 @@
     ],
     "variants": [
       {
-        "count": 254,
+        "count": 257,
         "value": "with-crs/with-mrts"
       },
       {
-        "count": 248,
+        "count": 251,
         "value": "no-crs/with-mrts"
       },
       {
@@ -237,13 +237,13 @@
       }
     ]
   },
-  "generated_at": "2026-06-18T11:26:24Z",
+  "generated_at": "2026-06-18T16:15:27Z",
   "groups": {
     "A": {
       "connectors": [
         "nginx"
       ],
-      "count": 187,
+      "count": 189,
       "example_cases": [
         {
           "backend_reached": true,
@@ -497,7 +497,7 @@
           "operator": "@streq a b",
           "path": "/",
           "phase": "2",
-          "query": "q=SAFE",
+          "query": "q=a%E2%80%83b",
           "rule_id": "4708",
           "rule_loaded": true,
           "rule_matched": false,
@@ -565,7 +565,7 @@
         "apache",
         "haproxy"
       ],
-      "count": 332,
+      "count": 336,
       "example_cases": [
         {
           "backend_reached": true,
@@ -729,65 +729,65 @@
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T11:26:24Z",
+    "generated_at": "2026-06-18T16:15:27Z",
     "generated_by": "ci/generate-intervention-blocking-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
-        "source_hash": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
+        "sha256": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
+        "source_hash": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
-        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "sha256": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
+        "source_hash": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4",
-        "source_hash": "08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4",
+        "sha256": "88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2",
+        "source_hash": "88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569",
-        "source_hash": "5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569",
+        "sha256": "0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd",
+        "source_hash": "0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
-        "source_hash": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
+        "sha256": "05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828",
+        "source_hash": "05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -803,7 +803,7 @@
     "working_tree_dirty": "dirty"
   },
   "next_fix_plan": {
-    "generated_at": "2026-06-18T11:26:02Z",
+    "generated_at": "2026-06-18T16:15:03Z",
     "reason": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits",
     "recommended_next_fix_cluster": "multipart_files"
   },
@@ -1204,7 +1204,7 @@
       "group_label": "Rule loaded, no match",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "last_decision": "-",
@@ -1215,14 +1215,14 @@
       "path": "/",
       "phase": "2",
       "priority": "P3",
-      "query": "q=SAFE",
+      "query": "q=a%E2%80%83b",
       "risk": "medium to high",
       "rule_id": "4708",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "transformations",
-      "source_classification": "connector-gap",
+      "source_classification": "test-input-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions.",
@@ -2209,7 +2209,7 @@
       "group_label": "Rule loaded, no match",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "last_decision": "pass",
@@ -2220,14 +2220,14 @@
       "path": "/",
       "phase": "2",
       "priority": "P3",
-      "query": "q=SAFE",
+      "query": "q=a%E2%80%83b",
       "risk": "medium to high",
       "rule_id": "4708",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "transformations",
-      "source_classification": "connector-gap",
+      "source_classification": "test-input-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions.",
@@ -3481,6 +3481,66 @@
       "rule_matched": true,
       "source_category": "body-processors",
       "source_classification": "runtime-difference",
+      "source_kind": "framework-owned",
+      "strict_load_errors": false,
+      "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
+      "target": "REQUEST_BODY",
+      "test_variant": "no-crs",
+      "transformations": [],
+      "variant": "no-crs/with-mrts",
+      "work_direction": [
+        "classification_only"
+      ]
+    },
+    {
+      "actions": [
+        "id:4516",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'json empty body future compatibility'"
+      ],
+      "actual_status": 200,
+      "backend_reached": true,
+      "body_present": false,
+      "case_id": "json_empty_body_future_compatibility",
+      "case_path": "framework:tests/cases/body/json/json_empty_body_future_compatibility.yaml",
+      "classification": "with_mrts_detection_only_non_disruptive",
+      "connector": "apache",
+      "connector_set_403": false,
+      "content_type": "application/json",
+      "decision_entries": 0,
+      "decision_rule_ids": [],
+      "disruptive_decisions": 0,
+      "expected_intervention": "deny",
+      "expected_status": 403,
+      "failure_pattern": [
+        "expected_block_got_200"
+      ],
+      "fixability": "classification/report-only unless the MRTS overlay policy changes",
+      "group": "F",
+      "group_label": "Expected block, but effective runtime is non-disruptive",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
+      ],
+      "last_decision": "-",
+      "last_intervention_status": null,
+      "method": "POST",
+      "mrts_variant": "with-mrts",
+      "operator": "@rx ^$",
+      "path": "/",
+      "phase": "2",
+      "priority": "report_only",
+      "query": "-",
+      "risk": "low for report-only, high if expectations are changed",
+      "rule_id": "4516",
+      "rule_in_loadfile": true,
+      "rule_loaded": true,
+      "rule_matched": true,
+      "source_category": "body-processors",
+      "source_classification": "fixture-syntax-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -5391,7 +5451,7 @@
       "group_label": "Expected block, but effective runtime is non-disruptive",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "last_decision": "-",
@@ -5402,14 +5462,14 @@
       "path": "/",
       "phase": "2",
       "priority": "report_only",
-      "query": "q=SAFE",
+      "query": "q=a%E2%80%83b",
       "risk": "low for report-only, high if expectations are changed",
       "rule_id": "4708",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "transformations",
-      "source_classification": "connector-gap",
+      "source_classification": "test-input-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -8235,6 +8295,57 @@
       "backend_reached": true,
       "body_present": false,
       "case_id": "json_duplicate_keys_runtime_difference",
+      "case_path": "-",
+      "classification": "with_mrts_detection_only_non_disruptive",
+      "connector": "nginx",
+      "connector_set_403": false,
+      "content_type": "-",
+      "decision_entries": 0,
+      "decision_rule_ids": [],
+      "disruptive_decisions": 0,
+      "expected_intervention": "-",
+      "expected_status": 403,
+      "failure_pattern": [
+        "expected_block_got_200"
+      ],
+      "fixability": "fixable if generated loadfile path is wrong",
+      "group": "A",
+      "group_label": "Rule not loaded",
+      "intervention_created": false,
+      "known_limitations": [],
+      "last_decision": "-",
+      "last_intervention_status": null,
+      "method": "-",
+      "mrts_variant": "with-mrts",
+      "operator": "-",
+      "path": "-",
+      "phase": "2",
+      "priority": "report_only",
+      "query": "-",
+      "risk": "low to medium",
+      "rule_id": "-",
+      "rule_in_loadfile": false,
+      "rule_loaded": false,
+      "rule_matched": false,
+      "source_category": "body-processors",
+      "source_classification": "-",
+      "source_kind": "framework-owned",
+      "strict_load_errors": false,
+      "suspected_cause": "Rule-load evidence is missing or startup logs show a strict rule-load error.",
+      "target": "-",
+      "test_variant": "no-crs",
+      "transformations": [],
+      "variant": "no-crs/with-mrts",
+      "work_direction": [
+        "classification_only"
+      ]
+    },
+    {
+      "actions": [],
+      "actual_status": 200,
+      "backend_reached": true,
+      "body_present": false,
+      "case_id": "json_empty_body_future_compatibility",
       "case_path": "-",
       "classification": "with_mrts_detection_only_non_disruptive",
       "connector": "nginx",
@@ -12764,6 +12875,68 @@
     },
     {
       "actions": [
+        "id:4516",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'json empty body future compatibility'"
+      ],
+      "actual_status": 200,
+      "backend_reached": true,
+      "body_present": false,
+      "case_id": "json_empty_body_future_compatibility",
+      "case_path": "framework:tests/cases/body/json/json_empty_body_future_compatibility.yaml",
+      "classification": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "connector_set_403": false,
+      "content_type": "application/json",
+      "decision_entries": 2,
+      "decision_rule_ids": [
+        "100028"
+      ],
+      "disruptive_decisions": 0,
+      "expected_intervention": "deny",
+      "expected_status": 403,
+      "failure_pattern": [
+        "expected_block_got_200"
+      ],
+      "fixability": "classification/report-only unless the MRTS overlay policy changes",
+      "group": "F",
+      "group_label": "Expected block, but effective runtime is non-disruptive",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
+      ],
+      "last_decision": "pass",
+      "last_intervention_status": 200,
+      "method": "POST",
+      "mrts_variant": "with-mrts",
+      "operator": "@rx ^$",
+      "path": "/",
+      "phase": "2",
+      "priority": "report_only",
+      "query": "-",
+      "risk": "low for report-only, high if expectations are changed",
+      "rule_id": "4516",
+      "rule_in_loadfile": true,
+      "rule_loaded": true,
+      "rule_matched": false,
+      "source_category": "body-processors",
+      "source_classification": "fixture-syntax-gap",
+      "source_kind": "framework-owned",
+      "strict_load_errors": false,
+      "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
+      "target": "REQUEST_BODY",
+      "test_variant": "no-crs",
+      "transformations": [],
+      "variant": "no-crs/with-mrts",
+      "work_direction": [
+        "classification_only"
+      ]
+    },
+    {
+      "actions": [
         "id:4709",
         "phase:2",
         "deny",
@@ -14721,7 +14894,7 @@
       "group_label": "Expected block, but effective runtime is non-disruptive",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "last_decision": "pass",
@@ -14732,14 +14905,14 @@
       "path": "/",
       "phase": "2",
       "priority": "report_only",
-      "query": "q=SAFE",
+      "query": "q=a%E2%80%83b",
       "risk": "low for report-only, high if expectations are changed",
       "rule_id": "4708",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "transformations",
-      "source_classification": "connector-gap",
+      "source_classification": "test-input-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -17039,7 +17212,7 @@
       "group_label": "Rule loaded, no match",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "last_decision": "-",
@@ -17050,14 +17223,14 @@
       "path": "/",
       "phase": "2",
       "priority": "P3",
-      "query": "q=SAFE",
+      "query": "q=a%E2%80%83b",
       "risk": "medium to high",
       "rule_id": "4708",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "transformations",
-      "source_classification": "connector-gap",
+      "source_classification": "test-input-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions.",
@@ -17945,7 +18118,7 @@
       "group_label": "Rule loaded, no match",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "last_decision": "pass",
@@ -17956,14 +18129,14 @@
       "path": "/",
       "phase": "2",
       "priority": "P3",
-      "query": "q=SAFE",
+      "query": "q=a%E2%80%83b",
       "risk": "medium to high",
       "rule_id": "4708",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "transformations",
-      "source_classification": "connector-gap",
+      "source_classification": "test-input-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions.",
@@ -19339,6 +19512,66 @@
       "rule_matched": true,
       "source_category": "body-processors",
       "source_classification": "runtime-difference",
+      "source_kind": "framework-owned",
+      "strict_load_errors": false,
+      "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
+      "target": "REQUEST_BODY",
+      "test_variant": "with-crs",
+      "transformations": [],
+      "variant": "with-crs/with-mrts",
+      "work_direction": [
+        "classification_only"
+      ]
+    },
+    {
+      "actions": [
+        "id:4516",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'json empty body future compatibility'"
+      ],
+      "actual_status": 200,
+      "backend_reached": true,
+      "body_present": false,
+      "case_id": "json_empty_body_future_compatibility",
+      "case_path": "framework:tests/cases/body/json/json_empty_body_future_compatibility.yaml",
+      "classification": "with_mrts_detection_only_non_disruptive",
+      "connector": "apache",
+      "connector_set_403": false,
+      "content_type": "application/json",
+      "decision_entries": 0,
+      "decision_rule_ids": [],
+      "disruptive_decisions": 0,
+      "expected_intervention": "deny",
+      "expected_status": 403,
+      "failure_pattern": [
+        "expected_block_got_200"
+      ],
+      "fixability": "classification/report-only unless the MRTS overlay policy changes",
+      "group": "F",
+      "group_label": "Expected block, but effective runtime is non-disruptive",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
+      ],
+      "last_decision": "-",
+      "last_intervention_status": null,
+      "method": "POST",
+      "mrts_variant": "with-mrts",
+      "operator": "@rx ^$",
+      "path": "/",
+      "phase": "2",
+      "priority": "report_only",
+      "query": "-",
+      "risk": "low for report-only, high if expectations are changed",
+      "rule_id": "4516",
+      "rule_in_loadfile": true,
+      "rule_loaded": true,
+      "rule_matched": true,
+      "source_category": "body-processors",
+      "source_classification": "fixture-syntax-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -21249,7 +21482,7 @@
       "group_label": "Expected block, but effective runtime is non-disruptive",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "last_decision": "-",
@@ -21260,14 +21493,14 @@
       "path": "/",
       "phase": "2",
       "priority": "report_only",
-      "query": "q=SAFE",
+      "query": "q=a%E2%80%83b",
       "risk": "low for report-only, high if expectations are changed",
       "rule_id": "4708",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "transformations",
-      "source_classification": "connector-gap",
+      "source_classification": "test-input-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -24195,6 +24428,57 @@
       "backend_reached": true,
       "body_present": false,
       "case_id": "json_duplicate_keys_runtime_difference",
+      "case_path": "-",
+      "classification": "with_mrts_detection_only_non_disruptive",
+      "connector": "nginx",
+      "connector_set_403": false,
+      "content_type": "-",
+      "decision_entries": 0,
+      "decision_rule_ids": [],
+      "disruptive_decisions": 0,
+      "expected_intervention": "-",
+      "expected_status": 403,
+      "failure_pattern": [
+        "expected_block_got_200"
+      ],
+      "fixability": "fixable if generated loadfile path is wrong",
+      "group": "A",
+      "group_label": "Rule not loaded",
+      "intervention_created": false,
+      "known_limitations": [],
+      "last_decision": "-",
+      "last_intervention_status": null,
+      "method": "-",
+      "mrts_variant": "with-mrts",
+      "operator": "-",
+      "path": "-",
+      "phase": "2",
+      "priority": "report_only",
+      "query": "-",
+      "risk": "low to medium",
+      "rule_id": "-",
+      "rule_in_loadfile": false,
+      "rule_loaded": false,
+      "rule_matched": false,
+      "source_category": "body-processors",
+      "source_classification": "-",
+      "source_kind": "framework-owned",
+      "strict_load_errors": false,
+      "suspected_cause": "Rule-load evidence is missing or startup logs show a strict rule-load error.",
+      "target": "-",
+      "test_variant": "with-crs",
+      "transformations": [],
+      "variant": "with-crs/with-mrts",
+      "work_direction": [
+        "classification_only"
+      ]
+    },
+    {
+      "actions": [],
+      "actual_status": 200,
+      "backend_reached": true,
+      "body_present": false,
+      "case_id": "json_empty_body_future_compatibility",
       "case_path": "-",
       "classification": "with_mrts_detection_only_non_disruptive",
       "connector": "nginx",
@@ -28850,6 +29134,68 @@
     },
     {
       "actions": [
+        "id:4516",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'json empty body future compatibility'"
+      ],
+      "actual_status": 200,
+      "backend_reached": true,
+      "body_present": false,
+      "case_id": "json_empty_body_future_compatibility",
+      "case_path": "framework:tests/cases/body/json/json_empty_body_future_compatibility.yaml",
+      "classification": "with_mrts_detection_only_non_disruptive",
+      "connector": "haproxy",
+      "connector_set_403": false,
+      "content_type": "application/json",
+      "decision_entries": 2,
+      "decision_rule_ids": [
+        "920180"
+      ],
+      "disruptive_decisions": 0,
+      "expected_intervention": "deny",
+      "expected_status": 403,
+      "failure_pattern": [
+        "expected_block_got_200"
+      ],
+      "fixability": "classification/report-only unless the MRTS overlay policy changes",
+      "group": "F",
+      "group_label": "Expected block, but effective runtime is non-disruptive",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
+      ],
+      "last_decision": "pass",
+      "last_intervention_status": 200,
+      "method": "POST",
+      "mrts_variant": "with-mrts",
+      "operator": "@rx ^$",
+      "path": "/",
+      "phase": "2",
+      "priority": "report_only",
+      "query": "-",
+      "risk": "low for report-only, high if expectations are changed",
+      "rule_id": "4516",
+      "rule_in_loadfile": true,
+      "rule_loaded": true,
+      "rule_matched": false,
+      "source_category": "body-processors",
+      "source_classification": "fixture-syntax-gap",
+      "source_kind": "framework-owned",
+      "strict_load_errors": false,
+      "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
+      "target": "REQUEST_BODY",
+      "test_variant": "with-crs",
+      "transformations": [],
+      "variant": "with-crs/with-mrts",
+      "work_direction": [
+        "classification_only"
+      ]
+    },
+    {
+      "actions": [
         "id:4709",
         "phase:2",
         "deny",
@@ -30811,7 +31157,7 @@
       "group_label": "Expected block, but effective runtime is non-disruptive",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "last_decision": "pass",
@@ -30822,14 +31168,14 @@
       "path": "/",
       "phase": "2",
       "priority": "report_only",
-      "query": "q=SAFE",
+      "query": "q=a%E2%80%83b",
       "risk": "low for report-only, high if expectations are changed",
       "rule_id": "4708",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "transformations",
-      "source_classification": "connector-gap",
+      "source_classification": "test-input-gap",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -32810,21 +33156,21 @@
     "remaining_failure_analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
   },
   "summary": {
-    "backend_reached": 553,
+    "backend_reached": 559,
     "connector_lost_intervention": 0,
     "connector_set_403": 0,
-    "detection_only_overlay_non_disruptive": 502,
-    "expected_403_actual_200_total": 553,
+    "detection_only_overlay_non_disruptive": 508,
+    "expected_403_actual_200_total": 559,
     "intervention_blocking_true_candidates": 6,
     "intervention_created": 0,
-    "logged_match_suppressed_by_mrts_overlay": 189,
+    "logged_match_suppressed_by_mrts_overlay": 191,
     "no_mrts_no_match": 51,
     "no_mrts_semantic_no_match": 45,
     "remaining_p0_p1_intervention_blocking": 6,
-    "rule_in_loadfile": 366,
-    "rule_loaded": 366,
-    "rule_matched": 189,
+    "rule_in_loadfile": 370,
+    "rule_loaded": 370,
+    "rule_matched": 191,
     "strict_rule_load_errors": 0,
-    "with_mrts_detection_only_overlay": 502
+    "with_mrts_detection_only_overlay": 508
   }
 }

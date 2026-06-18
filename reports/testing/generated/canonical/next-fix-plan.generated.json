@@ -1,27 +1,27 @@
 {
-  "generated_at": "2026-06-18T11:26:02Z",
+  "generated_at": "2026-06-18T16:15:03Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T11:26:02Z",
+    "generated_at": "2026-06-18T16:15:03Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "fd1a7b91ef8bfba7752fc033e2927dcade8208dad068667914c18410e3283815",
-        "source_hash": "fd1a7b91ef8bfba7752fc033e2927dcade8208dad068667914c18410e3283815",
+        "sha256": "5c3c372c18f7a633995fd4929d7a3515df1aa8adea82f61b67a73416643e5595",
+        "source_hash": "5c3c372c18f7a633995fd4929d7a3515df1aa8adea82f61b67a73416643e5595",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -58,7 +58,7 @@
       {
         "cluster_name": "phase4_hard_abort_capability",
         "connector": "apache, nginx, haproxy",
-        "count": 112,
+        "count": 120,
         "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
         "risk": "high if promoted prematurely or faked",
         "tests": [
@@ -81,7 +81,19 @@
         "why": "largest semantic cluster; likely needs native/libmodsecurity comparison before any fix"
       }
     ],
-    "P4": []
+    "P4": [
+      {
+        "cluster_name": "rule_chain_semantics and small single-connector leftovers",
+        "connector": "mostly nginx for connector-only leftovers",
+        "count": 1,
+        "likely_change": "focused per-case triage only when runtime-fixable evidence remains",
+        "risk": "low to medium",
+        "tests": [
+          "targeted single-case smokes"
+        ],
+        "why": "small connector-only leftovers after report-only and not-next groups are excluded"
+      }
+    ]
   },
   "recommendation": {
     "not_next": [

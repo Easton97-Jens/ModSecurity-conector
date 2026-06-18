@@ -10,21 +10,22 @@
     "runtime_matrix_results": "/var/tmp/ModSecurity-conector-verified/build/results"
   },
   "by_classification": {
-    "connector_capability_gap": 51,
-    "expected_status_mismatch": 29,
+    "connector_capability_gap": 27,
+    "expected_status_mismatch": 43,
+    "framework_expected_behavior_gap": 1,
     "known_not_next": 102,
-    "libmodsecurity_collection_name_case_semantics": 24,
+    "libmodsecurity_collection_name_case_semantics": 36,
     "libmodsecurity_collection_semantics": 24,
     "nolog_expected_no_audit": 6,
     "runtime_regression": 18,
-    "timeout_or_incomplete": 48,
+    "timeout_or_incomplete": 12,
     "unknown": 6,
-    "with_mrts_detection_only_overlay": 500
+    "with_mrts_detection_only_overlay": 512
   },
   "by_connector": {
-    "apache": 256,
-    "haproxy": 256,
-    "nginx": 296
+    "apache": 248,
+    "haproxy": 249,
+    "nginx": 290
   },
   "commands": {
     "full_matrix_classification": "completed_with_mismatches",
@@ -34,7 +35,7 @@
     "full_matrix_job_statuses": [
       {
         "connector": "apache",
-        "duration_seconds": 331,
+        "duration_seconds": 338,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -44,7 +45,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 548,
+        "duration_seconds": 552,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -54,7 +55,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 287,
+        "duration_seconds": 271,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -64,7 +65,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1278,
+        "duration_seconds": 1291,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -74,7 +75,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3224,
+        "duration_seconds": 3208,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -84,7 +85,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1065,
+        "duration_seconds": 1049,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -94,7 +95,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 355,
+        "duration_seconds": 365,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -104,7 +105,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 606,
+        "duration_seconds": 609,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -114,7 +115,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 321,
+        "duration_seconds": 309,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -124,7 +125,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1373,
+        "duration_seconds": 1380,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -134,7 +135,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3441,
+        "duration_seconds": 3439,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -144,7 +145,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1198,
+        "duration_seconds": 1182,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -241,7 +242,7 @@
       "timeout_seconds": 1800
     }
   },
-  "critical_mismatch_count": 152,
+  "critical_mismatch_count": 107,
   "data_source_policy": "verified-inputs-only",
   "evidence_scope": "full",
   "full_matrix": {
@@ -254,7 +255,7 @@
     "job_statuses": [
       {
         "connector": "apache",
-        "duration_seconds": 331,
+        "duration_seconds": 338,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -264,7 +265,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 548,
+        "duration_seconds": 552,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -274,7 +275,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 287,
+        "duration_seconds": 271,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -284,7 +285,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1278,
+        "duration_seconds": 1291,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -294,7 +295,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3224,
+        "duration_seconds": 3208,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -304,7 +305,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1065,
+        "duration_seconds": 1049,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -314,7 +315,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 355,
+        "duration_seconds": 365,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -324,7 +325,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 606,
+        "duration_seconds": 609,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -334,7 +335,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 321,
+        "duration_seconds": 309,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -344,7 +345,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1373,
+        "duration_seconds": 1380,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -354,7 +355,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3441,
+        "duration_seconds": 3439,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -364,7 +365,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1198,
+        "duration_seconds": 1182,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -384,104 +385,104 @@
     "status": "complete",
     "timeout": false
   },
-  "generated_at": "2026-06-18T11:25:41Z",
+  "generated_at": "2026-06-18T16:14:42Z",
   "inputs": [
     {
       "bytes": 6506,
       "label": "full matrix manifest",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-      "sha256": "89dd4b2a57f69cafb826982e23ebe60f3841864b47244b28f57cb0370c2ad1e8",
+      "sha256": "05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4",
       "status": "present"
     },
     {
-      "bytes": 358123,
+      "bytes": 357964,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "5a560102b35aa4b46d3a11f40b1b957dd180d773d3e9d59e3f69843f5ff41234",
+      "sha256": "00f16a615027b01044651ace2785621bfe46fbcb56aefda5b509c777a6060bee",
       "status": "present"
     },
     {
-      "bytes": 444896,
+      "bytes": 446159,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "8e0fd3db3b897df7c2ed3ab2e8248442bd313bbf2bb917adfecf5985c76f226a",
+      "sha256": "88934b32904dbf58aa322c6c489a411737dc0c90fce9dc2fe433716b8ac3d7a0",
       "status": "present"
     },
     {
-      "bytes": 392108,
+      "bytes": 391912,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "e4c38d82198582fc090e13260ec85a840d12e55de361868827f074ccba2073ff",
+      "sha256": "ef9a0cae4f356eb87acbcd1d594da74f72ceb418d75cb5f10131bddc23ae7f03",
       "status": "present"
     },
     {
-      "bytes": 1466979,
+      "bytes": 1466811,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "2010ff376da0a6b9177369f1284d39641d53c2af43374d2a27c6105f77abd96e",
+      "sha256": "c33c6c8b8a6dd3e4ff26a5e4e45056e6b3a0cf5d01566048f5b842e95636af84",
       "status": "present"
     },
     {
-      "bytes": 1791989,
+      "bytes": 1793334,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "3a3b2cd472348daf328f07b68096baba2bd8ea1f98faa57da0e9a077ea1e2418",
+      "sha256": "7f6978c3e76c7e44e6609e554d66086328ee401ada671adef1e1a32ba49e8a4b",
       "status": "present"
     },
     {
-      "bytes": 1544256,
+      "bytes": 1544034,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "cfd2b4600fb34e882266bcce0ce42b836dffa5b796926f5a0dd3f556d9d3f9d6",
+      "sha256": "4b39d17d56c7f74c1a859c18f57e861233e46534512bb17275789d15e25bfa73",
       "status": "present"
     },
     {
-      "bytes": 362535,
+      "bytes": 362370,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "b0d86855b6cdbbda89b651db3ceb78053f6459a5a465c5c0acd86e9281e893d5",
+      "sha256": "bad577ee975476ad4e188c904bf320015a9a19546174031cd16aa45f4b50603e",
       "status": "present"
     },
     {
-      "bytes": 450343,
+      "bytes": 451649,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "fb42088412fc1e434c0e8a735793309e548129f091c73292bc1f3e049d1136c3",
+      "sha256": "18b390115059d795246975499af920dd75b5de84a8d5349a9fd21e6f9e7fc89f",
       "status": "present"
     },
     {
-      "bytes": 396744,
+      "bytes": 396542,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "532d2fd865413caab504418e29352b70180c8ac97be08905f3f4a9fe1c06bb58",
+      "sha256": "9afa8bcb0438ac9e436c22b2c9bae5900d99371bb2784e7e6e84b5dce8ad22bd",
       "status": "present"
     },
     {
-      "bytes": 1476740,
+      "bytes": 1476566,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "2fe2f518627c5c5ead90c290a143d2f7d4af5c65e1de7a6c7343ab1d47699577",
+      "sha256": "9a364b71a33156bbd9fa33fdf19be58655d1842a976348a90e34da836809a6fc",
       "status": "present"
     },
     {
-      "bytes": 1804420,
+      "bytes": 1805769,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "a516aef51cce494a692cbe6b2cd159057477724b02083d7d4154a4ba356ae60f",
+      "sha256": "a6641c40989fd073c5385a8f414545b8752589d1f50897770af8450432581112",
       "status": "present"
     },
     {
-      "bytes": 1554253,
+      "bytes": 1554025,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "1ef3cbfddf83c854f4fc7feddc008348941d46ffcd84d4753d612a133c82968d",
+      "sha256": "26784a8ca26bfd9cc9d089218c56c315b5ffe5886db7554e0434d7aa7a4a52f3",
       "status": "present"
     },
     {
-      "bytes": 53022,
+      "bytes": 84682,
       "label": "verified commands",
       "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
-      "sha256": "7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e",
+      "sha256": "367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e",
       "status": "present"
     }
   ],
@@ -490,14 +491,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T11:25:41Z",
+    "generated_at": "2026-06-18T16:14:42Z",
     "generated_by": "ci/generate-verified-runtime-mismatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -505,15 +506,15 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
-        "sha256": "7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e",
-        "source_hash": "7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e",
+        "sha256": "367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e",
+        "source_hash": "367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-        "sha256": "89dd4b2a57f69cafb826982e23ebe60f3841864b47244b28f57cb0370c2ad1e8",
-        "source_hash": "89dd4b2a57f69cafb826982e23ebe60f3841864b47244b28f57cb0370c2ad1e8",
+        "sha256": "05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4",
+        "source_hash": "05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4",
         "status": "present"
       }
     ],
@@ -527,7 +528,7 @@
     "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
-  "mismatch_count": 808,
+  "mismatch_count": 787,
   "mismatches": [
     {
       "actual": "200",
@@ -614,10 +615,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -630,7 +682,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -743,34 +795,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase2"
-      ],
-      "case": "json_empty_body_future_compatibility",
-      "category": "body-processors",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "request-body"
@@ -827,62 +851,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "phase4",
-        "response-body"
-      ],
-      "case": "phase4_response_body_empty_future_target",
-      "category": "response-body",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "transformations"
@@ -916,14 +884,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "apache",
       "document_only": false,
       "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -932,7 +900,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -1714,10 +1682,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -1730,7 +1749,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -1947,30 +1966,37 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase2"
       ],
       "case": "json_empty_body_future_compatibility",
       "category": "body-processors",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/json_empty_body_future_compatibility/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
       ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -2728,34 +2754,6 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/with-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "phase3",
@@ -3049,30 +3047,37 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "phase4",
         "response-body"
       ],
       "case": "phase4_response_body_empty_future_target",
       "category": "response-body",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/phase4_response_body_empty_future_target/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise."
       ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -3880,14 +3885,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "apache",
       "document_only": false,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -3896,7 +3901,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -5205,10 +5210,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -5221,7 +5277,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -5334,34 +5390,6 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase2"
-      ],
-      "case": "json_empty_body_future_compatibility",
-      "category": "body-processors",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "request-body"
@@ -5385,62 +5413,6 @@
       "source_scope": "full_matrix",
       "status": "fail",
       "technical_cause": "Case is marked as future/experimental coverage, not a next critical fix.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "phase4",
-        "response-body"
-      ],
-      "case": "phase4_response_body_empty_future_target",
-      "category": "response-body",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -5478,14 +5450,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "apache",
       "document_only": false,
       "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -5494,7 +5466,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -6355,10 +6327,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -6371,7 +6394,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -6588,30 +6611,37 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase2"
       ],
       "case": "json_empty_body_future_compatibility",
       "category": "body-processors",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/json_empty_body_future_compatibility/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
       ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -7369,34 +7399,6 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/with-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "phase3",
@@ -7690,30 +7692,37 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "phase4",
         "response-body"
       ],
       "case": "phase4_response_body_empty_future_target",
       "category": "response-body",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/phase4_response_body_empty_future_target/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise."
       ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -8521,14 +8530,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "apache",
       "document_only": false,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -8537,7 +8546,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -9899,10 +9908,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -9915,7 +9975,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -10028,34 +10088,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase2"
-      ],
-      "case": "json_empty_body_future_compatibility",
-      "category": "body-processors",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "request-body"
@@ -10112,62 +10144,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "phase4",
-        "response-body"
-      ],
-      "case": "phase4_response_body_empty_future_target",
-      "category": "response-body",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "transformations"
@@ -10201,14 +10177,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "haproxy",
       "document_only": false,
       "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
@@ -10217,7 +10193,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -11069,10 +11045,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -11085,7 +11112,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -11323,30 +11350,44 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase2"
       ],
       "case": "json_empty_body_future_compatibility",
       "category": "body-processors",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/json_empty_body_future_compatibility/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
       ],
-      "reason": "",
+      "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
       "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -12223,34 +12264,6 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/with-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "phase3",
@@ -12586,30 +12599,44 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "phase4",
         "response-body"
       ],
       "case": "phase4_response_body_empty_future_target",
       "category": "response-body",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "2",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2,4",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/phase4_response_body_empty_future_target/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise."
       ],
-      "reason": "",
+      "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
       "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -13564,14 +13591,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "haproxy",
       "document_only": false,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
@@ -13580,7 +13607,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -15064,10 +15091,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -15080,7 +15158,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -15193,31 +15271,31 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "503",
       "capabilities": [
         "intervention",
         "phase2"
       ],
-      "case": "json_empty_body_future_compatibility",
-      "category": "body-processors",
-      "classification": "timeout_or_incomplete",
+      "case": "operator_endswith_pass_no_match_phase2",
+      "category": "operators",
+      "classification": "framework_expected_behavior_gap",
       "code_fix_needed": false,
       "connector": "haproxy",
       "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/result.json",
-      "expected": "403",
+      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/operator_endswith_pass_no_match_phase2/result.json",
+      "expected": "200",
       "known_limitations": [
-        "Classification: future-compatibility.",
+        "Classification: pending-runtime-verification.",
         "Pending cross-connector runtime verification; not counted as verified PASS."
       ],
-      "reason": "",
+      "reason": "expected HTTP 200; observed HTTP 503",
       "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
+      "source": "ModSecurity_V2:tests/op/endsWith.t",
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
+      "status": "fail",
+      "technical_cause": "Expected behavior is still pending runtime verification.",
+      "test_expectation_wrong": true,
       "variant": "with-crs/no-mrts"
     },
     {
@@ -15244,62 +15322,6 @@
       "source_scope": "full_matrix",
       "status": "fail",
       "technical_cause": "Case is marked as future/experimental coverage, not a next critical fix.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "phase4",
-        "response-body"
-      ],
-      "case": "phase4_response_body_empty_future_target",
-      "category": "response-body",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -15337,14 +15359,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "haproxy",
       "document_only": false,
       "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
@@ -15353,7 +15375,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -16284,10 +16306,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -16300,7 +16373,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -16538,30 +16611,44 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase2"
       ],
       "case": "json_empty_body_future_compatibility",
       "category": "body-processors",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/json_empty_body_future_compatibility/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/json_empty_body_future_compatibility/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
       ],
-      "reason": "",
+      "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
       "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -17438,34 +17525,6 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/with-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "phase3",
@@ -17801,30 +17860,44 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "phase4",
         "response-body"
       ],
       "case": "phase4_response_body_empty_future_target",
       "category": "response-body",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "2",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2,4",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/phase4_response_body_empty_future_target/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_response_body_empty_future_target/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise."
       ],
-      "reason": "",
+      "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
       "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -18779,14 +18852,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "haproxy",
       "document_only": false,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
@@ -18795,7 +18868,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -20332,10 +20405,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -20348,7 +20472,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -20461,34 +20585,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase2"
-      ],
-      "case": "json_empty_body_future_compatibility",
-      "category": "body-processors",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/json_empty_body_future_compatibility/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/json_empty_body_future_compatibility/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
-      "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "request-body"
@@ -20541,34 +20637,6 @@
       "source_scope": "full_matrix",
       "status": "fail",
       "technical_cause": "Case is already marked as a connector capability gap.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase3_response_headers_server_presence_pending/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -20796,30 +20864,30 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "phase4",
         "response-body"
       ],
       "case": "phase4_response_body_empty_future_target",
       "category": "response-body",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
+      "classification": "expected_status_mismatch",
+      "code_fix_needed": true,
       "connector": "nginx",
       "document_only": false,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase4_response_body_empty_future_target/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise."
       ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase4_response_body_empty_future_target/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -21003,14 +21071,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "nginx",
       "document_only": false,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -21019,7 +21087,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -21801,10 +21869,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -21817,7 +21936,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -22034,30 +22153,37 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase2"
       ],
       "case": "json_empty_body_future_compatibility",
       "category": "body-processors",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/json_empty_body_future_compatibility/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/json_empty_body_future_compatibility/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/json_empty_body_future_compatibility/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
       ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/json_empty_body_future_compatibility/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -23036,34 +23162,6 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase3_response_headers_server_presence_pending/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/with-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "phase3",
@@ -23357,30 +23455,37 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "phase4",
         "response-body"
       ],
       "case": "phase4_response_body_empty_future_target",
       "category": "response-body",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase4_response_body_empty_future_target/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/phase4_response_body_empty_future_target/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase4_response_body_empty_future_target/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise."
       ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase4_response_body_empty_future_target/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -24188,14 +24293,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "nginx",
       "document_only": false,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -24204,7 +24309,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -25513,10 +25618,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -25529,7 +25685,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -25642,34 +25798,6 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase2"
-      ],
-      "case": "json_empty_body_future_compatibility",
-      "category": "body-processors",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/json_empty_body_future_compatibility/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/json_empty_body_future_compatibility/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
-      "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "request-body"
@@ -25693,34 +25821,6 @@
       "source_scope": "full_matrix",
       "status": "fail",
       "technical_cause": "Case is marked as future/experimental coverage, not a next critical fix.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase3_response_headers_server_presence_pending/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -25948,30 +26048,30 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "phase4",
         "response-body"
       ],
       "case": "phase4_response_body_empty_future_target",
       "category": "response-body",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
+      "classification": "expected_status_mismatch",
+      "code_fix_needed": true,
       "connector": "nginx",
       "document_only": false,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase4_response_body_empty_future_target/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise."
       ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase4_response_body_empty_future_target/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -26155,14 +26255,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "nginx",
       "document_only": false,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -26171,7 +26271,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -27032,10 +27132,61 @@
       ],
       "case": "duplicate_header_case_normalization_gap",
       "category": "collections",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/duplicate_header_case_normalization_gap/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/duplicate_header_case_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
@@ -27048,7 +27199,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -27265,30 +27416,37 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase2"
       ],
       "case": "json_empty_body_future_compatibility",
       "category": "body-processors",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/json_empty_body_future_compatibility/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/json_empty_body_future_compatibility/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/json_empty_body_future_compatibility/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix."
       ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/json_empty_body_future_compatibility/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity-apache:tests/regression/rule/15-json.t",
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -28267,34 +28425,6 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "phase3",
-        "response-headers"
-      ],
-      "case": "phase3_response_headers_server_presence_pending",
-      "category": "response-headers",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_server_presence_pending/result.json",
-      "expected": "200",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase3_response_headers_server_presence_pending/configtest.log",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_HEADERS.json",
-      "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/with-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "phase3",
@@ -28588,30 +28718,37 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "phase4",
         "response-body"
       ],
       "case": "phase4_response_body_empty_future_target",
       "category": "response-body",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase4_response_body_empty_future_target/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/phase4_response_body_empty_future_target/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase4_response_body_empty_future_target/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: future-compatibility.",
-        "Phase-4/response behavior remains non-verified; no verified PASS claim."
+        "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument.",
+        "Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise."
       ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase4_response_body_empty_future_target/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
       "source": "ModSecurity_V3:test/test-cases/regression/variable-RESPONSE_BODY.json",
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -29419,14 +29556,14 @@
       ],
       "case": "unicode_whitespace_normalization_gap",
       "category": "transformations",
-      "classification": "connector_capability_gap",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "nginx",
       "document_only": false,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/unicode_whitespace_normalization_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -29435,7 +29572,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -30732,19 +30869,7 @@
       "count": 12
     },
     {
-      "case": "json_empty_body_future_compatibility",
-      "count": 12
-    },
-    {
       "case": "parser_xml_partial_body_future_target",
-      "count": 12
-    },
-    {
-      "case": "phase3_response_headers_server_presence_pending",
-      "count": 12
-    },
-    {
-      "case": "phase4_response_body_empty_future_target",
       "count": 12
     },
     {
@@ -30813,6 +30938,10 @@
     },
     {
       "case": "phase4_response_body_compressed_assumption_experimental",
+      "count": 8
+    },
+    {
+      "case": "phase4_response_body_empty_future_target",
       "count": 8
     },
     {
@@ -30900,6 +31029,10 @@
       "count": 6
     },
     {
+      "case": "json_empty_body_future_compatibility",
+      "count": 6
+    },
+    {
       "case": "json_nested_object_future_compatibility",
       "count": 6
     },
@@ -30913,6 +31046,10 @@
     },
     {
       "case": "multipart_duplicate_field_names_gap",
+      "count": 6
+    },
+    {
+      "case": "multipart_empty_filename_connector_gap",
       "count": 6
     }
   ],

@@ -68,10 +68,12 @@ SEMICOLON_COLLECTION_VARIANTS = {
 }
 ARGS_NAMES_CONTROL_CASE = "v3_args_names_get_block"
 COLLECTION_NAME_CASE_CASES = {
+    "duplicate_header_case_normalization_gap",
     "v3_request_cookies_names_case_runtime_difference",
     "v3_request_headers_names_lowercase_runtime_difference",
 }
 COLLECTION_NAME_CASE_CONTROL_CASES = {
+    "duplicate_header_case_normalization_gap": "v3_request_headers_names_block",
     "v3_request_cookies_names_case_runtime_difference": "v3_request_cookies_names_block",
     "v3_request_headers_names_lowercase_runtime_difference": "v3_request_headers_names_block",
 }

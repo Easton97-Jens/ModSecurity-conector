@@ -1,48 +1,48 @@
 {
   "data_source_policy": "verified-inputs-only",
-  "generated_at": "2026-06-18T11:26:17Z",
+  "generated_at": "2026-06-18T16:15:21Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T11:26:17Z",
+    "generated_at": "2026-06-18T16:15:21Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
-        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "sha256": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
+        "source_hash": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
-        "source_hash": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
+        "sha256": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
+        "source_hash": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569",
-        "source_hash": "5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569",
+        "sha256": "0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd",
+        "source_hash": "0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -56,6 +56,153 @@
     "unknown_inputs": [],
     "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
+  },
+  "mrts_native": {
+    "generated_at": "2026-06-18T12:01:28Z",
+    "report_json": "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
+    "report_md": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "reports": {
+      "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+      "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+      "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+      "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+    },
+    "summary": {
+      "FAIL": 2
+    },
+    "target_script_exit_code": 2,
+    "targets": {
+      "apache2_ubuntu": {
+        "classification": "optional_native_modsecurity_semantics_difference",
+        "classification_notes": "Apache and NGINX native MRTS reach the backend and fail only case 100003-1, the phase 4 ARGS comparison.",
+        "counts": {
+          "attempted": 13,
+          "blocked": 0,
+          "fail": 1,
+          "failed_cases": [
+            "100003-1"
+          ],
+          "not_executable": 0,
+          "pass": 12
+        },
+        "critical_merge_blocker": false,
+        "duration_seconds": 13,
+        "evidence_role": "optional_native_mrts",
+        "exit_code": 1,
+        "first_failing_cases": [
+          {
+            "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+            "case_id": "100003-1",
+            "classification": "native_modsecurity_semantics",
+            "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+            "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+            "phase": "4",
+            "request": "POST /?foo=attack",
+            "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+            "rule_id": "100003",
+            "secondary_classification": "phase4_native_limitation",
+            "target": "ARGS",
+            "variable": "ARGS"
+          }
+        ],
+        "go_ftw": {
+          "attempted": 13,
+          "failed": 1,
+          "failed_cases": [
+            "100003-1"
+          ],
+          "passed": 12,
+          "skipped": 0
+        },
+        "job_json": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "job_root": "$MRTS_NATIVE_ROOT/apache2_ubuntu",
+        "known_limitations": [
+          "phase4_native_limitation",
+          "RESPONSE_BODY non-promoted"
+        ],
+        "native_runtime_reached": true,
+        "optional": true,
+        "paths": {
+          "job_json_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+          "run_log_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+          "staged_infra_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/stage/infra"
+        },
+        "reason": "native MRTS go-ftw run failed",
+        "remediation": [],
+        "run_log": "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log",
+        "status": "FAIL",
+        "summary_path": "$MRTS_NATIVE_ROOT/apache2_ubuntu/job.json",
+        "target": "apache2_ubuntu"
+      },
+      "nginx-pr24": {
+        "classification": "optional_native_modsecurity_semantics_difference",
+        "classification_notes": "Apache and NGINX native MRTS reach the backend and fail only case 100003-1, the phase 4 ARGS comparison.",
+        "counts": {
+          "attempted": 13,
+          "blocked": 0,
+          "fail": 1,
+          "failed_cases": [
+            "100003-1"
+          ],
+          "not_executable": 0,
+          "pass": 12
+        },
+        "critical_merge_blocker": false,
+        "duration_seconds": 6,
+        "evidence_role": "optional_native_mrts",
+        "exit_code": 1,
+        "first_failing_cases": [
+          {
+            "actual": "HTTP 200 backend response observed; expected phase 4 log id 100003 missing",
+            "case_id": "100003-1",
+            "classification": "native_modsecurity_semantics",
+            "evidence_summary": "Native ModSecurity reaches the request and earlier request-collection phases, but the phase 4 ARGS rule does not log in native Apache or NGINX evidence.",
+            "expected": "HTTP 200 backend response plus ModSecurity log id 100003",
+            "phase": "4",
+            "request": "POST /?foo=attack",
+            "rule": "SecRule ARGS \"@contains attack\" \"id:100003, phase:4, deny, t:none, log\"",
+            "rule_id": "100003",
+            "secondary_classification": "phase4_native_limitation",
+            "target": "ARGS",
+            "variable": "ARGS"
+          }
+        ],
+        "go_ftw": {
+          "attempted": 13,
+          "failed": 1,
+          "failed_cases": [
+            "100003-1"
+          ],
+          "passed": 12,
+          "skipped": 0
+        },
+        "job_json": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "job_root": "$MRTS_NATIVE_ROOT/nginx-pr24",
+        "known_limitations": [
+          "phase4_native_limitation",
+          "RESPONSE_BODY non-promoted"
+        ],
+        "native_runtime_reached": true,
+        "optional": true,
+        "paths": {
+          "job_json_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+          "run_log_path": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+          "staged_infra_path": "$MRTS_NATIVE_ROOT/nginx-pr24/stage/infra"
+        },
+        "reason": "native MRTS go-ftw run failed",
+        "remediation": [],
+        "run_log": "$MRTS_NATIVE_ROOT/nginx-pr24/run.log",
+        "status": "FAIL",
+        "summary_path": "$MRTS_NATIVE_ROOT/nginx-pr24/job.json",
+        "target": "nginx-pr24"
+      }
+    }
+  },
+  "mrts_native_reports": {
+    "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
   },
   "remaining_failure_analysis_reports": {
     "analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.md",
@@ -75,7 +222,15 @@
     "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
     "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md",
     "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
-    "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md"
+    "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-summary.generated.md",
+    "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
+    "reports/testing/generated/mrts-native/mrts-native-full.generated.md"
   ],
   "status": "generated",
   "verified_run_id": "2026-06-16T19-12-00Z-614c8049"

@@ -116,59 +116,59 @@
     "safe_change": "metadata/report-only classification; no Expected status, rule, MRTS definition, or connector-core change.",
     "selected_subcluster": "with-MRTS DetectionOnly redirect classification and report-only Rule-Chain triage"
   },
-  "generated_at": "2026-06-18T11:26:36Z",
+  "generated_at": "2026-06-18T16:15:39Z",
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T11:26:36Z",
+    "generated_at": "2026-06-18T16:15:39Z",
     "generated_by": "ci/generate-rule-chain-semantics-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
-        "source_hash": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
+        "sha256": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
+        "source_hash": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4",
-        "source_hash": "08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4",
+        "sha256": "88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2",
+        "source_hash": "88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
-        "source_hash": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
+        "sha256": "05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828",
+        "source_hash": "05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
-        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "sha256": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
+        "source_hash": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -510,7 +510,39 @@
       "variant": "with-crs/with-mrts"
     }
   ],
-  "runtime_fixable_candidates": [],
+  "runtime_fixable_candidates": [
+    {
+      "actual_statuses": {
+        "503": 1
+      },
+      "analysis_classification": "runtime_fixable_candidate",
+      "case_id": "operator_endswith_pass_no_match_phase2",
+      "case_path": "framework:tests/cases/negative-pass-through/operator_endswith_pass_no_match_phase2.yaml",
+      "category_counts": {
+        "operators": 1
+      },
+      "classification_counts": {
+        "runtime-difference": 1
+      },
+      "connector": [
+        "haproxy"
+      ],
+      "count": 1,
+      "expected_statuses": {
+        "200": 1
+      },
+      "fixability": "targeted_runtime_triage",
+      "phase": "2",
+      "risk": "medium",
+      "root_cause": "Single-connector failure not covered by existing report-only buckets.",
+      "rule_ids": [
+        "4503"
+      ],
+      "variants": [
+        "with-crs/no-mrts"
+      ]
+    }
+  ],
   "small_single_connector_failures": [
     {
       "actual_statuses": {
@@ -721,16 +753,47 @@
         "no-crs/with-mrts",
         "with-crs/with-mrts"
       ]
+    },
+    {
+      "actual_statuses": {
+        "503": 1
+      },
+      "analysis_classification": "runtime_fixable_candidate",
+      "case_id": "operator_endswith_pass_no_match_phase2",
+      "case_path": "framework:tests/cases/negative-pass-through/operator_endswith_pass_no_match_phase2.yaml",
+      "category_counts": {
+        "operators": 1
+      },
+      "classification_counts": {
+        "runtime-difference": 1
+      },
+      "connector": [
+        "haproxy"
+      ],
+      "count": 1,
+      "expected_statuses": {
+        "200": 1
+      },
+      "fixability": "targeted_runtime_triage",
+      "phase": "2",
+      "risk": "medium",
+      "root_cause": "Single-connector failure not covered by existing report-only buckets.",
+      "rule_ids": [
+        "4503"
+      ],
+      "variants": [
+        "with-crs/no-mrts"
+      ]
     }
   ],
   "source_reports": {
-    "connector_work_queue": "2026-06-18T11:25:45Z",
+    "connector_work_queue": "2026-06-18T16:14:46Z",
     "connector_work_queue_path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-    "full_runtime_matrix": "2026-06-18T11:25:34Z",
+    "full_runtime_matrix": "2026-06-18T16:14:35Z",
     "full_runtime_matrix_path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-    "next_fix_plan": "2026-06-18T11:26:02Z",
+    "next_fix_plan": "2026-06-18T16:15:03Z",
     "next_fix_plan_path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-    "remaining_failure_analysis": "2026-06-18T11:26:02Z",
+    "remaining_failure_analysis": "2026-06-18T16:15:03Z",
     "remaining_failure_analysis_path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
   },
   "summary": {
@@ -750,15 +813,17 @@
     "report_only_items": 13,
     "rule_chain_case_groups": 1,
     "rule_chain_failure_rows": 6,
-    "runtime_fixable_candidates": 0,
+    "runtime_fixable_candidates": 1,
     "single_connector_classifications": {
       "phase4_not_next_single_connector_leftover": 4,
+      "runtime_fixable_candidate": 1,
       "with_mrts_detection_only_single_connector_non_disruptive": 3
     },
     "single_connector_connectors": {
+      "haproxy": 1,
       "nginx": 7
     },
-    "small_single_connector_failure_groups": 7,
-    "small_single_connector_failure_rows": 14
+    "small_single_connector_failure_groups": 8,
+    "small_single_connector_failure_rows": 15
   }
 }

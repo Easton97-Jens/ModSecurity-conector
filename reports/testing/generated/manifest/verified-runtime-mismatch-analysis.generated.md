@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T11:25:41Z`
+> Generated at: `2026-06-18T16:14:42Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-verified-runtime-mismatch-analysis.py`
 > Make target: `generate-verified-runtime-mismatch-analysis`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
-> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
+> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
+> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
 > Input status: `complete`
 
 # Verified Runtime Mismatch Analysis
@@ -21,8 +21,8 @@ This report is generated only from verified runtime producer files. It does not 
 
 | Field | Value |
 |---|---|
-| Mismatches | `808` |
-| Critical mismatches | `152` |
+| Mismatches | `787` |
+| Critical mismatches | `107` |
 | Full matrix complete | `true` |
 | Full matrix runtime status | `completed_with_mismatches` |
 | Full matrix jobs | `12/12` |
@@ -35,43 +35,44 @@ This report is generated only from verified runtime producer files. It does not 
 
 | Input | Status | SHA256 |
 |---|---|---|
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | `89dd4b2a57f69cafb826982e23ebe60f3841864b47244b28f57cb0370c2ad1e8` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `5a560102b35aa4b46d3a11f40b1b957dd180d773d3e9d59e3f69843f5ff41234` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `8e0fd3db3b897df7c2ed3ab2e8248442bd313bbf2bb917adfecf5985c76f226a` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `e4c38d82198582fc090e13260ec85a840d12e55de361868827f074ccba2073ff` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `2010ff376da0a6b9177369f1284d39641d53c2af43374d2a27c6105f77abd96e` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `3a3b2cd472348daf328f07b68096baba2bd8ea1f98faa57da0e9a077ea1e2418` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `cfd2b4600fb34e882266bcce0ce42b836dffa5b796926f5a0dd3f556d9d3f9d6` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `b0d86855b6cdbbda89b651db3ceb78053f6459a5a465c5c0acd86e9281e893d5` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `fb42088412fc1e434c0e8a735793309e548129f091c73292bc1f3e049d1136c3` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `532d2fd865413caab504418e29352b70180c8ac97be08905f3f4a9fe1c06bb58` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `2fe2f518627c5c5ead90c290a143d2f7d4af5c65e1de7a6c7343ab1d47699577` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `a516aef51cce494a692cbe6b2cd159057477724b02083d7d4154a4ba356ae60f` |
-| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `1ef3cbfddf83c854f4fc7feddc008348941d46ffcd84d4753d612a133c82968d` |
-| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | `7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | `05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `00f16a615027b01044651ace2785621bfe46fbcb56aefda5b509c777a6060bee` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `88934b32904dbf58aa322c6c489a411737dc0c90fce9dc2fe433716b8ac3d7a0` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `ef9a0cae4f356eb87acbcd1d594da74f72ceb418d75cb5f10131bddc23ae7f03` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `c33c6c8b8a6dd3e4ff26a5e4e45056e6b3a0cf5d01566048f5b842e95636af84` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `7f6978c3e76c7e44e6609e554d66086328ee401ada671adef1e1a32ba49e8a4b` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `4b39d17d56c7f74c1a859c18f57e861233e46534512bb17275789d15e25bfa73` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `bad577ee975476ad4e188c904bf320015a9a19546174031cd16aa45f4b50603e` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json` | present | `18b390115059d795246975499af920dd75b5de84a8d5349a9fd21e6f9e7fc89f` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json` | present | `9afa8bcb0438ac9e436c22b2c9bae5900d99371bb2784e7e6e84b5dce8ad22bd` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json` | present | `9a364b71a33156bbd9fa33fdf19be58655d1842a976348a90e34da836809a6fc` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json` | present | `a6641c40989fd073c5385a8f414545b8752589d1f50897770af8450432581112` |
+| `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | present | `26784a8ca26bfd9cc9d089218c56c315b5ffe5886db7554e0434d7aa7a4a52f3` |
+| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | `367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e` |
 
 ## By Connector
 
 | Connector | Count |
 |---|---:|
-| apache | 256 |
-| haproxy | 256 |
-| nginx | 296 |
+| apache | 248 |
+| haproxy | 249 |
+| nginx | 290 |
 
 ## By Category
 
 | Category | Count |
 |---|---:|
-| connector_capability_gap | 51 |
-| expected_status_mismatch | 29 |
+| connector_capability_gap | 27 |
+| expected_status_mismatch | 43 |
+| framework_expected_behavior_gap | 1 |
 | known_not_next | 102 |
-| libmodsecurity_collection_name_case_semantics | 24 |
+| libmodsecurity_collection_name_case_semantics | 36 |
 | libmodsecurity_collection_semantics | 24 |
 | nolog_expected_no_audit | 6 |
 | runtime_regression | 18 |
-| timeout_or_incomplete | 48 |
+| timeout_or_incomplete | 12 |
 | unknown | 6 |
-| with_mrts_detection_only_overlay | 500 |
+| with_mrts_detection_only_overlay | 512 |
 
 ## Top Cases
 
@@ -81,10 +82,7 @@ This report is generated only from verified runtime producer files. It does not 
 | `duplicate_header_case_normalization_gap` | 12 |
 | `edge_semicolon_query_args_names` | 12 |
 | `files_empty_part_future_compatibility` | 12 |
-| `json_empty_body_future_compatibility` | 12 |
 | `parser_xml_partial_body_future_target` | 12 |
-| `phase3_response_headers_server_presence_pending` | 12 |
-| `phase4_response_body_empty_future_target` | 12 |
 | `unicode_double_encoded_uri_runtime_difference` | 12 |
 | `unicode_whitespace_normalization_gap` | 12 |
 | `v2_transformation_url_decode_invalid_sequence_mapped_candidate` | 12 |
@@ -97,22 +95,22 @@ This report is generated only from verified runtime producer files. It does not 
 | `phase4_auditlog_outbound_escaped_value_gap` | 8 |
 | `phase4_auditlog_outbound_matched_var_future` | 8 |
 | `phase4_auditlog_outbound_message_connector_gap` | 8 |
+| `phase4_auditlog_outbound_multiline_section_gap` | 8 |
+| `phase4_auditlog_outbound_rule_id_runtime_difference` | 8 |
+| `phase4_response_body_buffering_order_future_target` | 8 |
 
 ## Mismatch Table
 
 | Connector | Variant | Case | Expected | Actual | Status | Classification | Evidence File |
 |---|---|---|---|---|---|---|---|
 | apache | no-crs/no-mrts | `duplicate_args_encoded_separator_edge` | `403` | `200` | fail | libmodsecurity_collection_semantics | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json` |
-| apache | no-crs/no-mrts | `duplicate_header_case_normalization_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json` |
+| apache | no-crs/no-mrts | `duplicate_header_case_normalization_gap` | `403` | `200` | fail | libmodsecurity_collection_name_case_semantics | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json` |
 | apache | no-crs/no-mrts | `edge_semicolon_query_args_names` | `403` | `200` | fail | libmodsecurity_collection_semantics | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json` |
 | apache | no-crs/no-mrts | `files_empty_part_future_compatibility` | `403` | `200` | fail | known_not_next | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json` |
-| apache | no-crs/no-mrts | `json_empty_body_future_compatibility` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json` |
 | apache | no-crs/no-mrts | `parser_xml_partial_body_future_target` | `403` | `200` | fail | known_not_next | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/parser_xml_partial_body_future_target/result.json` |
 | apache | no-crs/no-mrts | `phase1_vs_phase2_request_body_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase1_vs_phase2_request_body_gap/result.json` |
-| apache | no-crs/no-mrts | `phase3_response_headers_server_presence_pending` | `200` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/result.json` |
-| apache | no-crs/no-mrts | `phase4_response_body_empty_future_target` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json` |
 | apache | no-crs/no-mrts | `unicode_double_encoded_uri_runtime_difference` | `403` | `200` | fail | runtime_regression | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json` |
-| apache | no-crs/no-mrts | `unicode_whitespace_normalization_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json` |
+| apache | no-crs/no-mrts | `unicode_whitespace_normalization_gap` | `403` | `200` | fail | expected_status_mismatch | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json` |
 | apache | no-crs/no-mrts | `v2_transformation_url_decode_invalid_sequence_mapped_candidate` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json` |
 | apache | no-crs/no-mrts | `v3_request_cookies_names_case_runtime_difference` | `403` | `200` | fail | libmodsecurity_collection_name_case_semantics | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json` |
 | apache | no-crs/no-mrts | `v3_request_headers_names_lowercase_runtime_difference` | `403` | `200` | fail | libmodsecurity_collection_name_case_semantics | `full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json` |
@@ -133,13 +131,13 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | no-crs/with-mrts | `collection_args_names_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/collection_args_names_block/result.json` |
 | apache | no-crs/with-mrts | `duplicate_args_encoded_separator_edge` | `403` | `200` | fail | libmodsecurity_collection_semantics | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json` |
 | apache | no-crs/with-mrts | `duplicate_cookie_name_runtime_difference` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/duplicate_cookie_name_runtime_difference/result.json` |
-| apache | no-crs/with-mrts | `duplicate_header_case_normalization_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json` |
+| apache | no-crs/with-mrts | `duplicate_header_case_normalization_gap` | `403` | `200` | fail | libmodsecurity_collection_name_case_semantics | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json` |
 | apache | no-crs/with-mrts | `edge_plus_vs_space_runtime_difference` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/edge_plus_vs_space_runtime_difference/result.json` |
 | apache | no-crs/with-mrts | `edge_semicolon_query_args_names` | `403` | `200` | fail | libmodsecurity_collection_semantics | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json` |
 | apache | no-crs/with-mrts | `files_empty_part_future_compatibility` | `403` | `200` | fail | known_not_next | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json` |
 | apache | no-crs/with-mrts | `files_names_mixed_case_filename_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json` |
 | apache | no-crs/with-mrts | `json_duplicate_keys_runtime_difference` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/json_duplicate_keys_runtime_difference/result.json` |
-| apache | no-crs/with-mrts | `json_empty_body_future_compatibility` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json` |
+| apache | no-crs/with-mrts | `json_empty_body_future_compatibility` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json` |
 | apache | no-crs/with-mrts | `json_nested_object_future_compatibility` | `403` | `200` | fail | known_not_next | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/json_nested_object_future_compatibility/result.json` |
 | apache | no-crs/with-mrts | `json_request_body_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/json_request_body_block/result.json` |
 | apache | no-crs/with-mrts | `multipart_basic_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_basic_block/result.json` |
@@ -162,7 +160,6 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | no-crs/with-mrts | `phase3_response_headers_location_encoded_runtime_diff` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json` |
 | apache | no-crs/with-mrts | `phase3_response_headers_mixed_case_connector_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_mixed_case_connector_gap/result.json` |
 | apache | no-crs/with-mrts | `phase3_response_headers_multi_value_connector_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json` |
-| apache | no-crs/with-mrts | `phase3_response_headers_server_presence_pending` | `200` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/result.json` |
 | apache | no-crs/with-mrts | `phase3_response_headers_set_cookie_multi_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json` |
 | apache | no-crs/with-mrts | `phase4_auditlog_outbound_escaped_value_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_escaped_value_gap/result.json` |
 | apache | no-crs/with-mrts | `phase4_auditlog_outbound_matched_var_future` | `403` | `200` | fail | known_not_next | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_matched_var_future/result.json` |
@@ -172,7 +169,7 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | no-crs/with-mrts | `phase4_response_body_buffering_order_future_target` | `403` | `200` | fail | known_not_next | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_buffering_order_future_target/result.json` |
 | apache | no-crs/with-mrts | `phase4_response_body_chunk_assumption_connector_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_chunk_assumption_connector_gap/result.json` |
 | apache | no-crs/with-mrts | `phase4_response_body_compressed_assumption_experimental` | `403` | `200` | fail | known_not_next | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_compressed_assumption_experimental/result.json` |
-| apache | no-crs/with-mrts | `phase4_response_body_empty_future_target` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json` |
+| apache | no-crs/with-mrts | `phase4_response_body_empty_future_target` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json` |
 | apache | no-crs/with-mrts | `phase4_response_body_html_entity_decode_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_html_entity_decode_gap/result.json` |
 | apache | no-crs/with-mrts | `phase4_response_body_html_text_normalization_probe` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_html_text_normalization_probe/result.json` |
 | apache | no-crs/with-mrts | `phase4_response_body_unicode_runtime_difference` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_unicode_runtime_difference/result.json` |
@@ -196,7 +193,7 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | no-crs/with-mrts | `tfn_none_exact_block_phase2` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/tfn_none_exact_block_phase2/result.json` |
 | apache | no-crs/with-mrts | `tfn_urldecodeuni_future_target_phase1` | `403` | `200` | fail | known_not_next | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/tfn_urldecodeuni_future_target_phase1/result.json` |
 | apache | no-crs/with-mrts | `unicode_double_encoded_uri_runtime_difference` | `403` | `200` | fail | runtime_regression | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json` |
-| apache | no-crs/with-mrts | `unicode_whitespace_normalization_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json` |
+| apache | no-crs/with-mrts | `unicode_whitespace_normalization_gap` | `403` | `200` | fail | expected_status_mismatch | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json` |
 | apache | no-crs/with-mrts | `v2_operator_begins_with_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_operator_begins_with_block/result.json` |
 | apache | no-crs/with-mrts | `v2_operator_contains_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_operator_contains_block/result.json` |
 | apache | no-crs/with-mrts | `v2_operator_contains_word_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_operator_contains_word_block/result.json` |
@@ -230,15 +227,12 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | no-crs/with-mrts | `xss_like_encoded_angles_normalization_probe` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/result.json` |
 | apache | no-crs/with-mrts | `xss_like_mixed_case_script_token_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xss_like_mixed_case_script_token_gap/result.json` |
 | apache | with-crs/no-mrts | `duplicate_args_encoded_separator_edge` | `403` | `200` | fail | libmodsecurity_collection_semantics | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json` |
-| apache | with-crs/no-mrts | `duplicate_header_case_normalization_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json` |
+| apache | with-crs/no-mrts | `duplicate_header_case_normalization_gap` | `403` | `200` | fail | libmodsecurity_collection_name_case_semantics | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json` |
 | apache | with-crs/no-mrts | `edge_semicolon_query_args_names` | `403` | `200` | fail | libmodsecurity_collection_semantics | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json` |
 | apache | with-crs/no-mrts | `files_empty_part_future_compatibility` | `403` | `200` | fail | known_not_next | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json` |
-| apache | with-crs/no-mrts | `json_empty_body_future_compatibility` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json` |
 | apache | with-crs/no-mrts | `parser_xml_partial_body_future_target` | `403` | `200` | fail | known_not_next | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/parser_xml_partial_body_future_target/result.json` |
-| apache | with-crs/no-mrts | `phase3_response_headers_server_presence_pending` | `200` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/result.json` |
-| apache | with-crs/no-mrts | `phase4_response_body_empty_future_target` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json` |
 | apache | with-crs/no-mrts | `unicode_double_encoded_uri_runtime_difference` | `403` | `200` | fail | runtime_regression | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json` |
-| apache | with-crs/no-mrts | `unicode_whitespace_normalization_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json` |
+| apache | with-crs/no-mrts | `unicode_whitespace_normalization_gap` | `403` | `200` | fail | expected_status_mismatch | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json` |
 | apache | with-crs/no-mrts | `v2_transformation_url_decode_invalid_sequence_mapped_candidate` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json` |
 | apache | with-crs/no-mrts | `v3_action_nolog_pass_no_audit` | `200` | `200` | fail | nolog_expected_no_audit | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json` |
 | apache | with-crs/no-mrts | `v3_request_cookies_names_case_runtime_difference` | `403` | `200` | fail | libmodsecurity_collection_name_case_semantics | `full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json` |
@@ -261,13 +255,13 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | with-crs/with-mrts | `crs_sqli_anomaly_block` | `403` | `200` | fail | expected_status_mismatch | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/crs_sqli_anomaly_block/result.json` |
 | apache | with-crs/with-mrts | `duplicate_args_encoded_separator_edge` | `403` | `200` | fail | libmodsecurity_collection_semantics | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json` |
 | apache | with-crs/with-mrts | `duplicate_cookie_name_runtime_difference` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/duplicate_cookie_name_runtime_difference/result.json` |
-| apache | with-crs/with-mrts | `duplicate_header_case_normalization_gap` | `403` | `200` | fail | connector_capability_gap | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json` |
+| apache | with-crs/with-mrts | `duplicate_header_case_normalization_gap` | `403` | `200` | fail | libmodsecurity_collection_name_case_semantics | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json` |
 | apache | with-crs/with-mrts | `edge_plus_vs_space_runtime_difference` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/edge_plus_vs_space_runtime_difference/result.json` |
 | apache | with-crs/with-mrts | `edge_semicolon_query_args_names` | `403` | `200` | fail | libmodsecurity_collection_semantics | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json` |
 | apache | with-crs/with-mrts | `files_empty_part_future_compatibility` | `403` | `200` | fail | known_not_next | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json` |
 | apache | with-crs/with-mrts | `files_names_mixed_case_filename_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json` |
 | apache | with-crs/with-mrts | `json_duplicate_keys_runtime_difference` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/json_duplicate_keys_runtime_difference/result.json` |
-| apache | with-crs/with-mrts | `json_empty_body_future_compatibility` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json` |
+| apache | with-crs/with-mrts | `json_empty_body_future_compatibility` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/json_empty_body_future_compatibility/result.json` |
 | apache | with-crs/with-mrts | `json_nested_object_future_compatibility` | `403` | `200` | fail | known_not_next | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/json_nested_object_future_compatibility/result.json` |
 | apache | with-crs/with-mrts | `json_request_body_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/json_request_body_block/result.json` |
 | apache | with-crs/with-mrts | `multipart_basic_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/multipart_basic_block/result.json` |
@@ -290,7 +284,6 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | with-crs/with-mrts | `phase3_response_headers_location_encoded_runtime_diff` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_location_encoded_runtime_diff/result.json` |
 | apache | with-crs/with-mrts | `phase3_response_headers_mixed_case_connector_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_mixed_case_connector_gap/result.json` |
 | apache | with-crs/with-mrts | `phase3_response_headers_multi_value_connector_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_multi_value_connector_gap/result.json` |
-| apache | with-crs/with-mrts | `phase3_response_headers_server_presence_pending` | `200` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_server_presence_pending/result.json` |
 | apache | with-crs/with-mrts | `phase3_response_headers_set_cookie_multi_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase3_response_headers_set_cookie_multi_gap/result.json` |
 | apache | with-crs/with-mrts | `phase4_auditlog_outbound_escaped_value_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_escaped_value_gap/result.json` |
 | apache | with-crs/with-mrts | `phase4_auditlog_outbound_matched_var_future` | `403` | `200` | fail | known_not_next | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_matched_var_future/result.json` |
@@ -300,16 +293,24 @@ This report is generated only from verified runtime producer files. It does not 
 | apache | with-crs/with-mrts | `phase4_response_body_buffering_order_future_target` | `403` | `200` | fail | known_not_next | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_buffering_order_future_target/result.json` |
 | apache | with-crs/with-mrts | `phase4_response_body_chunk_assumption_connector_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_chunk_assumption_connector_gap/result.json` |
 | apache | with-crs/with-mrts | `phase4_response_body_compressed_assumption_experimental` | `403` | `200` | fail | known_not_next | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_compressed_assumption_experimental/result.json` |
-| apache | with-crs/with-mrts | `phase4_response_body_empty_future_target` | `403` | `http_status` | not_executable | timeout_or_incomplete | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json` |
+| apache | with-crs/with-mrts | `phase4_response_body_empty_future_target` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_empty_future_target/result.json` |
 | apache | with-crs/with-mrts | `phase4_response_body_html_entity_decode_gap` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_html_entity_decode_gap/result.json` |
-| ... | ... | `608 more rows in JSON` | ... | ... | ... | ... | ... |
+| apache | with-crs/with-mrts | `phase4_response_body_html_text_normalization_probe` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_html_text_normalization_probe/result.json` |
+| apache | with-crs/with-mrts | `phase4_response_body_unicode_runtime_difference` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_response_body_unicode_runtime_difference/result.json` |
+| apache | with-crs/with-mrts | `pr70_phase1_audit_request_header` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/pr70_phase1_audit_request_header/result.json` |
+| apache | with-crs/with-mrts | `pr70_phase2_audit_urlencoded_body` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/pr70_phase2_audit_urlencoded_body/result.json` |
+| apache | with-crs/with-mrts | `pr70_phase3_audit_response_header` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/pr70_phase3_audit_response_header/result.json` |
+| apache | with-crs/with-mrts | `pr70_phase4_response_body_audit_xfail` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/pr70_phase4_response_body_audit_xfail/result.json` |
+| apache | with-crs/with-mrts | `request_body_args_post_names_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/request_body_args_post_names_block/result.json` |
+| apache | with-crs/with-mrts | `request_body_json_block` | `403` | `200` | fail | with_mrts_detection_only_overlay | `full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/request_body_json_block/result.json` |
+| ... | ... | `587 more rows in JSON` | ... | ... | ... | ... | ... |
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `89dd4b2a57f69cafb826982e23ebe60f3841864b47244b28f57cb0370c2ad1e8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

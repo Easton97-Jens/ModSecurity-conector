@@ -6,7 +6,7 @@
     "root_cause": "monolithic response_header_hook cluster is reduced to MRTS DetectionOnly overlay after backend setup and HAProxy Set-Cookie multi-value evidence are stabilized",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-18T11:25:52Z",
+  "generated_at": "2026-06-18T16:14:53Z",
   "groups": {
     "by_case": [
       {
@@ -244,45 +244,45 @@
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T11:25:52Z",
+    "generated_at": "2026-06-18T16:14:53Z",
     "generated_by": "ci/generate-response-header-hook-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
-        "source_hash": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
+        "sha256": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
+        "source_hash": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
-        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "sha256": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
+        "source_hash": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "5aadf47046d89054c5d56ff2b8e3cd86640018bedff5776543e96f2f819b38ae",
-        "source_hash": "5aadf47046d89054c5d56ff2b8e3cd86640018bedff5776543e96f2f819b38ae",
+        "sha256": "ec48bccf0bc05f6f9659cedf12e644480f3377e42f8120d2c55df42d4e910970",
+        "source_hash": "ec48bccf0bc05f6f9659cedf12e644480f3377e42f8120d2c55df42d4e910970",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -362,6 +362,15 @@
       "variant": "no-crs/no-mrts"
     },
     {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "apache",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
+      "variant": "no-crs/no-mrts"
+    },
+    {
       "actual_status": 403,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "connector": "apache",
@@ -461,6 +470,15 @@
       "variant": "no-crs/no-mrts"
     },
     {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "nginx",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
+      "variant": "no-crs/no-mrts"
+    },
+    {
       "actual_status": 403,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "connector": "nginx",
@@ -557,6 +575,15 @@
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "rule_id": "4805",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "haproxy",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
       "variant": "no-crs/no-mrts"
     },
     {
@@ -606,6 +633,15 @@
     },
     {
       "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "apache",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
+      "variant": "no-crs/with-mrts"
+    },
+    {
+      "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "nginx",
       "expected_status": 200,
@@ -615,11 +651,29 @@
     },
     {
       "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "nginx",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
+      "variant": "no-crs/with-mrts"
+    },
+    {
+      "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "haproxy",
       "expected_status": 200,
       "header_name": "X-Missing",
       "rule_id": "4801",
+      "variant": "no-crs/with-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "haproxy",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
       "variant": "no-crs/with-mrts"
     },
     {
@@ -683,6 +737,15 @@
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "rule_id": "4805",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "apache",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
       "variant": "with-crs/no-mrts"
     },
     {
@@ -785,6 +848,15 @@
       "variant": "with-crs/no-mrts"
     },
     {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "nginx",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
+      "variant": "with-crs/no-mrts"
+    },
+    {
       "actual_status": 403,
       "case_id": "phase3_response_headers_set_cookie_multi_gap",
       "connector": "nginx",
@@ -881,6 +953,15 @@
       "expected_status": 403,
       "header_name": "Set-Cookie",
       "rule_id": "4805",
+      "variant": "with-crs/no-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "haproxy",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
       "variant": "with-crs/no-mrts"
     },
     {
@@ -930,6 +1011,15 @@
     },
     {
       "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "apache",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
+      "variant": "with-crs/with-mrts"
+    },
+    {
+      "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "nginx",
       "expected_status": 200,
@@ -939,11 +1029,29 @@
     },
     {
       "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "nginx",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
+      "variant": "with-crs/with-mrts"
+    },
+    {
+      "actual_status": 200,
       "case_id": "phase3_response_headers_missing_pass_through",
       "connector": "haproxy",
       "expected_status": 200,
       "header_name": "X-Missing",
       "rule_id": "4801",
+      "variant": "with-crs/with-mrts"
+    },
+    {
+      "actual_status": 200,
+      "case_id": "phase3_response_headers_server_presence_pending",
+      "connector": "haproxy",
+      "expected_status": 200,
+      "header_name": "Server",
+      "rule_id": "4901",
       "variant": "with-crs/with-mrts"
     }
   ],
@@ -3545,7 +3653,7 @@
       "nginx"
     ],
     "failure_rows": 60,
-    "pass_control_rows": 72,
+    "pass_control_rows": 84,
     "phases": [
       "3"
     ],

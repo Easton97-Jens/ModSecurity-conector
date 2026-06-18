@@ -28,7 +28,7 @@
       "variable": "ARGS"
     }
   ],
-  "generated_at": "2026-06-18T11:25:47Z",
+  "generated_at": "2026-06-18T16:14:48Z",
   "guardrails": [
     "tools/MRTS read-only",
     "system paths read-only",
@@ -105,14 +105,14 @@
   "metadata": {
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T11:25:47Z",
+    "generated_at": "2026-06-18T16:14:48Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -143,13 +143,13 @@
   },
   "report_kind": "native-mrts-target-evidence",
   "runtime_components": {
-    "APACHECTL_BIN": "-",
-    "albedo_binary": "-",
-    "connector_build_id": "-",
-    "go_ftw_binary": "-",
-    "httpd_binary": "-",
-    "mod_security3_so": "-",
-    "modsecurity_build_id": "-"
+    "APACHECTL_BIN": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/apachectl-mrts",
+    "albedo_binary": "$CONNECTOR_COMPONENT_CACHE/bin/albedo",
+    "connector_build_id": "898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67",
+    "go_ftw_binary": "$CONNECTOR_COMPONENT_CACHE/bin/go-ftw",
+    "httpd_binary": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/httpd/bin/httpd",
+    "mod_security3_so": "$CONNECTOR_COMPONENT_CACHE/builds/connectors/apache/898f5881e3417828948d291bba3adef6f4ab922b4eba6611bea0d8724727cc67/build/output/apache/mod_security3.so",
+    "modsecurity_build_id": "0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72"
   },
   "separate_from_connector_full_matrix": true,
   "source": "$MRTS_ROOT/config_infra/apache2_ubuntu",

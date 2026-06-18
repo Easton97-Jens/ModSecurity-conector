@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -26,9 +27,9 @@ CRITICAL_CATEGORIES = {
     "unknown",
 }
 BASELINE = {
-    "source": "batch-start official mismatch report before this analysis",
-    "mismatch_count": 824,
-    "critical_mismatch_count": 216,
+    "source": "critical-cluster batch start official mismatch report before this analysis",
+    "mismatch_count": 808,
+    "critical_mismatch_count": 152,
 }
 NON_CRITICAL_CLASSIFICATIONS = {
     "known_not_next",
@@ -37,11 +38,27 @@ NON_CRITICAL_CLASSIFICATIONS = {
     "libmodsecurity_collection_name_case_semantics",
     "nolog_expected_no_audit",
 }
-MULTIPART_FIX_CASES = {
-    "files_names_mixed_case_filename_gap",
-    "multipart_duplicate_field_names_gap",
+DUPLICATE_HEADER_CASE = "duplicate_header_case_normalization_gap"
+YAML_FIX_CASES = {
+    "json_empty_body_future_compatibility",
+    "phase3_response_headers_server_presence_pending",
+    "phase4_response_body_empty_future_target",
+    "unicode_whitespace_normalization_gap",
 }
-AUDIT_FIX_CASE = "phase4_auditlog_outbound_multiline_section_gap"
+TRANSFORMATION_DEFER_CASE = "unicode_double_encoded_uri_runtime_difference"
+YAML_FIX_FILES = {
+    "modules/ModSecurity-test-Framework/tests/cases/body/json/json_empty_body_future_compatibility.yaml",
+    "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml",
+    "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_empty_future_target.yaml",
+    "modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
+}
+FULL_MATRIX_CONNECTORS = ("apache", "nginx", "haproxy")
+FULL_MATRIX_VARIANTS = (
+    ("no-crs", "no-mrts"),
+    ("no-crs", "with-mrts"),
+    ("with-crs", "no-mrts"),
+    ("with-crs", "with-mrts"),
+)
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -50,6 +67,75 @@ def read_json(path: Path) -> dict[str, Any]:
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def parse_utc(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def full_matrix_refresh_status(connector_root: Path, completeness_path: Path) -> dict[str, Any]:
+    newest_input_mtime = 0.0
+    inputs: list[dict[str, Any]] = []
+    for rel_path in sorted(YAML_FIX_FILES):
+        path = connector_root / rel_path
+        if not path.is_file():
+            inputs.append({"path": rel_path, "status": "missing"})
+            return {"fresh": False, "reason": f"missing input {rel_path}", "inputs": inputs, "jobs": []}
+        mtime = path.stat().st_mtime
+        newest_input_mtime = max(newest_input_mtime, mtime)
+        inputs.append(
+            {
+                "path": rel_path,
+                "status": "present",
+                "mtime": datetime.fromtimestamp(mtime, timezone.utc).isoformat().replace("+00:00", "Z"),
+            }
+        )
+
+    data = read_json(completeness_path)
+    raw_jobs: Any
+    if isinstance(data, list):
+        raw_jobs = data
+    else:
+        raw_jobs = data.get("jobs") or data.get("matrix") or data.get("records") or data.get("rows") or []
+    jobs = raw_jobs if isinstance(raw_jobs, list) else []
+    by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        connector = str(job.get("connector") or "")
+        crs = str(job.get("crs") or job.get("test_variant") or "")
+        mrts = str(job.get("mrts") or job.get("mrts_variant") or "")
+        by_key[(connector, crs, mrts)] = job
+
+    job_statuses: list[dict[str, Any]] = []
+    fresh = True
+    for connector in FULL_MATRIX_CONNECTORS:
+        for crs, mrts in FULL_MATRIX_VARIANTS:
+            job = by_key.get((connector, crs, mrts), {})
+            ended_at = str(job.get("ended_at") or "")
+            ended_ts = parse_utc(ended_at)
+            complete = str(job.get("status") or "") in {"completed", "completed_with_mismatches"}
+            current = bool(ended_ts is not None and ended_ts >= newest_input_mtime and complete)
+            if not current:
+                fresh = False
+            job_statuses.append(
+                {
+                    "connector": connector,
+                    "crs": crs,
+                    "mrts": mrts,
+                    "status": job.get("status") or "missing",
+                    "return_code": job.get("return_code"),
+                    "ended_at": ended_at or "-",
+                    "fresh_after_yaml_inputs": current,
+                }
+            )
+    reason = "all affected Full-Matrix jobs ended after the YAML/input fixes" if fresh else "one or more affected Full-Matrix jobs are stale or missing"
+    return {"fresh": fresh, "reason": reason, "inputs": inputs, "jobs": job_statuses}
 
 
 def result_status(path: str) -> dict[str, Any]:
@@ -64,7 +150,9 @@ def result_status(path: str) -> dict[str, Any]:
         "expected": data.get("expected_status"),
         "actual": data.get("actual_status", data.get("observed_status")),
         "rule_id": data.get("rule_id"),
+        "response_headers_seen": data.get("response_headers_seen"),
         "response_body_seen": data.get("response_body_seen"),
+        "modsecurity_processed": data.get("modsecurity_processed"),
         "evidence_file": path,
     }
 
@@ -124,64 +212,69 @@ def case_reflection(mismatches: list[dict[str, Any]], cases: set[str]) -> dict[s
 
 
 def targeted_repros() -> list[dict[str, Any]]:
-    root = "/var/tmp/ModSecurity-conector-verified/build"
+    before_root = "/var/tmp/ModSecurity-conector-verified/build/critical-batch-targeted"
+    after_root = "/var/tmp/ModSecurity-conector-verified/build/critical-batch-targeted-after"
     rows = [
         (
-            "multipart_files",
-            "files_names_mixed_case_filename_gap",
+            "connector_capability_gap / collections",
+            DUPLICATE_HEADER_CASE,
             "apache",
-            f"{root}/verified-apache-case/no-crs-no-mrts-apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
+            "-",
+            f"{before_root}/{DUPLICATE_HEADER_CASE}-apache.log",
+            "BEFORE",
+            "FAIL_RC_2",
         ),
         (
-            "multipart_files",
-            "files_names_mixed_case_filename_gap",
+            "connector_capability_gap / collections",
+            DUPLICATE_HEADER_CASE,
             "nginx",
-            f"{root}/verified-nginx-case/no-crs-no-mrts-nginx/logs/files_names_mixed_case_filename_gap/result.json",
-        ),
-        ("multipart_files", "files_names_mixed_case_filename_gap", "haproxy", "-"),
-        (
-            "multipart_files",
-            "multipart_duplicate_field_names_gap",
-            "apache",
-            f"{root}/verified-apache-case/no-crs-no-mrts-apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
+            "-",
+            f"{before_root}/{DUPLICATE_HEADER_CASE}-nginx.log",
+            "BEFORE",
+            "FAIL_RC_2",
         ),
         (
-            "multipart_files",
-            "multipart_duplicate_field_names_gap",
-            "nginx",
-            f"{root}/verified-nginx-case/no-crs-no-mrts-nginx/logs/multipart_duplicate_field_names_gap/result.json",
-        ),
-        ("multipart_files", "multipart_duplicate_field_names_gap", "haproxy", "-"),
-        (
-            "audit-log",
-            "phase4_auditlog_outbound_multiline_section_gap",
-            "apache",
-            f"{root}/verified-apache-case/no-crs-no-mrts-apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
-        ),
-        (
-            "audit-log",
-            "phase4_auditlog_outbound_multiline_section_gap",
-            "nginx",
-            f"{root}/verified-nginx-case/no-crs-no-mrts-nginx/logs/phase4_auditlog_outbound_multiline_section_gap/result.json",
-        ),
-        (
-            "audit-log",
-            "phase4_auditlog_outbound_multiline_section_gap",
+            "connector_capability_gap / collections",
+            DUPLICATE_HEADER_CASE,
             "haproxy",
-            f"{root}/verified-haproxy-case/no-crs-no-mrts-haproxy/logs/haproxy-runtime/result.json",
+            "-",
+            f"{before_root}/{DUPLICATE_HEADER_CASE}-haproxy.log",
+            "BEFORE",
+            "FAIL_RC_2",
         ),
     ]
-    output = []
-    for cluster, case, connector, evidence_file in rows:
-        item = result_status(evidence_file)
-        if evidence_file == "-":
-            item.update(
-                {
-                    "status": "PASS",
-                    "evidence_file": "command-output",
-                    "note": "HAProxy single-case log path was overwritten by later targeted run; command returned success.",
-                }
+    for case in sorted(YAML_FIX_CASES):
+        for connector in ("apache", "nginx", "haproxy"):
+            rows.append(
+                (
+                    "targeted YAML/input fix",
+                    case,
+                    connector,
+                    f"{after_root}/{case}-{connector}-result.json",
+                    f"{after_root}/{case}-{connector}.log",
+                    "AFTER",
+                    None,
+                )
             )
+    for connector in ("apache", "nginx", "haproxy"):
+        rows.append(
+            (
+                "runtime_regression / transformations",
+                TRANSFORMATION_DEFER_CASE,
+                connector,
+                "-",
+                f"{before_root}/{TRANSFORMATION_DEFER_CASE}-{connector}.log",
+                "BEFORE",
+                "FAIL_RC_2",
+            )
+        )
+    output = []
+    for cluster, case, connector, evidence_file, log_file, phase, status_override in rows:
+        item = result_status(evidence_file)
+        if status_override:
+            item.update({"status": status_override, "evidence_file": log_file})
+        item["log_file"] = log_file
+        item["phase"] = phase
         item.update({"cluster": cluster, "case": case, "connector": connector, "variant": "no-crs/no-mrts"})
         output.append(item)
     return output
@@ -192,6 +285,7 @@ def build_payload(connector_root: Path) -> tuple[dict[str, Any], list[Path]]:
     canonical_dir = connector_root / "reports/testing/generated/canonical"
     mismatch_path = manifest_dir / "verified-runtime-mismatch-analysis.generated.json"
     readiness_path = manifest_dir / "merge-readiness-dashboard.generated.json"
+    completeness_path = manifest_dir / "full-matrix-job-completeness.generated.json"
     full_matrix_path = canonical_dir / "full-runtime-matrix.generated.json"
     next_fix_path = canonical_dir / "next-fix-plan.generated.json"
     full_run_path = canonical_dir / "full-run-evidence.generated.json"
@@ -200,47 +294,87 @@ def build_payload(connector_root: Path) -> tuple[dict[str, Any], list[Path]]:
     mismatches = [row for row in mismatch.get("mismatches", []) if isinstance(row, dict)]
     ranking = critical_ranking(mismatches)
     repros = targeted_repros()
-    multipart_reflection = case_reflection(mismatches, MULTIPART_FIX_CASES)
-    audit_reflection = case_reflection(mismatches, {AUDIT_FIX_CASE})
-    multipart_refresh_needed = multipart_reflection["official_critical_rows"] >= 24
-    audit_refresh_needed = audit_reflection["official_critical_rows"] >= 12
+    duplicate_header_reflection = case_reflection(mismatches, {DUPLICATE_HEADER_CASE})
+    yaml_fix_reflection = case_reflection(mismatches, YAML_FIX_CASES)
+    unicode_double_reflection = case_reflection(mismatches, {TRANSFORMATION_DEFER_CASE})
+    matrix_refresh_status = full_matrix_refresh_status(connector_root, completeness_path)
+    yaml_fix_refresh_needed = yaml_fix_reflection["official_critical_rows"] > 0 and not matrix_refresh_status["fresh"]
     decisions = [
         {
-            "cluster": "expected_status_mismatch / collections",
+            "cluster": "connector_capability_gap / collections / duplicate_header_case_normalization_gap",
             "decision": "RECLASSIFY",
-            "rows": 24,
+            "rows": 12,
             "new_classification": "libmodsecurity_collection_name_case_semantics",
-            "official_after_rows": selected_cluster_count(mismatches, "expected_status_mismatch", "collections"),
+            "official_after": duplicate_header_reflection,
             "full_matrix_refresh_needed": False,
-            "evidence": "All 24 rows gated on full-matrix result.json plus exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls.",
-        },
-        {
-            "cluster": "multipart_files",
-            "decision": "FIX",
-            "rows": 24,
-            "changed_files": [
-                "modules/ModSecurity-test-Framework/tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
-                "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
-            ],
-            "full_matrix_refresh_needed": multipart_refresh_needed,
-            "official_after": multipart_reflection,
             "evidence": (
-                "Targeted no-crs/no-mrts repros passed for Apache, NGINX, and HAProxy. "
-                "Fresh Full-Matrix rerun reflects the YAML fixes; remaining rows, if any, are current official rows."
+                "All three connectors fail the lowercase REQUEST_HEADERS_NAMES probe while exact-case "
+                "REQUEST_HEADERS_NAMES control evidence passes. The YAML request header map cannot encode a "
+                "true duplicate header, so this row is narrowed to observed libmodsecurity collection-name "
+                "case semantics rather than a connector duplicate-header bug."
             ),
         },
         {
-            "cluster": "runtime_regression / audit-log",
-            "decision": "FIX_AND_DOCUMENT",
-            "rows": 14,
+            "cluster": "timeout_or_incomplete / body-processors / json_empty_body_future_compatibility",
+            "decision": "FIX",
+            "rows": 12,
             "changed_files": [
-                "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_multiline_section_gap.yaml"
+                "modules/ModSecurity-test-Framework/tests/cases/body/json/json_empty_body_future_compatibility.yaml",
             ],
-            "full_matrix_refresh_needed": audit_refresh_needed,
-            "official_after": audit_reflection,
+            "full_matrix_refresh_needed": yaml_fix_refresh_needed,
+            "official_after": case_reflection(mismatches, {"json_empty_body_future_compatibility"}),
             "evidence": (
-                "t:compressWhitespace makes Apache/HAProxy no-mrts PASS in fresh Full-Matrix evidence; "
-                "NGINX still logs Phase-4 rule 4910 but returns HTTP 200 for no-mrts variants."
+                "Original rule used an empty @streq parameter and was not executable. The fixed @rx ^$ "
+                "empty-body probe passes targeted no-crs/no-mrts repros on Apache, NGINX, and HAProxy; "
+                "current official rows reflect the Full-Matrix refresh status recorded in this report."
+            ),
+        },
+        {
+            "cluster": "timeout_or_incomplete / response-headers / phase3_response_headers_server_presence_pending",
+            "decision": "FIX",
+            "rows": 12,
+            "changed_files": [
+                "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml"
+            ],
+            "full_matrix_refresh_needed": yaml_fix_refresh_needed,
+            "official_after": case_reflection(mismatches, {"phase3_response_headers_server_presence_pending"}),
+            "evidence": (
+                "Original @contains operator had no argument and the rule was disruptive despite a pass/200 "
+                "expectation. The fixed non-disruptive @rx .+ response-header probe passes targeted "
+                "no-crs/no-mrts repros on Apache, NGINX, and HAProxy; refreshed official evidence removes "
+                "the timeout/incomplete rows."
+            ),
+        },
+        {
+            "cluster": "timeout_or_incomplete / response-body / phase4_response_body_empty_future_target",
+            "decision": "FIX_AND_DOCUMENT",
+            "rows": 12,
+            "changed_files": [
+                "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_empty_future_target.yaml"
+            ],
+            "full_matrix_refresh_needed": yaml_fix_refresh_needed,
+            "official_after": case_reflection(mismatches, {"phase4_response_body_empty_future_target"}),
+            "evidence": (
+                "Original empty @streq parameter was not executable and the test response body was not empty. "
+                "The fixed empty-body target passes Apache and HAProxy targeted repros. Fresh Full-Matrix "
+                "evidence leaves only the narrow NGINX no-MRTS phase-4 enforcement/status gap as critical; "
+                "MRTS variants are DetectionOnly overlay rows."
+            ),
+        },
+        {
+            "cluster": "connector_capability_gap / transformations / unicode_whitespace_normalization_gap",
+            "decision": "FIX_INPUT_AND_DEFER_CLASSIFICATION",
+            "rows": 12,
+            "changed_files": [
+                "modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml"
+            ],
+            "full_matrix_refresh_needed": yaml_fix_refresh_needed,
+            "official_after": case_reflection(mismatches, {"unicode_whitespace_normalization_gap"}),
+            "evidence": (
+                "Original request used q=SAFE, so it did not exercise Unicode whitespace. The fixed request "
+                "uses an encoded Unicode em-space. Fresh Full-Matrix evidence shows 200/expected 403 for "
+                "all connectors/variants; classification remains deferred pending native/libmodsecurity "
+                "transform comparison."
             ),
         },
         {
@@ -248,15 +382,12 @@ def build_payload(connector_root: Path) -> tuple[dict[str, Any], list[Path]]:
             "decision": "DEFER",
             "rows": 12,
             "full_matrix_refresh_needed": False,
-            "evidence": "All connectors pass the raw double-encoded URI through and rule 4707 does not match; no native/libmodsecurity transform comparison is available.",
-        },
-        {
-            "cluster": "unknown / actions / v3_action_nolog_pass_no_audit",
-            "decision": "RECLASSIFY",
-            "rows": 6,
-            "new_classification": "nolog_expected_no_audit",
-            "full_matrix_refresh_needed": False,
-            "evidence": "Rule 3326 is nolog/pass and absent from audit/error/decision logs; CRS rule 920350 entries are unrelated.",
+            "official_after": unicode_double_reflection,
+            "evidence": (
+                "All connectors pass the raw double-encoded URI through and rule 4707 does not match in "
+                "targeted evidence. No native/libmodsecurity transform comparison is available, so no "
+                "official reclassification is made."
+            ),
         },
     ]
     payload = {
@@ -273,14 +404,14 @@ def build_payload(connector_root: Path) -> tuple[dict[str, Any], list[Path]]:
         "cluster_ranking": ranking,
         "decisions": decisions,
         "targeted_repros": repros,
+        "full_matrix_refresh_status": matrix_refresh_status,
         "full_matrix_refresh_needed": any(item.get("full_matrix_refresh_needed") for item in decisions),
         "refresh_needed_reason": (
-            "Fresh Full-Matrix artifacts exist for the 12 affected connector/CRS/MRTS jobs; "
-            "remaining rows are current official mismatches, not stale targeted-only evidence."
+            matrix_refresh_status["reason"]
         ),
         "remaining_top_critical_cluster": ranking[0] if ranking else {},
     }
-    return payload, [mismatch_path, readiness_path, full_matrix_path, next_fix_path, full_run_path]
+    return payload, [mismatch_path, readiness_path, completeness_path, full_matrix_path, next_fix_path, full_run_path]
 
 
 def md_table(headers: list[str], rows: list[list[Any]]) -> str:
@@ -310,13 +441,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
     ]
     repro_rows = [
         [
+            item["phase"],
             item["cluster"],
             item["case"],
             item["connector"],
             item["variant"],
             item["status"],
-            item.get("actual", "-"),
-            item.get("rule_id", "-"),
+            item.get("actual") or "-",
+            item.get("rule_id") or "-",
             item["evidence_file"],
         ]
         for item in payload["targeted_repros"]
@@ -338,7 +470,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             "## Decisions",
             md_table(["Cluster", "Decision", "Rows", "New Classification", "Full-Matrix Refresh Needed"], decision_rows),
             "## Targeted Repros",
-            md_table(["Cluster", "Case", "Connector", "Variant", "Status", "Actual", "Rule", "Evidence"], repro_rows),
+            md_table(["Phase", "Cluster", "Case", "Connector", "Variant", "Status", "Actual", "Rule", "Evidence"], repro_rows),
             "## Notes",
             f"- Full-matrix refresh needed: **{payload['full_matrix_refresh_needed']}**.",
             f"- Reason: {payload['refresh_needed_reason']}",

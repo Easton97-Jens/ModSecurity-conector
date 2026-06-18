@@ -224,7 +224,7 @@
       }
     ]
   },
-  "generated_at": "2026-06-18T11:26:25Z",
+  "generated_at": "2026-06-18T16:15:29Z",
   "groups": {
     "by_cause": [
       {
@@ -1289,65 +1289,65 @@
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T11:26:25Z",
+    "generated_at": "2026-06-18T16:15:29Z",
     "generated_by": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "sha256": "00b32aea8d39ea25925f1cf6d91b4833a6c65ee324037c08c52722cb03c273ac",
-        "source_hash": "00b32aea8d39ea25925f1cf6d91b4833a6c65ee324037c08c52722cb03c273ac",
+        "sha256": "cfb36ec0b68c9177b1e4072ec8e7fe9342f023e4e6727caac86c5224df2d6aa0",
+        "source_hash": "cfb36ec0b68c9177b1e4072ec8e7fe9342f023e4e6727caac86c5224df2d6aa0",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
-        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "sha256": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
+        "source_hash": "94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4",
-        "source_hash": "08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4",
+        "sha256": "88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2",
+        "source_hash": "88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
-        "source_hash": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
+        "sha256": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
+        "source_hash": "cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
-        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "connector_sha": "93172ef0f7d4e3fc4a10e97d63aefe982a593b55",
+        "framework_sha": "131fdad6974cf0f67a874f7c1b1a118c4b25f303",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
-        "source_hash": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
+        "sha256": "05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828",
+        "source_hash": "05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -1368,7 +1368,7 @@
     "native_status": {
       "apache": "FAIL",
       "nginx": "FAIL",
-      "summary_generated_at": "2026-06-18T11:25:47Z"
+      "summary_generated_at": "2026-06-18T16:14:48Z"
     },
     "reason": "Native MRTS reports cover upstream MRTS target cases; these 105 rows are framework-owned no-MRTS connector cases.",
     "status": "no native comparator"
@@ -1733,7 +1733,7 @@
       "expected_match_value": "a b",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "operator": "@streq a b",
@@ -1747,7 +1747,7 @@
         "headers": {},
         "method": "GET",
         "path": "/",
-        "query": "q=SAFE"
+        "query": "q=a%E2%80%83b"
       },
       "risk": "high",
       "rule_id": "4708",
@@ -2235,7 +2235,7 @@
       "expected_match_value": "a b",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "operator": "@streq a b",
@@ -2249,7 +2249,7 @@
         "headers": {},
         "method": "GET",
         "path": "/",
-        "query": "q=SAFE"
+        "query": "q=a%E2%80%83b"
       },
       "risk": "high",
       "rule_id": "4708",
@@ -2681,7 +2681,7 @@
       "expected_match_value": "a b",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "operator": "@streq a b",
@@ -2695,7 +2695,7 @@
         "headers": {},
         "method": "GET",
         "path": "/",
-        "query": "q=SAFE"
+        "query": "q=a%E2%80%83b"
       },
       "risk": "high",
       "rule_id": "4708",
@@ -3127,7 +3127,7 @@
       "expected_match_value": "a b",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
+        "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space.",
         "Runtime verification pending; not counted as verified PASS."
       ],
       "operator": "@streq a b",
@@ -3141,7 +3141,7 @@
         "headers": {},
         "method": "GET",
         "path": "/",
-        "query": "q=SAFE"
+        "query": "q=a%E2%80%83b"
       },
       "risk": "high",
       "rule_id": "4708",
@@ -3299,9 +3299,9 @@
     "full_matrix_totals": {
       "attempted": 3928,
       "blocked": 0,
-      "fail": 760,
-      "not_executable": 48,
-      "pass": 3120,
+      "fail": 775,
+      "not_executable": 12,
+      "pass": 3141,
       "pending": 2298
     },
     "intervention_created_connector_missed_403": 0,

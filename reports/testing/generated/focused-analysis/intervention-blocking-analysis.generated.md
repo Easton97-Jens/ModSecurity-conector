@@ -1,48 +1,48 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T11:26:24Z`
+> Generated at: `2026-06-18T16:15:27Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-intervention-blocking-analysis.py`
 > Make target: `generate-intervention-blocking-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
-> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
+> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
+> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
 > Input status: `complete`
 
 # Intervention Blocking Analysis
 
-- Generated at: `2026-06-18T11:26:24Z`
-- Expected `403` / actual `200` rows under review: **553**.
+- Generated at: `2026-06-18T16:15:27Z`
+- Expected `403` / actual `200` rows under review: **559**.
 - Intervention-blocking true candidates: **6** runtime-fixable rows.
 - Remaining P0/P1 intervention-blocking rows: **6**.
-- DetectionOnly overlay non-disruptive rows: **502** report-only rows.
+- DetectionOnly overlay non-disruptive rows: **508** report-only rows.
 - no-MRTS semantic no-match rows: **45** metadata-only rows.
-- Rule in generated loadfile: **366**
+- Rule in generated loadfile: **370**
 - Strict rule-load errors: **0**
-- Rule matched: **189**
+- Rule matched: **191**
 - Disruptive intervention evidence: **0**
 - Connector lost intervention evidence: **0**
 - Connector returned 403 from that evidence: **0**
-- Backend/client 200 reached: **553**
+- Backend/client 200 reached: **559**
 
 ## Key Split
 
-- with-MRTS DetectionOnly overlay rows: **502**
-- with-MRTS rows with logged target-rule match suppressed by that overlay: **189**
+- with-MRTS DetectionOnly overlay rows: **508**
+- with-MRTS rows with logged target-rule match suppressed by that overlay: **191**
 - no-MRTS rows with loaded rule but no match evidence: **51**
 
 ## A-H Groups
 
 | group | label | count | connectors | variants | suspected cause | fixability | risk |
 | --- | --- | ---: | --- | --- | --- | --- | --- |
-| A | Rule not loaded | 187 | nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | Rule-load evidence is missing or startup logs show a strict rule-load error. | fixable if generated loadfile path is wrong | low to medium |
+| A | Rule not loaded | 189 | nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | Rule-load evidence is missing or startup logs show a strict rule-load error. | fixable if generated loadfile path is wrong | low to medium |
 | B | Rule loaded, no match | 34 | apache, haproxy | no-crs/no-mrts, with-crs/no-mrts | The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions. | not a safe intervention fix; requires semantic/native comparison | medium to high |
 | C | Rule matched, no intervention created | 0 | - | - | - | - | - |
 | D | Intervention created, connector did not set 403 | 0 | - | - | - | - | - |
 | E | Intervention created, runner/evidence missed it | 0 | - | - | - | - | - |
-| F | Expected block, but effective runtime is non-disruptive | 332 | apache, haproxy | no-crs/with-mrts, with-crs/with-mrts | with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay. | classification/report-only unless the MRTS overlay policy changes | low for report-only, high if expectations are changed |
+| F | Expected block, but effective runtime is non-disruptive | 336 | apache, haproxy | no-crs/with-mrts, with-crs/with-mrts | with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay. | classification/report-only unless the MRTS overlay policy changes | low for report-only, high if expectations are changed |
 | G | CRS changed behavior | 0 | - | - | - | - | - |
 | H | Connector-specific blocking gap | 0 | - | - | - | - | - |
 
@@ -71,7 +71,7 @@
 | files_empty_part_future_compatibility | apache | no-crs/no-mrts | 4706 | 2 | `FILES` | `@rx ^$` | `/` | yes | no | no | yes |
 | phase1_vs_phase2_request_body_gap | apache | no-crs/no-mrts | 4511 | 1 | `REQUEST_BODY` | `@contains bodyhit` | `/` | yes | no | no | yes |
 | unicode_double_encoded_uri_runtime_difference | apache | no-crs/no-mrts | 4707 | 1 | `REQUEST_URI` | `@contains café` | `/?q=%25u0063%25u0061%25u0066%25u00E9` | yes | no | no | yes |
-| unicode_whitespace_normalization_gap | apache | no-crs/no-mrts | 4708 | 2 | `ARGS:q` | `@streq a b` | `/?q=SAFE` | yes | no | no | yes |
+| unicode_whitespace_normalization_gap | apache | no-crs/no-mrts | 4708 | 2 | `ARGS:q` | `@streq a b` | `/?q=a%E2%80%83b` | yes | no | no | yes |
 | v3_request_cookies_names_case_runtime_difference | apache | no-crs/no-mrts | 4403 | 1 | `REQUEST_COOKIES_NAMES` | `@contains user_token` | `/` | yes | no | no | yes |
 
 ### F. Expected block, but effective runtime is non-disruptive
@@ -111,11 +111,11 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

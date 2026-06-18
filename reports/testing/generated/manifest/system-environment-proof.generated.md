@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T11:25:31Z`
+> Generated at: `2026-06-18T16:14:32Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-system-environment-proof.py`
 > Make target: `generate-system-environment-proof`
 > Owner: `system`
 > Severity: `critical`
-> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
-> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
+> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
+> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
 > Input status: `complete`
 
 # System Environment Proof
@@ -179,11 +179,11 @@
 
 | Command | Status | Return Code | Duration | Notes |
 |---|---|---:|---:|---|
-| `make refresh-connector-reports` | PASS | 0 | 80.806 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
-| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.428 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make lint` | PASS | 0 | 5.239 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make quick-check` | PASS | 0 | 6.112 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `git status --short` | PASS | 0 | 0.035 |  M rep |
+| `make refresh-connector-reports` | PASS | 0 | 82.902 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
+| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.425 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `make lint` | PASS | 0 | 5.317 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `make quick-check` | PASS | 0 | 6.255 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `git status --short` | PASS | 0 | 0.035 |  M reports/testing/generated/manifest/report-path-m |
 
 ## Report Layout Evidence
 
@@ -207,14 +207,14 @@
 
 | Command | Status | Return Code | Output Hash |
 |---|---|---:|---|
-| `git_status_short` | PASS | 0 | `4fa4032f6e5304b610fc897c30dc72b668294e5f6c754e9eb922068cd673f084` |
-| `git_head` | PASS | 0 | `53a8a09badae8490889b24090323205af43344fef5f0cfe0a34ea613a8c4f1db` |
+| `git_status_short` | PASS | 0 | `0aeba6f8410cb06e9836e85292cc13b2203e138385d2885c07cbfd7e496ce982` |
+| `git_head` | PASS | 0 | `0c38c3b4c6e4e2693af597c9311420391b585cadb9565e5d0961543857177615` |
 | `git_branch` | PASS | 0 | `9b3162498c21d7f960877099174ecea13410bd21d12440b2ea8868117fc08ae0` |
-| `git_submodule_status` | PASS | 0 | `b75a151ed8f893a6c30453234803454324b53556f1794ae967072ff372421827` |
-| `git_diff_stat` | PASS | 0 | `0b6cea3187c6442d84b371275d29004d902f6c4304a06ed7d03dc98c5a1a280f` |
-| `framework_status_short` | PASS | 0 | `78cd35d5c2318184874e54bd7efe8020e7ea51a6bc81fe21cc61612289c04608` |
-| `framework_head` | PASS | 0 | `7d8ea2c14726f8bedde53455cb70f4abffa1dd980af14ce1628df68bf68dda22` |
-| `framework_diff_stat` | PASS | 0 | `a12d9778b9b2b9f40dfe37e5668a602a6db315893c761c4d079ce7e5b848b609` |
+| `git_submodule_status` | PASS | 0 | `79101f2ca3e339343de1c4d390caa569deec5d56a90da645804af646452e677e` |
+| `git_diff_stat` | PASS | 0 | `d0dae263fb182e4b9354be4fb008060c4ceb7f64426de78d229689f73553fc9a` |
+| `framework_status_short` | PASS | 0 | `5744ed98c0afd89c7114041a5718995198c8bd1ab9ba894eab9a2a08248d5a2e` |
+| `framework_head` | PASS | 0 | `38c6fbb4811ca92754ad3f3b85e501cbcbef43ce9145b5ea758a31954f0e7e91` |
+| `framework_diff_stat` | PASS | 0 | `a33b86ed0307ec91587b95fe37a8d4f685bac81917a53ddf5b27d7c81f5ff25f` |
 
 ## Proof Summary
 
@@ -231,9 +231,9 @@ The generated report layout was validated on the system above.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `3dac8d16c60399a302d5bef315eb970b67e3203d2cec3f4d9c984b21e03296f3` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `62da18c8edc7e0c5554733cd3541f6dba2b7f0a223115531b66c5ee20b000978` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `e80586d1d046b64eea92983702e8affa4b1a75d646784b0699692e6ec4fd8e45` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `3482509c25e5ae44ac8506729e740aa1e85f829fb9377e88a16a356ef1dd3779` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `d95b56797386aba3174e29391dae144e15462dcd9397c4b066a49c4fa170f000` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `3e783fdfa68caf8ca8bd1de7dc8cd107e2ac9b27e6d939f661137e574b081113` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
