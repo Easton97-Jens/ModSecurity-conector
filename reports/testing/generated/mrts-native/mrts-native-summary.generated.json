@@ -1,67 +1,94 @@
 {
-  "command": [
-    "/root/git/ModSecurity-conector/.venv/bin/python",
-    "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/generate-mrts-native-report.py",
-    "--connector-root",
-    "/root/git/ModSecurity-conector",
-    "--framework-root",
-    "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
-    "--native-root",
-    "/var/tmp/ModSecurity-conector-verified/build/mrts-native",
-    "--output-root",
-    "/root/git/ModSecurity-conector"
-  ],
-  "data_source_policy": "verified-inputs-only",
-  "empty_reason": "producer command was not run or verified input is unavailable",
-  "generated_at": "2026-06-17T15:47:51Z",
-  "generator": "framework:ci/generate-mrts-native-report.py",
-  "make_target": "mrts-native-full-run",
+  "generated_at": "2026-06-17T21:56:25Z",
   "metadata": {
-    "blocked_reason": "required generated input is stale",
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+    "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+    "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T15:47:51Z",
+    "generated_at": "2026-06-17T21:56:25Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json",
-        "sha256": "234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda",
-        "source_hash": "234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda",
-        "status": "present"
+        "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
+        "sha256": "fe88476fc8e20c25bc0dcfc7531fd7de29491acc6de9c7911d645aebb2a93c30",
+        "source_hash": "fe88476fc8e20c25bc0dcfc7531fd7de29491acc6de9c7911d645aebb2a93c30",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
         "notes": "input file available",
-        "path": "/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json",
-        "sha256": "161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7",
-        "source_hash": "161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7",
-        "status": "present"
+        "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
+        "sha256": "13efedcf5524f0374b268b8a137905613d2b6d473392671baf0033afc27d213b",
+        "source_hash": "13efedcf5524f0374b268b8a137905613d2b6d473392671baf0033afc27d213b",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
     "make_target": "mrts-native-full-run",
     "missing_inputs": [],
     "owner": "mrts",
-    "report_key": "mrts_native_summary",
-    "run_status": "skipped_stale_input",
+    "report_key": "mrts_native_apache",
     "schema_version": 1,
     "severity": "optional",
     "unknown_inputs": [],
     "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
-  "reason": "required generated input is stale",
-  "report_key": "mrts_native_summary",
-  "report_name": "mrts_native_summary",
-  "rows": [],
-  "status": "skipped_stale_input",
-  "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+  "note": "Native MRTS evidence is separate from connector runtime matrix evidence.",
+  "report_kind": "native-mrts-summary",
+  "reports": {
+    "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
+    "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md"
+  },
+  "separate_from_connector_full_matrix": true,
+  "targets": {
+    "apache2_ubuntu": {
+      "classification": "optional_native_modsecurity_semantics_difference",
+      "counts": {
+        "attempted": 13,
+        "blocked": 0,
+        "fail": 1,
+        "failed_cases": [
+          "100003-1"
+        ],
+        "not_executable": 0,
+        "pass": 12
+      },
+      "critical_merge_blocker": false,
+      "optional": true,
+      "report": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+      "status": "FAIL"
+    },
+    "nginx-pr24": {
+      "classification": "optional_native_modsecurity_semantics_difference",
+      "counts": {
+        "attempted": 13,
+        "blocked": 0,
+        "fail": 1,
+        "failed_cases": [
+          "100003-1"
+        ],
+        "not_executable": 0,
+        "pass": 12
+      },
+      "critical_merge_blocker": false,
+      "optional": true,
+      "report": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+      "status": "FAIL"
+    }
+  }
 }

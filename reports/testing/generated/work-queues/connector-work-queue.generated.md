@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T15:47:49Z`
+> Generated at: `2026-06-17T21:56:23Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-connector-work-queue.py`
 > Make target: `generate-work-queue`
 > Owner: `framework`
 > Severity: `important`
-> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
-> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
+> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
+> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
 > Input status: `complete`
 
 # Connector Work Queue
@@ -16,29 +16,29 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-17T15:47:49Z`
+- Generated at: `2026-06-17T21:56:23Z`
 - Total runtime cases analyzed: **3928**
-- Total failures: **788**
-- P0/P1/P2/P3: **6** / **0** / **60** / **227**
+- Total failures: **776**
+- P0/P1/P2/P3: **6** / **0** / **60** / **215**
 - Source inventory split: framework-owned(141), MRTS imported(383), feature-demo report-only(16), golden-only(0)
 - Runtime source split: framework-owned(1630), MRTS imported(2298), feature-demo report-only(0), golden-only(0), runtime-job(0)
 
 ## Per Connector Summary
 ### apache
-- Top failure patterns: expected_block_got_200(248), not_executable(16), expected_pass_but_evidence_missing(2)
-- Top functional areas: action_intervention(262), args(99), request_body_urlencoded(73), transformations(48), audit_log(38)
+- Top failure patterns: expected_block_got_200(244), not_executable(16), expected_pass_but_evidence_missing(2)
+- Top functional areas: action_intervention(258), args(95), request_body_urlencoded(73), transformations(44), audit_log(38)
 - Top work directions: classification_only(181), response_body_non_promoted(32), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
 - Recommended next work: classification_only(181)
 
 ### nginx
-- Top failure patterns: expected_block_got_200(280), not_executable(16), expected_pass_but_evidence_missing(8)
-- Top functional areas: action_intervention(294), args(105), request_body_urlencoded(73), response_body(64), audit_log(50)
+- Top failure patterns: expected_block_got_200(276), not_executable(16), expected_pass_but_evidence_missing(8)
+- Top functional areas: action_intervention(290), args(101), request_body_urlencoded(73), response_body(64), audit_log(50)
 - Top work directions: classification_only(187), response_body_non_promoted(64), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
 - Recommended next work: classification_only(187)
 
 ### haproxy
-- Top failure patterns: expected_block_got_200(248), not_executable(16), expected_pass_but_evidence_missing(2)
-- Top functional areas: action_intervention(262), args(99), request_body_urlencoded(73), transformations(48), audit_log(38)
+- Top failure patterns: expected_block_got_200(244), not_executable(16), expected_pass_but_evidence_missing(2)
+- Top functional areas: action_intervention(258), args(95), request_body_urlencoded(73), transformations(44), audit_log(38)
 - Top work directions: classification_only(181), response_body_non_promoted(32), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
 - Recommended next work: classification_only(181)
 
@@ -59,12 +59,12 @@ Generated file - do not edit manually.
 | request_body_processor | 1 | 1 | 1 | 3 |
 | response_body_non_promoted | 32 | 64 | 32 | 128 |
 | response_header_mrts_detection_only | 20 | 20 | 20 | 60 |
-| transformation_semantics | 8 | 8 | 8 | 24 |
+| transformation_semantics | 4 | 4 | 4 | 12 |
 
 ## Failure Pattern Summary
 | failure_pattern | apache | nginx | haproxy | total |
 |---|---|---|---|---|
-| expected_block_got_200 | 248 | 280 | 248 | 776 |
+| expected_block_got_200 | 244 | 276 | 244 | 764 |
 | expected_pass_but_evidence_missing | 2 | 8 | 2 | 12 |
 | not_executable | 16 | 16 | 16 | 48 |
 
@@ -184,8 +184,6 @@ Generated file - do not edit manually.
 | P3 | apache | with-crs | with-mrts | pr70_phase4_response_body_audit_xfail | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/pr70_phase4_response_body_audit_xfail/result.json |
 | P3 | apache | no-crs | with-mrts | response_body_basic_block | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/response_body_basic_block/result.json |
 | P3 | apache | with-crs | with-mrts | response_body_basic_block | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/response_body_basic_block/result.json |
-| P3 | apache | no-crs | no-mrts | sqli_like_keyword_spacing_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/sqli_like_keyword_spacing_probe/result.json |
-| P3 | apache | with-crs | no-mrts | sqli_like_keyword_spacing_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/sqli_like_keyword_spacing_probe/result.json |
 | P3 | apache | no-crs | no-mrts | unicode_double_encoded_uri_runtime_difference | action_intervention, request_uri, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json |
 | P3 | apache | with-crs | no-mrts | unicode_double_encoded_uri_runtime_difference | action_intervention, request_uri, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/unicode_double_encoded_uri_runtime_difference/result.json |
 | P3 | apache | no-crs | no-mrts | unicode_whitespace_normalization_gap | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/unicode_whitespace_normalization_gap/result.json |
@@ -200,8 +198,6 @@ Generated file - do not edit manually.
 | P3 | apache | with-crs | no-mrts | v3_request_cookies_names_case_runtime_difference | action_intervention, request_cookies, request_cookies_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json |
 | P3 | apache | no-crs | no-mrts | v3_request_headers_names_lowercase_runtime_difference | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json |
 | P3 | apache | with-crs | no-mrts | v3_request_headers_names_lowercase_runtime_difference | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json |
-| P3 | apache | no-crs | no-mrts | xss_like_encoded_angles_normalization_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/result.json |
-| P3 | apache | with-crs | no-mrts | xss_like_encoded_angles_normalization_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/result.json |
 | P3 | haproxy | no-crs | no-mrts | duplicate_args_encoded_separator_edge | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json |
 | P3 | haproxy | with-crs | no-mrts | duplicate_args_encoded_separator_edge | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json |
 | P3 | haproxy | no-crs | no-mrts | duplicate_header_case_normalization_gap | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json |
@@ -249,8 +245,6 @@ Generated file - do not edit manually.
 | P3 | haproxy | with-crs | with-mrts | pr70_phase4_response_body_audit_xfail | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/pr70_phase4_response_body_audit_xfail/result.json |
 | P3 | haproxy | no-crs | with-mrts | response_body_basic_block | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/response_body_basic_block/result.json |
 | P3 | haproxy | with-crs | with-mrts | response_body_basic_block | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/response_body_basic_block/result.json |
-| P3 | haproxy | no-crs | no-mrts | sqli_like_keyword_spacing_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json |
-| P3 | haproxy | with-crs | no-mrts | sqli_like_keyword_spacing_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json |
 | P3 | haproxy | no-crs | no-mrts | unicode_double_encoded_uri_runtime_difference | action_intervention, request_uri, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json |
 | P3 | haproxy | with-crs | no-mrts | unicode_double_encoded_uri_runtime_difference | action_intervention, request_uri, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json |
 | P3 | haproxy | no-crs | no-mrts | unicode_whitespace_normalization_gap | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json |
@@ -265,12 +259,18 @@ Generated file - do not edit manually.
 | P3 | haproxy | with-crs | no-mrts | v3_request_cookies_names_case_runtime_difference | action_intervention, request_cookies, request_cookies_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json |
 | P3 | haproxy | no-crs | no-mrts | v3_request_headers_names_lowercase_runtime_difference | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json |
 | P3 | haproxy | with-crs | no-mrts | v3_request_headers_names_lowercase_runtime_difference | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json |
-| P3 | haproxy | no-crs | no-mrts | xss_like_encoded_angles_normalization_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/result.json |
-| P3 | haproxy | with-crs | no-mrts | xss_like_encoded_angles_normalization_probe | action_intervention, args, transformations | expected_block_got_200 | transformation_request_literal_no_match | transformation_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/result.json |
 | P3 | nginx | no-crs | no-mrts | duplicate_args_encoded_separator_edge | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/duplicate_args_encoded_separator_edge/result.json |
 | P3 | nginx | with-crs | no-mrts | duplicate_args_encoded_separator_edge | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/duplicate_args_encoded_separator_edge/result.json |
 | P3 | nginx | no-crs | no-mrts | duplicate_header_case_normalization_gap | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/duplicate_header_case_normalization_gap/result.json |
 | P3 | nginx | with-crs | no-mrts | duplicate_header_case_normalization_gap | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/duplicate_header_case_normalization_gap/result.json |
+| P3 | nginx | no-crs | no-mrts | edge_semicolon_query_args_names | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/edge_semicolon_query_args_names/result.json |
+| P3 | nginx | with-crs | no-mrts | edge_semicolon_query_args_names | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/edge_semicolon_query_args_names/result.json |
+| P3 | nginx | no-crs | no-mrts | json_empty_body_future_compatibility | action_intervention, request_body_json, request_body_urlencoded | not_executable | pending | harness_incompatibility | not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/json_empty_body_future_compatibility/configtest.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/json_empty_body_future_compatibility/result.json |
+| P3 | nginx | no-crs | with-mrts | json_empty_body_future_compatibility | action_intervention, request_body_json, request_body_urlencoded | not_executable | pending | harness_incompatibility | not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/json_empty_body_future_compatibility/configtest.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/json_empty_body_future_compatibility/result.json |
+| P3 | nginx | with-crs | no-mrts | json_empty_body_future_compatibility | action_intervention, request_body_json, request_body_urlencoded | not_executable | pending | harness_incompatibility | not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/json_empty_body_future_compatibility/configtest.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/json_empty_body_future_compatibility/result.json |
+| P3 | nginx | with-crs | with-mrts | json_empty_body_future_compatibility | action_intervention, request_body_json, request_body_urlencoded | not_executable | pending | harness_incompatibility | not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/json_empty_body_future_compatibility/configtest.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/json_empty_body_future_compatibility/result.json |
+| P3 | nginx | no-crs | with-mrts | nginx_phase4_content_type_out_of_scope | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_content_type_out_of_scope/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_content_type_out_of_scope/result.json |
+| P3 | nginx | with-crs | with-mrts | nginx_phase4_content_type_out_of_scope | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_content_type_out_of_scope/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_content_type_out_of_scope/result.json |
 
 ## MRTS-only Section
 | connector | attempted | pass | fail | blocked | top work directions |
@@ -293,7 +293,7 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `b73e9279de250d71c12b771bc4c24bb4b712dac0fed0008c60f6075116916797` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

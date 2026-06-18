@@ -29,7 +29,7 @@
       "risk": "low"
     }
   ],
-  "generated_at": "2026-06-17T15:47:46Z",
+  "generated_at": "2026-06-17T21:56:19Z",
   "groups": [],
   "inputs": {
     "full_matrix_job_completeness": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
@@ -41,11 +41,11 @@
     "verified_runtime_mismatch_analysis": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
   },
   "job": {
-    "duration_seconds": 3419,
-    "ended_at": "2026-06-17T14:29:44Z",
+    "duration_seconds": 3441,
+    "ended_at": "2026-06-17T21:53:25Z",
     "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json",
     "return_code": 2,
-    "started_at": "2026-06-17T13:32:45Z",
+    "started_at": "2026-06-17T20:56:04Z",
     "status": "completed_with_mismatches"
   },
   "job_id": "nginx:with-crs:with-mrts",
@@ -53,14 +53,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+    "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+    "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T15:47:46Z",
+    "generated_at": "2026-06-17T21:56:19Z",
     "generated_by": "ci/generate-nginx-mrts-http500-cluster-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -68,56 +68,56 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json",
-        "sha256": "c75a893fd02c2e641831bfc8439251e77c63090b9f02d8d64072f6847bab29a9",
-        "source_hash": "c75a893fd02c2e641831bfc8439251e77c63090b9f02d8d64072f6847bab29a9",
+        "sha256": "0c7fe8a766209c2ba87ee7c31d71b683722aee67f24f179f3aeaf144180681a8",
+        "source_hash": "0c7fe8a766209c2ba87ee7c31d71b683722aee67f24f179f3aeaf144180681a8",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
-        "sha256": "c72148b63be5e429c0f15840fad2f3f97aa3a633672acf9a6e8d28e2fcb8b031",
-        "source_hash": "c72148b63be5e429c0f15840fad2f3f97aa3a633672acf9a6e8d28e2fcb8b031",
+        "sha256": "83b8b0e48cc90e073f083a2ae21b75090796e439b77dbebddfb5196bea1e523e",
+        "source_hash": "83b8b0e48cc90e073f083a2ae21b75090796e439b77dbebddfb5196bea1e523e",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-        "sha256": "b879807daa3ac77b4e2dd6254233ffeaa4f46bd0ec76163d98ff2cd2590b3412",
-        "source_hash": "b879807daa3ac77b4e2dd6254233ffeaa4f46bd0ec76163d98ff2cd2590b3412",
+        "sha256": "26ce80f14a4682e2de1d9820bb3e9539749ec742f02e35aeafff1ae2f2d5244f",
+        "source_hash": "26ce80f14a4682e2de1d9820bb3e9539749ec742f02e35aeafff1ae2f2d5244f",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-        "sha256": "7de51af87cf4175d9dba4efcb43ff5187319593fdcb7e4d25e49b97a1cb10adf",
-        "source_hash": "7de51af87cf4175d9dba4efcb43ff5187319593fdcb7e4d25e49b97a1cb10adf",
+        "sha256": "486ad12bb371fe38d53b5937703d48eb2cc563a42d82994ea544f9a15951923b",
+        "source_hash": "486ad12bb371fe38d53b5937703d48eb2cc563a42d82994ea544f9a15951923b",
         "status": "present"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
-        "sha256": "bd7f3ba3382d7800e5de9bcf7eb1d28a26b0317b1a5aae2089b5f5812acddc78",
-        "source_hash": "bd7f3ba3382d7800e5de9bcf7eb1d28a26b0317b1a5aae2089b5f5812acddc78",
+        "sha256": "33b455ceada395bc04349af5b6914b140a000d93296db983137ee2770d93e027",
+        "source_hash": "33b455ceada395bc04349af5b6914b140a000d93296db983137ee2770d93e027",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
-        "sha256": "6bc04b7e3157faa5f7d32e333051db6fe568b604eef038f0706c32d1f2028cac",
-        "source_hash": "6bc04b7e3157faa5f7d32e333051db6fe568b604eef038f0706c32d1f2028cac",
+        "sha256": "0973c2753c21d2085a5724356db258651404510e5297dce370b88760f78871a0",
+        "source_hash": "0973c2753c21d2085a5724356db258651404510e5297dce370b88760f78871a0",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
-        "sha256": "4a82546f163707fb800b44dcf86ecd7f1722f0e84428c1b41020d15f1d228dd2",
-        "source_hash": "4a82546f163707fb800b44dcf86ecd7f1722f0e84428c1b41020d15f1d228dd2",
+        "sha256": "7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e",
+        "source_hash": "7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e",
         "status": "present"
       }
     ],

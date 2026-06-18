@@ -1,46 +1,226 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T15:48:01Z`
+> Generated at: `2026-06-17T21:57:17Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-body-processor-analysis.py`
 > Make target: `generate-body-processor-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
-> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
-> Input status: `blocked`
+> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
+> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Input status: `complete`
 
-# Request-body, multipart, and XML processor classification.
+# Body Processor Failure Analysis
 
-Status: `blocked`
+- Generated at: `2026-06-17T21:57:17Z`
+- Before selected metadata fix: request_body_processor **9**, multipart_files **14**, xml_processor **16**, combined **39**.
+- After selected metadata fix: request_body_processor **0**, multipart_files **6**, xml_processor **0**, combined **6**.
+- Selected subcluster rows: **9**
+- URL-encoded form rows moved out of active body-processor work: **12** -> **0**.
+- XML processor activation-missing rows moved out of active xml_processor work: **16** -> **0**.
+- Multipart processor activation-missing rows moved out of active multipart_files work: **8** -> **0**.
+- Rule loaded evidence rows: **10**
+- Target rule matched rows: **0**
+- Backend reached rows: **15**
+- Request body access explicitly on: **0**
+- Collection/target evidence rows: **0**
 
-Reason: required generated input is blocked
+## Selected Subcluster
 
-## Verified Command
+- Case: `phase1_vs_phase2_request_body_gap`
+- Count: **9**
+- Action: metadata-only classification: request_body_processor -> connector_gap
+- Why safe: the case has an empty request body and existing source metadata says connector-gap; no request, rule, expected status, or PASS/FAIL value changed
+- Root cause: phase:1 REQUEST_BODY cannot match the expected bodyhit because the YAML request body is empty
+- Body arrived: empty by fixture
+- Processor active: not relevant for the selected metadata-only classification
+- Collections created: no target rule match evidence
 
-| Command | Status | Return Code | Notes |
-|---|---|---:|---|
-| `/root/git/ModSecurity-conector/.venv/bin/python ci/generate-body-processor-analysis.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --output-dir /root/git/ModSecurity-conector/reports/testing/generated` | blocked | - | required generated input is blocked |
+## URL-encoded Form Subcluster
 
-## Rows
+- Count: **12**
+- Active request_body_processor rows before report sync: **12**
+- Active request_body_processor rows after report sync: **0**
+- Classification: `with_mrts_detection_only_non_disruptive`
+- Work direction: `classification_only`
+- Priority: `report_only`
+- Body sent rows: **12**
+- Correct Content-Type rows: **12**
+- SecRequestBodyAccess On rows: **12**
+- Rule loaded rows: **12**
+- Rule matched rows: **8**
+- Collection/target evidence rows: **8**
+- Backend reached rows: **12**
+- Root cause: The URL-encoded bodies and Content-Type are present; these rows are with-MRTS DetectionOnly overlay cases, so disruptive actions remain non-blocking and belong to report-only classification.
+- Fix: metadata/report-only; no request body, Content-Type, rule, Expected status, or PASS/FAIL value changed
+- Risk: low when kept out of active request_body_processor work; high if promoted to PASS without disruptive runtime evidence
 
-_No rows available. Reason: producer command was not run or verified input is unavailable._
+| field | distribution |
+| --- | --- |
+| connectors | `apache`: 6, `haproxy`: 6 |
+| variants | `no-crs/with-mrts`: 6, `with-crs/with-mrts`: 6 |
+| case_ids | `pr70_phase2_audit_urlencoded_body`: 4, `request_body_args_post_names_block`: 4, `request_body_urlencoded_block`: 4 |
+| rule_ids | `5702`: 4, `2204`: 4, `1200`: 4 |
+| targets | `ARGS_POST:arg1`: 4, `ARGS_POST_NAMES`: 4, `ARGS_POST:test`: 4 |
+| operators | `@streq pr70phase2`: 4, `@streq arg1`: 4, `@streq attack`: 4 |
+| body_lengths | `26`: 4, `19`: 4, `11`: 4 |
+| request_body_seen | `unknown`: 6, `yes`: 6 |
+
+## XML Processor Activation-Missing Subcluster
+
+- Count: **16**
+- Active xml_processor rows before report sync: **16**
+- Active xml_processor rows after report sync: **0**
+- Classification: `xml_processor_activation_missing`
+- Work direction: `classification_only`
+- Priority: `report_only`
+- Body sent rows: **16**
+- Correct XML Content-Type rows: **16**
+- SecRequestBodyAccess On rows: **0**
+- XML processor active rows: **0**
+- Rule loaded rows: **16**
+- Rule matched rows: **0**
+- XML collection evidence rows: **0**
+- Backend reached rows: **16**
+- Root cause: The XML bodies and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML, so XML collection population is not expected evidence.
+- Fix: metadata/report-only; no XML body, rule, Expected status, connector-core behavior, or PASS/FAIL value changed
+- Risk: low when kept report-only; high if treated as a connector XML parser failure without processor activation
+
+| field | distribution |
+| --- | --- |
+| connectors | `apache`: 8, `haproxy`: 8 |
+| variants | `no-crs/no-mrts`: 8, `with-crs/no-mrts`: 8 |
+| case_ids | `parser_xml_partial_body_future_target`: 4, `xml_deep_nesting_future_target`: 4, `xml_namespace_edge_connector_gap`: 4, `xml_request_body_malformed_connector_gap`: 4 |
+| rule_ids | `4610`: 4, `4712`: 4, `4711`: 4, `4408`: 4 |
+| targets | `XML`: 16 |
+| operators | `@contains root`: 4, `@contains deepnode`: 4, `@contains ns:root`: 4, `@contains broken`: 4 |
+| content_types | `application/xml`: 16 |
+| body_lengths | `9`: 4, `50`: 4, `53`: 4, `21`: 4 |
+| body_hashes | `a1cbdf58569b7f77dd47ef83641e48fe830098618b019034b88563050b12eb06`: 4, `9aab1567b5d32b5a5a60ad9f5f6f8f8cf485dbf9aa938905e71a0e88b009f011`: 4, `7eebe35c1d4703c2ed4df34cea9d4149c8aa61bbc104d7c2db81978128ae96e4`: 4, `0c13b76b5721981c5ae77b5629399200d777a7e3b54e6c6d1dbbd43b0d5b75d6`: 4 |
+| request_body_seen | `unknown`: 8, `yes`: 8 |
+
+## Multipart Processor Activation-Missing Subcluster
+
+- Count: **8**
+- Active multipart_files rows before report sync: **8**
+- Active multipart_files rows after report sync: **0**
+- Classification: `multipart_processor_activation_missing`
+- Work direction: `classification_only`
+- Priority: `report_only`
+- Body sent rows: **8**
+- Correct Multipart Content-Type rows: **8**
+- Boundary valid rows: **8**
+- SecRequestBodyAccess On rows: **0**
+- Multipart parser active rows: **0**
+- Rule loaded rows: **8**
+- Rule matched rows: **0**
+- FILES/FILES_NAMES evidence rows: **0**
+- ARGS/ARGS_NAMES evidence rows: **0**
+- Collection/target evidence rows: **0**
+- Backend reached rows: **8**
+- Root cause: The multipart bodies, Content-Type, boundaries, field names, and filenames are present, but these fixtures do not enable SecRequestBodyAccess before expecting FILES/ARGS_NAMES collection evidence.
+- Fix: metadata/report-only; no multipart body, Content-Type, boundary, rule, Expected status, connector-core behavior, or PASS/FAIL value changed
+- Risk: low when kept report-only; high if treated as a connector multipart parser failure without request body activation
+
+| field | distribution |
+| --- | --- |
+| connectors | `apache`: 4, `haproxy`: 4 |
+| variants | `no-crs/no-mrts`: 4, `with-crs/no-mrts`: 4 |
+| case_ids | `files_names_mixed_case_filename_gap`: 4, `multipart_duplicate_field_names_gap`: 4 |
+| rule_ids | `4705`: 4, `4703`: 4 |
+| targets | `FILES_NAMES`: 4, `ARGS_NAMES`: 4 |
+| operators | `@contains MiXeD.TXT`: 4, `@contains upload`: 4 |
+| content_types | `multipart/form-data; boundary=----AaB03x`: 8 |
+| boundaries | `----AaB03x`: 8 |
+| boundary_status | `valid`: 8 |
+| part_counts | `1`: 4, `2`: 4 |
+| field_names | `upload`: 12 |
+| filenames | `MiXeD.TXT`: 4, `a.txt`: 4, `b.txt`: 4 |
+| body_lengths | `130`: 4, `175`: 4 |
+| body_hashes | `c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de`: 4, `fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a`: 4 |
+| request_body_seen | `unknown`: 4, `yes`: 4 |
+
+## Active Body Processor Distributions
+
+### Connectors
+
+| value | count |
+| --- | ---: |
+| `apache` | 2 |
+| `nginx` | 2 |
+| `haproxy` | 2 |
+
+### Variants
+
+| value | count |
+| --- | ---: |
+| `no-crs/no-mrts` | 3 |
+| `with-crs/no-mrts` | 3 |
+
+### Body Kinds
+
+| value | count |
+| --- | ---: |
+| `multipart` | 4 |
+| `empty` | 2 |
+
+### Content Types
+
+| value | count |
+| --- | ---: |
+| `multipart/form-data; boundary=----AaB03x` | 4 |
+| `-` | 2 |
+
+### Targets
+
+| value | count |
+| --- | ---: |
+| `FILES` | 4 |
+| `-` | 2 |
+
+### Failure Categories
+
+| value | count |
+| --- | ---: |
+| `multipart_files` | 6 |
+
+## Grouped Rows
+
+| count | connector | body kind | content-type | phase | target | status | category | variants | matched | cause | fixability |
+| ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- | --- |
+| 2 | apache | multipart | `multipart/form-data; boundary=----AaB03x` | 2 | `FILES` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
+| 2 | haproxy | multipart | `multipart/form-data; boundary=----AaB03x` | 2 | `FILES` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
+| 2 | nginx | empty | `-` | 2 | `-` | 403->200 | multipart_files | no-crs/no-mrts, with-crs/no-mrts | 0 | Multipart FILES/FILES_NAMES population differs by case; some rows match but with-MRTS prevents blocking, others lack collection evidence. | requires targeted native/connector comparison before code changes |
+
+## Current Next Fix Plan
+
+- Recommended next cluster: `multipart_files`
+- Reason: remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits
+
+## Guardrail Notes
+
+- No Expected statuses, testcase rules, request bodies, MRTS definitions, or PASS/FAIL values are changed by this analysis.
+- The selected subcluster is metadata-only and remains a runtime FAIL; it is no longer counted as body-processor work.
+- URL-encoded/form rows are report-only with-MRTS DetectionOnly overlay evidence; no harness or connector-core change is made for them.
+- XML rows in the activation-missing subcluster are report-only because their fixtures do not enable the XML request body processor.
+- Multipart rows in the activation-missing subcluster are report-only because their fixtures do not enable request body access before expecting FILES/ARGS_NAMES collection evidence.
+- Remaining active body-processor rows are zero after the URL-encoded, XML, and Multipart metadata splits.
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c747640b424f6aa6fbbf98f07407ce1dfc47c8ae2295220454554acdd5e70aa8` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `781564315ab245d2dd9d89e2ed9445f71d222553697e36daec83189a8d3d998b` | `2026-06-16T19-12-00Z-614c8049` | blocked |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `29210f6193c70c53ff0d6fb934005c9e2f29129f88cb322eabb328198ae25dbf` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `18f53c9539c3c8d74bd89e6549062846275bbb678857522f3f76ab99af603989` | `2026-06-16T19-12-00Z-614c8049` | blocked |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `b237c0433ef2a2d0bf1e4d2bb778d6f7f0501feadebbd3337c99a63d0fe2dd61` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `2316fe5b7e70ff986d2616f0528e208983f6a5dd4b2671bf443f865c6ffbf26f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `bf94318ee4981b80cb2d08e43a02a93a0ff4e20ddf22c88e8b79766ac4bb71f7` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
 | Input | Status | Notes |
 |---|---|---|
 | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | blocked | generated report input is not usable: status=blocked |
+| `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | present | input file available |
 | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | present | input file available |
-| `reports/testing/generated/canonical/next-fix-plan.generated.json` | blocked | generated report input is not usable: status=blocked |
+| `reports/testing/generated/canonical/next-fix-plan.generated.json` | present | input file available |

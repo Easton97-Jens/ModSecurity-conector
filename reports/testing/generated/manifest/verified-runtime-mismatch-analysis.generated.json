@@ -12,17 +12,17 @@
   "by_classification": {
     "connector_capability_gap": 63,
     "expected_status_mismatch": 51,
-    "framework_expected_behavior_gap": 24,
     "known_not_next": 102,
-    "runtime_regression": 66,
+    "libmodsecurity_collection_semantics": 24,
+    "runtime_regression": 42,
     "timeout_or_incomplete": 48,
     "unknown": 12,
-    "with_mrts_detection_only_overlay": 470
+    "with_mrts_detection_only_overlay": 482
   },
   "by_connector": {
-    "apache": 266,
-    "haproxy": 266,
-    "nginx": 304
+    "apache": 262,
+    "haproxy": 262,
+    "nginx": 300
   },
   "commands": {
     "full_matrix_classification": "completed_with_mismatches",
@@ -32,7 +32,7 @@
     "full_matrix_job_statuses": [
       {
         "connector": "apache",
-        "duration_seconds": 331,
+        "duration_seconds": 339,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -52,7 +52,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 285,
+        "duration_seconds": 287,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -62,7 +62,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1270,
+        "duration_seconds": 1273,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -72,7 +72,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3200,
+        "duration_seconds": 3194,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -82,7 +82,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1051,
+        "duration_seconds": 1066,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -92,7 +92,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 355,
+        "duration_seconds": 351,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -102,7 +102,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 601,
+        "duration_seconds": 607,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -112,7 +112,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 316,
+        "duration_seconds": 319,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -122,7 +122,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1383,
+        "duration_seconds": 1378,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -132,7 +132,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3419,
+        "duration_seconds": 3441,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -142,7 +142,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1185,
+        "duration_seconds": 1195,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -239,7 +239,7 @@
       "timeout_seconds": 1800
     }
   },
-  "critical_mismatch_count": 264,
+  "critical_mismatch_count": 216,
   "data_source_policy": "verified-inputs-only",
   "evidence_scope": "full",
   "full_matrix": {
@@ -252,7 +252,7 @@
     "job_statuses": [
       {
         "connector": "apache",
-        "duration_seconds": 331,
+        "duration_seconds": 339,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -272,7 +272,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 285,
+        "duration_seconds": 287,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -282,7 +282,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1270,
+        "duration_seconds": 1273,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -292,7 +292,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3200,
+        "duration_seconds": 3194,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -302,7 +302,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1051,
+        "duration_seconds": 1066,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -312,7 +312,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 355,
+        "duration_seconds": 351,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -322,7 +322,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 601,
+        "duration_seconds": 607,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -332,7 +332,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 316,
+        "duration_seconds": 319,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -342,7 +342,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1383,
+        "duration_seconds": 1378,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -352,7 +352,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3419,
+        "duration_seconds": 3441,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -362,7 +362,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1185,
+        "duration_seconds": 1195,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -382,104 +382,104 @@
     "status": "complete",
     "timeout": false
   },
-  "generated_at": "2026-06-17T15:47:45Z",
+  "generated_at": "2026-06-17T21:56:19Z",
   "inputs": [
     {
       "bytes": 6506,
       "label": "full matrix manifest",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-      "sha256": "8378473bbc7146a7ed3e077973aece4dc85d4b2ffce29cd77c39b5ea5c9b3362",
+      "sha256": "3a2f94f7f12ed82c81dd7e1b2430b3e1ca4547c38c72e2c4053fe73ea1aa2486",
       "status": "present"
     },
     {
-      "bytes": 357995,
+      "bytes": 358189,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "a2e7af7da5e6fd2718f07fb2fed949d8a74e52b33dbe977e5599a422fe29e13a",
+      "sha256": "90e4c57b419ac1fe9c9c151a1a8a565cffbd9e78e0c49941d17659259662af45",
       "status": "present"
     },
     {
-      "bytes": 445027,
+      "bytes": 445101,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "eb56f03b535595ee1a4849dc89166a318920bfefaac4539dff9db054a799bbb3",
+      "sha256": "52cd4089da4ea71fae255f966670b1af8d903f191d440c78dbe2d6178ea2089d",
       "status": "present"
     },
     {
-      "bytes": 391960,
+      "bytes": 392154,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "97e2b1584a0e45a080adc9611b47a071c38d8edf9e7b7ad54e4eae4262ddfa79",
+      "sha256": "eda5dbbb43047db5f787f7300520e3b1d29a85c3d76772d0cb154d8212aeabe4",
       "status": "present"
     },
     {
-      "bytes": 1466911,
+      "bytes": 1467063,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "d53014e2d1833d03c2fad718f38ac3f4ce2a1a38a3c36c28b1717cc218e2eb64",
+      "sha256": "45fda2780640b63bd80b2b1fb3aa43e7a84c6853f030c2cc40a00771b783deef",
       "status": "present"
     },
     {
-      "bytes": 1791921,
+      "bytes": 1792073,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "e90fd4aefa085251a2ecb602069c17d1fb91d02df867693d700caeafa8c169c1",
+      "sha256": "554653eeba7144a6b5958614397d32cc50b17cced2e2af1493ac712da48beff2",
       "status": "present"
     },
     {
-      "bytes": 1544188,
+      "bytes": 1544340,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "a2153f8b25a1c30ee814d87f1899ae1521e98f20ee095a552c463b368d5edc58",
+      "sha256": "1bf63a6e3c02bae63624eeaa22a6313dafc4798d2d95768dddeef083460d620f",
       "status": "present"
     },
     {
-      "bytes": 362403,
+      "bytes": 362597,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "36406e6a7c2c5a2c79c54d0334ea71c52c5b338cdca893aa6db46101d47261ff",
+      "sha256": "697287a968a256848a874647c6ce213ad643575582f162f2ba1c4e378241ff49",
       "status": "present"
     },
     {
-      "bytes": 450470,
+      "bytes": 450544,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "682c6766a313fa47720812649ef9055eb1131659e7227077bf7af2abde5ddb35",
+      "sha256": "5206ca86343624b2eed5a221ebe791efc3adc658be30bae9a944a31321bbe5d2",
       "status": "present"
     },
     {
-      "bytes": 396596,
+      "bytes": 396790,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "72f234c0e2fb6c20a9681140facf724c6977316fab4c74dbb633faf94ba112b9",
+      "sha256": "696e3197dcb58c7cec344168a81c6fba699275c2873282053de4f4dcb2f2d014",
       "status": "present"
     },
     {
-      "bytes": 1476672,
+      "bytes": 1476824,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "360167461277beafb06af1ce4c27d4f3dfb4b876abea494f2ca1dc339e35df56",
+      "sha256": "36c7fabf7bcd6298a0e65d0794577a31880a918b82a0b52a5cf775c2865e6d1d",
       "status": "present"
     },
     {
-      "bytes": 1804352,
+      "bytes": 1804504,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "77be7ff6bb9437339ea31d60553db3f5116cee849e5f6313b2e81897a6c0683b",
+      "sha256": "b878635a5084b06dccf0d5882b0ad44b6823470891dc11dbfb0b7cf652dc8b4d",
       "status": "present"
     },
     {
-      "bytes": 1554185,
+      "bytes": 1554337,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "b879807daa3ac77b4e2dd6254233ffeaa4f46bd0ec76163d98ff2cd2590b3412",
+      "sha256": "26ce80f14a4682e2de1d9820bb3e9539749ec742f02e35aeafff1ae2f2d5244f",
       "status": "present"
     },
     {
-      "bytes": 52044,
+      "bytes": 53022,
       "label": "verified commands",
       "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
-      "sha256": "4a82546f163707fb800b44dcf86ecd7f1722f0e84428c1b41020d15f1d228dd2",
+      "sha256": "7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e",
       "status": "present"
     }
   ],
@@ -488,14 +488,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+    "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+    "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T15:47:45Z",
+    "generated_at": "2026-06-17T21:56:19Z",
     "generated_by": "ci/generate-verified-runtime-mismatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -503,15 +503,15 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json",
-        "sha256": "4a82546f163707fb800b44dcf86ecd7f1722f0e84428c1b41020d15f1d228dd2",
-        "source_hash": "4a82546f163707fb800b44dcf86ecd7f1722f0e84428c1b41020d15f1d228dd2",
+        "sha256": "7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e",
+        "source_hash": "7be7707b48f88a7b2a19c0b5c1209d40aec5396ed773e4b79d4ceec00fc3b23e",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-        "sha256": "8378473bbc7146a7ed3e077973aece4dc85d4b2ffce29cd77c39b5ea5c9b3362",
-        "source_hash": "8378473bbc7146a7ed3e077973aece4dc85d4b2ffce29cd77c39b5ea5c9b3362",
+        "sha256": "3a2f94f7f12ed82c81dd7e1b2430b3e1ca4547c38c72e2c4053fe73ea1aa2486",
+        "source_hash": "3a2f94f7f12ed82c81dd7e1b2430b3e1ca4547c38c72e2c4053fe73ea1aa2486",
         "status": "present"
       }
     ],
@@ -525,7 +525,7 @@
     "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
-  "mismatch_count": 836,
+  "mismatch_count": 824,
   "mismatches": [
     {
       "actual": "200",
@@ -534,10 +534,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -550,7 +601,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -589,10 +640,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -605,7 +707,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -869,33 +971,6 @@
       "capabilities": [
         "transformations"
       ],
-      "case": "sqli_like_keyword_spacing_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/sqli_like_keyword_spacing_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/compressWhitespace.t",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
       "case": "unicode_double_encoded_uri_runtime_difference",
       "category": "transformations",
       "classification": "runtime_regression",
@@ -1113,33 +1188,6 @@
       "status": "fail",
       "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
-      "case": "xss_like_encoded_angles_normalization_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/htmlEntityDecode.t",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
       "variant": "no-crs/no-mrts"
     },
     {
@@ -1536,10 +1584,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -1552,7 +1651,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -1660,10 +1759,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -1676,7 +1826,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -3466,15 +3616,22 @@
       ],
       "case": "sqli_like_keyword_spacing_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/sqli_like_keyword_spacing_probe/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/sqli_like_keyword_spacing_probe/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/sqli_like_keyword_spacing_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:lowercase,t:compressWhitespace.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -3482,8 +3639,8 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
     {
@@ -4763,15 +4920,22 @@
       ],
       "case": "xss_like_encoded_angles_normalization_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/xss_like_encoded_angles_normalization_probe/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:htmlEntityDecode.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -4779,8 +4943,8 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
     {
@@ -4824,10 +4988,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -4840,7 +5055,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -4879,10 +5094,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -4895,7 +5161,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -5123,33 +5389,6 @@
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
       "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
-      "case": "sqli_like_keyword_spacing_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/sqli_like_keyword_spacing_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/compressWhitespace.t",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
       "variant": "with-crs/no-mrts"
     },
     {
@@ -5407,33 +5646,6 @@
       "status": "fail",
       "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
-      "case": "xss_like_encoded_angles_normalization_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/htmlEntityDecode.t",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
       "variant": "with-crs/no-mrts"
     },
     {
@@ -5856,10 +6068,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -5872,7 +6135,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -5980,10 +6243,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -5996,7 +6310,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -7786,15 +8100,22 @@
       ],
       "case": "sqli_like_keyword_spacing_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/sqli_like_keyword_spacing_probe/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/sqli_like_keyword_spacing_probe/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/sqli_like_keyword_spacing_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:lowercase,t:compressWhitespace.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -7802,8 +8123,8 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
     {
@@ -9116,15 +9437,22 @@
       ],
       "case": "xss_like_encoded_angles_normalization_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/xss_like_encoded_angles_normalization_probe/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xss_like_encoded_angles_normalization_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:htmlEntityDecode.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -9132,8 +9460,8 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
     {
@@ -9177,10 +9505,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -9193,7 +9572,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -9232,10 +9611,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -9248,7 +9678,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -9512,33 +9942,6 @@
       "capabilities": [
         "transformations"
       ],
-      "case": "sqli_like_keyword_spacing_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/compressWhitespace.t",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
       "case": "unicode_double_encoded_uri_runtime_difference",
       "category": "transformations",
       "classification": "runtime_regression",
@@ -9756,33 +10159,6 @@
       "status": "fail",
       "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
-      "case": "xss_like_encoded_angles_normalization_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/htmlEntityDecode.t",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
       "variant": "no-crs/no-mrts"
     },
     {
@@ -10242,10 +10618,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -10258,7 +10685,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -10380,10 +10807,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -10396,7 +10874,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -12452,15 +12930,29 @@
       ],
       "case": "sqli_like_keyword_spacing_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/sqli_like_keyword_spacing_probe/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:lowercase,t:compressWhitespace.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
@@ -12468,8 +12960,8 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
     {
@@ -13938,15 +14430,29 @@
       ],
       "case": "xss_like_encoded_angles_normalization_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/xss_like_encoded_angles_normalization_probe/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:htmlEntityDecode.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
@@ -13954,8 +14460,8 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
     {
@@ -14006,10 +14512,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -14022,7 +14579,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -14061,10 +14618,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -14077,7 +14685,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -14305,33 +14913,6 @@
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
       "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
-      "case": "sqli_like_keyword_spacing_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/compressWhitespace.t",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
       "variant": "with-crs/no-mrts"
     },
     {
@@ -14589,33 +15170,6 @@
       "status": "fail",
       "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
-      "case": "xss_like_encoded_angles_normalization_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/htmlEntityDecode.t",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
       "variant": "with-crs/no-mrts"
     },
     {
@@ -15101,10 +15655,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -15117,7 +15722,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -15239,10 +15844,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -15255,7 +15911,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -17311,15 +17967,29 @@
       ],
       "case": "sqli_like_keyword_spacing_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/sqli_like_keyword_spacing_probe/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:lowercase,t:compressWhitespace.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
@@ -17327,8 +17997,8 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
     {
@@ -18830,15 +19500,29 @@
       ],
       "case": "xss_like_encoded_angles_normalization_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/xss_like_encoded_angles_normalization_probe/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:htmlEntityDecode.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
@@ -18846,8 +19530,8 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
     {
@@ -18898,10 +19582,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -18914,7 +19649,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -18953,10 +19688,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -18969,7 +19755,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -19575,33 +20361,6 @@
       "capabilities": [
         "transformations"
       ],
-      "case": "sqli_like_keyword_spacing_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/sqli_like_keyword_spacing_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/compressWhitespace.t",
-      "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
       "case": "unicode_double_encoded_uri_runtime_difference",
       "category": "transformations",
       "classification": "runtime_regression",
@@ -19819,33 +20578,6 @@
       "status": "fail",
       "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
-      "case": "xss_like_encoded_angles_normalization_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xss_like_encoded_angles_normalization_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/htmlEntityDecode.t",
-      "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
       "variant": "no-crs/no-mrts"
     },
     {
@@ -20242,10 +20974,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -20258,7 +21041,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -20366,10 +21149,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -20382,7 +21216,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -22393,15 +23227,22 @@
       ],
       "case": "sqli_like_keyword_spacing_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/sqli_like_keyword_spacing_probe/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/sqli_like_keyword_spacing_probe/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/sqli_like_keyword_spacing_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:lowercase,t:compressWhitespace.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -22409,8 +23250,8 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
     {
@@ -23690,15 +24531,22 @@
       ],
       "case": "xss_like_encoded_angles_normalization_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xss_like_encoded_angles_normalization_probe/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/xss_like_encoded_angles_normalization_probe/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xss_like_encoded_angles_normalization_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:htmlEntityDecode.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -23706,8 +24554,8 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
     {
@@ -23751,10 +24599,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -23767,7 +24666,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -23806,10 +24705,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -23822,7 +24772,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -24399,33 +25349,6 @@
       "capabilities": [
         "transformations"
       ],
-      "case": "sqli_like_keyword_spacing_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/sqli_like_keyword_spacing_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/compressWhitespace.t",
-      "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
       "case": "unicode_double_encoded_uri_runtime_difference",
       "category": "transformations",
       "classification": "runtime_regression",
@@ -24676,33 +25599,6 @@
       "status": "fail",
       "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "transformations"
-      ],
-      "case": "xss_like_encoded_angles_normalization_probe",
-      "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xss_like_encoded_angles_normalization_probe/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V2:tests/tfn/htmlEntityDecode.t",
-      "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
       "variant": "with-crs/no-mrts"
     },
     {
@@ -25125,10 +26021,61 @@
       ],
       "case": "duplicate_args_encoded_separator_edge",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/duplicate_args_encoded_separator_edge/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/duplicate_args_encoded_separator_edge/result.json",
       "expected": "403",
       "known_limitations": [
@@ -25141,7 +26088,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -25249,10 +26196,61 @@
       ],
       "case": "edge_semicolon_query_args_names",
       "category": "collections",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_semantics",
+      "classification_evidence": {
+        "control_case": "v3_args_names_get_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_args_names_get_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_args_names_get_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/edge_semicolon_query_args_names/result.json"
+        }
+      },
+      "classification_note": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/edge_semicolon_query_args_names/result.json",
       "expected": "403",
       "known_limitations": [
@@ -25265,7 +26263,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; control ARGS_NAMES case passes.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -27276,15 +28274,22 @@
       ],
       "case": "sqli_like_keyword_spacing_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/sqli_like_keyword_spacing_probe/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/sqli_like_keyword_spacing_probe/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/sqli_like_keyword_spacing_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:lowercase,t:compressWhitespace.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -27292,8 +28297,8 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
     {
@@ -28606,15 +29611,22 @@
       ],
       "case": "xss_like_encoded_angles_normalization_probe",
       "category": "transformations",
-      "classification": "framework_expected_behavior_gap",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xss_like_encoded_angles_normalization_probe/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/xss_like_encoded_angles_normalization_probe/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xss_like_encoded_angles_normalization_probe/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Classification: test-input-gap fixed; payload now exercises t:htmlEntityDecode.",
+        "Targeted no-CRS/no-MRTS runtime verified on Apache, NGINX, and HAProxy after input correction."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -28622,8 +29634,8 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
+      "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
     {
@@ -28708,10 +29720,6 @@
       "count": 12
     },
     {
-      "case": "sqli_like_keyword_spacing_probe",
-      "count": 12
-    },
-    {
       "case": "unicode_double_encoded_uri_runtime_difference",
       "count": 12
     },
@@ -28741,10 +29749,6 @@
     },
     {
       "case": "xml_request_body_malformed_connector_gap",
-      "count": 12
-    },
-    {
-      "case": "xss_like_encoded_angles_normalization_probe",
       "count": 12
     },
     {
@@ -28861,6 +29865,14 @@
     },
     {
       "case": "json_nested_object_future_compatibility",
+      "count": 6
+    },
+    {
+      "case": "json_request_body_block",
+      "count": 6
+    },
+    {
+      "case": "multipart_basic_block",
       "count": 6
     }
   ],

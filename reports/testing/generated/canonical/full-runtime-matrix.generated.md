@@ -1,41 +1,41 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T15:47:39Z`
+> Generated at: `2026-06-17T21:56:12Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-full-runtime-matrix.py`
 > Make target: `generate-full-runtime-matrix`
 > Owner: `connector`
 > Severity: `critical`
-> Connector SHA: `dd6e0455c4838949ce86cff81ce89dccd4e524f8`
-> Framework SHA: `ee23a10d5224401d9e63f28ad374969ac129e5f0`
+> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
+> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
 > Input status: `complete`
 
 # Full MRTS Runtime Matrix
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-17T15:47:39Z`
+- Generated at: `2026-06-17T21:56:12Z`
 - Variant runs: **12**
 - Total attempted: **3928**
-- Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **3092** / **788** / **0** / **48**
+- Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **3104** / **776** / **0** / **48**
 - Pending metadata rows observed in runtime summaries: **2298**
 
 ## Variant Results
 | Connector | Test variant | MRTS variant | Outcome | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending | Duration seconds | Summary | Log |
 |---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
-| apache | no-crs | no-mrts | FAIL | 133 | 111 | 18 | 0 | 4 | 0 | 331 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log |
-| nginx | no-crs | no-mrts | FAIL | 140 | 106 | 30 | 0 | 4 | 0 | 545 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log |
-| haproxy | no-crs | no-mrts | FAIL | 133 | 111 | 18 | 0 | 4 | 0 | 285 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log |
-| apache | no-crs | with-mrts | FAIL | 516 | 406 | 106 | 0 | 4 | 383 | 1270 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log |
-| nginx | no-crs | with-mrts | FAIL | 523 | 406 | 113 | 0 | 4 | 383 | 3200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log |
-| haproxy | no-crs | with-mrts | FAIL | 516 | 406 | 106 | 0 | 4 | 383 | 1051 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log |
-| apache | with-crs | no-mrts | FAIL | 134 | 112 | 18 | 0 | 4 | 0 | 355 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log |
-| nginx | with-crs | no-mrts | FAIL | 141 | 107 | 30 | 0 | 4 | 0 | 601 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log |
-| haproxy | with-crs | no-mrts | FAIL | 134 | 112 | 18 | 0 | 4 | 0 | 316 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log |
-| apache | with-crs | with-mrts | FAIL | 517 | 405 | 108 | 0 | 4 | 383 | 1383 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log |
-| nginx | with-crs | with-mrts | FAIL | 524 | 405 | 115 | 0 | 4 | 383 | 3419 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log |
-| haproxy | with-crs | with-mrts | FAIL | 517 | 405 | 108 | 0 | 4 | 383 | 1185 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log |
+| apache | no-crs | no-mrts | FAIL | 133 | 113 | 16 | 0 | 4 | 0 | 339 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log |
+| nginx | no-crs | no-mrts | FAIL | 140 | 108 | 28 | 0 | 4 | 0 | 545 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log |
+| haproxy | no-crs | no-mrts | FAIL | 133 | 113 | 16 | 0 | 4 | 0 | 287 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log |
+| apache | no-crs | with-mrts | FAIL | 516 | 406 | 106 | 0 | 4 | 383 | 1273 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log |
+| nginx | no-crs | with-mrts | FAIL | 523 | 406 | 113 | 0 | 4 | 383 | 3194 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log |
+| haproxy | no-crs | with-mrts | FAIL | 516 | 406 | 106 | 0 | 4 | 383 | 1066 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log |
+| apache | with-crs | no-mrts | FAIL | 134 | 114 | 16 | 0 | 4 | 0 | 351 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log |
+| nginx | with-crs | no-mrts | FAIL | 141 | 109 | 28 | 0 | 4 | 0 | 607 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log |
+| haproxy | with-crs | no-mrts | FAIL | 134 | 114 | 16 | 0 | 4 | 0 | 319 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log |
+| apache | with-crs | with-mrts | FAIL | 517 | 405 | 108 | 0 | 4 | 383 | 1378 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log |
+| nginx | with-crs | with-mrts | FAIL | 524 | 405 | 115 | 0 | 4 | 383 | 3441 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log |
+| haproxy | with-crs | with-mrts | FAIL | 517 | 405 | 108 | 0 | 4 | 383 | 1195 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log |
 
 ## MRTS Upstream Config Tests
 | Connector | Variant | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Pending |
@@ -65,7 +65,7 @@ These native MRTS reports are separate from connector full-matrix evidence.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `8378473bbc7146a7ed3e077973aece4dc85d4b2ffce29cd77c39b5ea5c9b3362` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `3a2f94f7f12ed82c81dd7e1b2430b3e1ca4547c38c72e2c4053fe73ea1aa2486` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

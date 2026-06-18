@@ -1,73 +1,1354 @@
 {
-  "command": [
-    "/root/git/ModSecurity-conector/.venv/bin/python",
-    "ci/generate-no-mrts-intervention-nomatch-analysis.py",
-    "--connector-root",
-    "/root/git/ModSecurity-conector",
-    "--framework-root",
-    "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
-    "--output-dir",
-    "/root/git/ModSecurity-conector/reports/testing/generated"
-  ],
-  "data_source_policy": "verified-inputs-only",
-  "empty_reason": "producer command was not run or verified input is unavailable",
-  "generated_at": "2026-06-17T15:48:01Z",
-  "generator": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
-  "make_target": "generate-no-mrts-intervention-nomatch-analysis",
+  "distribution": {
+    "causes": [
+      {
+        "cause": "collection_name_normalization_semantics",
+        "count": 20,
+        "example_cases": [
+          "duplicate_args_encoded_separator_edge",
+          "duplicate_header_case_normalization_gap",
+          "edge_semicolon_query_args_names",
+          "v3_request_cookies_names_case_runtime_difference",
+          "v3_request_headers_names_lowercase_runtime_difference"
+        ],
+        "label": "Collection-name normalization semantics",
+        "risk": "medium to high",
+        "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+        "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation."
+      },
+      {
+        "cause": "transformation_request_value_absent_or_semantic_gap",
+        "count": 8,
+        "example_cases": [
+          "unicode_double_encoded_uri_runtime_difference",
+          "unicode_whitespace_normalization_gap"
+        ],
+        "label": "Transformation/request literal does not expose expected token",
+        "risk": "high",
+        "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+        "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur."
+      },
+      {
+        "cause": "multipart_processor_activation_missing",
+        "count": 4,
+        "example_cases": [
+          "files_empty_part_future_compatibility"
+        ],
+        "label": "Multipart processor activation missing",
+        "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
+        "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
+        "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections."
+      },
+      {
+        "cause": "phase1_request_body_unavailable_or_empty_body",
+        "count": 2,
+        "example_cases": [
+          "phase1_vs_phase2_request_body_gap"
+        ],
+        "label": "Phase 1 request-body unavailable or empty",
+        "risk": "low to medium",
+        "safe_fixability": "not safe to fix by changing the body; that would change the test definition",
+        "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token."
+      }
+    ],
+    "classifications": [
+      {
+        "count": 20,
+        "value": "collection_name_normalization_semantics"
+      },
+      {
+        "count": 8,
+        "value": "transformation_request_literal_no_match"
+      },
+      {
+        "count": 4,
+        "value": "runtime-difference"
+      },
+      {
+        "count": 2,
+        "value": "phase1_request_body_unavailable"
+      }
+    ],
+    "connectors": [
+      {
+        "count": 17,
+        "value": "apache"
+      },
+      {
+        "count": 17,
+        "value": "haproxy"
+      }
+    ],
+    "operators": [
+      {
+        "count": 8,
+        "value": "@contains b"
+      },
+      {
+        "count": 4,
+        "value": "@contains x-demo"
+      },
+      {
+        "count": 4,
+        "value": "@rx ^$"
+      },
+      {
+        "count": 4,
+        "value": "@contains caf\u00e9"
+      },
+      {
+        "count": 4,
+        "value": "@streq a b"
+      },
+      {
+        "count": 4,
+        "value": "@contains user_token"
+      },
+      {
+        "count": 4,
+        "value": "@contains x-smoke-header"
+      },
+      {
+        "count": 2,
+        "value": "@contains bodyhit"
+      }
+    ],
+    "phases": [
+      {
+        "count": 18,
+        "value": "1"
+      },
+      {
+        "count": 16,
+        "value": "2"
+      }
+    ],
+    "priorities": [
+      {
+        "count": 30,
+        "value": "P3"
+      },
+      {
+        "count": 4,
+        "value": "P0"
+      }
+    ],
+    "source_categories": [
+      {
+        "count": 20,
+        "value": "collections"
+      },
+      {
+        "count": 8,
+        "value": "transformations"
+      },
+      {
+        "count": 4,
+        "value": "multipart"
+      },
+      {
+        "count": 2,
+        "value": "phase-handling"
+      }
+    ],
+    "targets": [
+      {
+        "count": 8,
+        "value": "ARGS_NAMES"
+      },
+      {
+        "count": 8,
+        "value": "REQUEST_HEADERS_NAMES"
+      },
+      {
+        "count": 4,
+        "value": "FILES"
+      },
+      {
+        "count": 4,
+        "value": "REQUEST_URI"
+      },
+      {
+        "count": 4,
+        "value": "ARGS:q"
+      },
+      {
+        "count": 4,
+        "value": "REQUEST_COOKIES_NAMES"
+      },
+      {
+        "count": 2,
+        "value": "REQUEST_BODY"
+      }
+    ],
+    "transformations": [
+      {
+        "count": 26,
+        "value": "-"
+      },
+      {
+        "count": 4,
+        "value": "urlDecode,urlDecodeUni"
+      },
+      {
+        "count": 4,
+        "value": "compressWhitespace"
+      }
+    ],
+    "variants": [
+      {
+        "count": 18,
+        "value": "no-crs/no-mrts"
+      },
+      {
+        "count": 16,
+        "value": "with-crs/no-mrts"
+      }
+    ],
+    "work_directions": [
+      {
+        "count": 20,
+        "value": "collection_semantics"
+      },
+      {
+        "count": 8,
+        "value": "transformation_semantics"
+      },
+      {
+        "count": 4,
+        "value": "intervention_blocking"
+      },
+      {
+        "count": 2,
+        "value": "request_body_processor"
+      }
+    ]
+  },
+  "generated_at": "2026-06-17T21:57:05Z",
+  "groups": {
+    "by_cause": [
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 20,
+        "example_cases": [
+          "duplicate_args_encoded_separator_edge",
+          "duplicate_header_case_normalization_gap",
+          "edge_semicolon_query_args_names",
+          "v3_request_cookies_names_case_runtime_difference",
+          "v3_request_headers_names_lowercase_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 8,
+            "value": "@contains b"
+          },
+          {
+            "count": 4,
+            "value": "@contains x-demo"
+          },
+          {
+            "count": 4,
+            "value": "@contains user_token"
+          },
+          {
+            "count": 4,
+            "value": "@contains x-smoke-header"
+          }
+        ],
+        "phases": [
+          {
+            "count": 12,
+            "value": "1"
+          },
+          {
+            "count": 8,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 8,
+            "value": "ARGS_NAMES"
+          },
+          {
+            "count": 8,
+            "value": "REQUEST_HEADERS_NAMES"
+          },
+          {
+            "count": 4,
+            "value": "REQUEST_COOKIES_NAMES"
+          }
+        ],
+        "value": "collection_name_normalization_semantics"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 8,
+        "example_cases": [
+          "unicode_double_encoded_uri_runtime_difference",
+          "unicode_whitespace_normalization_gap"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains caf\u00e9"
+          },
+          {
+            "count": 4,
+            "value": "@streq a b"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "1"
+          },
+          {
+            "count": 4,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "REQUEST_URI"
+          },
+          {
+            "count": 4,
+            "value": "ARGS:q"
+          }
+        ],
+        "value": "transformation_request_value_absent_or_semantic_gap"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "files_empty_part_future_compatibility"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@rx ^$"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "FILES"
+          }
+        ],
+        "value": "multipart_processor_activation_missing"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 2,
+        "example_cases": [
+          "phase1_vs_phase2_request_body_gap"
+        ],
+        "operators": [
+          {
+            "count": 2,
+            "value": "@contains bodyhit"
+          }
+        ],
+        "phases": [
+          {
+            "count": 2,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 2,
+            "value": "REQUEST_BODY"
+          }
+        ],
+        "value": "phase1_request_body_unavailable_or_empty_body"
+      }
+    ],
+    "by_connector": [
+      {
+        "connectors": [
+          "apache"
+        ],
+        "count": 17,
+        "example_cases": [
+          "duplicate_args_encoded_separator_edge",
+          "duplicate_header_case_normalization_gap",
+          "edge_semicolon_query_args_names",
+          "files_empty_part_future_compatibility",
+          "phase1_vs_phase2_request_body_gap",
+          "unicode_double_encoded_uri_runtime_difference",
+          "unicode_whitespace_normalization_gap",
+          "v3_request_cookies_names_case_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains b"
+          },
+          {
+            "count": 2,
+            "value": "@contains x-demo"
+          },
+          {
+            "count": 2,
+            "value": "@rx ^$"
+          },
+          {
+            "count": 2,
+            "value": "@contains caf\u00e9"
+          },
+          {
+            "count": 2,
+            "value": "@streq a b"
+          },
+          {
+            "count": 2,
+            "value": "@contains user_token"
+          },
+          {
+            "count": 2,
+            "value": "@contains x-smoke-header"
+          },
+          {
+            "count": 1,
+            "value": "@contains bodyhit"
+          }
+        ],
+        "phases": [
+          {
+            "count": 9,
+            "value": "1"
+          },
+          {
+            "count": 8,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "ARGS_NAMES"
+          },
+          {
+            "count": 4,
+            "value": "REQUEST_HEADERS_NAMES"
+          },
+          {
+            "count": 2,
+            "value": "FILES"
+          },
+          {
+            "count": 2,
+            "value": "REQUEST_URI"
+          },
+          {
+            "count": 2,
+            "value": "ARGS:q"
+          },
+          {
+            "count": 2,
+            "value": "REQUEST_COOKIES_NAMES"
+          },
+          {
+            "count": 1,
+            "value": "REQUEST_BODY"
+          }
+        ],
+        "value": "apache"
+      },
+      {
+        "connectors": [
+          "haproxy"
+        ],
+        "count": 17,
+        "example_cases": [
+          "duplicate_args_encoded_separator_edge",
+          "duplicate_header_case_normalization_gap",
+          "edge_semicolon_query_args_names",
+          "files_empty_part_future_compatibility",
+          "phase1_vs_phase2_request_body_gap",
+          "unicode_double_encoded_uri_runtime_difference",
+          "unicode_whitespace_normalization_gap",
+          "v3_request_cookies_names_case_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains b"
+          },
+          {
+            "count": 2,
+            "value": "@contains x-demo"
+          },
+          {
+            "count": 2,
+            "value": "@rx ^$"
+          },
+          {
+            "count": 2,
+            "value": "@contains caf\u00e9"
+          },
+          {
+            "count": 2,
+            "value": "@streq a b"
+          },
+          {
+            "count": 2,
+            "value": "@contains user_token"
+          },
+          {
+            "count": 2,
+            "value": "@contains x-smoke-header"
+          },
+          {
+            "count": 1,
+            "value": "@contains bodyhit"
+          }
+        ],
+        "phases": [
+          {
+            "count": 9,
+            "value": "1"
+          },
+          {
+            "count": 8,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "ARGS_NAMES"
+          },
+          {
+            "count": 4,
+            "value": "REQUEST_HEADERS_NAMES"
+          },
+          {
+            "count": 2,
+            "value": "FILES"
+          },
+          {
+            "count": 2,
+            "value": "REQUEST_URI"
+          },
+          {
+            "count": 2,
+            "value": "ARGS:q"
+          },
+          {
+            "count": 2,
+            "value": "REQUEST_COOKIES_NAMES"
+          },
+          {
+            "count": 1,
+            "value": "REQUEST_BODY"
+          }
+        ],
+        "value": "haproxy"
+      }
+    ],
+    "by_operator": [
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 8,
+        "example_cases": [
+          "duplicate_args_encoded_separator_edge",
+          "edge_semicolon_query_args_names"
+        ],
+        "operators": [
+          {
+            "count": 8,
+            "value": "@contains b"
+          }
+        ],
+        "phases": [
+          {
+            "count": 8,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 8,
+            "value": "ARGS_NAMES"
+          }
+        ],
+        "value": "@contains b"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "unicode_double_encoded_uri_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains caf\u00e9"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "REQUEST_URI"
+          }
+        ],
+        "value": "@contains caf\u00e9"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "v3_request_cookies_names_case_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains user_token"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "REQUEST_COOKIES_NAMES"
+          }
+        ],
+        "value": "@contains user_token"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "duplicate_header_case_normalization_gap"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains x-demo"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "REQUEST_HEADERS_NAMES"
+          }
+        ],
+        "value": "@contains x-demo"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "v3_request_headers_names_lowercase_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains x-smoke-header"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "REQUEST_HEADERS_NAMES"
+          }
+        ],
+        "value": "@contains x-smoke-header"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "files_empty_part_future_compatibility"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@rx ^$"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "FILES"
+          }
+        ],
+        "value": "@rx ^$"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "unicode_whitespace_normalization_gap"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@streq a b"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "ARGS:q"
+          }
+        ],
+        "value": "@streq a b"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 2,
+        "example_cases": [
+          "phase1_vs_phase2_request_body_gap"
+        ],
+        "operators": [
+          {
+            "count": 2,
+            "value": "@contains bodyhit"
+          }
+        ],
+        "phases": [
+          {
+            "count": 2,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 2,
+            "value": "REQUEST_BODY"
+          }
+        ],
+        "value": "@contains bodyhit"
+      }
+    ],
+    "by_phase": [
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 18,
+        "example_cases": [
+          "duplicate_header_case_normalization_gap",
+          "phase1_vs_phase2_request_body_gap",
+          "unicode_double_encoded_uri_runtime_difference",
+          "v3_request_cookies_names_case_runtime_difference",
+          "v3_request_headers_names_lowercase_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains x-demo"
+          },
+          {
+            "count": 4,
+            "value": "@contains caf\u00e9"
+          },
+          {
+            "count": 4,
+            "value": "@contains user_token"
+          },
+          {
+            "count": 4,
+            "value": "@contains x-smoke-header"
+          },
+          {
+            "count": 2,
+            "value": "@contains bodyhit"
+          }
+        ],
+        "phases": [
+          {
+            "count": 18,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 8,
+            "value": "REQUEST_HEADERS_NAMES"
+          },
+          {
+            "count": 4,
+            "value": "REQUEST_URI"
+          },
+          {
+            "count": 4,
+            "value": "REQUEST_COOKIES_NAMES"
+          },
+          {
+            "count": 2,
+            "value": "REQUEST_BODY"
+          }
+        ],
+        "value": "1"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 16,
+        "example_cases": [
+          "duplicate_args_encoded_separator_edge",
+          "edge_semicolon_query_args_names",
+          "files_empty_part_future_compatibility",
+          "unicode_whitespace_normalization_gap"
+        ],
+        "operators": [
+          {
+            "count": 8,
+            "value": "@contains b"
+          },
+          {
+            "count": 4,
+            "value": "@rx ^$"
+          },
+          {
+            "count": 4,
+            "value": "@streq a b"
+          }
+        ],
+        "phases": [
+          {
+            "count": 16,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 8,
+            "value": "ARGS_NAMES"
+          },
+          {
+            "count": 4,
+            "value": "FILES"
+          },
+          {
+            "count": 4,
+            "value": "ARGS:q"
+          }
+        ],
+        "value": "2"
+      }
+    ],
+    "by_source_category": [
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 20,
+        "example_cases": [
+          "duplicate_args_encoded_separator_edge",
+          "duplicate_header_case_normalization_gap",
+          "edge_semicolon_query_args_names",
+          "v3_request_cookies_names_case_runtime_difference",
+          "v3_request_headers_names_lowercase_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 8,
+            "value": "@contains b"
+          },
+          {
+            "count": 4,
+            "value": "@contains x-demo"
+          },
+          {
+            "count": 4,
+            "value": "@contains user_token"
+          },
+          {
+            "count": 4,
+            "value": "@contains x-smoke-header"
+          }
+        ],
+        "phases": [
+          {
+            "count": 12,
+            "value": "1"
+          },
+          {
+            "count": 8,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 8,
+            "value": "ARGS_NAMES"
+          },
+          {
+            "count": 8,
+            "value": "REQUEST_HEADERS_NAMES"
+          },
+          {
+            "count": 4,
+            "value": "REQUEST_COOKIES_NAMES"
+          }
+        ],
+        "value": "collections"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 8,
+        "example_cases": [
+          "unicode_double_encoded_uri_runtime_difference",
+          "unicode_whitespace_normalization_gap"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains caf\u00e9"
+          },
+          {
+            "count": 4,
+            "value": "@streq a b"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "1"
+          },
+          {
+            "count": 4,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "REQUEST_URI"
+          },
+          {
+            "count": 4,
+            "value": "ARGS:q"
+          }
+        ],
+        "value": "transformations"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "files_empty_part_future_compatibility"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@rx ^$"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "FILES"
+          }
+        ],
+        "value": "multipart"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 2,
+        "example_cases": [
+          "phase1_vs_phase2_request_body_gap"
+        ],
+        "operators": [
+          {
+            "count": 2,
+            "value": "@contains bodyhit"
+          }
+        ],
+        "phases": [
+          {
+            "count": 2,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 2,
+            "value": "REQUEST_BODY"
+          }
+        ],
+        "value": "phase-handling"
+      }
+    ],
+    "by_target": [
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 8,
+        "example_cases": [
+          "duplicate_args_encoded_separator_edge",
+          "edge_semicolon_query_args_names"
+        ],
+        "operators": [
+          {
+            "count": 8,
+            "value": "@contains b"
+          }
+        ],
+        "phases": [
+          {
+            "count": 8,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 8,
+            "value": "ARGS_NAMES"
+          }
+        ],
+        "value": "ARGS_NAMES"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 8,
+        "example_cases": [
+          "duplicate_header_case_normalization_gap",
+          "v3_request_headers_names_lowercase_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains x-demo"
+          },
+          {
+            "count": 4,
+            "value": "@contains x-smoke-header"
+          }
+        ],
+        "phases": [
+          {
+            "count": 8,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 8,
+            "value": "REQUEST_HEADERS_NAMES"
+          }
+        ],
+        "value": "REQUEST_HEADERS_NAMES"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "unicode_whitespace_normalization_gap"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@streq a b"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "ARGS:q"
+          }
+        ],
+        "value": "ARGS:q"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "files_empty_part_future_compatibility"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@rx ^$"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "2"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "FILES"
+          }
+        ],
+        "value": "FILES"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "v3_request_cookies_names_case_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains user_token"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "REQUEST_COOKIES_NAMES"
+          }
+        ],
+        "value": "REQUEST_COOKIES_NAMES"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 4,
+        "example_cases": [
+          "unicode_double_encoded_uri_runtime_difference"
+        ],
+        "operators": [
+          {
+            "count": 4,
+            "value": "@contains caf\u00e9"
+          }
+        ],
+        "phases": [
+          {
+            "count": 4,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 4,
+            "value": "REQUEST_URI"
+          }
+        ],
+        "value": "REQUEST_URI"
+      },
+      {
+        "connectors": [
+          "apache",
+          "haproxy"
+        ],
+        "count": 2,
+        "example_cases": [
+          "phase1_vs_phase2_request_body_gap"
+        ],
+        "operators": [
+          {
+            "count": 2,
+            "value": "@contains bodyhit"
+          }
+        ],
+        "phases": [
+          {
+            "count": 2,
+            "value": "1"
+          }
+        ],
+        "targets": [
+          {
+            "count": 2,
+            "value": "REQUEST_BODY"
+          }
+        ],
+        "value": "REQUEST_BODY"
+      }
+    ]
+  },
   "metadata": {
-    "blocked_reason": "required generated input is blocked",
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
+    "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+    "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T15:48:01Z",
+    "generated_at": "2026-06-17T21:57:05Z",
     "generated_by": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "blocked",
+    "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
-        "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "sha256": "68692c6831e04ee96e716010e2d8cfee87fc5351914df21816c508f6346e77e4",
-        "source_hash": "68692c6831e04ee96e716010e2d8cfee87fc5351914df21816c508f6346e77e4",
-        "status": "blocked",
-        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
-      },
-      {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
         "notes": "input file available",
-        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "b73e9279de250d71c12b771bc4c24bb4b712dac0fed0008c60f6075116916797",
-        "source_hash": "b73e9279de250d71c12b771bc4c24bb4b712dac0fed0008c60f6075116916797",
+        "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+        "sha256": "7897acaafbcb74c1bdd7052c452a3200be7f34454bf4e67c87ad2e30acf7a5e3",
+        "source_hash": "7897acaafbcb74c1bdd7052c452a3200be7f34454bf4e67c87ad2e30acf7a5e3",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
-        "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "781564315ab245d2dd9d89e2ed9445f71d222553697e36daec83189a8d3d998b",
-        "source_hash": "781564315ab245d2dd9d89e2ed9445f71d222553697e36daec83189a8d3d998b",
-        "status": "blocked",
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "sha256": "5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512",
+        "source_hash": "5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "dd6e0455c4838949ce86cff81ce89dccd4e524f8",
-        "framework_sha": "ee23a10d5224401d9e63f28ad374969ac129e5f0",
-        "notes": "generated report input is not usable: status=blocked",
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
+        "sha256": "b237c0433ef2a2d0bf1e4d2bb778d6f7f0501feadebbd3337c99a63d0fe2dd61",
+        "source_hash": "b237c0433ef2a2d0bf1e4d2bb778d6f7f0501feadebbd3337c99a63d0fe2dd61",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+      },
+      {
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "notes": "input file available",
+        "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+        "sha256": "5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2",
+        "source_hash": "5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+      },
+      {
+        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "18f53c9539c3c8d74bd89e6549062846275bbb678857522f3f76ab99af603989",
-        "source_hash": "18f53c9539c3c8d74bd89e6549062846275bbb678857522f3f76ab99af603989",
-        "status": "blocked",
+        "sha256": "bf94318ee4981b80cb2d08e43a02a93a0ff4e20ddf22c88e8b79766ac4bb71f7",
+        "source_hash": "bf94318ee4981b80cb2d08e43a02a93a0ff4e20ddf22c88e8b79766ac4bb71f7",
+        "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
@@ -75,17 +1356,1959 @@
     "missing_inputs": [],
     "owner": "connector",
     "report_key": "no_mrts_intervention_nomatch_analysis",
-    "run_status": "blocked",
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
     "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
-  "reason": "required generated input is blocked",
-  "report_key": "no_mrts_intervention_nomatch_analysis",
-  "report_name": "no_mrts_intervention_nomatch_analysis",
-  "rows": [],
-  "status": "blocked",
-  "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+  "native_comparator": {
+    "available": false,
+    "matching_case_ids": [],
+    "native_status": {
+      "apache": "FAIL",
+      "nginx": "FAIL",
+      "summary_generated_at": "2026-06-17T21:56:25Z"
+    },
+    "reason": "Native MRTS reports cover upstream MRTS target cases; these 105 rows are framework-owned no-MRTS connector cases.",
+    "status": "no native comparator"
+  },
+  "records": [
+    {
+      "actions": [
+        "id:4608",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'duplicate args encoded separator edge'"
+      ],
+      "backend_reached": true,
+      "case_id": "duplicate_args_encoded_separator_edge",
+      "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": true,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "a=1%3Bb=2&a=3"
+      },
+      "risk": "medium to high",
+      "rule_id": "4608",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "ARGS_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4607",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'duplicate header case normalization gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "duplicate_header_case_normalization_gap",
+      "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "x-demo",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains x-demo",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "X-Demo": "one"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4607",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_HEADERS_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4513",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'semicolon query args names edge'"
+      ],
+      "backend_reached": true,
+      "case_id": "edge_semicolon_query_args_names",
+      "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Pending cross-connector runtime verification; not counted as verified PASS."
+      ],
+      "operator": "@contains b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": true,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "a=1;b=2"
+      },
+      "risk": "medium to high",
+      "rule_id": "4513",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "ARGS_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4706",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'FILES empty part future target'"
+      ],
+      "backend_reached": true,
+      "case_id": "files_empty_part_future_compatibility",
+      "case_path": "framework:tests/cases/body/multipart/files_empty_part_future_compatibility.yaml",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "runtime-difference",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "^$",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: future-compatibility.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@rx ^$",
+      "phase": "2",
+      "priority": "P0",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 88,
+        "body_present": true,
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "headers": {
+          "Content-Type": "multipart/form-data; boundary=----AaB03x"
+        },
+        "method": "POST",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
+      "rule_id": "4706",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
+      "source_category": "multipart",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
+      "target": "FILES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "intervention_blocking"
+      ]
+    },
+    {
+      "actions": [
+        "id:4511",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'phase1 request body gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "phase1_vs_phase2_request_body_gap",
+      "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
+      "cause": "phase1_request_body_unavailable_or_empty_body",
+      "classification": "phase1_request_body_unavailable",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "bodyhit",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Pending cross-connector runtime verification; not counted as verified PASS."
+      ],
+      "operator": "@contains bodyhit",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "application/json",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "method": "POST",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "low to medium",
+      "rule_id": "4511",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe to fix by changing the body; that would change the test definition",
+      "source_category": "phase-handling",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token.",
+      "target": "REQUEST_BODY",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "request_body_processor"
+      ]
+    },
+    {
+      "actions": [
+        "id:4707",
+        "phase:1",
+        "t:urlDecode",
+        "t:urlDecodeUni",
+        "deny",
+        "status:403",
+        "msg:'double encoded unicode uri runtime diff'"
+      ],
+      "backend_reached": true,
+      "case_id": "unicode_double_encoded_uri_runtime_difference",
+      "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
+      "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "caf\u00e9",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains caf\u00e9",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "q=%25u0063%25u0061%25u0066%25u00E9"
+      },
+      "risk": "high",
+      "rule_id": "4707",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+      "source_category": "transformations",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur.",
+      "target": "REQUEST_URI",
+      "transformations": [
+        "urlDecode",
+        "urlDecodeUni"
+      ],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4708",
+        "phase:2",
+        "t:compressWhitespace",
+        "deny",
+        "status:403",
+        "msg:'unicode whitespace normalization gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "unicode_whitespace_normalization_gap",
+      "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
+      "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "a b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@streq a b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "q=SAFE"
+      },
+      "risk": "high",
+      "rule_id": "4708",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+      "source_category": "transformations",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur.",
+      "target": "ARGS:q",
+      "transformations": [
+        "compressWhitespace"
+      ],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4403",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL cookie-name case runtime difference'"
+      ],
+      "backend_reached": true,
+      "case_id": "v3_request_cookies_names_case_runtime_difference",
+      "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "user_token",
+      "intervention_created": false,
+      "known_limitations": [
+        "Cookie-name case handling can diverge between runtimes and connector parsers."
+      ],
+      "operator": "@contains user_token",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "Cookie": "USER_TOKEN=Yes"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4403",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_COOKIES_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4401",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL lowercase header names runtime difference'"
+      ],
+      "backend_reached": true,
+      "case_id": "v3_request_headers_names_lowercase_runtime_difference",
+      "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "x-smoke-header",
+      "intervention_created": false,
+      "known_limitations": [
+        "Runtime difference candidate for connector/header-name canonicalization behavior."
+      ],
+      "operator": "@contains x-smoke-header",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "X-Smoke-Header": "present"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4401",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_HEADERS_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4608",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'duplicate args encoded separator edge'"
+      ],
+      "backend_reached": true,
+      "case_id": "duplicate_args_encoded_separator_edge",
+      "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": true,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "a=1%3Bb=2&a=3"
+      },
+      "risk": "medium to high",
+      "rule_id": "4608",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "ARGS_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4607",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'duplicate header case normalization gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "duplicate_header_case_normalization_gap",
+      "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "x-demo",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains x-demo",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "X-Demo": "one"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4607",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_HEADERS_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4513",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'semicolon query args names edge'"
+      ],
+      "backend_reached": true,
+      "case_id": "edge_semicolon_query_args_names",
+      "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Pending cross-connector runtime verification; not counted as verified PASS."
+      ],
+      "operator": "@contains b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": true,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "a=1;b=2"
+      },
+      "risk": "medium to high",
+      "rule_id": "4513",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "ARGS_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4706",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'FILES empty part future target'"
+      ],
+      "backend_reached": true,
+      "case_id": "files_empty_part_future_compatibility",
+      "case_path": "framework:tests/cases/body/multipart/files_empty_part_future_compatibility.yaml",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "runtime-difference",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "^$",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: future-compatibility.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@rx ^$",
+      "phase": "2",
+      "priority": "P0",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 88,
+        "body_present": true,
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "headers": {
+          "Content-Type": "multipart/form-data; boundary=----AaB03x"
+        },
+        "method": "POST",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
+      "rule_id": "4706",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
+      "source_category": "multipart",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
+      "target": "FILES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "intervention_blocking"
+      ]
+    },
+    {
+      "actions": [
+        "id:4511",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'phase1 request body gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "phase1_vs_phase2_request_body_gap",
+      "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
+      "cause": "phase1_request_body_unavailable_or_empty_body",
+      "classification": "phase1_request_body_unavailable",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "bodyhit",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Pending cross-connector runtime verification; not counted as verified PASS."
+      ],
+      "operator": "@contains bodyhit",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "application/json",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "method": "POST",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "low to medium",
+      "rule_id": "4511",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe to fix by changing the body; that would change the test definition",
+      "source_category": "phase-handling",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token.",
+      "target": "REQUEST_BODY",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "request_body_processor"
+      ]
+    },
+    {
+      "actions": [
+        "id:4707",
+        "phase:1",
+        "t:urlDecode",
+        "t:urlDecodeUni",
+        "deny",
+        "status:403",
+        "msg:'double encoded unicode uri runtime diff'"
+      ],
+      "backend_reached": true,
+      "case_id": "unicode_double_encoded_uri_runtime_difference",
+      "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
+      "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "caf\u00e9",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains caf\u00e9",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "q=%25u0063%25u0061%25u0066%25u00E9"
+      },
+      "risk": "high",
+      "rule_id": "4707",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+      "source_category": "transformations",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur.",
+      "target": "REQUEST_URI",
+      "transformations": [
+        "urlDecode",
+        "urlDecodeUni"
+      ],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4708",
+        "phase:2",
+        "t:compressWhitespace",
+        "deny",
+        "status:403",
+        "msg:'unicode whitespace normalization gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "unicode_whitespace_normalization_gap",
+      "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
+      "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "a b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@streq a b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "q=SAFE"
+      },
+      "risk": "high",
+      "rule_id": "4708",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+      "source_category": "transformations",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur.",
+      "target": "ARGS:q",
+      "transformations": [
+        "compressWhitespace"
+      ],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4403",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL cookie-name case runtime difference'"
+      ],
+      "backend_reached": true,
+      "case_id": "v3_request_cookies_names_case_runtime_difference",
+      "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "user_token",
+      "intervention_created": false,
+      "known_limitations": [
+        "Cookie-name case handling can diverge between runtimes and connector parsers."
+      ],
+      "operator": "@contains user_token",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "Cookie": "USER_TOKEN=Yes"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4403",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_COOKIES_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4401",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL lowercase header names runtime difference'"
+      ],
+      "backend_reached": true,
+      "case_id": "v3_request_headers_names_lowercase_runtime_difference",
+      "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "x-smoke-header",
+      "intervention_created": false,
+      "known_limitations": [
+        "Runtime difference candidate for connector/header-name canonicalization behavior."
+      ],
+      "operator": "@contains x-smoke-header",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "X-Smoke-Header": "present"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4401",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_HEADERS_NAMES",
+      "transformations": [],
+      "variant": "no-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4608",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'duplicate args encoded separator edge'"
+      ],
+      "backend_reached": true,
+      "case_id": "duplicate_args_encoded_separator_edge",
+      "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "yes",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": true,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "a=1%3Bb=2&a=3"
+      },
+      "risk": "medium to high",
+      "rule_id": "4608",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "ARGS_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4607",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'duplicate header case normalization gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "duplicate_header_case_normalization_gap",
+      "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "yes",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "x-demo",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains x-demo",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "X-Demo": "one"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4607",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_HEADERS_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4513",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'semicolon query args names edge'"
+      ],
+      "backend_reached": true,
+      "case_id": "edge_semicolon_query_args_names",
+      "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Pending cross-connector runtime verification; not counted as verified PASS."
+      ],
+      "operator": "@contains b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": true,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "a=1;b=2"
+      },
+      "risk": "medium to high",
+      "rule_id": "4513",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "ARGS_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4706",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'FILES empty part future target'"
+      ],
+      "backend_reached": true,
+      "case_id": "files_empty_part_future_compatibility",
+      "case_path": "framework:tests/cases/body/multipart/files_empty_part_future_compatibility.yaml",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "runtime-difference",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "^$",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: future-compatibility.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@rx ^$",
+      "phase": "2",
+      "priority": "P0",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 88,
+        "body_present": true,
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "headers": {
+          "Content-Type": "multipart/form-data; boundary=----AaB03x"
+        },
+        "method": "POST",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
+      "rule_id": "4706",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
+      "source_category": "multipart",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
+      "target": "FILES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "intervention_blocking"
+      ]
+    },
+    {
+      "actions": [
+        "id:4707",
+        "phase:1",
+        "t:urlDecode",
+        "t:urlDecodeUni",
+        "deny",
+        "status:403",
+        "msg:'double encoded unicode uri runtime diff'"
+      ],
+      "backend_reached": true,
+      "case_id": "unicode_double_encoded_uri_runtime_difference",
+      "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
+      "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "caf\u00e9",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains caf\u00e9",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "q=%25u0063%25u0061%25u0066%25u00E9"
+      },
+      "risk": "high",
+      "rule_id": "4707",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+      "source_category": "transformations",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur.",
+      "target": "REQUEST_URI",
+      "transformations": [
+        "urlDecode",
+        "urlDecodeUni"
+      ],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4708",
+        "phase:2",
+        "t:compressWhitespace",
+        "deny",
+        "status:403",
+        "msg:'unicode whitespace normalization gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "unicode_whitespace_normalization_gap",
+      "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
+      "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "a b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@streq a b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "q=SAFE"
+      },
+      "risk": "high",
+      "rule_id": "4708",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+      "source_category": "transformations",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur.",
+      "target": "ARGS:q",
+      "transformations": [
+        "compressWhitespace"
+      ],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4403",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL cookie-name case runtime difference'"
+      ],
+      "backend_reached": true,
+      "case_id": "v3_request_cookies_names_case_runtime_difference",
+      "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "user_token",
+      "intervention_created": false,
+      "known_limitations": [
+        "Cookie-name case handling can diverge between runtimes and connector parsers."
+      ],
+      "operator": "@contains user_token",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "Cookie": "USER_TOKEN=Yes"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4403",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_COOKIES_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4401",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL lowercase header names runtime difference'"
+      ],
+      "backend_reached": true,
+      "case_id": "v3_request_headers_names_lowercase_runtime_difference",
+      "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "apache",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "x-smoke-header",
+      "intervention_created": false,
+      "known_limitations": [
+        "Runtime difference candidate for connector/header-name canonicalization behavior."
+      ],
+      "operator": "@contains x-smoke-header",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "X-Smoke-Header": "present"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4401",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_HEADERS_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4608",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'duplicate args encoded separator edge'"
+      ],
+      "backend_reached": true,
+      "case_id": "duplicate_args_encoded_separator_edge",
+      "case_path": "framework:tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "yes",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": true,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "a=1%3Bb=2&a=3"
+      },
+      "risk": "medium to high",
+      "rule_id": "4608",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "ARGS_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4607",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'duplicate header case normalization gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "duplicate_header_case_normalization_gap",
+      "case_path": "framework:tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "yes",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "x-demo",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains x-demo",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "X-Demo": "one"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4607",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_HEADERS_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4513",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'semicolon query args names edge'"
+      ],
+      "backend_reached": true,
+      "case_id": "edge_semicolon_query_args_names",
+      "case_path": "framework:tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Pending cross-connector runtime verification; not counted as verified PASS."
+      ],
+      "operator": "@contains b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": true,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "a=1;b=2"
+      },
+      "risk": "medium to high",
+      "rule_id": "4513",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "ARGS_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4706",
+        "phase:2",
+        "deny",
+        "status:403",
+        "msg:'FILES empty part future target'"
+      ],
+      "backend_reached": true,
+      "case_id": "files_empty_part_future_compatibility",
+      "case_path": "framework:tests/cases/body/multipart/files_empty_part_future_compatibility.yaml",
+      "cause": "multipart_processor_activation_missing",
+      "classification": "runtime-difference",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "^$",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: future-compatibility.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@rx ^$",
+      "phase": "2",
+      "priority": "P0",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 88,
+        "body_present": true,
+        "content_type": "multipart/form-data; boundary=----AaB03x",
+        "headers": {
+          "Content-Type": "multipart/form-data; boundary=----AaB03x"
+        },
+        "method": "POST",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
+      "rule_id": "4706",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
+      "source_category": "multipart",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections.",
+      "target": "FILES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "intervention_blocking"
+      ]
+    },
+    {
+      "actions": [
+        "id:4707",
+        "phase:1",
+        "t:urlDecode",
+        "t:urlDecodeUni",
+        "deny",
+        "status:403",
+        "msg:'double encoded unicode uri runtime diff'"
+      ],
+      "backend_reached": true,
+      "case_id": "unicode_double_encoded_uri_runtime_difference",
+      "case_path": "framework:tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
+      "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "caf\u00e9",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: runtime-difference.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@contains caf\u00e9",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "q=%25u0063%25u0061%25u0066%25u00E9"
+      },
+      "risk": "high",
+      "rule_id": "4707",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+      "source_category": "transformations",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur.",
+      "target": "REQUEST_URI",
+      "transformations": [
+        "urlDecode",
+        "urlDecodeUni"
+      ],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4708",
+        "phase:2",
+        "t:compressWhitespace",
+        "deny",
+        "status:403",
+        "msg:'unicode whitespace normalization gap'"
+      ],
+      "backend_reached": true,
+      "case_id": "unicode_whitespace_normalization_gap",
+      "case_path": "framework:tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
+      "cause": "transformation_request_value_absent_or_semantic_gap",
+      "classification": "transformation_request_literal_no_match",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "a b",
+      "intervention_created": false,
+      "known_limitations": [
+        "Classification: connector-gap.",
+        "Runtime verification pending; not counted as verified PASS."
+      ],
+      "operator": "@streq a b",
+      "phase": "2",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {},
+        "method": "GET",
+        "path": "/",
+        "query": "q=SAFE"
+      },
+      "risk": "high",
+      "rule_id": "4708",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "not safe as a harness fix; changing the request token would change test semantics",
+      "source_category": "transformations",
+      "source_kind": "framework-owned",
+      "suspected_cause": "The request literal does not contain the expected operator token, or requires unverified transformation semantics before a match can occur.",
+      "target": "ARGS:q",
+      "transformations": [
+        "compressWhitespace"
+      ],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "transformation_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4403",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL cookie-name case runtime difference'"
+      ],
+      "backend_reached": true,
+      "case_id": "v3_request_cookies_names_case_runtime_difference",
+      "case_path": "framework:tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "user_token",
+      "intervention_created": false,
+      "known_limitations": [
+        "Cookie-name case handling can diverge between runtimes and connector parsers."
+      ],
+      "operator": "@contains user_token",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "Cookie": "USER_TOKEN=Yes"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4403",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_COOKIES_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    },
+    {
+      "actions": [
+        "id:4401",
+        "phase:1",
+        "deny",
+        "status:403",
+        "msg:'former XFAIL lowercase header names runtime difference'"
+      ],
+      "backend_reached": true,
+      "case_id": "v3_request_headers_names_lowercase_runtime_difference",
+      "case_path": "framework:tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
+      "cause": "collection_name_normalization_semantics",
+      "classification": "collection_name_normalization_semantics",
+      "connector": "haproxy",
+      "evidence": {
+        "audit_log_present": "no",
+        "backend_reached": true,
+        "result": "result.json",
+        "target_rule_logged": false
+      },
+      "expected_match_value": "x-smoke-header",
+      "intervention_created": false,
+      "known_limitations": [
+        "Runtime difference candidate for connector/header-name canonicalization behavior."
+      ],
+      "operator": "@contains x-smoke-header",
+      "phase": "1",
+      "priority": "P3",
+      "raw_request_contains_expected_value": false,
+      "request": {
+        "body_length": 0,
+        "body_present": false,
+        "content_type": "-",
+        "headers": {
+          "X-Smoke-Header": "present"
+        },
+        "method": "GET",
+        "path": "/",
+        "query": "-"
+      },
+      "risk": "medium to high",
+      "rule_id": "4401",
+      "rule_loaded": true,
+      "rule_matched": false,
+      "safe_fixability": "requires native/libmodsecurity comparison before changing harness or connector code",
+      "source_category": "collections",
+      "source_kind": "framework-owned",
+      "suspected_cause": "Header, cookie, or query-name normalization differs from the rule target expectation.",
+      "target": "REQUEST_HEADERS_NAMES",
+      "transformations": [],
+      "variant": "with-crs/no-mrts",
+      "work_direction": [
+        "collection_semantics"
+      ]
+    }
+  ],
+  "report_kind": "no-mrts-intervention-nomatch-analysis",
+  "safe_subcluster": {
+    "action": "analysis only; no runtime, rule, expected-status, or PASS/FAIL change",
+    "cluster": "none",
+    "count": 0,
+    "reason": "No small safe harness/evidence fix was identified. The smallest clear group is phase1_request_body_unavailable_or_empty_body, but changing its body would change the test definition.",
+    "selected": false
+  },
+  "source_reports": {
+    "connector_work_queue": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
+    "full_runtime_matrix": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+    "intervention_blocking_analysis": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
+    "next_fix_plan": "reports/testing/generated/canonical/next-fix-plan.generated.json",
+    "remaining_failure_analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
+  },
+  "summary": {
+    "backend_reached": 34,
+    "before_after": {
+      "intervention_blocking_true_candidates_after": 4,
+      "intervention_blocking_true_candidates_before": 34,
+      "no_mrts_no_match_after": 34,
+      "no_mrts_no_match_before": 34,
+      "p0_p1_intervention_blocking_after": 4,
+      "p0_p1_intervention_blocking_before": 34
+    },
+    "full_matrix_totals": {
+      "attempted": 3928,
+      "blocked": 0,
+      "fail": 776,
+      "not_executable": 48,
+      "pass": 3104,
+      "pending": 2298
+    },
+    "intervention_created_connector_missed_403": 0,
+    "no_mrts_no_match": 34,
+    "rule_loaded_no_match": 34,
+    "rule_matched_no_intervention": 0,
+    "rule_not_loaded": 0,
+    "unique_cases": 9
+  }
 }
