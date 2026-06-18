@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:15:21Z`
+> Generated at: `2026-06-18T17:48:20Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Evidence rollup shared by focused analysis and consistency checks.
@@ -31,9 +31,9 @@ _No rows available. Reason: producer command was not run or verified input is un
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

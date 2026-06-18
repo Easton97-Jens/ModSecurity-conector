@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:14:49Z`
+> Generated at: `2026-06-18T17:47:55Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-nolog-audit-evidence-analysis.py`
 > Make target: `generate-nolog-audit-evidence-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Nolog Audit Evidence Analysis
@@ -74,9 +74,9 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `688762427074ee4fe85f65bae9343d7793d418a3c486e220b368ec833bb59fa3` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `ec48bccf0bc05f6f9659cedf12e644480f3377e42f8120d2c55df42d4e910970` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `4f598f0a0ddc2dfb0ad0d66807be62d9cb51c9e3577ca4a7224dd474a3f35173` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `af2f261979262ecd57d0aa89cdf95a0b74058f5b7ac08c703f4f1d92cdf64483` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

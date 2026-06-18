@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:14:42Z`
+> Generated at: `2026-06-18T17:47:47Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-nginx-mrts-http500-cluster-analysis.py`
 > Make target: `generate-nginx-mrts-http500-cluster-analysis`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # NGINX with-crs/with-mrts HTTP-500 Cluster Analysis
@@ -71,9 +71,9 @@
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log` | `f4ed58499c55cb4dc826c0b5357487887c5011acfed9b0ca2d97c52440d95cff` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json` | `26784a8ca26bfd9cc9d089218c56c315b5ffe5886db7554e0434d7aa7a4a52f3` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl` | `fb879b5e327bc08626ca315cf8427d784c7532335b57a7f9ada714fcdcb8bcf7` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `b9194afc316f2d929797e37a5101384b565efdb1809b7409d92866de4dfdd7cc` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `509bc6777259ded64851696daa44ebc1785e6850d74245f62002fca00b89d4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `0df0accb88ed8f025ce283acc22ab0f792b49b29a74bdbc71b71edf35e764e4f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

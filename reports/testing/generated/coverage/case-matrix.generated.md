@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T11:55:59Z`
+> Generated at: `2026-06-18T17:47:38Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -106,7 +106,7 @@
 | unicode_double_encoded_uri_runtime_difference | `tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml` | common | 1 | REQUEST_URI | @contains | urlDecode, urlDecodeUni | imported | - | active | - | unknown | no | - |
 | v2_transformation_remove_nulls_future_target | `tests/cases/request/uri/v2_transformation_remove_nulls_future_target.yaml` | common | 1 | REQUEST_URI | @contains | removeNulls | imported | - | active | - | unknown | no | - |
 | v2_transformation_url_decode_block | `tests/cases/request/uri/v2_transformation_url_decode_block.yaml` | common | 1 | REQUEST_URI | @contains | urlDecode | imported | - | active | - | unknown | no | - |
-| v2_transformation_url_decode_invalid_sequence_mapped_candidate | `tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml` | common | 1 | REQUEST_URI | @contains | urlDecode | imported | - | active | - | unknown | no | - |
+| v2_transformation_url_decode_invalid_sequence_mapped_candidate | `tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml` | common | 1 | REQUEST_URI | @rx | urlDecode | imported | - | active | - | unknown | no | - |
 | phase4_auditlog_outbound_escaped_value_gap | `tests/cases/response/body/phase4_auditlog_outbound_escaped_value_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_auditlog_outbound_matched_var_future | `tests/cases/response/body/phase4_auditlog_outbound_matched_var_future.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_auditlog_outbound_message_connector_gap | `tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |

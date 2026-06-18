@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:15:03Z`
+> Generated at: `2026-06-18T17:48:09Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Remaining Full-Matrix Failure Analysis
 
-Generated at: `2026-06-18T16:15:03Z`
+Generated at: `2026-06-18T17:48:09Z`
 
 ## Scope
 - Connector Full-Matrix evidence is separate from Native MRTS infrastructure evidence.
@@ -191,14 +191,14 @@ Generated at: `2026-06-18T16:15:03Z`
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `c840e30ce6356dc3b5a72adde8690f637c905240ae0972aea899898ee6b43db1` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `37b1b825d74e3e000d417242efcdb36f67ace9c6f08dfcca5caa8392ab4eaf81` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `96f772004dfc98334f07d2855b96f8a3e49f578f6fe9090c600d2c983f0bb32d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `c0b560c29eda5ae9f322704efb9298c573317d098e5a37b9763dbe50dd4cc11b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `2ab53e2dac8d5eb77543c742bbe33b9281731c53c1bf7c709b456c9d6d443f2f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `755c309851358ba542c968738f1aa22892b600fab94b6c7f44ef1181b4021f5a` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `940591881d51212ec497a44480db3a4afa312e9f07dbeac2513fafd31865422b` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `48f9f3e71041a9a865f438af408bf5196f56184aa0d07f60bab5e7b5c1e42a87` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `03bb0aefae70d11b6fdf0c7bdbf372bdfce9285c160a675deadc08ff526a01d3` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `425f99fe2b96bf291a2c688f8dd34a4eb756f8c496aecb909b8ce996f616f5a8` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

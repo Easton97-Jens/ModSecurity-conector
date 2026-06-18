@@ -174,7 +174,7 @@ export SKIP_RUNTIME_COMPONENT_PREPARE
 export RUNTIME_COMPONENT_STRICT_VERIFY
 export KEEP_RUNTIME_ARTIFACTS
 
-.PHONY: check-framework prepare-runtime-components check-runtime-producer-readiness check-runtime-path-policy refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-apache-case verified-nginx-case verified-haproxy-case verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: check-framework prepare-runtime-components check-framework-fixture-syntax check-runtime-producer-readiness check-runtime-path-policy refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-case verified-native-case verified-apache-case verified-nginx-case verified-haproxy-case verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-haproxy smoke-lighttpd smoke-traefik smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-native-semantics-comparison generate-remaining-critical-batch-analysis generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 define RUN_WITH_REFRESH_ALL
 	@set +e; \
@@ -193,6 +193,9 @@ check-framework:
 		echo "Hint: run git submodule update --init --recursive or set FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework"; \
 		exit 77; \
 	}
+
+check-framework-fixture-syntax: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/check-framework-fixture-syntax.py --framework-root "$(FRAMEWORK_ROOT)"
 
 prepare-runtime-components: check-framework
 	@if [ "$(SKIP_RUNTIME_COMPONENT_PREPARE)" = "1" ]; then \
@@ -237,6 +240,9 @@ generate-verified-runtime-mismatch-analysis: check-framework
 generate-remaining-critical-batch-analysis: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-remaining-critical-batch-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
 
+generate-native-semantics-comparison: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/run-native-case-comparison.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --verified-run-root "$(VERIFIED_RUN_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest" --report-only
+
 prove-generated-reports:
 	$(MAKE) refresh-connector-reports
 	$(MAKE) check-generated-report-layout
@@ -280,6 +286,19 @@ verified-full-matrix-job: check-framework
 	@run_id="$${VERIFIED_RUN_ID:-$$(cat "$(BUILD_ROOT)/verified-runs/current-run-id" 2>/dev/null || true)}"; \
 	if [ -z "$$run_id" ]; then run_id="$(FRESH_VERIFIED_RUN_ID)"; fi; \
 	VERIFIED_RUN_ID="$$run_id" "$(FRAMEWORK_PYTHON)" ci/run-verified-report-run.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --phase full-matrix-job --connector "$(CONNECTOR)" --crs "$(CRS)" --mrts "$(MRTS)"
+
+verified-case: check-framework
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required, e.g. CONNECTOR=nginx"; exit 2; }
+	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
+	@test -n "$(CRS)" || { echo "CRS is required, e.g. CRS=with-crs"; exit 2; }
+	@test -n "$(MRTS)" || { echo "MRTS is required, e.g. MRTS=with-mrts"; exit 2; }
+	@explain_args=""; \
+	case "$${EXPLAIN:-$(EXPLAIN)}$${VERIFIED_CASE_EXPLAIN:-$(VERIFIED_CASE_EXPLAIN)}" in ""|0|false|False) $(MAKE) prepare-runtime-components ;; *) explain_args="--explain" ;; esac; \
+	"$(FRAMEWORK_PYTHON)" ci/run-verified-case.py --connector "$(CONNECTOR)" --case "$(CASE)" --crs "$(CRS)" --mrts "$(MRTS)" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --source-root "$(SOURCE_ROOT)" --tmp-root "$(TMP_ROOT)" --verified-run-root "$(VERIFIED_RUN_ROOT)" --python "$(FRAMEWORK_PYTHON)" $$explain_args
+
+verified-native-case: check-framework prepare-runtime-components
+	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=unicode_whitespace_normalization_gap"; exit 2; }
+	$(WITH_RUNTIME_COMPONENTS) env PYTHON="$(FRAMEWORK_PYTHON)" CONNECTOR_ROOT="$(CURDIR)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" VERIFIED_RUN_ROOT="$(VERIFIED_RUN_ROOT)" "$(FRAMEWORK_PYTHON)" ci/run-native-case-comparison.py --case "$(CASE)" --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --verified-run-root "$(VERIFIED_RUN_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
 
 verified-nginx-case: check-framework prepare-runtime-components
 	@test -n "$(CASE)" || { echo "CASE is required, e.g. CASE=action_deny_phase1"; exit 2; }
@@ -525,6 +544,7 @@ lint: check-framework
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile ci/*.py
+	$(MAKE) check-framework-fixture-syntax
 	$(MAKE) report-governance
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"

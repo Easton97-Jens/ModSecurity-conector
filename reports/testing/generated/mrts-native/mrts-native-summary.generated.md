@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:14:48Z`
+> Generated at: `2026-06-18T17:47:53Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-mrts-native-report.py`
 > Make target: `mrts-native-full-run`
 > Owner: `mrts`
 > Severity: `optional`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # MRTS Native Summary
 
-Generated at: `2026-06-18T16:14:48Z`
+Generated at: `2026-06-18T17:47:53Z`
 
 | Native target | Report | Status | Classification | Critical blocker | Attempted | Pass | Fail | Blocked |
 |---|---|---|---|---:|---:|---:|---:|---:|
@@ -28,8 +28,8 @@ Note: Native MRTS evidence is separate from connector runtime matrix evidence.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `c0b560c29eda5ae9f322704efb9298c573317d098e5a37b9763dbe50dd4cc11b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `2ab53e2dac8d5eb77543c742bbe33b9281731c53c1bf7c709b456c9d6d443f2f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `03bb0aefae70d11b6fdf0c7bdbf372bdfce9285c160a675deadc08ff526a01d3` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `425f99fe2b96bf291a2c688f8dd34a4eb756f8c496aecb909b8ce996f616f5a8` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:14:36Z`
+> Generated at: `2026-06-18T17:47:41Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-full-matrix-job-completeness.py`
 > Make target: `generate-full-matrix-job-completeness`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Full-Matrix Job Completeness
@@ -98,7 +98,7 @@ Add sharding at the case-list stage in connectors/*/harness/run_*_smoke.sh, afte
 | Input | Status | SHA256 |
 | --- | --- | --- |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | present | `05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4` |
-| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | `367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e` |
+| `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/job.json` | present | `de718c4d536eb8454dca743a17167482e4eb9ff6d335dac403fd19d647befb3c` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log` | present | `828d525fe23ba3f9b2c272c87f637459bfd4876edc0980f8ee95f015f75ec9b4` |
 | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json` | present | `00f16a615027b01044651ace2785621bfe46fbcb56aefda5b509c777a6060bee` |
@@ -164,7 +164,7 @@ Add sharding at the case-list stage in connectors/*/harness/run_*_smoke.sh, afte
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/job.json` | `de718c4d536eb8454dca743a17167482e4eb9ff6d335dac403fd19d647befb3c` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log` | `828d525fe23ba3f9b2c272c87f637459bfd4876edc0980f8ee95f015f75ec9b4` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json` | `00f16a615027b01044651ace2785621bfe46fbcb56aefda5b509c777a6060bee` | `2026-06-16T19-12-00Z-614c8049` | present |

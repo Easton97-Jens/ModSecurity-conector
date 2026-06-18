@@ -1295,6 +1295,15 @@ def render_markdown(payload: dict[str, Any]) -> str:
     lines = [
         "# System Environment Proof",
         "",
+        "## Proof Status",
+        "",
+        "| Field | Value |",
+        "|---|---|",
+        f"| Proof generation status | `{payload.get('proof_generation_status', '-')}` |",
+        f"| Embedded strict evidence gate | `{payload.get('embedded_strict_evidence_gate', '-')}` |",
+        f"| Overall target status | `{payload.get('overall_target_status', '-')}` |",
+        f"| Strict gate reason | {md_cell(payload.get('strict_evidence_gate_reason', '-'))} |",
+        "",
         "## OS / System",
         "",
         "| Field | Value |",
@@ -1553,7 +1562,35 @@ def main() -> int:
     runtime_producer_check = runtime_producer_readiness_check(connector_root, framework_root)
     producer_readiness = verified_producer_readiness(tools, framework_environment)
     https_policy = https_repo_url_policy(connector_root, framework_root)
+    strict_gate_check = next(
+        (
+            item
+            for item in checks
+            if "check-generated-report-layout" in item.get("command", "")
+        ),
+        {},
+    )
+    embedded_strict_gate = "PASS" if strict_gate_check.get("return_code") == 0 else "FAIL"
+    overall_target_status = (
+        "PASS"
+        if all(item["return_code"] == 0 for item in checks if item["status"] != "not-run-by-generator")
+        else "FAIL"
+    )
+    strict_output_lines = [
+        line
+        for line in str(strict_gate_check.get("output_excerpt", "")).splitlines()
+        if line.startswith("check-generated-report-layout") or line.startswith("- ")
+    ]
+    strict_reason = (
+        "strict generated-report evidence gate passed"
+        if embedded_strict_gate == "PASS"
+        else "; ".join(strict_output_lines[-4:]) or "strict evidence gate failed"
+    )
     payload = {
+        "proof_generation_status": "PASS",
+        "embedded_strict_evidence_gate": embedded_strict_gate,
+        "overall_target_status": overall_target_status,
+        "strict_evidence_gate_reason": strict_reason,
         "generated_at": generated_at,
         "verified_run_id": current_verified_run_id(connector_root),
         "data_source_policy": DATA_SOURCE_POLICY,
@@ -1611,7 +1648,7 @@ def main() -> int:
     json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
     md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
     print(md_path)
-    return 0 if all(item["return_code"] == 0 for item in checks if item["status"] != "not-run-by-generator") else 2
+    return 0 if overall_target_status == "PASS" else 2
 
 
 if __name__ == "__main__":

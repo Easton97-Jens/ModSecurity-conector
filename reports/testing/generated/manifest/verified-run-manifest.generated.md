@@ -1,16 +1,16 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T12:15:05Z`
+> Generated at: `2026-06-18T16:54:49Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/run-verified-report-run.py`
 > Make target: `verified-report-run`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > MRTS SHA: `13aa91291adea12d5c607fdd165d010fcfb1da78`
-> Input status: `blocked`
+> Input status: `complete`
 
 # Verified Run Manifest
 
@@ -22,16 +22,16 @@
 | Data source policy | `verified-inputs-only` |
 | Profile | `full` |
 | Start time UTC | `2026-06-16T19:12:00Z` |
-| End time UTC | `2026-06-18T12:15:05Z` |
-| Duration seconds | `147785.0` |
-| Input status | `blocked` |
+| End time UTC | `2026-06-18T16:54:49Z` |
+| Duration seconds | `164569.0` |
+| Input status | `complete` |
 
 ## Runtime Environment
 
 | Field | Value |
 |---|---|
-| Connector SHA | `93172ef0f7d4e3fc4a10e97d63aefe982a593b55` |
-| Framework SHA | `131fdad6974cf0f67a874f7c1b1a118c4b25f303` |
+| Connector SHA | `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5` |
+| Framework SHA | `2334d31b942fd79770c7381b02fcaf031cccc4d2` |
 | MRTS SHA | `13aa91291adea12d5c607fdd165d010fcfb1da78` |
 | Connector branch | `master` |
 | Framework branch | `master` |
@@ -66,32 +66,11 @@
 | Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | current process can traverse; per-case worker checks are recorded in nginx-worker-preflight.jsonl |
 | Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
 | Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx` | NGINX_HARNESS_WORK_ROOT is outside /root |
-| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_whitespace_normalization_gap/htdocs/index.html` | materialized before NGINX start |
+| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/htdocs/index.html` | materialized before NGINX start |
 | Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | checked with runuser -u nobody |
-| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_whitespace_normalization_gap/htdocs` | checked with runuser -u nobody |
-| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_whitespace_normalization_gap/htdocs/index.html` | checked with runuser -u nobody |
-| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_whitespace_normalization_gap/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
-| Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
-| Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx` | NGINX_HARNESS_WORK_ROOT is outside /root |
-| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/phase4_response_body_empty_future_target/htdocs/index.html` | materialized before NGINX start |
-| Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | checked with runuser -u nobody |
-| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/phase4_response_body_empty_future_target/htdocs` | checked with runuser -u nobody |
-| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/phase4_response_body_empty_future_target/htdocs/index.html` | checked with runuser -u nobody |
-| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/phase4_response_body_empty_future_target/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
-| Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
-| Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx` | NGINX_HARNESS_WORK_ROOT is outside /root |
-| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/phase3_response_headers_server_presence_pending/htdocs/index.html` | materialized before NGINX start |
-| Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | checked with runuser -u nobody |
-| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/phase3_response_headers_server_presence_pending/htdocs` | checked with runuser -u nobody |
-| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/phase3_response_headers_server_presence_pending/htdocs/index.html` | checked with runuser -u nobody |
-| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/phase3_response_headers_server_presence_pending/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
-| Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
-| Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx` | NGINX_HARNESS_WORK_ROOT is outside /root |
-| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/json_empty_body_future_compatibility/htdocs/index.html` | materialized before NGINX start |
-| Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | checked with runuser -u nobody |
-| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/json_empty_body_future_compatibility/htdocs` | checked with runuser -u nobody |
-| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/json_empty_body_future_compatibility/htdocs/index.html` | checked with runuser -u nobody |
-| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/json_empty_body_future_compatibility/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
+| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/htdocs` | checked with runuser -u nobody |
+| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/htdocs/index.html` | checked with runuser -u nobody |
+| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
 | Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
 | Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx` | NGINX_HARNESS_WORK_ROOT is outside /root |
 | DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_double_encoded_uri_runtime_difference/htdocs/index.html` | materialized before NGINX start |
@@ -101,11 +80,25 @@
 | try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_double_encoded_uri_runtime_difference/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
 | Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
 | Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx` | NGINX_HARNESS_WORK_ROOT is outside /root |
-| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/duplicate_header_case_normalization_gap/htdocs/index.html` | materialized before NGINX start |
+| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_whitespace_normalization_gap/htdocs/index.html` | materialized before NGINX start |
 | Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | checked with runuser -u nobody |
-| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/duplicate_header_case_normalization_gap/htdocs` | checked with runuser -u nobody |
-| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/duplicate_header_case_normalization_gap/htdocs/index.html` | checked with runuser -u nobody |
-| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/duplicate_header_case_normalization_gap/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
+| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_whitespace_normalization_gap/htdocs` | checked with runuser -u nobody |
+| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_whitespace_normalization_gap/htdocs/index.html` | checked with runuser -u nobody |
+| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/unicode_whitespace_normalization_gap/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
+| Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
+| Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx` | NGINX_HARNESS_WORK_ROOT is outside /root |
+| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/xml_request_body_malformed_connector_gap/htdocs/index.html` | materialized before NGINX start |
+| Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | checked with runuser -u nobody |
+| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/xml_request_body_malformed_connector_gap/htdocs` | checked with runuser -u nobody |
+| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/xml_request_body_malformed_connector_gap/htdocs/index.html` | checked with runuser -u nobody |
+| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/xml_request_body_malformed_connector_gap/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
+| Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
+| Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx` | NGINX_HARNESS_WORK_ROOT is outside /root |
+| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/xml_namespace_edge_connector_gap/htdocs/index.html` | materialized before NGINX start |
+| Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | checked with runuser -u nobody |
+| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/xml_namespace_edge_connector_gap/htdocs` | checked with runuser -u nobody |
+| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/xml_namespace_edge_connector_gap/htdocs/index.html` | checked with runuser -u nobody |
+| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/runtime/xml_namespace_edge_connector_gap/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
 | Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
 | Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000` | NGINX_HARNESS_WORK_ROOT is outside /root |
 | DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/mrts_100156_mrts_110_xml_100156_1/htdocs/index.html` | materialized before NGINX start |
@@ -120,6 +113,13 @@
 | NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/mrts_100155_mrts_110_xml_100155_1/htdocs` | checked with runuser -u nobody |
 | htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/mrts_100155_mrts_110_xml_100155_1/htdocs/index.html` | checked with runuser -u nobody |
 | try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/mrts_100155_mrts_110_xml_100155_1/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
+| Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
+| Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000` | NGINX_HARNESS_WORK_ROOT is outside /root |
+| DOCROOT/index.html exists | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/mrts_100154_mrts_110_xml_100154_1/htdocs/index.html` | materialized before NGINX start |
+| Harness parent traversable | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | checked with runuser -u nobody |
+| NGINX worker can traverse docroot | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/mrts_100154_mrts_110_xml_100154_1/htdocs` | checked with runuser -u nobody |
+| htdocs/index.html readable by worker | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/mrts_100154_mrts_110_xml_100154_1/htdocs/index.html` | checked with runuser -u nobody |
+| try_files fallback guarded | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/mrts_100154_mrts_110_xml_100154_1/htdocs/index.html` | docroot readability is checked before try_files /index.html can loop |
 | Path under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness` | NGINX_HARNESS_PARENT is outside /root |
 | Work root under /root | PASS | `/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000` | NGINX_HARNESS_WORK_ROOT is outside /root |
 
@@ -207,6 +207,9 @@
 | `make refresh-all-reports` | FAIL | 2 | 33.131 | - | consumer_stale | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/43-make-refresh-all-reports.log` |
 | `make generate-system-environment-proof` | FAIL | 2 | 55.57 | - | refresh_failed | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/44-make-generate-system-environment-proof.log` |
 | `make refresh-all-reports` | FAIL | 2 | 52.236 | - | consumer_stale | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/45-make-refresh-all-reports.log` |
+| `make refresh-all-reports` | FAIL | 2 | 34.639 | - | consumer_stale | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/70-make-refresh-all-reports.log` |
+| `make generate-system-environment-proof` | FAIL | 2 | 56.313 | - | refresh_failed | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/71-make-generate-system-environment-proof.log` |
+| `make refresh-all-reports` | FAIL | 2 | 54.449 | - | consumer_stale | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/logs/72-make-refresh-all-reports.log` |
 
 ## Checks
 
@@ -233,18 +236,18 @@
 
 | Slowest Job | Duration Seconds | Status |
 |---|---:|---|
-| `nginx:with-crs:with-mrts` | 3441 | completed_with_mismatches |
-| `nginx:no-crs:with-mrts` | 3224 | completed_with_mismatches |
-| `apache:with-crs:with-mrts` | 1373 | completed_with_mismatches |
-| `apache:no-crs:with-mrts` | 1278 | completed_with_mismatches |
-| `haproxy:with-crs:with-mrts` | 1198 | completed_with_mismatches |
+| `nginx:with-crs:with-mrts` | 3439 | completed_with_mismatches |
+| `nginx:no-crs:with-mrts` | 3208 | completed_with_mismatches |
+| `apache:with-crs:with-mrts` | 1380 | completed_with_mismatches |
+| `apache:no-crs:with-mrts` | 1291 | completed_with_mismatches |
+| `haproxy:with-crs:with-mrts` | 1182 | completed_with_mismatches |
 
 ## Runtime Mismatch Summary
 
 | Field | Value |
 |---|---|
-| Total mismatches | `808` |
-| Critical mismatches | `140` |
+| Total mismatches | `787` |
+| Critical mismatches | `107` |
 | Top connector | `nginx` |
 | Primary blocker | `completed_with_mismatches` |
 | Merge readiness | `FAIL` |
@@ -253,7 +256,7 @@
 
 | Item | Status | Reason | Affected Reports |
 |---|---|---|---|
-| `runtime_cache_reports` | blocked | required generated input is blocked | reports/testing/generated/cache/runtime-component-cache.generated.json, reports/testing/generated/cache/runtime-component-cache.generated.md, reports/testing/generated/cache/runtime-build-cache.generated.json, reports/testing/generated/cache/runtime-build-cache.generated.md |
+| `-` | zero_result_verified | No missing, skipped, blocked, stale, or failed reports were recorded. | - |
 
 ## Tool Versions
 
@@ -284,8 +287,8 @@
 
 | Repository | SHA | Branch | Dirty Status |
 |---|---|---|---|
-| connector | `93172ef0f7d4e3fc4a10e97d63aefe982a593b55` | `master` | `dirty` |
-| framework | `131fdad6974cf0f67a874f7c1b1a118c4b25f303` | `master` | `dirty` |
+| connector | `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5` | `master` | `dirty` |
+| framework | `2334d31b942fd79770c7381b02fcaf031cccc4d2` | `master` | `dirty` |
 | MRTS | `13aa91291adea12d5c607fdd165d010fcfb1da78` | `HEAD` | `dirty` |
 
 ## Proof Summary
@@ -300,10 +303,10 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `827b19f07978a8564b7f86b5b845386a01b46ff9f30d1e267d7bfb6742fe6423` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/system-environment-proof.generated.json` | `a6452a131819936447044b2e4aca621eca471c26fc0a8ff2e2279a0d5e36a5f6` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `4a0305731212b40c11a1c754233d40438e4ade5fdf01c5c405effec3763a23f0` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `79c41b77eaeb9504b58875610f780a24766a2518aa7880ff2f30b3edd0e4e9b8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/system-environment-proof.generated.json` | `d5da2d21e504d694c42b0f1cf4ad44b85e0b452f266c68fa20ae2109c493ad7d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `3e2797d4f1af140de1e2f073f6a1de13f2cc9a58191207a7a53a0c34d377b556` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

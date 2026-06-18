@@ -1,33 +1,33 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:15:41Z`
+> Generated at: `2026-06-18T17:48:40Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-final-consistency-audit.py`
 > Make target: `generate-final-consistency-audit`
 > Owner: `connector`
 > Severity: `critical`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Final Consistency Audit
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-18T16:15:41Z`
+- Generated at: `2026-06-18T17:48:40Z`
 - Release readiness: `needs_attention`
 - Recommended next fix cluster: `multipart_files`
 - Recommendation justified: `no`
 - Reason: remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits
 
 ## Git And Submodules
-- Connector HEAD: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-- Framework HEAD: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+- Connector HEAD: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+- Framework HEAD: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 
 | Submodule status |
 |---|
-| 131fdad6974cf0f67a874f7c1b1a118c4b25f303 modules/ModSecurity-test-Framework (heads/master) |
+| 2334d31b942fd79770c7381b02fcaf031cccc4d2 modules/ModSecurity-test-Framework (heads/master) |
 |  13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main) |
 
 ## Full-Matrix Summary
@@ -131,20 +131,20 @@ Generated file - do not edit manually.
 ## Freshness
 | Input | Present | Generated at |
 |---|---|---|
-| reports/testing/generated/canonical/full-runtime-matrix.generated.json | yes | 2026-06-18T16:14:35Z |
-| reports/testing/generated/work-queues/connector-work-queue.generated.json | yes | 2026-06-18T16:14:46Z |
-| reports/testing/generated/work-queues/phase-work-queue.generated.json | yes | 2026-06-18T16:14:53Z |
-| reports/testing/generated/canonical/remaining-failure-analysis.generated.json | yes | 2026-06-18T16:15:03Z |
-| reports/testing/generated/canonical/next-fix-plan.generated.json | yes | 2026-06-18T16:15:03Z |
-| reports/testing/generated/canonical/full-run-evidence.generated.json | yes | 2026-06-18T16:15:21Z |
-| reports/testing/generated/mrts-native/mrts-native-summary.generated.json | yes | 2026-06-18T16:14:48Z |
-| reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json | yes | 2026-06-18T16:14:59Z |
-| reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json | yes | 2026-06-18T16:14:49Z |
-| reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json | yes | 2026-06-18T16:14:53Z |
-| reports/testing/generated/focused-analysis/body-processor-analysis.generated.json | yes | 2026-06-18T16:15:38Z |
-| reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json | yes | 2026-06-18T16:15:27Z |
-| reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json | yes | 2026-06-18T16:15:29Z |
-| reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json | yes | 2026-06-18T16:15:39Z |
+| reports/testing/generated/canonical/full-runtime-matrix.generated.json | yes | 2026-06-18T17:47:40Z |
+| reports/testing/generated/work-queues/connector-work-queue.generated.json | yes | 2026-06-18T17:47:51Z |
+| reports/testing/generated/work-queues/phase-work-queue.generated.json | yes | 2026-06-18T17:47:58Z |
+| reports/testing/generated/canonical/remaining-failure-analysis.generated.json | yes | 2026-06-18T17:48:09Z |
+| reports/testing/generated/canonical/next-fix-plan.generated.json | yes | 2026-06-18T17:48:09Z |
+| reports/testing/generated/canonical/full-run-evidence.generated.json | yes | 2026-06-18T17:48:20Z |
+| reports/testing/generated/mrts-native/mrts-native-summary.generated.json | yes | 2026-06-18T17:47:53Z |
+| reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json | yes | 2026-06-18T17:48:05Z |
+| reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json | yes | 2026-06-18T17:47:55Z |
+| reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json | yes | 2026-06-18T17:47:59Z |
+| reports/testing/generated/focused-analysis/body-processor-analysis.generated.json | yes | 2026-06-18T17:48:37Z |
+| reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json | yes | 2026-06-18T17:48:27Z |
+| reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json | yes | 2026-06-18T17:48:28Z |
+| reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json | yes | 2026-06-18T17:48:39Z |
 
 ## Guardrails
 | Guardrail | Value |
@@ -178,12 +178,12 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `4aec42cd1ad41e7d8f3aeff9311774b32f29c12aca6fccc73468054dd890c6a2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `dc80194255be5520bb8d5768e95f9b0990ae0256bf9264458ac1b5449be5e600` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

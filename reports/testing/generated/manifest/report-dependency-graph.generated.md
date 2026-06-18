@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:15:42Z`
+> Generated at: `2026-06-18T17:48:43Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Report Dependency Graph
@@ -27,6 +27,7 @@ flowchart TD
   merge_readiness_dashboard["merge-readiness-dashboard.generated"]
   verified_runtime_mismatch_analysis["verified-runtime-mismatch-analysis.generated"]
   remaining_critical_batch_analysis["remaining-critical-batch-analysis.generated"]
+  native_semantics_comparison["native-semantics-comparison.generated"]
   full_matrix_job_completeness["full-matrix-job-completeness.generated"]
   nginx_mrts_http500_cluster_analysis["nginx-mrts-http500-cluster-analysis.generated"]
   system_environment_proof["system-environment-proof.generated"]
@@ -59,6 +60,7 @@ flowchart TD
   mrts_native_summary["mrts-native-summary.generated"]
   runtime_build_cache["runtime-build-cache.generated"]
   runtime_component_cache["runtime-component-cache.generated"]
+  runtime_cache_index["runtime-cache-index.generated"]
   body_processor_analysis --> final_consistency_audit
   connector_work_queue --> body_processor_analysis
   connector_work_queue --> final_consistency_audit
@@ -117,8 +119,7 @@ flowchart TD
   remaining_failure_analysis --> rule_chain_semantics_analysis
   response_header_hook_analysis --> final_consistency_audit
   rule_chain_semantics_analysis --> final_consistency_audit
-  runtime_build_cache --> runtime_component_cache
-  runtime_component_cache --> runtime_build_cache
+  verified_runtime_mismatch_analysis --> native_semantics_comparison
   verified_runtime_mismatch_analysis --> nginx_mrts_http500_cluster_analysis
 ```
 
@@ -136,6 +137,7 @@ flowchart TD
 | `merge_readiness_dashboard` | - | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json`<br>`reports/testing/generated/manifest/merge-readiness-dashboard.generated.md` | - |
 | `verified_runtime_mismatch_analysis` | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json`<br>`/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json`<br>`reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md` | - |
 | `remaining_critical_batch_analysis` | - | `reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.json`<br>`reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md` | - |
+| `native_semantics_comparison` | `ci/run-native-case-comparison.py`<br>`ci/native_modsecurity_oracle.c`<br>`reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `reports/testing/generated/manifest/native-semantics-comparison.generated.json`<br>`reports/testing/generated/manifest/native-semantics-comparison.generated.md` | `verified_runtime_mismatch_analysis` |
 | `full_matrix_job_completeness` | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json`<br>`/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json`<br>`reports/testing/generated/manifest/full-matrix-job-completeness.generated.md` | - |
 | `nginx_mrts_http500_cluster_analysis` | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json`<br>`/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl`<br>`reports/testing/generated/manifest/full-matrix-job-completeness.generated.json`<br>`reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json`<br>`reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md` | `full_matrix_job_completeness`, `verified_runtime_mismatch_analysis` |
 | `system_environment_proof` | - | `reports/testing/generated/manifest/system-environment-proof.generated.json`<br>`reports/testing/generated/manifest/system-environment-proof.generated.md` | - |
@@ -166,8 +168,9 @@ flowchart TD
 | `mrts_native_apache` | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json`<br>`/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json`<br>`reports/testing/generated/mrts-native/mrts-native-apache.generated.md` | - |
 | `mrts_native_nginx` | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json`<br>`/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json`<br>`reports/testing/generated/mrts-native/mrts-native-nginx.generated.md` | - |
 | `mrts_native_summary` | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json`<br>`/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json`<br>`reports/testing/generated/mrts-native/mrts-native-summary.generated.md` | - |
-| `runtime_build_cache` | `reports/testing/generated/cache/runtime-component-cache.generated.json`<br>`reports/testing/generated/cache/runtime-build-cache.generated.json` | `reports/testing/generated/cache/runtime-build-cache.generated.json`<br>`reports/testing/generated/cache/runtime-build-cache.generated.md` | `runtime_component_cache` |
-| `runtime_component_cache` | `reports/testing/generated/cache/runtime-component-cache.generated.json`<br>`reports/testing/generated/cache/runtime-build-cache.generated.json` | `reports/testing/generated/cache/runtime-component-cache.generated.json`<br>`reports/testing/generated/cache/runtime-component-cache.generated.md` | `runtime_build_cache` |
+| `runtime_build_cache` | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json`<br>`/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | `reports/testing/generated/cache/runtime-build-cache.generated.json`<br>`reports/testing/generated/cache/runtime-build-cache.generated.md` | - |
+| `runtime_component_cache` | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json`<br>`/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | `reports/testing/generated/cache/runtime-component-cache.generated.json`<br>`reports/testing/generated/cache/runtime-component-cache.generated.md` | - |
+| `runtime_cache_index` | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json`<br>`/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | `reports/testing/generated/cache/runtime-cache-index.generated.json`<br>`reports/testing/generated/cache/runtime-cache-index.generated.md` | - |
 
 ## Root Inputs
 
@@ -175,9 +178,11 @@ flowchart TD
 - `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json`
 - `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json`
 - `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json`
+- `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json`
+- `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json`
+- `ci/native_modsecurity_oracle.c`
+- `ci/run-native-case-comparison.py`
 - `config/testing/import-status.json`
-- `reports/testing/generated/cache/runtime-build-cache.generated.json`
-- `reports/testing/generated/cache/runtime-component-cache.generated.json`
 - `reports/testing/runtime-validation-snapshot.json`
 
 ## Final Reports
@@ -193,29 +198,31 @@ flowchart TD
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl` | `05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | `234ac210219fe61948da3815ed6587a21d86497fad6ef1a2a4d67acab12f1eda` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | `161d7c17ed090bfe0cb7842c33c98251d8d217b73de5f09e8b886a5cbc0970a7` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `367a31c067afeb597ac45eb8ca4f88d849f8252e59500c3868227fcde6216b1e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | `dc995160b411295185768edbc7e7fa59e9ae41374fe3494b68341d0a4407e4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `3904de5ba72723df9e99e34169abd8ba43423752dc66626f0e69c8d5bd6f7d6e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | `964c9388125b93f11548f80f1efc1e7d8b317131b89d14370f824b39bf0be6f9` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `ci/native_modsecurity_oracle.c` | `57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `ci/run-native-case-comparison.py` | `88f122170fc7625f250d12ccd8590353b4a5e08fbea8b4751c03ae61cb8134ce` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-build-cache.generated.json` | `37b1b825d74e3e000d417242efcdb36f67ace9c6f08dfcca5caa8392ab4eaf81` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/cache/runtime-component-cache.generated.json` | `79ed3371ef67a807114668c9874b249d937306e31f37b088a0e27e01e46e8939` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `4aec42cd1ad41e7d8f3aeff9311774b32f29c12aca6fccc73468054dd890c6a2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `94ef7376661e451a7c3a25bd98cb9b769096cd64fe85684fa62e6cef951a017e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `05bc958c83d0fba9f7991380580343ddbe984c2e25b5cd856adc79de70f55828` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `88479f6014f3ca276541b5219356b48ce820401b9146bb365b9839fe9589c1d2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `ec48bccf0bc05f6f9659cedf12e644480f3377e42f8120d2c55df42d4e910970` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | `dfb78eaa4704dac70b5bbea1951afaded99e66cb2fe976b1324ed4c688b5ca78` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `cfb36ec0b68c9177b1e4072ec8e7fe9342f023e4e6727caac86c5224df2d6aa0` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | `cb4f403ea5862fc9d0affd53e1cfc32d33a71ac766fc358043f7c2351665fe10` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json` | `28679764935257530c5d2958517464b76e35dc8279d9a3655e61efe53d15276a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | `50e876b98f7149424c83fa3f937c9e312f8d326826687982372e9b0ba2daddf4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json` | `2f6988a32b9c8641754bfa5ecf5914a43dcf43235bca04ec103658dc3b3d33b5` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json` | `f7c7b87461667d254c5479dc400e4d527e61c39c03c8e50635a0429f087104d7` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `b9194afc316f2d929797e37a5101384b565efdb1809b7409d92866de4dfdd7cc` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `509bc6777259ded64851696daa44ebc1785e6850d74245f62002fca00b89d4c7` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `c0b560c29eda5ae9f322704efb9298c573317d098e5a37b9763dbe50dd4cc11b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `2ab53e2dac8d5eb77543c742bbe33b9281731c53c1bf7c709b456c9d6d443f2f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `96f772004dfc98334f07d2855b96f8a3e49f578f6fe9090c600d2c983f0bb32d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `cc04a8bfd49ce1f7daa7859b93446aae935aa69b452e69ba2db8eda757857660` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `0d45c998bc358dc1b4d8de0dd383883b378af08121d3f39aab79e69cea31e4dd` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `dc80194255be5520bb8d5768e95f9b0990ae0256bf9264458ac1b5449be5e600` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `af2f261979262ecd57d0aa89cdf95a0b74058f5b7ac08c703f4f1d92cdf64483` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | `626871623f617bfb6b9ebef84ebfa66e5659040c211a8b720dd55196c4fe357a` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `73d795ebf64608c9a3db9d38e2559410ddb07a45c807a42979ced4f1d9ff3fc2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | `25fbb5e192d45e52e1d507aa061f8cc9b4b5f0e2562e483127a9070d4a711fb5` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json` | `f4bb4d2fcc6079c1d53e1cdaf7a437a4cee83bfe1d6e9102e9ff0ea6c2b4da48` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | `6de06d49c33846c4d0abe69591707ea9d7f1ea7143274211f504b65b982a9e19` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json` | `575134eb78ee77ab492f82913766dd44a129021c69c9d028e0fd586f9eaf426f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json` | `97a6e5ca137bc5f49774585b43b5e7530914562098ab0afb9eb389b95dbd4014` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `0df0accb88ed8f025ce283acc22ab0f792b49b29a74bdbc71b71edf35e764e4f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `03bb0aefae70d11b6fdf0c7bdbf372bdfce9285c160a675deadc08ff526a01d3` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `425f99fe2b96bf291a2c688f8dd34a4eb756f8c496aecb909b8ce996f616f5a8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `48f9f3e71041a9a865f438af408bf5196f56184aa0d07f60bab5e7b5c1e42a87` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/runtime-validation-snapshot.json` | `c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
@@ -226,9 +233,11 @@ flowchart TD
 | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/apache2_ubuntu/job.json` | present | input file available |
 | `/var/tmp/ModSecurity-conector-verified/build/mrts-native/nginx-pr24/job.json` | present | input file available |
 | `/var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | present | input file available |
+| `ci/native_modsecurity_oracle.c` | present | input file available |
+| `ci/run-native-case-comparison.py` | present | input file available |
 | `config/testing/import-status.json` | present | input file available |
-| `reports/testing/generated/cache/runtime-build-cache.generated.json` | present | input file available |
-| `reports/testing/generated/cache/runtime-component-cache.generated.json` | present | input file available |
 | `reports/testing/generated/canonical/full-run-evidence.generated.json` | present | input file available |
 | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | present | input file available |
 | `reports/testing/generated/canonical/next-fix-plan.generated.json` | present | input file available |

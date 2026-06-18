@@ -1,21 +1,21 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:14:35Z`
+> Generated at: `2026-06-18T17:47:40Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-full-runtime-matrix.py`
 > Make target: `generate-full-runtime-matrix`
 > Owner: `connector`
 > Severity: `critical`
-> Connector SHA: `93172ef0f7d4e3fc4a10e97d63aefe982a593b55`
-> Framework SHA: `131fdad6974cf0f67a874f7c1b1a118c4b25f303`
+> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
+> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
 > Input status: `complete`
 
 # Full MRTS Runtime Matrix
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-18T16:14:35Z`
+- Generated at: `2026-06-18T17:47:40Z`
 - Variant runs: **12**
 - Total attempted: **3928**
 - Total PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **3141** / **775** / **0** / **12**
