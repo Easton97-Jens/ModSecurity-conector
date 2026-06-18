@@ -1,25 +1,25 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T21:57:17Z`
+> Generated at: `2026-06-18T11:26:35Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-body-processor-analysis.py`
 > Make target: `generate-body-processor-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # Body Processor Failure Analysis
 
-- Generated at: `2026-06-17T21:57:17Z`
-- Before selected metadata fix: request_body_processor **9**, multipart_files **14**, xml_processor **16**, combined **39**.
+- Generated at: `2026-06-18T11:26:35Z`
+- Before selected metadata fix: request_body_processor **9**, multipart_files **6**, xml_processor **16**, combined **31**.
 - After selected metadata fix: request_body_processor **0**, multipart_files **6**, xml_processor **0**, combined **6**.
 - Selected subcluster rows: **9**
 - URL-encoded form rows moved out of active body-processor work: **12** -> **0**.
 - XML processor activation-missing rows moved out of active xml_processor work: **16** -> **0**.
-- Multipart processor activation-missing rows moved out of active multipart_files work: **8** -> **0**.
+- Multipart processor activation-missing rows moved out of active multipart_files work: **0** -> **0**.
 - Rule loaded evidence rows: **10**
 - Target rule matched rows: **0**
 - Backend reached rows: **15**
@@ -102,44 +102,44 @@
 
 ## Multipart Processor Activation-Missing Subcluster
 
-- Count: **8**
-- Active multipart_files rows before report sync: **8**
+- Count: **0**
+- Active multipart_files rows before report sync: **0**
 - Active multipart_files rows after report sync: **0**
 - Classification: `multipart_processor_activation_missing`
 - Work direction: `classification_only`
 - Priority: `report_only`
-- Body sent rows: **8**
-- Correct Multipart Content-Type rows: **8**
-- Boundary valid rows: **8**
+- Body sent rows: **0**
+- Correct Multipart Content-Type rows: **0**
+- Boundary valid rows: **0**
 - SecRequestBodyAccess On rows: **0**
 - Multipart parser active rows: **0**
-- Rule loaded rows: **8**
+- Rule loaded rows: **0**
 - Rule matched rows: **0**
 - FILES/FILES_NAMES evidence rows: **0**
 - ARGS/ARGS_NAMES evidence rows: **0**
 - Collection/target evidence rows: **0**
-- Backend reached rows: **8**
+- Backend reached rows: **0**
 - Root cause: The multipart bodies, Content-Type, boundaries, field names, and filenames are present, but these fixtures do not enable SecRequestBodyAccess before expecting FILES/ARGS_NAMES collection evidence.
 - Fix: metadata/report-only; no multipart body, Content-Type, boundary, rule, Expected status, connector-core behavior, or PASS/FAIL value changed
 - Risk: low when kept report-only; high if treated as a connector multipart parser failure without request body activation
 
 | field | distribution |
 | --- | --- |
-| connectors | `apache`: 4, `haproxy`: 4 |
-| variants | `no-crs/no-mrts`: 4, `with-crs/no-mrts`: 4 |
-| case_ids | `files_names_mixed_case_filename_gap`: 4, `multipart_duplicate_field_names_gap`: 4 |
-| rule_ids | `4705`: 4, `4703`: 4 |
-| targets | `FILES_NAMES`: 4, `ARGS_NAMES`: 4 |
-| operators | `@contains MiXeD.TXT`: 4, `@contains upload`: 4 |
-| content_types | `multipart/form-data; boundary=----AaB03x`: 8 |
-| boundaries | `----AaB03x`: 8 |
-| boundary_status | `valid`: 8 |
-| part_counts | `1`: 4, `2`: 4 |
-| field_names | `upload`: 12 |
-| filenames | `MiXeD.TXT`: 4, `a.txt`: 4, `b.txt`: 4 |
-| body_lengths | `130`: 4, `175`: 4 |
-| body_hashes | `c798e7b5072cb99121f130d470c4a6fcb5acfae67931b80fe50d1b0d0399f6de`: 4, `fb81f7beb32771bd956270117b1a5040371a2697700d3ffcf43d55f01bd8d46a`: 4 |
-| request_body_seen | `unknown`: 4, `yes`: 4 |
+| connectors | - |
+| variants | - |
+| case_ids | - |
+| rule_ids | - |
+| targets | - |
+| operators | - |
+| content_types | - |
+| boundaries | - |
+| boundary_status | - |
+| part_counts | - |
+| field_names | - |
+| filenames | - |
+| body_lengths | - |
+| body_hashes | - |
+| request_body_seen | - |
 
 ## Active Body Processor Distributions
 
@@ -211,10 +211,10 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `b237c0433ef2a2d0bf1e4d2bb778d6f7f0501feadebbd3337c99a63d0fe2dd61` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `2316fe5b7e70ff986d2616f0528e208983f6a5dd4b2671bf443f865c6ffbf26f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `bf94318ee4981b80cb2d08e43a02a93a0ff4e20ddf22c88e8b79766ac4bb71f7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

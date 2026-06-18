@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T21:56:26Z`
+> Generated at: `2026-06-18T11:25:49Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-nolog-audit-evidence-analysis.py`
 > Make target: `generate-nolog-audit-evidence-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # Nolog Audit Evidence Analysis
@@ -35,8 +35,8 @@ Generated file - do not edit manually.
 ## Before/After
 - `audit_log_evidence` rows before: **6**
 - `audit_log_evidence` rows after: **0**
-- `classification_only` rows before: **603**
-- `classification_only` rows after: **609**
+- `classification_only` rows before: **591**
+- `classification_only` rows after: **597**
 
 ## Runtime Rows
 | Connector | Variant | Status | Expected | Actual | Audit IDs | Decision IDs | Target Rule Logged | Backend | Classification |
@@ -74,9 +74,9 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `3e140a8e561dc71ffe22338da0818c2554f5f25f7e6e17a4746a2ba7bc0a3daf` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `b2b936769522f31fea0714ea959bd5fbf624f615ab978b76f176375f3d602db2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `44307289f94c075109e3317c8c7796f5455d2028c8e9d523866eb40e96eb2bcc` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `5aadf47046d89054c5d56ff2b8e3cd86640018bedff5776543e96f2f819b38ae` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

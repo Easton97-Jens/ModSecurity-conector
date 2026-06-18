@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T17:04:24Z`
+> Generated at: `2026-06-18T07:15:57Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # Generated Former XFAIL Migration Summary
@@ -41,8 +41,8 @@ No current XFAIL cases remain.
 | json_nested_object_future_compatibility | `tests/cases/body/json/json_nested_object_future_compatibility.yaml` | imported | 2026-06-07 | 2 | REQUEST_BODY | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | request_body_json_invalid_runtime_difference | `tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml` | imported | 2026-06-07 | 2 | REQUEST_BODY | runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS. |
 | files_empty_part_future_compatibility | `tests/cases/body/multipart/files_empty_part_future_compatibility.yaml` | imported | 2026-06-07 | 2 | FILES | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
-| files_names_mixed_case_filename_gap | `tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml` | imported | 2026-06-07 | 2 | FILES_NAMES | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
-| multipart_duplicate_field_names_gap | `tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml` | imported | 2026-06-07 | 2 | ARGS_NAMES | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
+| files_names_mixed_case_filename_gap | `tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml` | imported | 2026-06-07 | 2 | MULTIPART_FILENAME | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
+| multipart_duplicate_field_names_gap | `tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml` | imported | 2026-06-07 | 2 | FILES_NAMES | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | multipart_empty_filename_connector_gap | `tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml` | imported | 2026-06-07 | 2 | MULTIPART_FILENAME | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | multipart_encoded_filename_runtime_difference | `tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml` | imported | 2026-06-07 | 2 | MULTIPART_FILENAME | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | multipart_invalid_boundary_future_target | `tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml` | imported | 2026-06-07 | 2 | REQUEST_BODY | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |

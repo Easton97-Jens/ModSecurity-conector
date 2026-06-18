@@ -32,49 +32,49 @@
     "root_cause": "with-crs variants contain unrelated CRS audit entries while the nolog/pass rule is absent from audit, error, and decision logs",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-17T21:56:26Z",
+  "generated_at": "2026-06-18T11:25:49Z",
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T21:56:26Z",
+    "generated_at": "2026-06-18T11:25:49Z",
     "generated_by": "ci/generate-nolog-audit-evidence-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "3e140a8e561dc71ffe22338da0818c2554f5f25f7e6e17a4746a2ba7bc0a3daf",
-        "source_hash": "3e140a8e561dc71ffe22338da0818c2554f5f25f7e6e17a4746a2ba7bc0a3daf",
+        "sha256": "44307289f94c075109e3317c8c7796f5455d2028c8e9d523866eb40e96eb2bcc",
+        "source_hash": "44307289f94c075109e3317c8c7796f5455d2028c8e9d523866eb40e96eb2bcc",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512",
-        "source_hash": "5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512",
+        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "b2b936769522f31fea0714ea959bd5fbf624f615ab978b76f176375f3d602db2",
-        "source_hash": "b2b936769522f31fea0714ea959bd5fbf624f615ab978b76f176375f3d602db2",
+        "sha256": "5aadf47046d89054c5d56ff2b8e3cd86640018bedff5776543e96f2f819b38ae",
+        "source_hash": "5aadf47046d89054c5d56ff2b8e3cd86640018bedff5776543e96f2f819b38ae",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -394,7 +394,7 @@
       "actual_evidence": "audit log contains unrelated rule(s): 920350",
       "actual_status": 200,
       "audit_log_path": "<runtime-artifact>/audit.log",
-      "audit_log_size": 1021,
+      "audit_log_size": 1019,
       "audit_rule_ids": [
         "920350"
       ],
@@ -696,8 +696,8 @@
   "summary": {
     "audit_log_evidence_after": 0,
     "audit_log_evidence_before": 6,
-    "classification_only_after": 609,
-    "classification_only_before": 603,
+    "classification_only_after": 597,
+    "classification_only_before": 591,
     "connectors": [
       "apache",
       "haproxy",

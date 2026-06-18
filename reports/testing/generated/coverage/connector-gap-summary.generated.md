@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T17:04:24Z`
+> Generated at: `2026-06-18T07:05:45Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # Generated Connector Gap Summary

@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T21:56:10Z`
+> Generated at: `2026-06-18T11:25:31Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-system-environment-proof.py`
 > Make target: `generate-system-environment-proof`
 > Owner: `system`
 > Severity: `critical`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # System Environment Proof
@@ -179,17 +179,17 @@
 
 | Command | Status | Return Code | Duration | Notes |
 |---|---|---:|---:|---|
-| `make refresh-connector-reports` | PASS | 0 | 84.312 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
-| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.394 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make lint` | PASS | 0 | 5.202 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make quick-check` | PASS | 0 | 6.137 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `git status --short` | PASS | 0 | 0.032 |  M report |
+| `make refresh-connector-reports` | PASS | 0 | 80.806 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
+| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.428 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `make lint` | PASS | 0 | 5.239 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `make quick-check` | PASS | 0 | 6.112 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `git status --short` | PASS | 0 | 0.035 |  M rep |
 
 ## Report Layout Evidence
 
 | Metric | Value |
 |---|---|
-| Generated report files | 72 |
+| Generated report files | 74 |
 | Flat files in generated root | 0 |
 | Categories | 8 (cache, canonical, coverage, focused-analysis, manifest, mrts-native, runtime, work-queues) |
 | Missing registry outputs | 0 |
@@ -207,14 +207,14 @@
 
 | Command | Status | Return Code | Output Hash |
 |---|---|---:|---|
-| `git_status_short` | PASS | 0 | `28afa0f611be9f062c04c1a95531e1c97ca8ff07e98e401031551b402c781ad3` |
-| `git_head` | PASS | 0 | `ce81251afc1eabacf3bea2ca39d018b61935c64b9321388a7eebea86bf95e1f4` |
+| `git_status_short` | PASS | 0 | `4fa4032f6e5304b610fc897c30dc72b668294e5f6c754e9eb922068cd673f084` |
+| `git_head` | PASS | 0 | `53a8a09badae8490889b24090323205af43344fef5f0cfe0a34ea613a8c4f1db` |
 | `git_branch` | PASS | 0 | `9b3162498c21d7f960877099174ecea13410bd21d12440b2ea8868117fc08ae0` |
-| `git_submodule_status` | PASS | 0 | `f6d4ec9f451d7a0ad644bddec0b6231cc383a0d739785cd3bbd030a322b48828` |
-| `git_diff_stat` | PASS | 0 | `4a705184284116986e5e3669baddf6e3a77e756ee679f3e6c927fd422c3aedcf` |
-| `framework_status_short` | PASS | 0 | `4013deb4b6fd2cbd9bb13da6582a00df809fa862effb87f411e4d6e7b11b0df3` |
-| `framework_head` | PASS | 0 | `609121fa6cca28236e6b3f1d86edccd3ca861148dcc0084197fe3b08da97d8c8` |
-| `framework_diff_stat` | PASS | 0 | `c242083904822cae69713ac60ba4ea8a9013f684897ee18a33ca99e66b459621` |
+| `git_submodule_status` | PASS | 0 | `b75a151ed8f893a6c30453234803454324b53556f1794ae967072ff372421827` |
+| `git_diff_stat` | PASS | 0 | `0b6cea3187c6442d84b371275d29004d902f6c4304a06ed7d03dc98c5a1a280f` |
+| `framework_status_short` | PASS | 0 | `78cd35d5c2318184874e54bd7efe8020e7ea51a6bc81fe21cc61612289c04608` |
+| `framework_head` | PASS | 0 | `7d8ea2c14726f8bedde53455cb70f4abffa1dd980af14ce1628df68bf68dda22` |
+| `framework_diff_stat` | PASS | 0 | `a12d9778b9b2b9f40dfe37e5668a602a6db315893c761c4d079ce7e5b848b609` |
 
 ## Proof Summary
 
@@ -225,15 +225,15 @@ The generated report layout was validated on the system above.
 - `make quick-check`: PASS
 - `git status --short`: PASS
 - Flat generated root files: 0
-- Categorized generated report files: 72
+- Categorized generated report files: 74
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `61d57254fa80369bc4ea3a06b41d6128273b56613bfeef74c4b45b771e42a886` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `07d223879799a8ef18fa7bc4d755ead0bdb8da8fb735f3b40b1569e57bb13e17` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `7b3ba73b236703165cd65f9ec8992c560f4743f346e540540029437979c25363` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `3dac8d16c60399a302d5bef315eb970b67e3203d2cec3f4d9c984b21e03296f3` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `62da18c8edc7e0c5554733cd3541f6dba2b7f0a223115531b66c5ee20b000978` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `e80586d1d046b64eea92983702e8affa4b1a75d646784b0699692e6ec4fd8e45` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

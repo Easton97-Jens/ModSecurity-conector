@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T21:56:30Z`
+> Generated at: `2026-06-18T11:25:52Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-phase-work-queue.py`
 > Make target: `generate-phase-work-queue`
 > Owner: `framework`
 > Severity: `important`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # Phase-Oriented MRTS Work Queue
@@ -16,19 +16,19 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-17T21:56:30Z`
+- Generated at: `2026-06-18T11:25:52Z`
 - Runtime evidence rows analyzed: **3928**
-- Queued work rows: **1564**
-- Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **776** / **0** / **48**
+- Queued work rows: **1552**
+- Runtime FAIL/BLOCKED/NOT_EXECUTABLE: **760** / **0** / **48**
 - Unknown-phase runtime rows: **24**
 - Recommended order: Phase 1 intervention/blocking, Phase 2 ARGS/ARGS_NAMES, Phase 2 JSON/body, Phase 2 XML/multipart/FILES, Phase 3 headers, Phase 4 response body non-promoted.
 
 | phase | coverage cases | runtime rows | PASS/FAIL/BLOCKED/NOT_EXECUTABLE | active/imported/pending | main work direction |
 |---|---|---|---|---|---|
 | 1 | 36 | 826 | PASS:623, FAIL:191, NOT_EXECUTABLE:12 | active:2, imported:34 | classification_only(164) |
-| 2 | 74 | 1478 | PASS:1057, FAIL:409, NOT_EXECUTABLE:12 | active:5, imported:69 | classification_only(385) |
+| 2 | 74 | 1478 | PASS:1069, FAIL:397, NOT_EXECUTABLE:12 | active:5, imported:69 | classification_only(373) |
 | 3 | 12 | 756 | PASS:684, FAIL:60, NOT_EXECUTABLE:12 | active:1, imported:11 | response_header_mrts_detection_only(60) |
-| 4 | 20 | 844 | PASS:716, FAIL:116, NOT_EXECUTABLE:12 | imported:20 | response_body_non_promoted(844) |
+| 4 | 20 | 844 | PASS:720, FAIL:112, NOT_EXECUTABLE:12 | imported:20 | response_body_non_promoted(844) |
 
 ## Phase 1 Work Queue
 - Focus: action/intervention, request headers, request URI, cookies, and early blocking
@@ -68,8 +68,8 @@ Generated file - do not edit manually.
 - Focus: ARGS, ARGS_NAMES, REQUEST_BODY, JSON, XML, Multipart/FILES, operators, and transformations
 - Directions: intervention_blocking, request_body_processor, json_processor, xml_processor, multipart_files, operator_semantics, transformation_semantics, request_routing
 - Goal: Treat Phase 2 as the largest coverage lever, but split body/XML/multipart work into separate clusters.
-- Top failure patterns: expected_block_got_200(409), not_executable(12)
-- Top work directions: classification_only(385), collection_semantics(12), json_processor(12), multipart_files(6), transformation_semantics(6)
+- Top failure patterns: expected_block_got_200(397), not_executable(12)
+- Top work directions: classification_only(373), collection_semantics(12), json_processor(12), multipart_files(6), transformation_semantics(6)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P0 | apache | no-crs/no-mrts | files_empty_part_future_compatibility | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | multipart_files | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json |
@@ -102,9 +102,9 @@ Generated file - do not edit manually.
 
 #### Phase 2 / ARGS and ARGS_NAMES
 - Runtime rows: **1232**
-- Queued rows: **409**
-- Runtime status: PASS:823, FAIL:397, NOT_EXECUTABLE:12
-- Top work directions: classification_only(373), collection_semantics(12), json_processor(12), multipart_files(6), transformation_semantics(6)
+- Queued rows: **397**
+- Runtime status: PASS:835, FAIL:385, NOT_EXECUTABLE:12
+- Top work directions: classification_only(361), collection_semantics(12), json_processor(12), multipart_files(6), transformation_semantics(6)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P0 | apache | no-crs/no-mrts | files_empty_part_future_compatibility | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | multipart_files | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json |
@@ -171,9 +171,9 @@ Generated file - do not edit manually.
 
 #### Phase 2 / Multipart and FILES
 - Runtime rows: **156**
-- Queued rows: **84**
-- Runtime status: PASS:72, FAIL:84
-- Top work directions: classification_only(78), multipart_files(6)
+- Queued rows: **72**
+- Runtime status: PASS:84, FAIL:72
+- Top work directions: classification_only(66), multipart_files(6)
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | P0 | apache | no-crs/no-mrts | files_empty_part_future_compatibility | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | multipart_files | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json |
@@ -184,13 +184,13 @@ Generated file - do not edit manually.
 | P0 | nginx | with-crs/no-mrts | files_empty_part_future_compatibility | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | multipart_files | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/files_empty_part_future_compatibility/result.json |
 | report_only | apache | no-crs/with-mrts | files_empty_part_future_compatibility | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json |
 | report_only | apache | with-crs/with-mrts | files_empty_part_future_compatibility | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/files_empty_part_future_compatibility/result.json |
-| report_only | apache | no-crs/no-mrts | files_names_mixed_case_filename_gap | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json |
 | report_only | apache | no-crs/with-mrts | files_names_mixed_case_filename_gap | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json |
-| report_only | apache | with-crs/no-mrts | files_names_mixed_case_filename_gap | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json |
 | report_only | apache | with-crs/with-mrts | files_names_mixed_case_filename_gap | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json |
 | report_only | apache | no-crs/with-mrts | multipart_basic_block | INTERVENTION, ARGS, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_basic_block/result.json |
 | report_only | apache | with-crs/with-mrts | multipart_basic_block | INTERVENTION, ARGS, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/multipart_basic_block/result.json |
-| report_only | apache | no-crs/no-mrts | multipart_duplicate_field_names_gap | INTERVENTION, ARGS, ARGS_NAMES, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json |
+| report_only | apache | no-crs/with-mrts | multipart_duplicate_field_names_gap | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json |
+| report_only | apache | with-crs/with-mrts | multipart_duplicate_field_names_gap | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json |
+| report_only | apache | no-crs/with-mrts | multipart_empty_filename_connector_gap | INTERVENTION, FILES, REQUEST_BODY | FAIL | 403 | 200 | expected_block_got_200 | classification_only | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_empty_filename_connector_gap/result.json |
 
 #### Phase 2 / Operators
 - Runtime rows: **750**
@@ -276,7 +276,7 @@ Generated file - do not edit manually.
 - Focus: RESPONSE_BODY, bounded phase 4 execution, strict abort behavior, and phase 4 logs
 - Directions: response_body_non_promoted
 - Goal: Keep Phase 4 visible but non-promoted unless real runtime evidence and project policy allow promotion.
-- Top failure patterns: expected_block_got_200(110), not_executable(12), expected_pass_but_evidence_missing(6)
+- Top failure patterns: expected_block_got_200(106), not_executable(12), expected_pass_but_evidence_missing(6)
 - Top work directions: response_body_non_promoted(844)
 - Promotion policy: Phase 4 / RESPONSE_BODY remains visible but non-promoted; queued rows default to P3.
 | priority | connector | variant | case | variable/collection | runtime | expected | actual | failure | work_direction | reason | evidence |
@@ -310,9 +310,9 @@ Generated file - do not edit manually.
 ## Per Connector Phase Summary
 | connector | phase 1 top problems | phase 2 top problems | phase 3 top problems | phase 4 non-promoted rows | next sensible fix |
 |---|---|---|---|---|---|
-| apache | classification_only(54), collection_semantics(6), request_uri_mapping(4) | classification_only(127), collection_semantics(4), json_processor(4) | response_header_mrts_detection_only(20), response_header_hook(4) | 276 | Start with response_body_non_promoted. |
-| nginx | classification_only(56), collection_semantics(6), request_uri_mapping(4) | classification_only(131), collection_semantics(4), json_processor(4) | response_header_mrts_detection_only(20), response_header_hook(4) | 292 | Start with response_body_non_promoted. |
-| haproxy | classification_only(54), collection_semantics(6), request_uri_mapping(4) | classification_only(127), collection_semantics(4), json_processor(4) | response_header_mrts_detection_only(20), response_header_hook(4) | 276 | Start with response_body_non_promoted. |
+| apache | classification_only(54), collection_semantics(6), request_uri_mapping(4) | classification_only(123), collection_semantics(4), json_processor(4) | response_header_mrts_detection_only(20), response_header_hook(4) | 276 | Start with response_body_non_promoted. |
+| nginx | classification_only(56), collection_semantics(6), request_uri_mapping(4) | classification_only(127), collection_semantics(4), json_processor(4) | response_header_mrts_detection_only(20), response_header_hook(4) | 292 | Start with response_body_non_promoted. |
+| haproxy | classification_only(54), collection_semantics(6), request_uri_mapping(4) | classification_only(123), collection_semantics(4), json_processor(4) | response_header_mrts_detection_only(20), response_header_hook(4) | 276 | Start with response_body_non_promoted. |
 
 ## Recommended Work Order
 1. Phase 1 - intervention/blocking
@@ -347,9 +347,9 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `b2b936769522f31fea0714ea959bd5fbf624f615ab978b76f176375f3d602db2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `5aadf47046d89054c5d56ff2b8e3cd86640018bedff5776543e96f2f819b38ae` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
@@ -363,6 +363,6 @@ Generated file - do not edit manually.
 ## Phase 4 Hard Abort Capability
 - Report: `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md`
 - Hard-abort evidence rows: **0**
-- Full-delivery-without-abort rows: **838**
+- Full-delivery-without-abort rows: **836**
 - Phase 4 PASS promotion now requires intervention log evidence plus transport abort evidence, not HTTP status alone.
 <!-- phase4-hard-abort:end -->

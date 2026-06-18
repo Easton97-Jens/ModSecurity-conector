@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T21:56:23Z`
+> Generated at: `2026-06-18T11:25:45Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-connector-work-queue.py`
 > Make target: `generate-work-queue`
 > Owner: `framework`
 > Severity: `important`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # Connector Work Queue
@@ -16,55 +16,55 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-17T21:56:23Z`
+- Generated at: `2026-06-18T11:25:45Z`
 - Total runtime cases analyzed: **3928**
-- Total failures: **776**
-- P0/P1/P2/P3: **6** / **0** / **60** / **215**
+- Total failures: **760**
+- P0/P1/P2/P3: **6** / **0** / **60** / **211**
 - Source inventory split: framework-owned(141), MRTS imported(383), feature-demo report-only(16), golden-only(0)
 - Runtime source split: framework-owned(1630), MRTS imported(2298), feature-demo report-only(0), golden-only(0), runtime-job(0)
 
 ## Per Connector Summary
 ### apache
-- Top failure patterns: expected_block_got_200(244), not_executable(16), expected_pass_but_evidence_missing(2)
-- Top functional areas: action_intervention(258), args(95), request_body_urlencoded(73), transformations(44), audit_log(38)
-- Top work directions: classification_only(181), response_body_non_promoted(32), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
-- Recommended next work: classification_only(181)
+- Top failure patterns: expected_block_got_200(238), not_executable(16), expected_pass_but_evidence_missing(2)
+- Top functional areas: action_intervention(252), args(91), request_body_urlencoded(69), transformations(44), audit_log(36)
+- Top work directions: classification_only(177), response_body_non_promoted(30), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
+- Recommended next work: classification_only(177)
 
 ### nginx
-- Top failure patterns: expected_block_got_200(276), not_executable(16), expected_pass_but_evidence_missing(8)
-- Top functional areas: action_intervention(290), args(101), request_body_urlencoded(73), response_body(64), audit_log(50)
-- Top work directions: classification_only(187), response_body_non_promoted(64), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
-- Recommended next work: classification_only(187)
+- Top failure patterns: expected_block_got_200(272), not_executable(16), expected_pass_but_evidence_missing(8)
+- Top functional areas: action_intervention(286), args(97), request_body_urlencoded(69), response_body(64), audit_log(50)
+- Top work directions: classification_only(183), response_body_non_promoted(64), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
+- Recommended next work: classification_only(183)
 
 ### haproxy
-- Top failure patterns: expected_block_got_200(244), not_executable(16), expected_pass_but_evidence_missing(2)
-- Top functional areas: action_intervention(258), args(95), request_body_urlencoded(73), transformations(44), audit_log(38)
-- Top work directions: classification_only(181), response_body_non_promoted(32), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
-- Recommended next work: classification_only(181)
+- Top failure patterns: expected_block_got_200(238), not_executable(16), expected_pass_but_evidence_missing(2)
+- Top functional areas: action_intervention(252), args(91), request_body_urlencoded(69), transformations(44), audit_log(36)
+- Top work directions: classification_only(177), response_body_non_promoted(30), response_header_mrts_detection_only(20), harness_incompatibility(12), collection_semantics(10)
+- Recommended next work: classification_only(177)
 
 ## Cross-Connector Comparison
 - all_connectors_fail: **108** - action_deny_phase1, action_deny_phase2, action_status_401_phase1_block, audit_log_empty_sections_future_target, audit_log_matched_var_encoded_value, audit_log_message_presence_connector_gap, audit_log_multiline_message_normalization, audit_log_phase1_block, audit_log_rule_id_presence_runtime_difference, collection_args_combined_size_block
 - apache_only_fail: **0**
-- nginx_only_fail: **19** - nginx_phase4_content_type_out_of_scope, nginx_phase4_minimal_log_only, nginx_phase4_safe_log_only, nginx_phase4_strict_connection_abort, nginx_redirect_phase1_302, nginx_tx_scoring_absolute_block, nginx_tx_scoring_iterative_block, phase4_auditlog_outbound_escaped_value_gap, phase4_auditlog_outbound_matched_var_future, phase4_auditlog_outbound_message_connector_gap
+- nginx_only_fail: **20** - nginx_phase4_content_type_out_of_scope, nginx_phase4_minimal_log_only, nginx_phase4_safe_log_only, nginx_phase4_strict_connection_abort, nginx_redirect_phase1_302, nginx_tx_scoring_absolute_block, nginx_tx_scoring_iterative_block, phase4_auditlog_outbound_escaped_value_gap, phase4_auditlog_outbound_matched_var_future, phase4_auditlog_outbound_message_connector_gap
 - haproxy_only_fail: **0**
-- different_actual_statuses: **12** - phase4_auditlog_outbound_escaped_value_gap, phase4_auditlog_outbound_matched_var_future, phase4_auditlog_outbound_message_connector_gap, phase4_auditlog_outbound_rule_id_runtime_difference, phase4_response_body_buffering_order_future_target, phase4_response_body_chunk_assumption_connector_gap, phase4_response_body_compressed_assumption_experimental, phase4_response_body_html_entity_decode_gap, phase4_response_body_html_text_normalization_probe, phase4_response_body_unicode_runtime_difference
+- different_actual_statuses: **13** - phase4_auditlog_outbound_escaped_value_gap, phase4_auditlog_outbound_matched_var_future, phase4_auditlog_outbound_message_connector_gap, phase4_auditlog_outbound_multiline_section_gap, phase4_auditlog_outbound_rule_id_runtime_difference, phase4_response_body_buffering_order_future_target, phase4_response_body_chunk_assumption_connector_gap, phase4_response_body_compressed_assumption_experimental, phase4_response_body_html_entity_decode_gap, phase4_response_body_html_text_normalization_probe
 
 ## Work Direction Summary
 | work_direction | apache | nginx | haproxy | total |
 |---|---|---|---|---|
-| classification_only | 181 | 187 | 181 | 549 |
+| classification_only | 177 | 183 | 177 | 537 |
 | collection_semantics | 10 | 10 | 10 | 30 |
 | harness_incompatibility | 12 | 12 | 12 | 36 |
 | intervention_blocking | 2 | 2 | 2 | 6 |
 | request_body_processor | 1 | 1 | 1 | 3 |
-| response_body_non_promoted | 32 | 64 | 32 | 128 |
+| response_body_non_promoted | 30 | 64 | 30 | 124 |
 | response_header_mrts_detection_only | 20 | 20 | 20 | 60 |
 | transformation_semantics | 4 | 4 | 4 | 12 |
 
 ## Failure Pattern Summary
 | failure_pattern | apache | nginx | haproxy | total |
 |---|---|---|---|---|
-| expected_block_got_200 | 244 | 276 | 244 | 764 |
+| expected_block_got_200 | 238 | 272 | 238 | 748 |
 | expected_pass_but_evidence_missing | 2 | 8 | 2 | 12 |
 | not_executable | 16 | 16 | 16 | 48 |
 
@@ -158,9 +158,7 @@ Generated file - do not edit manually.
 | P3 | apache | with-crs | with-mrts | phase4_auditlog_outbound_matched_var_future | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_matched_var_future/result.json |
 | P3 | apache | no-crs | with-mrts | phase4_auditlog_outbound_message_connector_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_message_connector_gap/result.json |
 | P3 | apache | with-crs | with-mrts | phase4_auditlog_outbound_message_connector_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_message_connector_gap/result.json |
-| P3 | apache | no-crs | no-mrts | phase4_auditlog_outbound_multiline_section_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json |
 | P3 | apache | no-crs | with-mrts | phase4_auditlog_outbound_multiline_section_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json |
-| P3 | apache | with-crs | no-mrts | phase4_auditlog_outbound_multiline_section_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json |
 | P3 | apache | with-crs | with-mrts | phase4_auditlog_outbound_multiline_section_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json |
 | P3 | apache | no-crs | with-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_rule_id_runtime_difference/result.json |
 | P3 | apache | with-crs | with-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_rule_id_runtime_difference/result.json |
@@ -219,9 +217,7 @@ Generated file - do not edit manually.
 | P3 | haproxy | with-crs | with-mrts | phase4_auditlog_outbound_matched_var_future | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_matched_var_future/result.json |
 | P3 | haproxy | no-crs | with-mrts | phase4_auditlog_outbound_message_connector_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_message_connector_gap/result.json |
 | P3 | haproxy | with-crs | with-mrts | phase4_auditlog_outbound_message_connector_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_message_connector_gap/result.json |
-| P3 | haproxy | no-crs | no-mrts | phase4_auditlog_outbound_multiline_section_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json |
 | P3 | haproxy | no-crs | with-mrts | phase4_auditlog_outbound_multiline_section_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json |
-| P3 | haproxy | with-crs | no-mrts | phase4_auditlog_outbound_multiline_section_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json |
 | P3 | haproxy | with-crs | with-mrts | phase4_auditlog_outbound_multiline_section_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json |
 | P3 | haproxy | no-crs | with-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_rule_id_runtime_difference/result.json |
 | P3 | haproxy | with-crs | with-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_rule_id_runtime_difference/result.json |
@@ -271,6 +267,10 @@ Generated file - do not edit manually.
 | P3 | nginx | with-crs | with-mrts | json_empty_body_future_compatibility | action_intervention, request_body_json, request_body_urlencoded | not_executable | pending | harness_incompatibility | not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/json_empty_body_future_compatibility/configtest.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/json_empty_body_future_compatibility/result.json |
 | P3 | nginx | no-crs | with-mrts | nginx_phase4_content_type_out_of_scope | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_content_type_out_of_scope/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_content_type_out_of_scope/result.json |
 | P3 | nginx | with-crs | with-mrts | nginx_phase4_content_type_out_of_scope | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_content_type_out_of_scope/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_content_type_out_of_scope/result.json |
+| P3 | nginx | no-crs | with-mrts | nginx_phase4_minimal_log_only | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_minimal_log_only/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_minimal_log_only/result.json |
+| P3 | nginx | with-crs | with-mrts | nginx_phase4_minimal_log_only | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_minimal_log_only/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_minimal_log_only/result.json |
+| P3 | nginx | no-crs | with-mrts | nginx_phase4_safe_log_only | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_safe_log_only/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_safe_log_only/result.json |
+| P3 | nginx | with-crs | with-mrts | nginx_phase4_safe_log_only | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_safe_log_only/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_safe_log_only/result.json |
 
 ## MRTS-only Section
 | connector | attempted | pass | fail | blocked | top work directions |
@@ -293,7 +293,7 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

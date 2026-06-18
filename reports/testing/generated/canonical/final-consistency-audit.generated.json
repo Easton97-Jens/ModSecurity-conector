@@ -3,7 +3,7 @@
     "active_runtime_fixable_clusters": [
       "multipart_files"
     ],
-    "capability_evidence_pending_rows": 68,
+    "capability_evidence_pending_rows": 66,
     "categories": [
       {
         "category": "with_mrts_detection_only_non_disruptive",
@@ -24,7 +24,7 @@
           "apache",
           "nginx"
         ],
-        "count": 68,
+        "count": 66,
         "disposition": "capability_evidence_pending",
         "fixable": "fixable only through real strict abort/log evidence, not status-only changes",
         "recommended_next_step": "add real Phase 4 intervention log plus connection-abort evidence before promotion",
@@ -50,7 +50,7 @@
           "haproxy",
           "nginx"
         ],
-        "count": 42,
+        "count": 40,
         "disposition": "connector_gap",
         "fixable": "connector capability gap unless a real abort mechanism is implemented and evidenced",
         "recommended_next_step": "document connector gap unless implementation can prove a real hard abort",
@@ -81,19 +81,6 @@
         "fixable": "classification-only; XML body exists but the fixture does not enable the XML request body processor",
         "recommended_next_step": "keep XML processor activation-missing rows report-only; do not change rules or Expected statuses",
         "risk": "low if kept report-only; high if treated as connector runtime evidence"
-      },
-      {
-        "category": "multipart_processor_activation_missing",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 12,
-        "disposition": "report_only",
-        "fixable": "classification-only; multipart body and boundary exist but the fixture does not enable request body access before expecting FILES/ARGS_NAMES collections",
-        "recommended_next_step": "keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses",
-        "risk": "low if kept report-only; high if treated as connector multipart runtime evidence"
       },
       {
         "category": "transformation_semantics",
@@ -159,15 +146,15 @@
         "risk": "unknown"
       }
     ],
-    "connector_gap_rows": 45,
-    "report_only_rows": 615,
+    "connector_gap_rows": 43,
+    "report_only_rows": 603,
     "semantic_pending_rows": 42
   },
   "clusters_no_longer_next": {
     "not_next": [
       {
         "cluster": "phase4_hard_abort_capability",
-        "count": 116,
+        "count": 112,
         "reason": "requires transport-abort proof plus Phase 4 intervention logs; do not solve with Expected/PASS changes"
       },
       {
@@ -197,7 +184,7 @@
       },
       {
         "cluster": "multipart_processor_activation_missing",
-        "count": 12,
+        "count": 0,
         "reason": "classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections"
       },
       {
@@ -220,7 +207,7 @@
       {
         "cluster_name": "phase4_hard_abort_capability",
         "connector": "apache, nginx, haproxy",
-        "count": 116,
+        "count": 112,
         "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
         "risk": "high if promoted prematurely or faked",
         "tests": [
@@ -246,85 +233,85 @@
   },
   "freshness": [
     {
-      "generated_at": "2026-06-17T21:56:12Z",
+      "generated_at": "2026-06-18T11:25:34Z",
       "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-17T21:56:23Z",
+      "generated_at": "2026-06-18T11:25:45Z",
       "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-17T21:56:30Z",
+      "generated_at": "2026-06-18T11:25:52Z",
       "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-17T21:56:41Z",
+      "generated_at": "2026-06-18T11:26:02Z",
       "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
       "present": true,
       "report_kind": "remaining-full-matrix-failure-analysis"
     },
     {
-      "generated_at": "2026-06-17T21:56:41Z",
+      "generated_at": "2026-06-18T11:26:02Z",
       "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
       "present": true,
       "report_kind": "next-fix-plan"
     },
     {
-      "generated_at": "2026-06-17T21:56:56Z",
+      "generated_at": "2026-06-18T11:26:17Z",
       "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
       "present": true,
       "report_kind": "full-run-evidence"
     },
     {
-      "generated_at": "2026-06-17T21:56:25Z",
+      "generated_at": "2026-06-18T11:25:47Z",
       "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
       "present": true,
       "report_kind": "native-mrts-summary"
     },
     {
-      "generated_at": "2026-06-17T21:56:37Z",
+      "generated_at": "2026-06-18T11:25:58Z",
       "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
       "present": true,
       "report_kind": "phase4-hard-abort-capability"
     },
     {
-      "generated_at": "2026-06-17T21:56:26Z",
+      "generated_at": "2026-06-18T11:25:49Z",
       "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
       "present": true,
       "report_kind": "nolog-audit-evidence-analysis"
     },
     {
-      "generated_at": "2026-06-17T21:56:30Z",
+      "generated_at": "2026-06-18T11:25:52Z",
       "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
       "present": true,
       "report_kind": "response-header-hook-analysis"
     },
     {
-      "generated_at": "2026-06-17T21:57:17Z",
+      "generated_at": "2026-06-18T11:26:35Z",
       "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
       "present": true,
       "report_kind": "body-processor-analysis"
     },
     {
-      "generated_at": "2026-06-17T21:57:04Z",
+      "generated_at": "2026-06-18T11:26:24Z",
       "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
       "present": true,
       "report_kind": "intervention-blocking-analysis"
     },
     {
-      "generated_at": "2026-06-17T21:57:05Z",
+      "generated_at": "2026-06-18T11:26:25Z",
       "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
       "present": true,
       "report_kind": "no-mrts-intervention-nomatch-analysis"
     },
     {
-      "generated_at": "2026-06-17T21:57:18Z",
+      "generated_at": "2026-06-18T11:26:36Z",
       "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
       "present": true,
       "report_kind": "rule-chain-semantics-analysis"
@@ -333,17 +320,17 @@
   "full_matrix_summary": {
     "attempted": 3928,
     "blocked": 0,
-    "fail": 776,
+    "fail": 760,
     "not_executable": 48,
-    "pass": 3104,
+    "pass": 3120,
     "pending": 2298
   },
-  "generated_at": "2026-06-17T21:57:19Z",
+  "generated_at": "2026-06-18T11:26:37Z",
   "git_snapshot": {
-    "connector_head": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-    "framework_head": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+    "connector_head": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "framework_head": "9e2c82b829036d28f54459814773b92c801b6e24",
     "submodules": [
-      "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67 modules/ModSecurity-test-Framework (heads/master)",
+      "9e2c82b829036d28f54459814773b92c801b6e24 modules/ModSecurity-test-Framework (heads/master)",
       " 13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main)"
     ]
   },
@@ -360,75 +347,75 @@
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
     "data_kind": "evidence",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T21:57:19Z",
+    "generated_at": "2026-06-18T11:26:37Z",
     "generated_by": "ci/generate-final-consistency-audit.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512",
-        "source_hash": "5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512",
+        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2",
-        "source_hash": "5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2",
+        "sha256": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
+        "source_hash": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "2316fe5b7e70ff986d2616f0528e208983f6a5dd4b2671bf443f865c6ffbf26f",
-        "source_hash": "2316fe5b7e70ff986d2616f0528e208983f6a5dd4b2671bf443f865c6ffbf26f",
+        "sha256": "5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569",
+        "source_hash": "5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "b237c0433ef2a2d0bf1e4d2bb778d6f7f0501feadebbd3337c99a63d0fe2dd61",
-        "source_hash": "b237c0433ef2a2d0bf1e4d2bb778d6f7f0501feadebbd3337c99a63d0fe2dd61",
+        "sha256": "08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4",
+        "source_hash": "08e4aec8662e658fc14a44732bbedcdbb1ea401fb075cff0dd22cb3d94d0a0a4",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "bf94318ee4981b80cb2d08e43a02a93a0ff4e20ddf22c88e8b79766ac4bb71f7",
-        "source_hash": "bf94318ee4981b80cb2d08e43a02a93a0ff4e20ddf22c88e8b79766ac4bb71f7",
+        "sha256": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
+        "source_hash": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "15213b816bf77652e20b9699c24773958abed3cfddca3e4e21c02e73296e8f5e",
-        "source_hash": "15213b816bf77652e20b9699c24773958abed3cfddca3e4e21c02e73296e8f5e",
+        "sha256": "8199f2813c853163a3eddd848421bb327eacf6d75cc1a9e032d1943f5a2112fb",
+        "source_hash": "8199f2813c853163a3eddd848421bb327eacf6d75cc1a9e032d1943f5a2112fb",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -494,20 +481,20 @@
     "queue_totals_non_pass": {
       "P0": 6,
       "P2": 60,
-      "P3": 215,
-      "report_only": 543
+      "P3": 211,
+      "report_only": 531
     },
     "recomputed_failures": {
       "P0": 6,
       "P2": 60,
-      "P3": 167,
-      "report_only": 543
+      "P3": 163,
+      "report_only": 531
     },
     "recomputed_non_pass": {
       "P0": 6,
       "P2": 60,
-      "P3": 215,
-      "report_only": 543
+      "P3": 211,
+      "report_only": 531
     }
   },
   "recommended_next_fix_cluster": {
@@ -533,18 +520,18 @@
   "remaining_known_gaps": {
     "collection_name_normalization_semantics": 30,
     "connector_gap": 3,
-    "phase4_connector_gap": 42,
-    "phase4_missing_abort_evidence": 68,
+    "phase4_connector_gap": 40,
+    "phase4_missing_abort_evidence": 66,
     "transformation_semantics": 12
   },
   "remaining_summary": {
     "attempted": 3928,
     "blocked": 0,
-    "fail": 776,
+    "fail": 760,
     "mrt_imported_failures": 0,
-    "non_mrts_framework_failures": 776,
+    "non_mrts_framework_failures": 760,
     "not_executable": 48,
-    "pass": 3104,
+    "pass": 3120,
     "pending": 2298,
     "unique_failure_cases": 115
   },

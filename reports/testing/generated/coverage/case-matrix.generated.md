@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T17:04:23Z`
+> Generated at: `2026-06-18T07:15:57Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -41,9 +41,9 @@
 | request_body_json_block | `tests/cases/body/json/request_body_json_block.yaml` | common | 2 | REQUEST_BODY | @contains | - | active | - | active | - | false | no | - |
 | request_body_json_invalid_runtime_difference | `tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml` | common | 2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
 | files_empty_part_future_compatibility | `tests/cases/body/multipart/files_empty_part_future_compatibility.yaml` | common | 2 | FILES | @rx | - | imported | - | active | - | unknown | no | - |
-| files_names_mixed_case_filename_gap | `tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml` | common | 2 | FILES_NAMES | @contains | - | imported | - | active | - | unknown | no | - |
+| files_names_mixed_case_filename_gap | `tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml` | common | 2 | MULTIPART_FILENAME | @contains | - | imported | - | active | - | unknown | no | - |
 | multipart_basic_block | `tests/cases/body/multipart/multipart_basic_block.yaml` | common | 2 | ARGS:name | @streq | - | imported | - | active | - | unknown | no | - |
-| multipart_duplicate_field_names_gap | `tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml` | common | 2 | ARGS_NAMES | @contains | - | imported | - | active | - | unknown | no | - |
+| multipart_duplicate_field_names_gap | `tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml` | common | 2 | FILES_NAMES | @contains | - | imported | - | active | - | unknown | no | - |
 | multipart_empty_filename_connector_gap | `tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml` | common | 2 | MULTIPART_FILENAME | @rx | - | imported | - | active | - | unknown | no | - |
 | multipart_encoded_filename_runtime_difference | `tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml` | common | 2 | MULTIPART_FILENAME | @contains | - | imported | - | active | - | unknown | no | - |
 | multipart_filename_block | `tests/cases/body/multipart/multipart_filename_block.yaml` | common | 2 | MULTIPART_FILENAME | @contains | - | imported | - | active | - | unknown | no | - |
@@ -110,7 +110,7 @@
 | phase4_auditlog_outbound_escaped_value_gap | `tests/cases/response/body/phase4_auditlog_outbound_escaped_value_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_auditlog_outbound_matched_var_future | `tests/cases/response/body/phase4_auditlog_outbound_matched_var_future.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_auditlog_outbound_message_connector_gap | `tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
-| phase4_auditlog_outbound_multiline_section_gap | `tests/cases/response/body/phase4_auditlog_outbound_multiline_section_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
+| phase4_auditlog_outbound_multiline_section_gap | `tests/cases/response/body/phase4_auditlog_outbound_multiline_section_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | compressWhitespace | imported | - | active | - | unknown | yes | - |
 | phase4_auditlog_outbound_rule_id_runtime_difference | `tests/cases/response/body/phase4_auditlog_outbound_rule_id_runtime_difference.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_response_body_buffering_order_future_target | `tests/cases/response/body/phase4_response_body_buffering_order_future_target.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_response_body_chunk_assumption_connector_gap | `tests/cases/response/body/phase4_response_body_chunk_assumption_connector_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |

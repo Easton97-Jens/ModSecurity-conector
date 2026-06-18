@@ -10,19 +10,21 @@
     "runtime_matrix_results": "/var/tmp/ModSecurity-conector-verified/build/results"
   },
   "by_classification": {
-    "connector_capability_gap": 63,
-    "expected_status_mismatch": 51,
+    "connector_capability_gap": 51,
+    "expected_status_mismatch": 29,
     "known_not_next": 102,
+    "libmodsecurity_collection_name_case_semantics": 24,
     "libmodsecurity_collection_semantics": 24,
-    "runtime_regression": 42,
+    "nolog_expected_no_audit": 6,
+    "runtime_regression": 18,
     "timeout_or_incomplete": 48,
-    "unknown": 12,
-    "with_mrts_detection_only_overlay": 482
+    "unknown": 6,
+    "with_mrts_detection_only_overlay": 500
   },
   "by_connector": {
-    "apache": 262,
-    "haproxy": 262,
-    "nginx": 300
+    "apache": 256,
+    "haproxy": 256,
+    "nginx": 296
   },
   "commands": {
     "full_matrix_classification": "completed_with_mismatches",
@@ -32,7 +34,7 @@
     "full_matrix_job_statuses": [
       {
         "connector": "apache",
-        "duration_seconds": 339,
+        "duration_seconds": 331,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -42,7 +44,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 545,
+        "duration_seconds": 548,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -62,7 +64,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1273,
+        "duration_seconds": 1278,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -72,7 +74,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3194,
+        "duration_seconds": 3224,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -82,7 +84,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1066,
+        "duration_seconds": 1065,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -92,7 +94,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 351,
+        "duration_seconds": 355,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -102,7 +104,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 607,
+        "duration_seconds": 606,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -112,7 +114,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 319,
+        "duration_seconds": 321,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -122,7 +124,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1378,
+        "duration_seconds": 1373,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -142,7 +144,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1195,
+        "duration_seconds": 1198,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -239,7 +241,7 @@
       "timeout_seconds": 1800
     }
   },
-  "critical_mismatch_count": 216,
+  "critical_mismatch_count": 152,
   "data_source_policy": "verified-inputs-only",
   "evidence_scope": "full",
   "full_matrix": {
@@ -252,7 +254,7 @@
     "job_statuses": [
       {
         "connector": "apache",
-        "duration_seconds": 339,
+        "duration_seconds": 331,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -262,7 +264,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 545,
+        "duration_seconds": 548,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -282,7 +284,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1273,
+        "duration_seconds": 1278,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -292,7 +294,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3194,
+        "duration_seconds": 3224,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -302,7 +304,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1066,
+        "duration_seconds": 1065,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -312,7 +314,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 351,
+        "duration_seconds": 355,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -322,7 +324,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 607,
+        "duration_seconds": 606,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -332,7 +334,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 319,
+        "duration_seconds": 321,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -342,7 +344,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1378,
+        "duration_seconds": 1373,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -362,7 +364,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1195,
+        "duration_seconds": 1198,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -382,97 +384,97 @@
     "status": "complete",
     "timeout": false
   },
-  "generated_at": "2026-06-17T21:56:19Z",
+  "generated_at": "2026-06-18T11:25:41Z",
   "inputs": [
     {
       "bytes": 6506,
       "label": "full matrix manifest",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-      "sha256": "3a2f94f7f12ed82c81dd7e1b2430b3e1ca4547c38c72e2c4053fe73ea1aa2486",
+      "sha256": "89dd4b2a57f69cafb826982e23ebe60f3841864b47244b28f57cb0370c2ad1e8",
       "status": "present"
     },
     {
-      "bytes": 358189,
+      "bytes": 358123,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "90e4c57b419ac1fe9c9c151a1a8a565cffbd9e78e0c49941d17659259662af45",
+      "sha256": "5a560102b35aa4b46d3a11f40b1b957dd180d773d3e9d59e3f69843f5ff41234",
       "status": "present"
     },
     {
-      "bytes": 445101,
+      "bytes": 444896,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "52cd4089da4ea71fae255f966670b1af8d903f191d440c78dbe2d6178ea2089d",
+      "sha256": "8e0fd3db3b897df7c2ed3ab2e8248442bd313bbf2bb917adfecf5985c76f226a",
       "status": "present"
     },
     {
-      "bytes": 392154,
+      "bytes": 392108,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "eda5dbbb43047db5f787f7300520e3b1d29a85c3d76772d0cb154d8212aeabe4",
+      "sha256": "e4c38d82198582fc090e13260ec85a840d12e55de361868827f074ccba2073ff",
       "status": "present"
     },
     {
-      "bytes": 1467063,
+      "bytes": 1466979,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "45fda2780640b63bd80b2b1fb3aa43e7a84c6853f030c2cc40a00771b783deef",
+      "sha256": "2010ff376da0a6b9177369f1284d39641d53c2af43374d2a27c6105f77abd96e",
       "status": "present"
     },
     {
-      "bytes": 1792073,
+      "bytes": 1791989,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "554653eeba7144a6b5958614397d32cc50b17cced2e2af1493ac712da48beff2",
+      "sha256": "3a3b2cd472348daf328f07b68096baba2bd8ea1f98faa57da0e9a077ea1e2418",
       "status": "present"
     },
     {
-      "bytes": 1544340,
+      "bytes": 1544256,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "1bf63a6e3c02bae63624eeaa22a6313dafc4798d2d95768dddeef083460d620f",
+      "sha256": "cfd2b4600fb34e882266bcce0ce42b836dffa5b796926f5a0dd3f556d9d3f9d6",
       "status": "present"
     },
     {
-      "bytes": 362597,
+      "bytes": 362535,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "697287a968a256848a874647c6ce213ad643575582f162f2ba1c4e378241ff49",
+      "sha256": "b0d86855b6cdbbda89b651db3ceb78053f6459a5a465c5c0acd86e9281e893d5",
       "status": "present"
     },
     {
-      "bytes": 450544,
+      "bytes": 450343,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "5206ca86343624b2eed5a221ebe791efc3adc658be30bae9a944a31321bbe5d2",
+      "sha256": "fb42088412fc1e434c0e8a735793309e548129f091c73292bc1f3e049d1136c3",
       "status": "present"
     },
     {
-      "bytes": 396790,
+      "bytes": 396744,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "696e3197dcb58c7cec344168a81c6fba699275c2873282053de4f4dcb2f2d014",
+      "sha256": "532d2fd865413caab504418e29352b70180c8ac97be08905f3f4a9fe1c06bb58",
       "status": "present"
     },
     {
-      "bytes": 1476824,
+      "bytes": 1476740,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "36c7fabf7bcd6298a0e65d0794577a31880a918b82a0b52a5cf775c2865e6d1d",
+      "sha256": "2fe2f518627c5c5ead90c290a143d2f7d4af5c65e1de7a6c7343ab1d47699577",
       "status": "present"
     },
     {
-      "bytes": 1804504,
+      "bytes": 1804420,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "b878635a5084b06dccf0d5882b0ad44b6823470891dc11dbfb0b7cf652dc8b4d",
+      "sha256": "a516aef51cce494a692cbe6b2cd159057477724b02083d7d4154a4ba356ae60f",
       "status": "present"
     },
     {
-      "bytes": 1554337,
+      "bytes": 1554253,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "26ce80f14a4682e2de1d9820bb3e9539749ec742f02e35aeafff1ae2f2d5244f",
+      "sha256": "1ef3cbfddf83c854f4fc7feddc008348941d46ffcd84d4753d612a133c82968d",
       "status": "present"
     },
     {
@@ -488,14 +490,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T21:56:19Z",
+    "generated_at": "2026-06-18T11:25:41Z",
     "generated_by": "ci/generate-verified-runtime-mismatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -510,8 +512,8 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-        "sha256": "3a2f94f7f12ed82c81dd7e1b2430b3e1ca4547c38c72e2c4053fe73ea1aa2486",
-        "source_hash": "3a2f94f7f12ed82c81dd7e1b2430b3e1ca4547c38c72e2c4053fe73ea1aa2486",
+        "sha256": "89dd4b2a57f69cafb826982e23ebe60f3841864b47244b28f57cb0370c2ad1e8",
+        "source_hash": "89dd4b2a57f69cafb826982e23ebe60f3841864b47244b28f57cb0370c2ad1e8",
         "status": "present"
       }
     ],
@@ -525,7 +527,7 @@
     "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
-  "mismatch_count": 824,
+  "mismatch_count": 808,
   "mismatches": [
     {
       "actual": "200",
@@ -741,35 +743,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "files_names_mixed_case_filename_gap",
-      "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-FILES_NAMES.json",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "http_status",
       "capabilities": [
         "intervention",
@@ -794,35 +767,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "multipart_duplicate_field_names_gap",
-      "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/misc/00-multipart-parser.t",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -907,34 +851,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "audit-log",
-        "phase4"
-      ],
-      "case": "phase4_auditlog_outbound_multiline_section_gap",
-      "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/auditlog.json",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -1059,10 +975,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -1074,7 +1041,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -1088,10 +1055,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -1103,7 +1121,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -1868,15 +1886,21 @@
       ],
       "case": "files_names_mixed_case_filename_gap",
       "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/files_names_mixed_case_filename_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Uses MULTIPART_FILENAME because FILES_NAMES contains file field names, not uploaded filenames."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -1884,7 +1908,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -2061,15 +2085,22 @@
       ],
       "case": "multipart_duplicate_field_names_gap",
       "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/multipart_duplicate_field_names_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
       "expected": "403",
       "known_limitations": [
         "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Duplicate file field-name parser probe."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -2077,7 +2108,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -2865,14 +2896,20 @@
       ],
       "case": "phase4_auditlog_outbound_multiline_section_gap",
       "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
         "RESPONSE_BODY remains non-verified and non-promoted."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -2881,7 +2918,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -4604,10 +4641,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -4619,7 +4707,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -4706,10 +4794,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -4721,7 +4860,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -5195,35 +5334,6 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "files_names_mixed_case_filename_gap",
-      "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-FILES_NAMES.json",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
       "actual": "http_status",
       "capabilities": [
         "intervention",
@@ -5248,35 +5358,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "multipart_duplicate_field_names_gap",
-      "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/misc/00-multipart-parser.t",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -5332,34 +5413,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "audit-log",
-        "phase4"
-      ],
-      "case": "phase4_auditlog_outbound_multiline_section_gap",
-      "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/auditlog.json",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -5485,10 +5538,30 @@
       ],
       "case": "v3_action_nolog_pass_no_audit",
       "category": "actions",
-      "classification": "unknown",
+      "classification": "nolog_expected_no_audit",
+      "classification_evidence": {
+        "note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
+        "row_evidence": {
+          "actual": "200",
+          "audit_log": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/audit.log",
+          "audit_rule_ids": [
+            "920350"
+          ],
+          "decision_log": "-",
+          "decision_rule_ids": [],
+          "error_log": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/error.log",
+          "error_rule_ids": [
+            "920350"
+          ],
+          "expected": "200",
+          "result": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
+          "target_rule": "3326"
+        }
+      },
+      "classification_note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
       "expected": "200",
       "known_limitations": [
@@ -5503,7 +5576,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Mismatch requires manual triage.",
+      "technical_cause": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -5517,10 +5590,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -5532,7 +5656,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -5546,10 +5670,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -5561,7 +5736,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -6352,15 +6527,21 @@
       ],
       "case": "files_names_mixed_case_filename_gap",
       "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/files_names_mixed_case_filename_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Uses MULTIPART_FILENAME because FILES_NAMES contains file field names, not uploaded filenames."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -6368,7 +6549,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -6545,15 +6726,22 @@
       ],
       "case": "multipart_duplicate_field_names_gap",
       "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/multipart_duplicate_field_names_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
       "expected": "403",
       "known_limitations": [
         "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Duplicate file field-name parser probe."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -6561,7 +6749,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -7349,14 +7537,20 @@
       ],
       "case": "phase4_auditlog_outbound_multiline_section_gap",
       "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
         "RESPONSE_BODY remains non-verified and non-promoted."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -7365,7 +7559,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -8829,10 +9023,30 @@
       ],
       "case": "v3_action_nolog_pass_no_audit",
       "category": "actions",
-      "classification": "unknown",
+      "classification": "nolog_expected_no_audit",
+      "classification_evidence": {
+        "note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
+        "row_evidence": {
+          "actual": "200",
+          "audit_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/audit.log",
+          "audit_rule_ids": [
+            "920350"
+          ],
+          "decision_log": "-",
+          "decision_rule_ids": [],
+          "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/error.log",
+          "error_rule_ids": [
+            "920350"
+          ],
+          "expected": "200",
+          "result": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
+          "target_rule": "3326"
+        }
+      },
+      "classification_note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_action_nolog_pass_no_audit/result.json",
       "expected": "200",
       "known_limitations": [
@@ -8847,7 +9061,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Mismatch requires manual triage.",
+      "technical_cause": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -9121,10 +9335,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -9136,7 +9401,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -9223,10 +9488,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -9238,7 +9554,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -9712,35 +10028,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "files_names_mixed_case_filename_gap",
-      "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-FILES_NAMES.json",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "http_status",
       "capabilities": [
         "intervention",
@@ -9765,35 +10052,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "multipart_duplicate_field_names_gap",
-      "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/misc/00-multipart-parser.t",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -9878,34 +10136,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "audit-log",
-        "phase4"
-      ],
-      "case": "phase4_auditlog_outbound_multiline_section_gap",
-      "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/auditlog.json",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -10030,10 +10260,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -10045,7 +10326,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -10059,10 +10340,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -10074,7 +10406,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -10916,15 +11248,28 @@
       ],
       "case": "files_names_mixed_case_filename_gap",
       "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/files_names_mixed_case_filename_gap/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Uses MULTIPART_FILENAME because FILES_NAMES contains file field names, not uploaded filenames."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
@@ -10932,7 +11277,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -11130,15 +11475,29 @@
       ],
       "case": "multipart_duplicate_field_names_gap",
       "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/multipart_duplicate_field_names_gap/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
       "expected": "403",
       "known_limitations": [
         "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Duplicate file field-name parser probe."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
@@ -11146,7 +11505,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -12053,14 +12412,27 @@
       ],
       "case": "phase4_auditlog_outbound_multiline_section_gap",
       "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "2",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2,4",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/phase4_auditlog_outbound_multiline_section_gap/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
         "RESPONSE_BODY remains non-verified and non-promoted."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
@@ -12069,7 +12441,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -14086,10 +14458,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -14101,7 +14524,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -14202,10 +14625,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -14217,7 +14691,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -14719,35 +15193,6 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "files_names_mixed_case_filename_gap",
-      "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-FILES_NAMES.json",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
       "actual": "http_status",
       "capabilities": [
         "intervention",
@@ -14772,35 +15217,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "multipart_duplicate_field_names_gap",
-      "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/misc/00-multipart-parser.t",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -14856,34 +15272,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "audit-log",
-        "phase4"
-      ],
-      "case": "phase4_auditlog_outbound_multiline_section_gap",
-      "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "RESPONSE_BODY remains non-verified and non-promoted."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/auditlog.json",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -15009,10 +15397,30 @@
       ],
       "case": "v3_action_nolog_pass_no_audit",
       "category": "actions",
-      "classification": "unknown",
+      "classification": "nolog_expected_no_audit",
+      "classification_evidence": {
+        "note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
+        "row_evidence": {
+          "actual": "200",
+          "audit_log": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/audit.log",
+          "audit_rule_ids": [
+            "920350"
+          ],
+          "decision_log": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/decision.jsonl",
+          "decision_rule_ids": [
+            "920350"
+          ],
+          "error_log": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/error.log",
+          "error_rule_ids": [],
+          "expected": "200",
+          "result": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
+          "target_rule": "3326"
+        }
+      },
+      "classification_note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
       "expected": "200",
       "known_limitations": [
@@ -15027,7 +15435,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Mismatch requires manual triage.",
+      "technical_cause": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -15041,10 +15449,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -15056,7 +15515,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -15070,10 +15529,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -15085,7 +15595,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -15953,15 +16463,28 @@
       ],
       "case": "files_names_mixed_case_filename_gap",
       "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/files_names_mixed_case_filename_gap/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Uses MULTIPART_FILENAME because FILES_NAMES contains file field names, not uploaded filenames."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
@@ -15969,7 +16492,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -16167,15 +16690,29 @@
       ],
       "case": "multipart_duplicate_field_names_gap",
       "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/multipart_duplicate_field_names_gap/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json",
       "expected": "403",
       "known_limitations": [
         "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Duplicate file field-name parser probe."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
@@ -16183,7 +16720,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -17090,14 +17627,27 @@
       ],
       "case": "phase4_auditlog_outbound_multiline_section_gap",
       "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "2",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2,4",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/phase4_auditlog_outbound_multiline_section_gap/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
         "RESPONSE_BODY remains non-verified and non-promoted."
       ],
       "reason": "expected HTTP 403; observed HTTP 200",
@@ -17106,7 +17656,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -18815,10 +19365,30 @@
       ],
       "case": "v3_action_nolog_pass_no_audit",
       "category": "actions",
-      "classification": "unknown",
+      "classification": "nolog_expected_no_audit",
+      "classification_evidence": {
+        "note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
+        "row_evidence": {
+          "actual": "200",
+          "audit_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/audit.log",
+          "audit_rule_ids": [
+            "920350"
+          ],
+          "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/decision.jsonl",
+          "decision_rule_ids": [
+            "920350"
+          ],
+          "error_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/error.log",
+          "error_rule_ids": [],
+          "expected": "200",
+          "result": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
+          "target_rule": "3326"
+        }
+      },
+      "classification_note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_action_nolog_pass_no_audit/result.json",
       "expected": "200",
       "known_limitations": [
@@ -18833,7 +19403,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Mismatch requires manual triage.",
+      "technical_cause": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -19156,10 +19726,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -19171,7 +19792,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -19272,10 +19893,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "result": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -19287,7 +19959,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -19789,35 +20461,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "files_names_mixed_case_filename_gap",
-      "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/files_names_mixed_case_filename_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-FILES_NAMES.json",
-      "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "http_status",
       "capabilities": [
         "intervention",
@@ -19842,35 +20485,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "multipart_duplicate_field_names_gap",
-      "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/multipart_duplicate_field_names_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/misc/00-multipart-parser.t",
-      "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -20050,14 +20664,13 @@
       ],
       "case": "phase4_auditlog_outbound_multiline_section_gap",
       "category": "audit-log",
-      "classification": "runtime_regression",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "nginx",
       "document_only": false,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase4_auditlog_outbound_multiline_section_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
         "RESPONSE_BODY remains non-verified and non-promoted."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -20066,7 +20679,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -20449,10 +21062,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -20464,7 +21128,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -20478,10 +21142,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -20493,7 +21208,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -21258,15 +21973,21 @@
       ],
       "case": "files_names_mixed_case_filename_gap",
       "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/files_names_mixed_case_filename_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/files_names_mixed_case_filename_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/files_names_mixed_case_filename_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Uses MULTIPART_FILENAME because FILES_NAMES contains file field names, not uploaded filenames."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -21274,7 +21995,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -21451,15 +22172,22 @@
       ],
       "case": "multipart_duplicate_field_names_gap",
       "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/multipart_duplicate_field_names_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/multipart_duplicate_field_names_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/multipart_duplicate_field_names_gap/result.json",
       "expected": "403",
       "known_limitations": [
         "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Duplicate file field-name parser probe."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -21467,7 +22195,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -22476,14 +23204,20 @@
       ],
       "case": "phase4_auditlog_outbound_multiline_section_gap",
       "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase4_auditlog_outbound_multiline_section_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/phase4_auditlog_outbound_multiline_section_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase4_auditlog_outbound_multiline_section_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
         "RESPONSE_BODY remains non-verified and non-promoted."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -22492,7 +23226,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -24215,10 +24949,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -24230,7 +25015,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -24317,10 +25102,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -24332,7 +25168,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -24806,35 +25642,6 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "files_names_mixed_case_filename_gap",
-      "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/files_names_mixed_case_filename_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity_V3:test/test-cases/regression/variable-FILES_NAMES.json",
-      "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
       "actual": "http_status",
       "capabilities": [
         "intervention",
@@ -24859,35 +25666,6 @@
       "source_scope": "full_matrix",
       "status": "not_executable",
       "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
-        "files",
-        "multipart",
-        "request-body"
-      ],
-      "case": "multipart_duplicate_field_names_gap",
-      "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/multipart_duplicate_field_names_gap/result.json",
-      "expected": "403",
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "source": "ModSecurity-apache:tests/regression/misc/00-multipart-parser.t",
-      "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -25038,14 +25816,13 @@
       ],
       "case": "phase4_auditlog_outbound_multiline_section_gap",
       "category": "audit-log",
-      "classification": "runtime_regression",
+      "classification": "expected_status_mismatch",
       "code_fix_needed": true,
       "connector": "nginx",
       "document_only": false,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase4_auditlog_outbound_multiline_section_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
         "RESPONSE_BODY remains non-verified and non-promoted."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -25054,7 +25831,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "Observed HTTP status differs from expected status.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -25438,10 +26215,30 @@
       ],
       "case": "v3_action_nolog_pass_no_audit",
       "category": "actions",
-      "classification": "unknown",
+      "classification": "nolog_expected_no_audit",
+      "classification_evidence": {
+        "note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
+        "row_evidence": {
+          "actual": "200",
+          "audit_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/audit.log",
+          "audit_rule_ids": [
+            "920350"
+          ],
+          "decision_log": "-",
+          "decision_rule_ids": [],
+          "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/error.log",
+          "error_rule_ids": [
+            "920350"
+          ],
+          "expected": "200",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/result.json",
+          "target_rule": "3326"
+        }
+      },
+      "classification_note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_action_nolog_pass_no_audit/result.json",
       "expected": "200",
       "known_limitations": [
@@ -25456,7 +26253,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Mismatch requires manual triage.",
+      "technical_cause": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -25470,10 +26267,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -25485,7 +26333,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -25499,10 +26347,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -25514,7 +26413,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -26305,15 +27204,21 @@
       ],
       "case": "files_names_mixed_case_filename_gap",
       "category": "multipart",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/files_names_mixed_case_filename_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/files_names_mixed_case_filename_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/files_names_mixed_case_filename_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Uses MULTIPART_FILENAME because FILES_NAMES contains file field names, not uploaded filenames."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -26321,7 +27226,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -26498,15 +27403,22 @@
       ],
       "case": "multipart_duplicate_field_names_gap",
       "category": "multipart",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/multipart_duplicate_field_names_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/multipart_duplicate_field_names_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/multipart_duplicate_field_names_gap/result.json",
       "expected": "403",
       "known_limitations": [
         "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
+        "Duplicate file field-name parser probe."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
@@ -26514,7 +27426,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -27523,14 +28435,20 @@
       ],
       "case": "phase4_auditlog_outbound_multiline_section_gap",
       "category": "audit-log",
-      "classification": "runtime_regression",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase4_auditlog_outbound_multiline_section_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/phase4_auditlog_outbound_multiline_section_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase4_auditlog_outbound_multiline_section_gap/result.json",
       "expected": "403",
       "known_limitations": [
-        "Classification: runtime-difference.",
         "RESPONSE_BODY remains non-verified and non-promoted."
       ],
       "reason": "fail: expected HTTP 403, observed 200",
@@ -27539,7 +28457,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is marked as a runtime difference and still mismatches live evidence.",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -29003,10 +29921,30 @@
       ],
       "case": "v3_action_nolog_pass_no_audit",
       "category": "actions",
-      "classification": "unknown",
+      "classification": "nolog_expected_no_audit",
+      "classification_evidence": {
+        "note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
+        "row_evidence": {
+          "actual": "200",
+          "audit_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/audit.log",
+          "audit_rule_ids": [
+            "920350"
+          ],
+          "decision_log": "-",
+          "decision_rule_ids": [],
+          "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/error.log",
+          "error_rule_ids": [
+            "920350"
+          ],
+          "expected": "200",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/result.json",
+          "target_rule": "3326"
+        }
+      },
+      "classification_note": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_action_nolog_pass_no_audit/result.json",
       "expected": "200",
       "known_limitations": [
@@ -29021,7 +29959,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Mismatch requires manual triage.",
+      "technical_cause": "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; with-CRS audit entries are unrelated CRS noise.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -29295,10 +30233,61 @@
       ],
       "case": "v3_request_cookies_names_case_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_cookies_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_cookies_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_cookies_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_request_cookies_names_case_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_request_cookies_names_case_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -29310,7 +30299,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -29397,10 +30386,61 @@
       ],
       "case": "v3_request_headers_names_lowercase_runtime_difference",
       "category": "collections",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_collection_name_case_semantics",
+      "classification_evidence": {
+        "control_case": "v3_request_headers_names_block",
+        "control_evidence": {
+          "apache:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "apache:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "haproxy:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:no-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          },
+          "nginx:with-crs/no-mrts:v3_request_headers_names_block": {
+            "actual": "403",
+            "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v3_request_headers_names_block/result.json",
+            "expected": "403",
+            "status": "pass"
+          }
+        },
+        "note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_request_headers_names_lowercase_runtime_difference/result.json"
+        }
+      },
+      "classification_note": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v3_request_headers_names_lowercase_runtime_difference/result.json",
       "expected": "403",
       "known_limitations": [
@@ -29412,7 +30452,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Observed libmodsecurity runtime preserves request header/cookie collection-name case; exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -29692,15 +30732,7 @@
       "count": 12
     },
     {
-      "case": "files_names_mixed_case_filename_gap",
-      "count": 12
-    },
-    {
       "case": "json_empty_body_future_compatibility",
-      "count": 12
-    },
-    {
-      "case": "multipart_duplicate_field_names_gap",
       "count": 12
     },
     {
@@ -29709,10 +30741,6 @@
     },
     {
       "case": "phase3_response_headers_server_presence_pending",
-      "count": 12
-    },
-    {
-      "case": "phase4_auditlog_outbound_multiline_section_gap",
       "count": 12
     },
     {
@@ -29765,6 +30793,10 @@
     },
     {
       "case": "phase4_auditlog_outbound_message_connector_gap",
+      "count": 8
+    },
+    {
+      "case": "phase4_auditlog_outbound_multiline_section_gap",
       "count": 8
     },
     {
@@ -29860,6 +30892,10 @@
       "count": 6
     },
     {
+      "case": "files_names_mixed_case_filename_gap",
+      "count": 6
+    },
+    {
       "case": "json_duplicate_keys_runtime_difference",
       "count": 6
     },
@@ -29873,6 +30909,10 @@
     },
     {
       "case": "multipart_basic_block",
+      "count": 6
+    },
+    {
+      "case": "multipart_duplicate_field_names_gap",
       "count": 6
     }
   ],

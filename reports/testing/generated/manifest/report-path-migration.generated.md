@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T21:57:21Z`
+> Generated at: `2026-06-18T11:26:39Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `unknown`
 
 # Report Path Migration
@@ -59,6 +59,8 @@
 | `reports/testing/generated/phase-work-queue.generated.md` | `reports/testing/generated/work-queues/phase-work-queue.generated.md` | work-queues | migrated |
 | `reports/testing/generated/phase4-hard-abort-capability.generated.json` | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | focused-analysis | migrated |
 | `reports/testing/generated/phase4-hard-abort-capability.generated.md` | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md` | focused-analysis | migrated |
+| `reports/testing/generated/remaining-critical-batch-analysis.generated.json` | `reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.json` | manifest | migrated |
+| `reports/testing/generated/remaining-critical-batch-analysis.generated.md` | `reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md` | manifest | migrated |
 | `reports/testing/generated/remaining-failure-analysis.generated.json` | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | canonical | migrated |
 | `reports/testing/generated/remaining-failure-analysis.generated.md` | `reports/testing/generated/canonical/remaining-failure-analysis.generated.md` | canonical | migrated |
 | `reports/testing/generated/report-data-lineage.generated.json` | `reports/testing/generated/manifest/report-data-lineage.generated.json` | manifest | migrated |

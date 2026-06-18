@@ -86,33 +86,11 @@
         "apache",
         "nginx"
       ],
-      "count": 68,
+      "count": 66,
       "fixable": "fixable only through real strict abort/log evidence, not status-only changes",
       "recommended_next_step": "add real Phase 4 intervention log plus connection-abort evidence before promotion",
       "risk": "high if promoted without transport proof",
       "typical_examples": [
-        {
-          "actual_status": 200,
-          "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-          "classification": "response-body-non-promoted",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": true,
-          "phase": "4",
-          "query": "-",
-          "rule_id": "4910",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "response_body_non_promoted"
-          ]
-        },
         {
           "actual_status": 200,
           "case_id": "phase4_auditlog_outbound_escaped_value_gap",
@@ -138,6 +116,28 @@
         {
           "actual_status": 200,
           "case_id": "phase4_auditlog_outbound_matched_var_future",
+          "classification": "response-body-non-promoted",
+          "connector": "nginx",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "-",
+          "path": "-",
+          "pending_or_non_promoted": true,
+          "phase": "4",
+          "query": "-",
+          "rule_id": "-",
+          "runtime_verified": "false",
+          "variable": "-",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "response_body_non_promoted"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "phase4_auditlog_outbound_multiline_section_gap",
           "classification": "response-body-non-promoted",
           "connector": "nginx",
           "expected_status": 403,
@@ -246,7 +246,7 @@
         "haproxy",
         "nginx"
       ],
-      "count": 42,
+      "count": 40,
       "fixable": "connector capability gap unless a real abort mechanism is implemented and evidenced",
       "recommended_next_step": "document connector gap unless implementation can prove a real hard abort",
       "risk": "high if faked; low if reported as gap",
@@ -297,9 +297,9 @@
         },
         {
           "actual_status": 200,
-          "case_id": "phase4_auditlog_outbound_multiline_section_gap",
+          "case_id": "phase4_auditlog_outbound_escaped_value_gap",
           "classification": "response-body-non-promoted",
-          "connector": "haproxy",
+          "connector": "apache",
           "expected_status": 403,
           "failure_pattern": [
             "expected_block_got_200"
@@ -309,10 +309,10 @@
           "pending_or_non_promoted": true,
           "phase": "4",
           "query": "-",
-          "rule_id": "4910",
+          "rule_id": "-",
           "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
-          "variant": "no-crs/no-mrts",
+          "variable": "-",
+          "variant": "no-crs/with-mrts",
           "work_direction": [
             "response_body_non_promoted"
           ]
@@ -472,64 +472,6 @@
           "rule_id": "4711",
           "runtime_verified": "false",
           "variable": "XML",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "classification_only"
-          ]
-        }
-      ]
-    },
-    {
-      "category": "multipart_processor_activation_missing",
-      "connectors": [
-        "apache",
-        "haproxy",
-        "nginx"
-      ],
-      "count": 12,
-      "fixable": "classification-only; multipart body and boundary exist but the fixture does not enable request body access before expecting FILES/ARGS_NAMES collections",
-      "recommended_next_step": "keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses",
-      "risk": "low if kept report-only; high if treated as connector multipart runtime evidence",
-      "typical_examples": [
-        {
-          "actual_status": 200,
-          "case_id": "files_names_mixed_case_filename_gap",
-          "classification": "multipart_processor_activation_missing",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "POST",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "-",
-          "rule_id": "4705",
-          "runtime_verified": "false",
-          "variable": "FILES_NAMES",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "multipart_duplicate_field_names_gap",
-          "classification": "multipart_processor_activation_missing",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "POST",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "-",
-          "rule_id": "4703",
-          "runtime_verified": "false",
-          "variable": "ARGS_NAMES",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -818,6 +760,15 @@
       "typical_examples": []
     },
     {
+      "category": "multipart_processor_activation_missing",
+      "connectors": [],
+      "count": 0,
+      "fixable": "classification-only; multipart body and boundary exist but the fixture does not enable request body access before expecting FILES/ARGS_NAMES collections",
+      "recommended_next_step": "keep Multipart processor activation-missing rows report-only; do not change bodies, rules, or Expected statuses",
+      "risk": "low if kept report-only; high if treated as connector multipart runtime evidence",
+      "typical_examples": []
+    },
+    {
       "category": "native_modsecurity_semantics",
       "connectors": [],
       "count": 0,
@@ -944,99 +895,99 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-17T21:56:41Z",
+  "generated_at": "2026-06-18T11:26:02Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
+    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-17T21:56:41Z",
+    "generated_at": "2026-06-18T11:26:02Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "blocked",
     "inputs": [
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512",
-        "source_hash": "5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512",
+        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2",
-        "source_hash": "5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2",
+        "sha256": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
+        "source_hash": "d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "2316fe5b7e70ff986d2616f0528e208983f6a5dd4b2671bf443f865c6ffbf26f",
-        "source_hash": "2316fe5b7e70ff986d2616f0528e208983f6a5dd4b2671bf443f865c6ffbf26f",
+        "sha256": "5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569",
+        "source_hash": "5b6fb8e3d407cbbd4c7ce9a4769bc036fca39432524e9bfa68a39fbb1bdc4569",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "e3652bfc97f92e852c98968381728a56a7b4b6ce4a70976138073e009712d033",
-        "source_hash": "e3652bfc97f92e852c98968381728a56a7b4b6ce4a70976138073e009712d033",
+        "sha256": "4c52e7d01997f3ff7d3eb17e2960a91e018c149b6c8259e3753dccb715500e39",
+        "source_hash": "4c52e7d01997f3ff7d3eb17e2960a91e018c149b6c8259e3753dccb715500e39",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "generated report input is not usable: status=blocked",
         "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
-        "sha256": "57635e6b659d0a51573275efe74916da9166965aefa7412bdf3ce99949b163b3",
-        "source_hash": "57635e6b659d0a51573275efe74916da9166965aefa7412bdf3ce99949b163b3",
+        "sha256": "6739fc0ad41a0e1a2e2ddfae5aa2eea00320fa1a60b9d65c4c3fc70737ca69e4",
+        "source_hash": "6739fc0ad41a0e1a2e2ddfae5aa2eea00320fa1a60b9d65c4c3fc70737ca69e4",
         "status": "blocked",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "sha256": "cc4e8d1ab61984bbfa37f314e5be75ceb39c377943382fc219f4c5a43464724a",
-        "source_hash": "cc4e8d1ab61984bbfa37f314e5be75ceb39c377943382fc219f4c5a43464724a",
+        "sha256": "af64a4f7d3a53aa9971f6a9a862d6438d11557d89184fe1114dc24e1ed078cc9",
+        "source_hash": "af64a4f7d3a53aa9971f6a9a862d6438d11557d89184fe1114dc24e1ed078cc9",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "fe88476fc8e20c25bc0dcfc7531fd7de29491acc6de9c7911d645aebb2a93c30",
-        "source_hash": "fe88476fc8e20c25bc0dcfc7531fd7de29491acc6de9c7911d645aebb2a93c30",
+        "sha256": "bb767fc3587a58a7c5333cfa1b1671e09b5013fb22c5a2f4f0c5d7d12622866f",
+        "source_hash": "bb767fc3587a58a7c5333cfa1b1671e09b5013fb22c5a2f4f0c5d7d12622866f",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "29083baa42f7cae3aff7c9f340e2fbe437dd410d",
-        "framework_sha": "c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67",
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "13efedcf5524f0374b268b8a137905613d2b6d473392671baf0033afc27d213b",
-        "source_hash": "13efedcf5524f0374b268b8a137905613d2b6d473392671baf0033afc27d213b",
+        "sha256": "59804b01d795b35bc8a5c05ecec68a28ab20e93c91588dd57a559306df54ea99",
+        "source_hash": "59804b01d795b35bc8a5c05ecec68a28ab20e93c91588dd57a559306df54ea99",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -1130,7 +1081,7 @@
       {
         "cluster_name": "phase4_hard_abort_capability",
         "connector": "apache, nginx, haproxy",
-        "count": 116,
+        "count": 112,
         "likely_change": "stabilize NGINX strict evidence; classify Apache/HAProxy gaps until real transport abort evidence exists",
         "risk": "high if promoted prematurely or faked",
         "tests": [
@@ -1227,24 +1178,24 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-17T21:56:23Z",
-    "full_run_evidence": "2026-06-17T21:55:30Z",
-    "full_runtime_matrix": "2026-06-17T21:56:12Z",
-    "mrts_native_apache": "2026-06-17T21:56:25Z",
-    "mrts_native_nginx": "2026-06-17T21:56:25Z",
-    "mrts_native_summary": "2026-06-17T21:56:25Z",
-    "nginx_mrts_http500_cluster_analysis": "2026-06-17T21:56:19Z",
-    "phase_work_queue": "2026-06-17T21:56:30Z",
-    "runtime_build_cache": "2026-06-17T21:55:56Z"
+    "connector_work_queue": "2026-06-18T11:25:45Z",
+    "full_run_evidence": "2026-06-18T11:24:55Z",
+    "full_runtime_matrix": "2026-06-18T11:25:34Z",
+    "mrts_native_apache": "2026-06-18T11:25:47Z",
+    "mrts_native_nginx": "2026-06-18T11:25:47Z",
+    "mrts_native_summary": "2026-06-18T11:25:47Z",
+    "nginx_mrts_http500_cluster_analysis": "2026-06-18T11:25:41Z",
+    "phase_work_queue": "2026-06-18T11:25:52Z",
+    "runtime_build_cache": "2026-06-18T11:25:17Z"
   },
   "summary": {
     "attempted": 3928,
     "blocked": 0,
-    "fail": 776,
+    "fail": 760,
     "mrt_imported_failures": 0,
-    "non_mrts_framework_failures": 776,
+    "non_mrts_framework_failures": 760,
     "not_executable": 48,
-    "pass": 3104,
+    "pass": 3120,
     "pending": 2298,
     "unique_failure_cases": 115
   },
@@ -2128,88 +2079,6 @@
         ]
       },
       {
-        "case_id": "files_names_mixed_case_filename_gap",
-        "category": "multipart_processor_activation_missing",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 12,
-        "example": {
-          "actual_status": 200,
-          "case_id": "files_names_mixed_case_filename_gap",
-          "classification": "multipart_processor_activation_missing",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "POST",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "-",
-          "rule_id": "4705",
-          "runtime_verified": "false",
-          "variable": "FILES_NAMES",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        "status_pairs": {
-          "403\u2192200": 12
-        },
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ]
-      },
-      {
-        "case_id": "multipart_duplicate_field_names_gap",
-        "category": "multipart_processor_activation_missing",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 12,
-        "example": {
-          "actual_status": 200,
-          "case_id": "multipart_duplicate_field_names_gap",
-          "classification": "multipart_processor_activation_missing",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "POST",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "-",
-          "rule_id": "4703",
-          "runtime_verified": "false",
-          "variable": "ARGS_NAMES",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        "status_pairs": {
-          "403\u2192200": 12
-        },
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ]
-      },
-      {
         "case_id": "parser_xml_partial_body_future_target",
         "category": "xml_processor_activation_missing",
         "connectors": [
@@ -2238,47 +2107,6 @@
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
-          ]
-        },
-        "status_pairs": {
-          "403\u2192200": 12
-        },
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ]
-      },
-      {
-        "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-        "category": "phase4_missing_abort_evidence",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 12,
-        "example": {
-          "actual_status": 200,
-          "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-          "classification": "response-body-non-promoted",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": true,
-          "phase": "4",
-          "query": "-",
-          "rule_id": "4910",
-          "runtime_verified": "false",
-          "variable": "RESPONSE_BODY",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "response_body_non_promoted"
           ]
         },
         "status_pairs": {
@@ -2361,6 +2189,129 @@
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "transformation_semantics"
+          ]
+        },
+        "status_pairs": {
+          "403\u2192200": 12
+        },
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ]
+      },
+      {
+        "case_id": "v3_request_cookies_names_case_runtime_difference",
+        "category": "collection_name_normalization_semantics",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "count": 12,
+        "example": {
+          "actual_status": 200,
+          "case_id": "v3_request_cookies_names_case_runtime_difference",
+          "classification": "collection_name_normalization_semantics",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "1",
+          "query": "-",
+          "rule_id": "4403",
+          "runtime_verified": "false",
+          "variable": "REQUEST_COOKIES_NAMES",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "collection_semantics"
+          ]
+        },
+        "status_pairs": {
+          "403\u2192200": 12
+        },
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ]
+      },
+      {
+        "case_id": "v3_request_headers_names_lowercase_runtime_difference",
+        "category": "collection_name_normalization_semantics",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "count": 12,
+        "example": {
+          "actual_status": 200,
+          "case_id": "v3_request_headers_names_lowercase_runtime_difference",
+          "classification": "collection_name_normalization_semantics",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "GET",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "1",
+          "query": "-",
+          "rule_id": "4401",
+          "runtime_verified": "false",
+          "variable": "REQUEST_HEADERS_NAMES",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "collection_semantics"
+          ]
+        },
+        "status_pairs": {
+          "403\u2192200": 12
+        },
+        "variants": [
+          "no-crs/no-mrts",
+          "no-crs/with-mrts",
+          "with-crs/no-mrts",
+          "with-crs/with-mrts"
+        ]
+      },
+      {
+        "case_id": "xml_deep_nesting_future_target",
+        "category": "xml_processor_activation_missing",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "count": 12,
+        "example": {
+          "actual_status": 200,
+          "case_id": "xml_deep_nesting_future_target",
+          "classification": "xml_processor_activation_missing",
+          "connector": "apache",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "method": "POST",
+          "path": "/",
+          "pending_or_non_promoted": false,
+          "phase": "2",
+          "query": "-",
+          "rule_id": "4712",
+          "runtime_verified": "false",
+          "variable": "XML",
+          "variant": "no-crs/no-mrts",
+          "work_direction": [
+            "classification_only"
           ]
         },
         "status_pairs": {
@@ -2601,53 +2552,6 @@
         ]
       },
       {
-        "category": "phase4_connector_gap",
-        "classification": "response-body-non-promoted",
-        "cluster_name": "haproxy / phase4_connector_gap / audit-log / phase:4 / 403\u2192200",
-        "connectors": [
-          "haproxy"
-        ],
-        "corpus": "none",
-        "count": 14,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_multiline_section_gap",
-            "classification": "response-body-non-promoted",
-            "connector": "haproxy",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": true,
-            "phase": "4",
-            "query": "-",
-            "rule_id": "4910",
-            "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
-            "variant": "no-crs/no-mrts",
-            "work_direction": [
-              "response_body_non_promoted"
-            ]
-          }
-        ],
-        "phase": "4",
-        "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/no-mrts",
-          "no-crs/with-mrts",
-          "with-crs/no-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "response_body_non_promoted"
-        ]
-      },
-      {
         "category": "with_mrts_detection_only_non_disruptive",
         "classification": "with_mrts_detection_only_non_disruptive",
         "cluster_name": "haproxy / with_mrts_detection_only_non_disruptive / collections / phase:2 / 403\u2192200",
@@ -2817,6 +2721,51 @@
         ],
         "phase": "1",
         "source_category": "audit-log",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "classification_only"
+        ]
+      },
+      {
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "haproxy / with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
+        "connectors": [
+          "haproxy"
+        ],
+        "corpus": "none",
+        "count": 12,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "edge_plus_vs_space_runtime_difference",
+            "classification": "with_mrts_detection_only_non_disruptive",
+            "connector": "haproxy",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "q=plus+space",
+            "rule_id": "4515",
+            "runtime_verified": "false",
+            "variable": "REQUEST_URI",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "classification_only"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "transformations",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -4762,25 +4711,25 @@
           "nginx"
         ],
         "corpus": "none",
-        "count": 30,
+        "count": 28,
         "examples": [
           {
             "actual_status": 200,
-            "case_id": "phase4_auditlog_outbound_multiline_section_gap",
+            "case_id": "phase4_auditlog_outbound_escaped_value_gap",
             "classification": "response-body-non-promoted",
-            "connector": "apache",
+            "connector": "nginx",
             "expected_status": 403,
             "failure_pattern": [
               "expected_block_got_200"
             ],
-            "method": "GET",
-            "path": "/",
+            "method": "-",
+            "path": "-",
             "pending_or_non_promoted": true,
             "phase": "4",
             "query": "-",
-            "rule_id": "4910",
+            "rule_id": "-",
             "runtime_verified": "false",
-            "variable": "RESPONSE_BODY",
+            "variable": "-",
             "variant": "no-crs/no-mrts",
             "work_direction": [
               "response_body_non_promoted"
@@ -4811,7 +4760,7 @@
           "nginx"
         ],
         "corpus": "none",
-        "count": 22,
+        "count": 20,
         "examples": [
           {
             "actual_status": 200,

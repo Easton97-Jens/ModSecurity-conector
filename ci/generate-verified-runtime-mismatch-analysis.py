@@ -45,6 +45,16 @@ COLLECTION_SEMANTICS_NOTE = (
     "Semicolon query splitting is not exposed as ARGS_NAMES by observed libmodsecurity runtime; "
     "control ARGS_NAMES case passes."
 )
+COLLECTION_NAME_CASE_SEMANTICS_CLASSIFICATION = "libmodsecurity_collection_name_case_semantics"
+COLLECTION_NAME_CASE_SEMANTICS_NOTE = (
+    "Observed libmodsecurity runtime preserves request header/cookie collection-name case; "
+    "exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls pass."
+)
+NOLOG_EXPECTED_NO_AUDIT_CLASSIFICATION = "nolog_expected_no_audit"
+NOLOG_EXPECTED_NO_AUDIT_NOTE = (
+    "Rule 3326 has explicit nolog/pass and is absent from audit, error, and decision logs; "
+    "with-CRS audit entries are unrelated CRS noise."
+)
 SEMICOLON_COLLECTION_CASES = {
     "duplicate_args_encoded_separator_edge",
     "edge_semicolon_query_args_names",
@@ -57,8 +67,19 @@ SEMICOLON_COLLECTION_VARIANTS = {
     "with-crs/with-mrts",
 }
 ARGS_NAMES_CONTROL_CASE = "v3_args_names_get_block"
+COLLECTION_NAME_CASE_CASES = {
+    "v3_request_cookies_names_case_runtime_difference",
+    "v3_request_headers_names_lowercase_runtime_difference",
+}
+COLLECTION_NAME_CASE_CONTROL_CASES = {
+    "v3_request_cookies_names_case_runtime_difference": "v3_request_cookies_names_block",
+    "v3_request_headers_names_lowercase_runtime_difference": "v3_request_headers_names_block",
+}
+NOLOG_EXPECTED_NO_AUDIT_CASE = "v3_action_nolog_pass_no_audit"
+NOLOG_EXPECTED_NO_AUDIT_RULE_ID = "3326"
 MODSECURITY_SMOKE_FILE_RE = re.compile(r'\[file "([^"]*modsecurity-smoke\.conf)"\]')
 RULES_ERROR_SMOKE_FILE_RE = re.compile(r"Rules error\. File: ([^.]*modsecurity-smoke\.conf)\.")
+MODSECURITY_RULE_ID_RE = re.compile(r'\[id "([^"]+)"\]')
 EMPTY_MULTIPART_OPERATOR_RE = re.compile(
     r'SecRule\s+(?:FILES|MULTIPART_FILENAME)\s+"@(?:contains|streq)\s*"\s+"id:(?:4701|4706)\b'
 )
@@ -322,6 +343,24 @@ def result_decision_log_path(result_path: Path, result: dict[str, Any]) -> Path:
     return result_path.parent / "decision.jsonl"
 
 
+def rule_ids_from_text_log(path: Path) -> set[str]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    return set(MODSECURITY_RULE_ID_RE.findall(text))
+
+
+def rule_ids_from_decision_log(path: Path) -> set[str]:
+    ids: set[str] = set()
+    for item in read_jsonl(path):
+        rule_id = item.get("rule_id")
+        if rule_id in (None, "", 0, "0"):
+            continue
+        ids.add(str(rule_id))
+    return ids
+
+
 def detection_only_rule_paths_from_smoke_file(smoke_rules_file: Path) -> list[Path]:
     try:
         smoke_text = smoke_rules_file.read_text(encoding="utf-8", errors="replace")
@@ -559,6 +598,34 @@ def full_matrix_control_evidence(build_root: Path) -> dict[str, dict[str, str]]:
     return evidence
 
 
+def full_matrix_case_control_evidence(build_root: Path, control_case_name: str) -> dict[str, dict[str, str]]:
+    evidence: dict[str, dict[str, str]] = {}
+    for connector in sorted(SEMICOLON_COLLECTION_CONNECTORS):
+        for variant in ("no-crs/no-mrts", "with-crs/no-mrts"):
+            case = full_matrix_summary_case(build_root, connector, variant, control_case_name)
+            key = f"{connector}:{variant}:{control_case_name}"
+            if (
+                str(case.get("status") or "").lower() == "pass"
+                and str(case.get("expected_status") or "") == "403"
+                and str(case.get("actual_status", case.get("observed_status")) or "") == "403"
+                and case.get("live_executed") is True
+            ):
+                evidence[key] = {
+                    "status": "pass",
+                    "expected": "403",
+                    "actual": "403",
+                    "evidence_file": str(case.get("evidence_path") or "-"),
+                }
+            else:
+                evidence[key] = {
+                    "status": str(case.get("status") or "missing"),
+                    "expected": str(case.get("expected_status") or "-"),
+                    "actual": str(case.get("actual_status", case.get("observed_status")) or "-"),
+                    "evidence_file": str(case.get("evidence_path") or "-"),
+                }
+    return evidence
+
+
 def semicolon_collection_result_evidence(
     row: dict[str, Any],
     *,
@@ -642,6 +709,183 @@ def apply_semicolon_collection_semantics_classification(
             "row_evidence": row_evidence[key],
             "control_case": ARGS_NAMES_CONTROL_CASE,
             "control_evidence": control_evidence,
+        }
+    return mismatches
+
+
+def collection_name_case_result_evidence(
+    row: dict[str, Any],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, str] | None:
+    if row["connector"] not in SEMICOLON_COLLECTION_CONNECTORS:
+        return None
+    if row["variant"] not in SEMICOLON_COLLECTION_VARIANTS:
+        return None
+    if row["case"] not in COLLECTION_NAME_CASE_CASES:
+        return None
+    if row["category"] != "collections":
+        return None
+    if row["status"] != "fail" or row["expected"] != "403" or row["actual"] != "200":
+        return None
+    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    if result.get("live_executed") is not True:
+        return None
+    if str(result.get("expected_status") or "") != "403":
+        return None
+    if str(result.get("actual_status", result.get("observed_status")) or "") != "200":
+        return None
+    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
+        return None
+    if row["connector"] == "haproxy" and result.get("modsecurity_processed") is not True:
+        return None
+    return {
+        "result": rel(result_path, build_root),
+        "expected": "403",
+        "actual": "200",
+        "live_executed": "true",
+        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
+        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
+    }
+
+
+def apply_collection_name_case_semantics_classification(
+    mismatches: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> list[dict[str, Any]]:
+    expected_matrix = {
+        (case, connector, variant)
+        for case in COLLECTION_NAME_CASE_CASES
+        for connector in SEMICOLON_COLLECTION_CONNECTORS
+        for variant in SEMICOLON_COLLECTION_VARIANTS
+    }
+    candidates = {
+        (row["case"], row["connector"], row["variant"]): row
+        for row in mismatches
+        if row.get("case") in COLLECTION_NAME_CASE_CASES
+        and row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
+        and row.get("variant") in SEMICOLON_COLLECTION_VARIANTS
+    }
+    if set(candidates) != expected_matrix:
+        return mismatches
+
+    row_evidence: dict[tuple[str, str, str], dict[str, str]] = {}
+    for key, row in candidates.items():
+        evidence = collection_name_case_result_evidence(row, connector_root=connector_root, build_root=build_root)
+        if evidence is None:
+            return mismatches
+        row_evidence[key] = evidence
+
+    control_evidence_by_case: dict[str, dict[str, dict[str, str]]] = {}
+    for control_case in sorted(set(COLLECTION_NAME_CASE_CONTROL_CASES.values())):
+        control_evidence = full_matrix_case_control_evidence(build_root, control_case)
+        if not control_evidence or any(item.get("status") != "pass" for item in control_evidence.values()):
+            return mismatches
+        control_evidence_by_case[control_case] = control_evidence
+
+    for key, row in candidates.items():
+        control_case = COLLECTION_NAME_CASE_CONTROL_CASES[str(row["case"])]
+        row["classification"] = COLLECTION_NAME_CASE_SEMANTICS_CLASSIFICATION
+        row["technical_cause"] = COLLECTION_NAME_CASE_SEMANTICS_NOTE
+        row["code_fix_needed"] = False
+        row["test_expectation_wrong"] = False
+        row["document_only"] = True
+        row["classification_note"] = COLLECTION_NAME_CASE_SEMANTICS_NOTE
+        row["classification_evidence"] = {
+            "note": COLLECTION_NAME_CASE_SEMANTICS_NOTE,
+            "row_evidence": row_evidence[key],
+            "control_case": control_case,
+            "control_evidence": control_evidence_by_case[control_case],
+        }
+    return mismatches
+
+
+def nolog_expected_no_audit_evidence(
+    row: dict[str, Any],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, Any] | None:
+    if row["case"] != NOLOG_EXPECTED_NO_AUDIT_CASE:
+        return None
+    if row["category"] != "actions":
+        return None
+    if row["status"] != "fail" or row["expected"] != "200" or row["actual"] != "200":
+        return None
+    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    if result.get("live_executed") is not True:
+        return None
+    if str(result.get("expected_status") or "") != "200":
+        return None
+    if str(result.get("actual_status", result.get("observed_status")) or "") != "200":
+        return None
+
+    audit_log_path = Path(str(result.get("audit_log_path") or result_path.parent / "audit.log"))
+    error_log_path = result_error_log_path(result_path, result)
+    decision_log_path = result_decision_log_path(result_path, result)
+    audit_rule_ids = rule_ids_from_text_log(audit_log_path)
+    error_rule_ids = rule_ids_from_text_log(error_log_path)
+    decision_rule_ids = rule_ids_from_decision_log(decision_log_path)
+    all_rule_ids = audit_rule_ids | error_rule_ids | decision_rule_ids
+    if NOLOG_EXPECTED_NO_AUDIT_RULE_ID in all_rule_ids:
+        return None
+    return {
+        "result": rel(result_path, build_root),
+        "expected": "200",
+        "actual": "200",
+        "target_rule": NOLOG_EXPECTED_NO_AUDIT_RULE_ID,
+        "audit_rule_ids": sorted(audit_rule_ids),
+        "error_rule_ids": sorted(error_rule_ids),
+        "decision_rule_ids": sorted(decision_rule_ids),
+        "audit_log": rel(audit_log_path, build_root),
+        "error_log": rel(error_log_path, build_root),
+        "decision_log": rel(decision_log_path, build_root) if decision_log_path.exists() else "-",
+    }
+
+
+def apply_nolog_expected_no_audit_classification(
+    mismatches: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> list[dict[str, Any]]:
+    expected_matrix = {
+        (NOLOG_EXPECTED_NO_AUDIT_CASE, connector, variant)
+        for connector in SEMICOLON_COLLECTION_CONNECTORS
+        for variant in ("with-crs/no-mrts", "with-crs/with-mrts")
+    }
+    candidates = {
+        (row["case"], row["connector"], row["variant"]): row
+        for row in mismatches
+        if row.get("case") == NOLOG_EXPECTED_NO_AUDIT_CASE
+        and row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
+        and row.get("variant") in {"with-crs/no-mrts", "with-crs/with-mrts"}
+    }
+    if set(candidates) != expected_matrix:
+        return mismatches
+
+    row_evidence: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for key, row in candidates.items():
+        evidence = nolog_expected_no_audit_evidence(row, connector_root=connector_root, build_root=build_root)
+        if evidence is None:
+            return mismatches
+        row_evidence[key] = evidence
+
+    for key, row in candidates.items():
+        row["classification"] = NOLOG_EXPECTED_NO_AUDIT_CLASSIFICATION
+        row["technical_cause"] = NOLOG_EXPECTED_NO_AUDIT_NOTE
+        row["code_fix_needed"] = False
+        row["test_expectation_wrong"] = False
+        row["document_only"] = True
+        row["classification_note"] = NOLOG_EXPECTED_NO_AUDIT_NOTE
+        row["classification_evidence"] = {
+            "note": NOLOG_EXPECTED_NO_AUDIT_NOTE,
+            "row_evidence": row_evidence[key],
         }
     return mismatches
 
@@ -1095,6 +1339,16 @@ def main() -> int:
         rows.extend(collect_incomplete_jobs(full_matrix_root, connector_root, build_root, full_cutoff))
     mismatches = dedupe_rows(rows)
     mismatches = apply_semicolon_collection_semantics_classification(
+        mismatches,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    mismatches = apply_collection_name_case_semantics_classification(
+        mismatches,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    mismatches = apply_nolog_expected_no_audit_classification(
         mismatches,
         connector_root=connector_root,
         build_root=build_root,

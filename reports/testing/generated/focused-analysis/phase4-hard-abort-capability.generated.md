@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-17T21:56:37Z`
+> Generated at: `2026-06-18T11:25:58Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-phase4-hard-abort-capability.py`
 > Make target: `generate-phase4-hard-abort-capability`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `29083baa42f7cae3aff7c9f340e2fbe437dd410d`
-> Framework SHA: `c4d92c02d987a394a970fc3e8f5bfaaff5ed6b67`
+> Connector SHA: `1ed85089212c791958b5f09abf7b17d73bdfde91`
+> Framework SHA: `9e2c82b829036d28f54459814773b92c801b6e24`
 > Input status: `complete`
 
 # Phase 4 Hard Abort Capability
 
-Generated at: `2026-06-17T21:56:37Z`
+Generated at: `2026-06-18T11:25:58Z`
 
 ## Capability Contract
 - Capability: `phase4_hard_abort` / `phase4-hard-abort`.
@@ -24,7 +24,7 @@ Generated at: `2026-06-17T21:56:37Z`
 ## Summary
 | Rows | Runtime status | Hard abort evidence | Connection aborted | No hard abort required | Log-only not hard abort | Truncated not hard abort | Status 200 without abort | Sensitive log leaks |
 |---|---|---|---|---|---|---|---|---|
-| 868 | {'PASS': 740, 'FAIL': 116, 'NOT_EXECUTABLE': 12} | 0 | 0 | 684 | 6 | 0 | 806 | 0 |
+| 868 | {'PASS': 744, 'FAIL': 112, 'NOT_EXECUTABLE': 12} | 0 | 0 | 684 | 6 | 0 | 802 | 0 |
 
 ## Category Rollup
 | Category | Count |
@@ -294,9 +294,9 @@ Generated at: `2026-06-17T21:56:37Z`
 | apache | no-crs/with-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | False | response-body-non-promoted | phase4_connector_gap |
 | apache | with-crs/no-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | denied_before_commit | False | True | response-body-non-promoted | phase4_connector_gap |
 | apache | with-crs/with-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | False | response-body-non-promoted | phase4_connector_gap |
-| apache | no-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | False | response-body-non-promoted | phase4_missing_abort_evidence |
+| apache | no-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | denied_before_commit | False | True | response-body-non-promoted | phase4_missing_abort_evidence |
 | apache | no-crs/with-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | False | response-body-non-promoted | phase4_missing_abort_evidence |
-| apache | with-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | False | response-body-non-promoted | phase4_missing_abort_evidence |
+| apache | with-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | denied_before_commit | False | True | response-body-non-promoted | phase4_missing_abort_evidence |
 | apache | with-crs/with-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | False | response-body-non-promoted | phase4_missing_abort_evidence |
 | apache | no-crs/no-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | 4811 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | denied_before_commit | False | True | response-body-non-promoted | phase4_missing_abort_evidence |
 | apache | no-crs/with-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | 4811 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | False | response-body-non-promoted | phase4_missing_abort_evidence |
@@ -578,9 +578,9 @@ Generated at: `2026-06-17T21:56:37Z`
 | haproxy | no-crs/with-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
 | haproxy | with-crs/no-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
 | haproxy | with-crs/with-mrts | phase4_auditlog_outbound_message_connector_gap | 4812 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
-| haproxy | no-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | no-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
 | haproxy | no-crs/with-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
-| haproxy | with-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
+| haproxy | with-crs/no-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
 | haproxy | with-crs/with-mrts | phase4_auditlog_outbound_multiline_section_gap | 4910 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
 | haproxy | no-crs/no-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | 4811 | 4 | RESPONSE_BODY | deny | 403 | 403 | PASS | full | False | True | response-body-non-promoted | phase4_connector_gap |
 | haproxy | no-crs/with-mrts | phase4_auditlog_outbound_rule_id_runtime_difference | 4811 | 4 | RESPONSE_BODY | deny | 403 | 200 | FAIL | full | False | True | response-body-non-promoted | phase4_connector_gap |
@@ -935,11 +935,11 @@ Generated at: `2026-06-17T21:56:37Z`
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `5af2dd56db978d8414704196dececf85cd691fbbcc654f03c0844c73fb4369a2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `5eb9a018436e2edd12871ccb50aea3f84e08ae00118acfd315399a8f8f7d0512` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `8c05085bdfe476b6455514c74d8a08af70cd66f6e8907f73424f4f35b82a0739` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `fe88476fc8e20c25bc0dcfc7531fd7de29491acc6de9c7911d645aebb2a93c30` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `13efedcf5524f0374b268b8a137905613d2b6d473392671baf0033afc27d213b` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `d7c81f175d60a485129de14484840a7c8ccbe556a26bdddb3a51a6d16817a783` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `fd1a7b91ef8bfba7752fc033e2927dcade8208dad068667914c18410e3283815` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `bb767fc3587a58a7c5333cfa1b1671e09b5013fb22c5a2f4f0c5d7d12622866f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `59804b01d795b35bc8a5c05ecec68a28ab20e93c91588dd57a559306df54ea99` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

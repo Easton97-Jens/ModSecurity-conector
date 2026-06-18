@@ -234,6 +234,9 @@ generate-system-environment-proof: check-framework
 generate-verified-runtime-mismatch-analysis: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/generate-verified-runtime-mismatch-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
 
+generate-remaining-critical-batch-analysis: check-framework
+	"$(FRAMEWORK_PYTHON)" ci/generate-remaining-critical-batch-analysis.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --output-dir "$(CURDIR)/reports/testing/generated/manifest"
+
 prove-generated-reports:
 	$(MAKE) refresh-connector-reports
 	$(MAKE) check-generated-report-layout

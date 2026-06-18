@@ -1,0 +1,520 @@
+{
+  "cluster_ranking": [
+    {
+      "cases": [
+        "duplicate_header_case_normalization_gap"
+      ],
+      "cluster": "connector_capability_gap / collections",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 1
+    },
+    {
+      "cases": [
+        "json_empty_body_future_compatibility"
+      ],
+      "cluster": "timeout_or_incomplete / body-processors",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 2
+    },
+    {
+      "cases": [
+        "phase3_response_headers_server_presence_pending"
+      ],
+      "cluster": "timeout_or_incomplete / response-headers",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 3
+    },
+    {
+      "cases": [
+        "phase4_response_body_empty_future_target"
+      ],
+      "cluster": "timeout_or_incomplete / response-body",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 4
+    },
+    {
+      "cases": [
+        "unicode_double_encoded_uri_runtime_difference"
+      ],
+      "cluster": "runtime_regression / transformations",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 5
+    },
+    {
+      "cases": [
+        "unicode_whitespace_normalization_gap"
+      ],
+      "cluster": "connector_capability_gap / transformations",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 6
+    },
+    {
+      "cases": [
+        "v2_transformation_url_decode_invalid_sequence_mapped_candidate"
+      ],
+      "cluster": "timeout_or_incomplete / transformations",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 7
+    },
+    {
+      "cases": [
+        "xml_namespace_edge_connector_gap"
+      ],
+      "cluster": "connector_capability_gap / body-processors",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 8
+    },
+    {
+      "cases": [
+        "xml_request_body_malformed_connector_gap"
+      ],
+      "cluster": "expected_status_mismatch / body-processors",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 12,
+      "rank": 9
+    },
+    {
+      "cases": [
+        "phase1_vs_phase2_request_body_gap"
+      ],
+      "cluster": "connector_capability_gap / phase-handling",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 9,
+      "rank": 10
+    },
+    {
+      "cases": [
+        "v3_secaction_block"
+      ],
+      "cluster": "expected_status_mismatch / actions",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 6,
+      "rank": 11
+    },
+    {
+      "cases": [
+        "nginx_phase4_content_type_out_of_scope",
+        "nginx_phase4_minimal_log_only",
+        "nginx_phase4_safe_log_only"
+      ],
+      "cluster": "unknown / response-body",
+      "connectors": [
+        "nginx"
+      ],
+      "count": 6,
+      "rank": 12
+    },
+    {
+      "cases": [
+        "phase4_auditlog_outbound_escaped_value_gap",
+        "phase4_auditlog_outbound_message_connector_gap"
+      ],
+      "cluster": "connector_capability_gap / audit-log",
+      "connectors": [
+        "nginx"
+      ],
+      "count": 4,
+      "rank": 13
+    },
+    {
+      "cases": [
+        "phase4_auditlog_outbound_multiline_section_gap",
+        "pr70_phase4_response_body_audit_xfail"
+      ],
+      "cluster": "expected_status_mismatch / audit-log",
+      "connectors": [
+        "nginx"
+      ],
+      "count": 4,
+      "rank": 14
+    },
+    {
+      "cases": [
+        "phase4_response_body_html_entity_decode_gap",
+        "phase4_response_body_unicode_runtime_difference"
+      ],
+      "cluster": "runtime_regression / response-body",
+      "connectors": [
+        "nginx"
+      ],
+      "count": 4,
+      "rank": 15
+    },
+    {
+      "cases": [
+        "phase4_response_body_html_text_normalization_probe",
+        "response_body_basic_block"
+      ],
+      "cluster": "expected_status_mismatch / response-body",
+      "connectors": [
+        "nginx"
+      ],
+      "count": 4,
+      "rank": 16
+    },
+    {
+      "cases": [
+        "crs_sqli_anomaly_block"
+      ],
+      "cluster": "expected_status_mismatch / crs",
+      "connectors": [
+        "apache",
+        "haproxy",
+        "nginx"
+      ],
+      "count": 3,
+      "rank": 17
+    },
+    {
+      "cases": [
+        "phase4_auditlog_outbound_rule_id_runtime_difference"
+      ],
+      "cluster": "runtime_regression / audit-log",
+      "connectors": [
+        "nginx"
+      ],
+      "count": 2,
+      "rank": 18
+    },
+    {
+      "cases": [
+        "phase4_response_body_chunk_assumption_connector_gap"
+      ],
+      "cluster": "connector_capability_gap / response-body",
+      "connectors": [
+        "nginx"
+      ],
+      "count": 2,
+      "rank": 19
+    }
+  ],
+  "data_source_policy": "verified-inputs-only",
+  "decisions": [
+    {
+      "cluster": "expected_status_mismatch / collections",
+      "decision": "RECLASSIFY",
+      "evidence": "All 24 rows gated on full-matrix result.json plus exact-case REQUEST_HEADERS_NAMES/REQUEST_COOKIES_NAMES controls.",
+      "full_matrix_refresh_needed": false,
+      "new_classification": "libmodsecurity_collection_name_case_semantics",
+      "official_after_rows": 0,
+      "rows": 24
+    },
+    {
+      "changed_files": [
+        "modules/ModSecurity-test-Framework/tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
+        "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml"
+      ],
+      "cluster": "multipart_files",
+      "decision": "FIX",
+      "evidence": "Targeted no-crs/no-mrts repros passed for Apache, NGINX, and HAProxy. Fresh Full-Matrix rerun reflects the YAML fixes; remaining rows, if any, are current official rows.",
+      "full_matrix_refresh_needed": false,
+      "official_after": {
+        "classifications": {
+          "with_mrts_detection_only_overlay": 12
+        },
+        "critical_variants": [],
+        "official_critical_rows": 0,
+        "official_rows": 12
+      },
+      "rows": 24
+    },
+    {
+      "changed_files": [
+        "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_multiline_section_gap.yaml"
+      ],
+      "cluster": "runtime_regression / audit-log",
+      "decision": "FIX_AND_DOCUMENT",
+      "evidence": "t:compressWhitespace makes Apache/HAProxy no-mrts PASS in fresh Full-Matrix evidence; NGINX still logs Phase-4 rule 4910 but returns HTTP 200 for no-mrts variants.",
+      "full_matrix_refresh_needed": false,
+      "official_after": {
+        "classifications": {
+          "expected_status_mismatch": 2,
+          "with_mrts_detection_only_overlay": 6
+        },
+        "critical_variants": [
+          "nginx:no-crs/no-mrts",
+          "nginx:with-crs/no-mrts"
+        ],
+        "official_critical_rows": 2,
+        "official_rows": 8
+      },
+      "rows": 14
+    },
+    {
+      "cluster": "runtime_regression / transformations / unicode_double_encoded_uri_runtime_difference",
+      "decision": "DEFER",
+      "evidence": "All connectors pass the raw double-encoded URI through and rule 4707 does not match; no native/libmodsecurity transform comparison is available.",
+      "full_matrix_refresh_needed": false,
+      "rows": 12
+    },
+    {
+      "cluster": "unknown / actions / v3_action_nolog_pass_no_audit",
+      "decision": "RECLASSIFY",
+      "evidence": "Rule 3326 is nolog/pass and absent from audit/error/decision logs; CRS rule 920350 entries are unrelated.",
+      "full_matrix_refresh_needed": false,
+      "new_classification": "nolog_expected_no_audit",
+      "rows": 6
+    }
+  ],
+  "full_matrix_refresh_needed": false,
+  "generated_at": "2026-06-18T11:29:57Z",
+  "metadata": {
+    "category": "manifest",
+    "commit_policy": "versioned-generated",
+    "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+    "data_kind": "analysis",
+    "data_origin": "runtime",
+    "data_source_policy": "verified-inputs-only",
+    "empty_inputs": [],
+    "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+    "framework_working_tree_dirty": "dirty",
+    "generated_at": "2026-06-18T11:29:57Z",
+    "generated_by": "ci/generate-remaining-critical-batch-analysis.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "complete",
+    "inputs": [
+      {
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
+        "sha256": "f0b86c64ce32e2bd1ff2a56c6242f01f8d01f8fa4af0fd2801772622c3b62d4f",
+        "source_hash": "f0b86c64ce32e2bd1ff2a56c6242f01f8d01f8fa4af0fd2801772622c3b62d4f",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+      },
+      {
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "notes": "input file available",
+        "path": "reports/testing/generated/manifest/merge-readiness-dashboard.generated.json",
+        "sha256": "e80586d1d046b64eea92983702e8affa4b1a75d646784b0699692e6ec4fd8e45",
+        "source_hash": "e80586d1d046b64eea92983702e8affa4b1a75d646784b0699692e6ec4fd8e45",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+      },
+      {
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
+        "sha256": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "source_hash": "151fed6d47dda6380e0ece49684d4a9c333f464846e3810c5466cbdab5f72950",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+      },
+      {
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
+        "sha256": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
+        "source_hash": "8cbf4ad7816be93d057616a8e2dba7146906c56f5e93e4202318b78607b91781",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+      },
+      {
+        "connector_sha": "1ed85089212c791958b5f09abf7b17d73bdfde91",
+        "framework_sha": "9e2c82b829036d28f54459814773b92c801b6e24",
+        "notes": "input file available",
+        "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
+        "sha256": "8199f2813c853163a3eddd848421bb327eacf6d75cc1a9e032d1943f5a2112fb",
+        "source_hash": "8199f2813c853163a3eddd848421bb327eacf6d75cc1a9e032d1943f5a2112fb",
+        "status": "present",
+        "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+      }
+    ],
+    "make_target": "generate-remaining-critical-batch-analysis",
+    "missing_inputs": [],
+    "owner": "manifest",
+    "report_key": "remaining_critical_batch_analysis",
+    "schema_version": 1,
+    "severity": "important",
+    "unknown_inputs": [],
+    "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
+    "working_tree_dirty": "dirty"
+  },
+  "official_after": {
+    "critical_mismatch_count": 152,
+    "merge_readiness": "FAIL",
+    "merge_readiness_reason": "critical mismatches present",
+    "mismatch_count": 808
+  },
+  "official_before": {
+    "critical_mismatch_count": 216,
+    "mismatch_count": 824,
+    "source": "batch-start official mismatch report before this analysis"
+  },
+  "refresh_needed_reason": "Fresh Full-Matrix artifacts exist for the 12 affected connector/CRS/MRTS jobs; remaining rows are current official mismatches, not stale targeted-only evidence.",
+  "remaining_top_critical_cluster": {
+    "cases": [
+      "duplicate_header_case_normalization_gap"
+    ],
+    "cluster": "connector_capability_gap / collections",
+    "connectors": [
+      "apache",
+      "haproxy",
+      "nginx"
+    ],
+    "count": 12,
+    "rank": 1
+  },
+  "report_kind": "remaining-critical-batch-analysis",
+  "targeted_repros": [
+    {
+      "actual": 403,
+      "case": "files_names_mixed_case_filename_gap",
+      "cluster": "multipart_files",
+      "connector": "apache",
+      "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/verified-apache-case/no-crs-no-mrts-apache/logs/apache-runtime/files_names_mixed_case_filename_gap/result.json",
+      "expected": 403,
+      "response_body_seen": null,
+      "rule_id": null,
+      "status": "PASS",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual": 403,
+      "case": "files_names_mixed_case_filename_gap",
+      "cluster": "multipart_files",
+      "connector": "nginx",
+      "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/logs/files_names_mixed_case_filename_gap/result.json",
+      "expected": 403,
+      "response_body_seen": null,
+      "rule_id": null,
+      "status": "PASS",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "case": "files_names_mixed_case_filename_gap",
+      "cluster": "multipart_files",
+      "connector": "haproxy",
+      "evidence_file": "command-output",
+      "note": "HAProxy single-case log path was overwritten by later targeted run; command returned success.",
+      "status": "PASS",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual": 403,
+      "case": "multipart_duplicate_field_names_gap",
+      "cluster": "multipart_files",
+      "connector": "apache",
+      "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/verified-apache-case/no-crs-no-mrts-apache/logs/apache-runtime/multipart_duplicate_field_names_gap/result.json",
+      "expected": 403,
+      "response_body_seen": null,
+      "rule_id": null,
+      "status": "PASS",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual": 403,
+      "case": "multipart_duplicate_field_names_gap",
+      "cluster": "multipart_files",
+      "connector": "nginx",
+      "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/logs/multipart_duplicate_field_names_gap/result.json",
+      "expected": 403,
+      "response_body_seen": null,
+      "rule_id": null,
+      "status": "PASS",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "case": "multipart_duplicate_field_names_gap",
+      "cluster": "multipart_files",
+      "connector": "haproxy",
+      "evidence_file": "command-output",
+      "note": "HAProxy single-case log path was overwritten by later targeted run; command returned success.",
+      "status": "PASS",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual": 403,
+      "case": "phase4_auditlog_outbound_multiline_section_gap",
+      "cluster": "audit-log",
+      "connector": "apache",
+      "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/verified-apache-case/no-crs-no-mrts-apache/logs/apache-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json",
+      "expected": 403,
+      "response_body_seen": true,
+      "rule_id": "4910",
+      "status": "PASS",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual": 200,
+      "case": "phase4_auditlog_outbound_multiline_section_gap",
+      "cluster": "audit-log",
+      "connector": "nginx",
+      "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/verified-nginx-case/no-crs-no-mrts-nginx/logs/phase4_auditlog_outbound_multiline_section_gap/result.json",
+      "expected": 403,
+      "response_body_seen": false,
+      "rule_id": null,
+      "status": "FAIL",
+      "variant": "no-crs/no-mrts"
+    },
+    {
+      "actual": 403,
+      "case": "phase4_auditlog_outbound_multiline_section_gap",
+      "cluster": "audit-log",
+      "connector": "haproxy",
+      "evidence_file": "/var/tmp/ModSecurity-conector-verified/build/verified-haproxy-case/no-crs-no-mrts-haproxy/logs/haproxy-runtime/result.json",
+      "expected": 403,
+      "response_body_seen": true,
+      "rule_id": null,
+      "status": "PASS",
+      "variant": "no-crs/no-mrts"
+    }
+  ],
+  "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
+}
