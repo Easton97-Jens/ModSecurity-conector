@@ -1,50 +1,50 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T06:44:35Z`
+> Generated at: `2026-06-19T16:40:11Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-final-consistency-audit.py`
 > Make target: `generate-final-consistency-audit`
 > Owner: `connector`
 > Severity: `critical`
-> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
-> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
+> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
+> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
 > Input status: `complete`
 
 # Final Consistency Audit
 
 Generated file - do not edit manually.
 
-- Generated at: `2026-06-19T06:44:35Z`
+- Generated at: `2026-06-19T16:40:11Z`
 - Release readiness: `needs_attention`
 - Recommended next fix cluster: `multipart_files`
 - Recommendation justified: `no`
 - Reason: remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits
 
 ## Git And Submodules
-- Connector HEAD: `02d952fa8a986ef519c671973809d7634998e961`
-- Framework HEAD: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
+- Connector HEAD: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
+- Framework HEAD: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
 
 | Submodule status |
 |---|
-| 62c5dce8733d77138999bf6054fd4b1ec1712d40 modules/ModSecurity-test-Framework (heads/master) |
+| 6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4 modules/ModSecurity-test-Framework (heads/master) |
 |  13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main) |
 
 ## Full-Matrix Summary
 - Attempted: **3928**
-- PASS: **3154**
-- FAIL: **774**
+- PASS: **3157**
+- FAIL: **771**
 - BLOCKED: **0**
 - NOT_EXECUTABLE: **0**
 - Pending: **2298**
 - Full-Matrix was not rerun for this audit; counts come from existing evidence.
 
 ## Priority Distribution
-- P0/P1/P2/P3/report_only non-PASS: **6 / 0 / 60 / 171 / 537**
+- P0/P1/P2/P3/report_only non-PASS: **6 / 0 / 60 / 168 / 537**
 - Queue totals and recomputed non-PASS priorities match: `yes`
-- Queue totals non-PASS: `{'P0': 6, 'P2': 60, 'P3': 171, 'report_only': 537}`
-- Recomputed non-PASS: `{'P0': 6, 'P2': 60, 'P3': 171, 'report_only': 537}`
-- Recomputed FAIL only: `{'P0': 6, 'P2': 60, 'P3': 171, 'report_only': 537}`
+- Queue totals non-PASS: `{'P0': 6, 'P2': 60, 'P3': 168, 'report_only': 537}`
+- Recomputed non-PASS: `{'P0': 6, 'P2': 60, 'P3': 168, 'report_only': 537}`
+- Recomputed FAIL only: `{'P0': 6, 'P2': 60, 'P3': 168, 'report_only': 537}`
 - P0/P1 failing rows: **6**
 - P2 rows are response-header DetectionOnly/report-only leftovers: `yes`
 
@@ -53,7 +53,7 @@ Generated file - do not edit manually.
 - Report-only rows: **609**
 - Semantic pending rows: **42**
 - Capability-evidence pending rows: **72**
-- Connector-gap rows: **45**
+- Connector-gap rows: **42**
 | Category | Count | Connectors | Disposition | Recommended next step |
 |---|---|---|---|---|
 | with_mrts_detection_only_non_disruptive | 519 | apache, haproxy, nginx | report_only | keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases |
@@ -66,14 +66,13 @@ Generated file - do not edit manually.
 | multipart_files | 6 | apache, haproxy, nginx | review_required | compare multipart variable population across connectors with one representative request |
 | nolog_expected_no_audit | 6 | apache, haproxy, nginx | report_only | keep as classification-only evidence; do not add artificial audit logs |
 | phase4_log_only_no_abort | 6 | nginx | report_only | keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence |
-| connector_gap | 3 | apache, haproxy, nginx | connector_gap | manual review |
 
 ## Stale Cluster Check
 | Cluster | Remaining category | FAIL work direction | FAIL classification | Status | Detail |
 |---|---|---|---|---|---|
 | audit_log_evidence | 0 | 0 | 0 | clear | no active rows |
 | intervention_blocking | 0 | 6 | 0 | review | nonzero remaining, work-direction, or classification count |
-| request_body_processor | 0 | 3 | 0 | known_connector_gap_not_active_processor_cluster | remaining work-direction rows are classified as phase1 request-body unavailable connector gap |
+| request_body_processor | 0 | 0 | 0 | clear | no active rows |
 | multipart_files | 6 | 0 | 0 | review | nonzero remaining, work-direction, or classification count |
 | xml_processor | 0 | 0 | 0 | clear | no active rows |
 | phase4_hard_abort_supported | 0 | 0 | 0 | clear | no active rows |
@@ -90,6 +89,7 @@ Generated file - do not edit manually.
 | nolog_expected_no_audit | 6 | classification-only: explicit nolog means the matching rule should not emit audit evidence |
 | response_header_mrts_detection_only | 60 | classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action |
 | with_mrts_detection_only_non_disruptive | 519 | classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action |
+| secaction_detection_only_overlay | 0 | classification-only: with-MRTS DetectionOnly overlay suppresses disruptive SecAction intervention |
 | xml_processor_activation_missing | 18 | classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML |
 | multipart_processor_activation_missing | 0 | classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections |
 | collection_name_normalization_semantics | 30 | metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes |
@@ -101,7 +101,7 @@ Generated file - do not edit manually.
 | phase4_connector_gap | 42 |
 | transformation_semantics | 12 |
 | collection_name_normalization_semantics | 30 |
-| connector_gap | 3 |
+| connector_gap | 0 |
 
 ## User Decisions
 | Area | Reason | Safe next |
@@ -130,20 +130,20 @@ Generated file - do not edit manually.
 ## Freshness
 | Input | Present | Generated at |
 |---|---|---|
-| reports/testing/generated/canonical/full-runtime-matrix.generated.json | yes | 2026-06-19T06:43:20Z |
-| reports/testing/generated/work-queues/connector-work-queue.generated.json | yes | 2026-06-19T06:43:31Z |
-| reports/testing/generated/work-queues/phase-work-queue.generated.json | yes | 2026-06-19T06:43:39Z |
-| reports/testing/generated/canonical/remaining-failure-analysis.generated.json | yes | 2026-06-19T06:43:50Z |
-| reports/testing/generated/canonical/next-fix-plan.generated.json | yes | 2026-06-19T06:43:50Z |
-| reports/testing/generated/canonical/full-run-evidence.generated.json | yes | 2026-06-19T06:44:08Z |
-| reports/testing/generated/mrts-native/mrts-native-summary.generated.json | yes | 2026-06-19T06:43:33Z |
-| reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json | yes | 2026-06-19T06:43:46Z |
-| reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json | yes | 2026-06-19T06:43:35Z |
-| reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json | yes | 2026-06-19T06:43:40Z |
-| reports/testing/generated/focused-analysis/body-processor-analysis.generated.json | yes | 2026-06-19T06:44:32Z |
-| reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json | yes | 2026-06-19T06:44:20Z |
-| reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json | yes | 2026-06-19T06:44:21Z |
-| reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json | yes | 2026-06-19T06:44:34Z |
+| reports/testing/generated/canonical/full-runtime-matrix.generated.json | yes | 2026-06-19T16:38:58Z |
+| reports/testing/generated/work-queues/connector-work-queue.generated.json | yes | 2026-06-19T16:39:11Z |
+| reports/testing/generated/work-queues/phase-work-queue.generated.json | yes | 2026-06-19T16:39:19Z |
+| reports/testing/generated/canonical/remaining-failure-analysis.generated.json | yes | 2026-06-19T16:39:29Z |
+| reports/testing/generated/canonical/next-fix-plan.generated.json | yes | 2026-06-19T16:39:29Z |
+| reports/testing/generated/canonical/full-run-evidence.generated.json | yes | 2026-06-19T16:39:43Z |
+| reports/testing/generated/mrts-native/mrts-native-summary.generated.json | yes | 2026-06-19T16:39:12Z |
+| reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json | yes | 2026-06-19T16:39:25Z |
+| reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json | yes | 2026-06-19T16:39:15Z |
+| reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json | yes | 2026-06-19T16:39:19Z |
+| reports/testing/generated/focused-analysis/body-processor-analysis.generated.json | yes | 2026-06-19T16:40:08Z |
+| reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json | yes | 2026-06-19T16:39:55Z |
+| reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json | yes | 2026-06-19T16:39:57Z |
+| reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json | yes | 2026-06-19T16:40:09Z |
 
 ## Guardrails
 | Guardrail | Value |
@@ -177,12 +177,12 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `e90c02f636c5b356c7db009eb39b4997c83b6db20d64fc90f796fec9ff3083e8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `2db466da1006f40605c3fbf9be46e8f370d486be124f3e288e573a1cff96a29f` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

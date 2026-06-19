@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T06:43:50Z`
+> Generated at: `2026-06-19T16:39:29Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
-> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
+> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
+> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
 > Input status: `complete`
 
 # Next Fix Plan
 
-Generated at: `2026-06-19T06:43:50Z`
+Generated at: `2026-06-19T16:39:29Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -25,6 +25,7 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 - Nicht als nächstes bearbeiten: `nolog_expected_no_audit`, weil classification-only: explicit nolog means the matching rule should not emit audit evidence.
 - Nicht als nächstes bearbeiten: `response_header_mrts_detection_only`, weil classification-only: with-MRTS DetectionOnly overlay suppresses disruptive Phase 3 action.
 - Nicht als nächstes bearbeiten: `with_mrts_detection_only_non_disruptive`, weil classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action.
+- Nicht als nächstes bearbeiten: `secaction_detection_only_overlay`, weil classification-only: with-MRTS DetectionOnly overlay suppresses disruptive SecAction intervention.
 - Nicht als nächstes bearbeiten: `xml_processor_activation_missing`, weil classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML.
 - Nicht als nächstes bearbeiten: `multipart_processor_activation_missing`, weil classification-only: multipart body, Content-Type, and boundary exist, but these fixtures do not enable request body access before expecting FILES/ARGS_NAMES collections.
 - Nicht als nächstes bearbeiten: `collection_name_normalization_semantics`, weil metadata-only: loaded rules have no match evidence; needs native/libmodsecurity comparison before runtime fixes.
@@ -53,7 +54,7 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `c4ee09871777f6a6729cb46a73c21b823194e5035db6a78a793c3b048a0d7dc7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `bfa3cabbbf52f2b8b8b2ca91c24f077f102a7119a94e22a6699a51a67291dde1` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

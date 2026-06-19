@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T06:43:31Z`
+> Generated at: `2026-06-19T16:39:11Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-connector-work-queue.py`
 > Make target: `generate-work-queue`
 > Owner: `framework`
 > Severity: `important`
-> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
-> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
+> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
+> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
 > Input status: `complete`
 
 # Connector Work Queue
@@ -16,29 +16,29 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-19T06:43:31Z`
+- Generated at: `2026-06-19T16:39:11Z`
 - Total runtime cases analyzed: **3928**
-- Total failures: **774**
-- P0/P1/P2/P3: **6** / **0** / **60** / **171**
+- Total failures: **771**
+- P0/P1/P2/P3: **6** / **0** / **60** / **168**
 - Source inventory split: framework-owned(141), MRTS imported(383), feature-demo report-only(16), golden-only(0)
 - Runtime source split: framework-owned(1630), MRTS imported(2298), feature-demo report-only(0), golden-only(0), runtime-job(0)
 
 ## Per Connector Summary
 ### apache
-- Top failure patterns: expected_block_got_200(242), expected_pass_but_evidence_missing(2)
-- Top functional areas: action_intervention(244), args(91), request_body_urlencoded(65), transformations(42), audit_log(36)
+- Top failure patterns: expected_block_got_200(241), expected_pass_but_evidence_missing(2)
+- Top functional areas: action_intervention(243), args(91), request_body_urlencoded(64), transformations(42), audit_log(36)
 - Top work directions: classification_only(179), response_body_non_promoted(28), response_header_mrts_detection_only(20), collection_semantics(10), transformation_semantics(4)
 - Recommended next work: classification_only(179)
 
 ### nginx
-- Top failure patterns: expected_block_got_200(278), expected_pass_but_evidence_missing(8)
-- Top functional areas: action_intervention(280), args(97), request_body_urlencoded(65), response_body(64), audit_log(50)
+- Top failure patterns: expected_block_got_200(277), expected_pass_but_evidence_missing(8)
+- Top functional areas: action_intervention(279), args(97), request_body_urlencoded(64), response_body(64), audit_log(50)
 - Top work directions: classification_only(185), response_body_non_promoted(64), response_header_mrts_detection_only(20), collection_semantics(10), transformation_semantics(4)
 - Recommended next work: classification_only(185)
 
 ### haproxy
-- Top failure patterns: expected_block_got_200(242), expected_pass_but_evidence_missing(2)
-- Top functional areas: action_intervention(244), args(91), request_body_urlencoded(65), transformations(42), audit_log(36)
+- Top failure patterns: expected_block_got_200(241), expected_pass_but_evidence_missing(2)
+- Top functional areas: action_intervention(243), args(91), request_body_urlencoded(64), transformations(42), audit_log(36)
 - Top work directions: classification_only(179), response_body_non_promoted(28), response_header_mrts_detection_only(20), collection_semantics(10), transformation_semantics(4)
 - Recommended next work: classification_only(179)
 
@@ -55,7 +55,6 @@ Generated file - do not edit manually.
 | classification_only | 179 | 185 | 179 | 543 |
 | collection_semantics | 10 | 10 | 10 | 30 |
 | intervention_blocking | 2 | 2 | 2 | 6 |
-| request_body_processor | 1 | 1 | 1 | 3 |
 | response_body_non_promoted | 28 | 64 | 28 | 120 |
 | response_header_mrts_detection_only | 20 | 20 | 20 | 60 |
 | transformation_semantics | 4 | 4 | 4 | 12 |
@@ -63,7 +62,7 @@ Generated file - do not edit manually.
 ## Failure Pattern Summary
 | failure_pattern | apache | nginx | haproxy | total |
 |---|---|---|---|---|
-| expected_block_got_200 | 242 | 278 | 242 | 762 |
+| expected_block_got_200 | 241 | 277 | 241 | 759 |
 | expected_pass_but_evidence_missing | 2 | 8 | 2 | 12 |
 
 ## Prioritized Work Queue
@@ -141,7 +140,6 @@ Generated file - do not edit manually.
 | P3 | apache | with-crs | no-mrts | duplicate_header_case_normalization_gap | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/duplicate_header_case_normalization_gap/result.json |
 | P3 | apache | no-crs | no-mrts | edge_semicolon_query_args_names | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json |
 | P3 | apache | with-crs | no-mrts | edge_semicolon_query_args_names | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/edge_semicolon_query_args_names/result.json |
-| P3 | apache | no-crs | no-mrts | phase1_vs_phase2_request_body_gap | action_intervention, request_body_urlencoded | expected_block_got_200 | phase1_request_body_unavailable | request_body_processor | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase1_vs_phase2_request_body_gap/result.json |
 | P3 | apache | no-crs | with-mrts | phase4_auditlog_outbound_escaped_value_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_escaped_value_gap/result.json |
 | P3 | apache | with-crs | with-mrts | phase4_auditlog_outbound_escaped_value_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_escaped_value_gap/result.json |
 | P3 | apache | no-crs | with-mrts | phase4_auditlog_outbound_matched_var_future | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/phase4_auditlog_outbound_matched_var_future/result.json |
@@ -186,7 +184,6 @@ Generated file - do not edit manually.
 | P3 | haproxy | with-crs | no-mrts | duplicate_header_case_normalization_gap | action_intervention, request_headers, request_headers_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json |
 | P3 | haproxy | no-crs | no-mrts | edge_semicolon_query_args_names | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json |
 | P3 | haproxy | with-crs | no-mrts | edge_semicolon_query_args_names | action_intervention, args, args_names | expected_block_got_200 | collection_name_normalization_semantics | collection_semantics | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json |
-| P3 | haproxy | no-crs | no-mrts | phase1_vs_phase2_request_body_gap | action_intervention, request_body_urlencoded | expected_block_got_200 | phase1_request_body_unavailable | request_body_processor | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/phase1_vs_phase2_request_body_gap/result.json |
 | P3 | haproxy | no-crs | with-mrts | phase4_auditlog_outbound_escaped_value_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_escaped_value_gap/result.json |
 | P3 | haproxy | with-crs | with-mrts | phase4_auditlog_outbound_escaped_value_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_escaped_value_gap/result.json |
 | P3 | haproxy | no-crs | with-mrts | phase4_auditlog_outbound_matched_var_future | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | expected HTTP 403; observed HTTP 200 | /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/phase4_auditlog_outbound_matched_var_future/result.json |
@@ -239,7 +236,6 @@ Generated file - do not edit manually.
 | P3 | nginx | with-crs | with-mrts | nginx_phase4_safe_log_only | response_body | expected_pass_but_evidence_missing | response-body-non-promoted | response_body_non_promoted | fail: phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_safe_log_only/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_safe_log_only/result.json |
 | P3 | nginx | no-crs | with-mrts | nginx_phase4_strict_connection_abort | action_intervention, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected transport connection_aborted, observed http_status; phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_strict_connection_abort/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/nginx_phase4_strict_connection_abort/result.json |
 | P3 | nginx | with-crs | with-mrts | nginx_phase4_strict_connection_abort | action_intervention, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected transport connection_aborted, observed http_status; phase4 log file missing or empty: /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_strict_connection_abort/phase4.log | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/nginx_phase4_strict_connection_abort/result.json |
-| P3 | nginx | no-crs | no-mrts | phase1_vs_phase2_request_body_gap | action_intervention, request_body_urlencoded | expected_block_got_200 | phase1_request_body_unavailable | request_body_processor | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase1_vs_phase2_request_body_gap/result.json |
 | P3 | nginx | no-crs | no-mrts | phase4_auditlog_outbound_escaped_value_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase4_auditlog_outbound_escaped_value_gap/result.json |
 | P3 | nginx | no-crs | with-mrts | phase4_auditlog_outbound_escaped_value_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase4_auditlog_outbound_escaped_value_gap/result.json |
 | P3 | nginx | with-crs | no-mrts | phase4_auditlog_outbound_escaped_value_gap | action_intervention, audit_log, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase4_auditlog_outbound_escaped_value_gap/result.json |
@@ -269,6 +265,9 @@ Generated file - do not edit manually.
 | P3 | nginx | with-crs | no-mrts | phase4_response_body_chunk_assumption_connector_gap | action_intervention, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase4_response_body_chunk_assumption_connector_gap/result.json |
 | P3 | nginx | with-crs | with-mrts | phase4_response_body_chunk_assumption_connector_gap | action_intervention, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase4_response_body_chunk_assumption_connector_gap/result.json |
 | P3 | nginx | no-crs | no-mrts | phase4_response_body_compressed_assumption_experimental | action_intervention, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase4_response_body_compressed_assumption_experimental/result.json |
+| P3 | nginx | no-crs | with-mrts | phase4_response_body_compressed_assumption_experimental | action_intervention, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/phase4_response_body_compressed_assumption_experimental/result.json |
+| P3 | nginx | with-crs | no-mrts | phase4_response_body_compressed_assumption_experimental | action_intervention, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/phase4_response_body_compressed_assumption_experimental/result.json |
+| P3 | nginx | with-crs | with-mrts | phase4_response_body_compressed_assumption_experimental | action_intervention, response_body | expected_block_got_200 | response-body-non-promoted | response_body_non_promoted | fail: expected HTTP 403, observed 200 | /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/phase4_response_body_compressed_assumption_experimental/result.json |
 
 ## MRTS-only Section
 | connector | attempted | pass | fail | blocked | top work directions |
@@ -291,7 +290,7 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

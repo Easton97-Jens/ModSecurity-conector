@@ -1,18 +1,18 @@
 {
   "complete_jobs": 12,
-  "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+  "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
   "data_source_policy": "verified-inputs-only",
   "evidence_scope": "full",
-  "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
-  "generated_at": "2026-06-19T06:43:21Z",
-  "generated_at_utc": "2026-06-19T06:43:21Z",
+  "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
+  "generated_at": "2026-06-19T16:38:59Z",
+  "generated_at_utc": "2026-06-19T16:38:59Z",
   "inputs": [
     {
       "bytes": 6506,
       "label": "full_matrix_manifest",
-      "mtime_utc": "2026-06-19T06:43:21Z",
+      "mtime_utc": "2026-06-19T16:38:59Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-      "sha256": "fada5d0fadca101488838264f9845932d6c5c1e889a73f7e728d5047efed2011",
+      "sha256": "bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8",
       "status": "present"
     },
     {
@@ -26,39 +26,39 @@
     {
       "bytes": 1496,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T18:17:05Z",
+      "mtime_utc": "2026-06-19T10:58:20Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/job.json",
-      "sha256": "f15767d79fbcbf0a3ccdbac91d5e60def2afdd860fcb1d26a68966e28ba915af",
+      "sha256": "f8bffca462db3c5a1d3c5b81c5a88f5b70c46f35fc99587286ddd5a65549b4df",
       "status": "present"
     },
     {
-      "bytes": 189036,
+      "bytes": 189021,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T18:17:05Z",
+      "mtime_utc": "2026-06-19T10:58:20Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
-      "sha256": "ace154664a76f2f7c60f0056f9e7973c959aa37b55ce4832f5c674bde32a4c16",
+      "sha256": "0c83f141005f637e31ccb46dd125689201ba17c855572c227ee246e3e6bb1eb1",
       "status": "present"
     },
     {
-      "bytes": 357835,
+      "bytes": 357816,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T18:17:05Z",
+      "mtime_utc": "2026-06-19T10:58:20Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "04734a3ae2aaa47b49312b14dcc71ea6bcee783ca2c5508a41bc245761e1abf8",
+      "sha256": "1717c2a630321e9b7bf04cadd161eac0c164673442e843c2bd291994f0a1038c",
       "status": "present"
     },
     {
-      "bytes": 292018,
+      "bytes": 292009,
       "label": "results_jsonl",
-      "mtime_utc": "2026-06-18T18:17:05Z",
+      "mtime_utc": "2026-06-19T10:58:20Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-results.jsonl",
-      "sha256": "1f539b3ddcdd2d312365da7e566732530a9c2ef31f2451cea809bf91e18d2954",
+      "sha256": "a4a24dae01fe67ef518c454e28b44d6dc4637a93abe9f3dbc2818d88d78dda01",
       "status": "present"
     },
     {
       "bytes": 539,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T18:11:29Z",
+      "mtime_utc": "2026-06-19T10:52:38Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/build-manifest.json",
       "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
       "status": "present"
@@ -66,39 +66,39 @@
     {
       "bytes": 1484,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T19:19:10Z",
+      "mtime_utc": "2026-06-19T12:10:07Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/job.json",
-      "sha256": "4258dc7376d7fd7a0fe5437bc964b8c4ef35dd370ca8008ad00fead0c84f537f",
+      "sha256": "09e92d3abe673f36fbbd9d1ab074bece42f3b6332c9a4af25f49cd517874ab98",
       "status": "present"
     },
     {
-      "bytes": 251210,
+      "bytes": 251195,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T19:19:10Z",
+      "mtime_utc": "2026-06-19T12:10:07Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
-      "sha256": "8b5e2116ed5d661fbd144c187a94d89aa726b830b38e8d032560edb7a455d4b3",
+      "sha256": "f28ee3f648a252c2cc889be82334dca4456369c6c7d02fbd7396ab3bba6f11bb",
       "status": "present"
     },
     {
-      "bytes": 391765,
+      "bytes": 391746,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T19:19:10Z",
+      "mtime_utc": "2026-06-19T12:10:07Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "72b4115b0147eb477a38d2b0a23d7f735a5602bdf47ad22d9570fe75f8b92216",
+      "sha256": "949e28d7142459e86e0cb9ec1fad12b8b7172a5681039421e4075087d6c3de82",
       "status": "present"
     },
     {
-      "bytes": 322437,
+      "bytes": 322428,
       "label": "results_jsonl",
-      "mtime_utc": "2026-06-18T19:19:10Z",
+      "mtime_utc": "2026-06-19T12:10:07Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-results.jsonl",
-      "sha256": "78015092c8cdcabe864955b4b5cd766fb22cbebc04214c2e5ed5d44c6ce477f0",
+      "sha256": "873569b1fc4f62ceee4634ff017cfd2b72d79f704d9d75dcef7ee6a70c22e9a0",
       "status": "present"
     },
     {
       "bytes": 538,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T19:09:59Z",
+      "mtime_utc": "2026-06-19T12:00:30Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/build-manifest.json",
       "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
       "status": "present"
@@ -106,31 +106,31 @@
     {
       "bytes": 1488,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T21:26:40Z",
+      "mtime_utc": "2026-06-19T14:27:25Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/job.json",
-      "sha256": "072de7cc3d1669021a55169a22ede612da6369d4f2c26407c516424fe528ef76",
+      "sha256": "6501d8a6129791e465f0b1daf80e607660bb34bff4556a73cf0b703589b88d86",
       "status": "present"
     },
     {
-      "bytes": 172793,
+      "bytes": 172778,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T21:26:39Z",
+      "mtime_utc": "2026-06-19T14:27:25Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
-      "sha256": "d9139ccb5020ffa3b8f36c2c6c495ae5ee63b2e39e4d54c3e24c1229c45a9be5",
+      "sha256": "3acb0d0b7bfdc46d706bd0d02f199d7c4bf97b0d9516125bdd681c638ff476af",
       "status": "present"
     },
     {
-      "bytes": 446339,
+      "bytes": 446264,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T21:26:39Z",
+      "mtime_utc": "2026-06-19T14:27:25Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "4c0a7cd49fcb2998e284a41f5b980d2e18f189af6518c12ae2a229a88c55678b",
+      "sha256": "d20599aa223dad587761dd10551cb44fdbc00b83165baa7071c8d159ecc1ea04",
       "status": "present"
     },
     {
       "bytes": 540,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T21:22:13Z",
+      "mtime_utc": "2026-06-19T14:22:47Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/build-manifest.json",
       "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
       "status": "present"
@@ -138,39 +138,39 @@
     {
       "bytes": 1517,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T18:39:08Z",
+      "mtime_utc": "2026-06-19T11:25:42Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/job.json",
-      "sha256": "b4f3143c705468bf8de3d37b9981fd937fc8ebdc6bcac335fc68e941745243dd",
+      "sha256": "584d8dde6a59bc69d94b22e04f1da8e402518147c69fdd50bda014acef86176c",
       "status": "present"
     },
     {
       "bytes": 818298,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T18:39:08Z",
+      "mtime_utc": "2026-06-19T11:25:42Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
-      "sha256": "8fd8f799fcad4158b823a0fc5a853bf54bd9f7a60563a1d2cddcd90d52e47faa",
+      "sha256": "d7c06a31e7d641c4b6fb843eefdef7a4e2051f584282b8627ff6b770d9f62e16",
       "status": "present"
     },
     {
-      "bytes": 1466618,
+      "bytes": 1466582,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T18:39:08Z",
+      "mtime_utc": "2026-06-19T11:25:42Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "328ab24e97e6d5891a99cda747bdcc4aeda05f1a6cf22c43af2f4c17609fcaaa",
+      "sha256": "0a7ac7b47460d1aece31e5a5cce68ff254229b0d8da71644dd06d92739113aa6",
       "status": "present"
     },
     {
-      "bytes": 1204842,
+      "bytes": 1204816,
       "label": "results_jsonl",
-      "mtime_utc": "2026-06-18T18:39:08Z",
+      "mtime_utc": "2026-06-19T11:25:42Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
-      "sha256": "e7cecb1e4baa8d7b2760c1cb456c1b849ebe65dbe79a50916be7dc7a60e3c836",
+      "sha256": "f6c70563811a84ec2db3bcdf880d33707e1df6e24a658ecfc0dd1a2a0d026f8d",
       "status": "present"
     },
     {
       "bytes": 539,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T18:17:32Z",
+      "mtime_utc": "2026-06-19T11:03:48Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/build-manifest.json",
       "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
       "status": "present"
@@ -178,39 +178,39 @@
     {
       "bytes": 1505,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T20:13:07Z",
+      "mtime_utc": "2026-06-19T13:11:48Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/job.json",
-      "sha256": "a671bef53d954c03975b34e6d7bb8c87787fa2e0a86e2fe9fd05d702523e8890",
+      "sha256": "9907a077c02ecffbc5dcbbe75d0b436b054ad78fbd63eec69e8c3a8770380ecb",
       "status": "present"
     },
     {
       "bytes": 1024679,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T20:13:07Z",
+      "mtime_utc": "2026-06-19T13:11:48Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
-      "sha256": "4c41bd972759e89bb361717c0460e49d4a4ea147296f15225101ad106c56a0f5",
+      "sha256": "7878b4c5671e2b3312d229cc4543d489fddd61a334e59fdbb7bde0f214a28975",
       "status": "present"
     },
     {
-      "bytes": 1543823,
+      "bytes": 1543787,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T20:13:07Z",
+      "mtime_utc": "2026-06-19T13:11:48Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "898101ba678afb4a5e7c1b696ad52842946f96da8c6225481acb017cca1c8e09",
+      "sha256": "213018f411175c07f783a4ab48618a52e54b07f2be1d36543a18096b3c6013ef",
       "status": "present"
     },
     {
-      "bytes": 1278668,
+      "bytes": 1278642,
       "label": "results_jsonl",
-      "mtime_utc": "2026-06-18T20:13:06Z",
+      "mtime_utc": "2026-06-19T13:11:48Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-      "sha256": "e8ce34e8dee229fd0478c6c2e982b191b8185f55cdabd9687c528e0ad0286e2f",
+      "sha256": "c0e4b73ef686300b798f275107aec12effe78c3a37988e68b273aad2f712fa92",
       "status": "present"
     },
     {
       "bytes": 538,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T19:19:35Z",
+      "mtime_utc": "2026-06-19T12:15:51Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/build-manifest.json",
       "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
       "status": "present"
@@ -218,31 +218,31 @@
     {
       "bytes": 1509,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T21:44:27Z",
+      "mtime_utc": "2026-06-19T14:51:03Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/job.json",
-      "sha256": "2178d65b5262024bb4ac6e7346eeeebef4ccc09e8c0bd2fc38a80aaf5417266d",
+      "sha256": "8021999a36c6bf0610fd461bd6086cfd319b9ac980d6f2f4c9edee56fb93c428",
       "status": "present"
     },
     {
       "bytes": 757238,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T21:44:27Z",
+      "mtime_utc": "2026-06-19T14:51:03Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
-      "sha256": "186383ac9e4bb6cd445fb31fde3d71246e50e540cbd658333780da424ad02843",
+      "sha256": "5c7b541226a793748c7b20d4912051e35e245edab23e89df18421311ca90f0a6",
       "status": "present"
     },
     {
-      "bytes": 1793592,
+      "bytes": 1793556,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T21:44:27Z",
+      "mtime_utc": "2026-06-19T14:51:03Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "7fd2daa0563b88151ee1c449d3a6fd6a320f518a2ebc869ae45a9554607001a1",
+      "sha256": "af1020b64ee7d12bd6580aafa92e5182aaacaf27dd8599991cfdf6cf161deabe",
       "status": "present"
     },
     {
       "bytes": 540,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T21:27:05Z",
+      "mtime_utc": "2026-06-19T14:32:53Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/build-manifest.json",
       "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
       "status": "present"
@@ -250,39 +250,39 @@
     {
       "bytes": 1516,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T18:45:51Z",
+      "mtime_utc": "2026-06-19T16:01:20Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/job.json",
-      "sha256": "09b003f3960bcc9b34422f15ed0852ae411af7958b8587f4c8b1db8f63d8dfaf",
+      "sha256": "dcfb59e5b34b9c291d2f1fd351c0c9d5607731454c0e7a6b683dc2c58ad0e1ef",
       "status": "present"
     },
     {
       "bytes": 213224,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T18:45:51Z",
+      "mtime_utc": "2026-06-19T16:01:20Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
-      "sha256": "86fe24c7efe9b6c298a90e968e82ee10197897941e15eff5a51d58aaab920c1c",
+      "sha256": "ecba0eb3f85a8dff74503396a2a98ae80ebcf883bc434a1ab5ca6c73b7aaef2f",
       "status": "present"
     },
     {
-      "bytes": 362239,
+      "bytes": 362203,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T18:45:51Z",
+      "mtime_utc": "2026-06-19T16:01:20Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "c7512b6b6c2d880983c49e45a84bcc9c5cb08af08b0dd1d1b210a998d2144ee8",
+      "sha256": "2ad3431b993b3b1bd376f883bf7e4e92a69190a88685056a58dd8072e1ed181e",
       "status": "present"
     },
     {
-      "bytes": 295983,
+      "bytes": 295957,
       "label": "results_jsonl",
-      "mtime_utc": "2026-06-18T18:45:50Z",
+      "mtime_utc": "2026-06-19T16:01:19Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-results.jsonl",
-      "sha256": "0cc2482790777ee27268cc02c0587aba6eb34e3ea83db6317a238ed3d7a4f744",
+      "sha256": "f37761021c8ea8d67946447747872986d6b989a5f0f7d8782fdbc236d06cd40b",
       "status": "present"
     },
     {
       "bytes": 539,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T18:39:44Z",
+      "mtime_utc": "2026-06-19T15:55:14Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/build-manifest.json",
       "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
       "status": "present"
@@ -290,39 +290,39 @@
     {
       "bytes": 1504,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T20:23:55Z",
+      "mtime_utc": "2026-06-19T16:17:37Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/job.json",
-      "sha256": "ff37e9c98de16fbf11d4b6ba7401caa6dda42d52646f405dc39d6e9aebeaec91",
+      "sha256": "3f5477e56a55a0eb4b7c92f5130827663cd70b02eb7c25473358a4a86b299389",
       "status": "present"
     },
     {
       "bytes": 276944,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T20:23:55Z",
+      "mtime_utc": "2026-06-19T16:17:37Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
-      "sha256": "4918463264d04a5e52ae5a185ee3e2991cfd90932c377feaad8db0610ce0cdb2",
+      "sha256": "5a818a6aaf6a36d9c8cfabc4f84e26061099a93eb61ebcb3abfb237d727fae60",
       "status": "present"
     },
     {
-      "bytes": 396393,
+      "bytes": 396357,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T20:23:55Z",
+      "mtime_utc": "2026-06-19T16:17:37Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "8d5b8c841aed71dbee678d53125c2e10e8ed132d0cc468d1e9d2f44a527ff9b3",
+      "sha256": "fd4de70202d5780055fc4d4ad076133078c876970cf21cf54023d18139dd9fa4",
       "status": "present"
     },
     {
-      "bytes": 326630,
+      "bytes": 326604,
       "label": "results_jsonl",
-      "mtime_utc": "2026-06-18T20:23:54Z",
+      "mtime_utc": "2026-06-19T16:17:37Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-results.jsonl",
-      "sha256": "1cfc956a5b293dedf768903221890c921e4bbc6cbb53664582672c257f399684",
+      "sha256": "395d5e37d1e4eb399ef70b4e40a177099d6f3ab9ed4fde6eabe335c225fa47c5",
       "status": "present"
     },
     {
       "bytes": 538,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T20:13:42Z",
+      "mtime_utc": "2026-06-19T16:06:57Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/build-manifest.json",
       "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
       "status": "present"
@@ -330,31 +330,31 @@
     {
       "bytes": 1508,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T21:50:04Z",
+      "mtime_utc": "2026-06-19T16:28:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/job.json",
-      "sha256": "cec350319ac91b03605a189b2c5613c47e9a732205daf9618ab8653ee85c28b5",
+      "sha256": "8f3880a92a2c1da5e5da89b7e2852afa352275aabce7d81c04c32452cb4c8af2",
       "status": "present"
     },
     {
       "bytes": 196960,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T21:50:04Z",
+      "mtime_utc": "2026-06-19T16:28:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
-      "sha256": "44c5896a0ef1603af467b714076038d6c67be5ff74d2b5737efbc86e76320430",
+      "sha256": "076445da559da9eb12ecc8fffbfca94ddc50d8c320e911d07a92156cc032cde6",
       "status": "present"
     },
     {
-      "bytes": 451790,
+      "bytes": 451754,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T21:50:04Z",
+      "mtime_utc": "2026-06-19T16:28:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "bf78cbc8302c3039960cb3c5f66ef9f6c41d1aac9632357b85708e9261ee09f2",
+      "sha256": "af547bfca06e171781dee73eb432942ce47189d9ab8363fa7c694ed0cd994fda",
       "status": "present"
     },
     {
       "bytes": 540,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T21:45:03Z",
+      "mtime_utc": "2026-06-19T16:22:58Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/build-manifest.json",
       "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
       "status": "present"
@@ -362,39 +362,39 @@
     {
       "bytes": 1537,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T19:09:26Z",
+      "mtime_utc": "2026-06-19T11:55:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/job.json",
-      "sha256": "ef6adebbec71fb28c20cc7e0aa774ce69b6134d642e083937c3ad6e05085e711",
+      "sha256": "356705da0cb5d8ed3875892b11dd0bad7348567bcdf594ef7728ba1647e1da37",
       "status": "present"
     },
     {
       "bytes": 845867,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T19:09:26Z",
+      "mtime_utc": "2026-06-19T11:55:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
-      "sha256": "972c3f6afc757e1d2f6f5383124c9639ae91318cfeb91d855dc5c5cfc5f35546",
+      "sha256": "d252b109e43132a958fb156383f829de466533a20033a557813bbd0187cae06d",
       "status": "present"
     },
     {
-      "bytes": 1476371,
+      "bytes": 1476335,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T19:09:26Z",
+      "mtime_utc": "2026-06-19T11:55:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "298825ae37e70ade53f725e230592159acd37a143d06249de6fba7ef82110c79",
+      "sha256": "6f93aac6466c0e301e3bd6dfc3c4bbab4f5955ec884cd28eb28ba6821ab1ba0a",
       "status": "present"
     },
     {
-      "bytes": 1214160,
+      "bytes": 1214134,
       "label": "results_jsonl",
-      "mtime_utc": "2026-06-18T19:09:25Z",
+      "mtime_utc": "2026-06-19T11:55:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
-      "sha256": "00bd0ab1789730f937c549bfd11c4df809460e34e29cdf3073690d7433ac166b",
+      "sha256": "cbc919308386ba096dbcd76d0a244074c682d260ce3d0c20f8c93a47adbb1a62",
       "status": "present"
     },
     {
       "bytes": 539,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T18:46:18Z",
+      "mtime_utc": "2026-06-19T11:31:27Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/build-manifest.json",
       "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
       "status": "present"
@@ -402,7 +402,7 @@
     {
       "bytes": 219,
       "label": "rule_preamble",
-      "mtime_utc": "2026-06-18T18:46:18Z",
+      "mtime_utc": "2026-06-19T11:31:27Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/preambles/apache-with-crs-with-mrts.load",
       "sha256": "1076096770e3992d3be0479bb91c7c57de449a1c9cfeea4d95253a77f105234f",
       "status": "present"
@@ -410,39 +410,39 @@
     {
       "bytes": 1525,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T21:21:38Z",
+      "mtime_utc": "2026-06-19T14:17:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json",
-      "sha256": "79d08ce77343c7ae1e3443bf38fb44e5341b1fa0586ca5ed9cbd69b5de8271bd",
+      "sha256": "31606405e016d20afb67ce650aaf098b8194133d87869846344929e74c70b8f9",
       "status": "present"
     },
     {
       "bytes": 1052969,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T21:21:38Z",
+      "mtime_utc": "2026-06-19T14:17:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
-      "sha256": "79114cad6b8c729beaae429b29d4caa467f5ce686a7cd78d7ba9d1dbd7a7c140",
+      "sha256": "d1425a9d5db6ec05270dd7292078437ab1ffd4981efdaadc8b1bf9da902e621f",
       "status": "present"
     },
     {
-      "bytes": 1553812,
+      "bytes": 1553776,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T21:21:38Z",
+      "mtime_utc": "2026-06-19T14:17:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "ebf9c0111b63f4ccb349e5c4ec1960702ec9e9c5ac53ab70153f60616341aa3d",
+      "sha256": "efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e",
       "status": "present"
     },
     {
-      "bytes": 1288222,
+      "bytes": 1288196,
       "label": "results_jsonl",
-      "mtime_utc": "2026-06-18T21:21:38Z",
+      "mtime_utc": "2026-06-19T14:17:10Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-      "sha256": "8d05493d1747a79de336faf3347245881ef226b7f9587038d945ff048c9b2a5a",
+      "sha256": "59dd481e19225c369952c566eca3981cb002c7050b699ee45be6dfdbef2d2603",
       "status": "present"
     },
     {
       "bytes": 538,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T20:24:21Z",
+      "mtime_utc": "2026-06-19T13:17:16Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/build-manifest.json",
       "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
       "status": "present"
@@ -450,7 +450,7 @@
     {
       "bytes": 218,
       "label": "rule_preamble",
-      "mtime_utc": "2026-06-18T20:24:21Z",
+      "mtime_utc": "2026-06-19T13:17:17Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load",
       "sha256": "79c6dbe2ce8b15f21e9e0af9604f1f0553df025fa65d1c8e690c6dc867494726",
       "status": "present"
@@ -458,31 +458,31 @@
     {
       "bytes": 1529,
       "label": "job_json",
-      "mtime_utc": "2026-06-18T22:10:14Z",
+      "mtime_utc": "2026-06-19T15:17:13Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/job.json",
-      "sha256": "613dcc0f07c1469b82338799bad839a2973b3cc205ec326430052ab4ae0253e2",
+      "sha256": "be7a1c00e16a92fa3a6d3e9ec4b878df8fa9fdb008e423e301cc704e66734739",
       "status": "present"
     },
     {
       "bytes": 785675,
       "label": "run_log",
-      "mtime_utc": "2026-06-18T22:10:14Z",
+      "mtime_utc": "2026-06-19T15:17:13Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
-      "sha256": "634606d8061ae01aacc6d0e81d3da6d00e865df0db6c36e5528fad49738afb72",
+      "sha256": "444d43f98e73086ef4743f2975eca3dc248c178f237d8e3bc3a008d843405b09",
       "status": "present"
     },
     {
-      "bytes": 1806027,
+      "bytes": 1805991,
       "label": "summary_json",
-      "mtime_utc": "2026-06-18T22:10:14Z",
+      "mtime_utc": "2026-06-19T15:17:13Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "c9e8a6c20d5e510a574f6f49f1e0c215299b8fec8264c4d3acef23d5bc982699",
+      "sha256": "1ff741bf7a50983b1d2e403206f2a75ba4cc21e43a45b0dd530f49cd3b344f46",
       "status": "present"
     },
     {
       "bytes": 540,
       "label": "build_manifest",
-      "mtime_utc": "2026-06-18T21:50:31Z",
+      "mtime_utc": "2026-06-19T14:56:48Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/build-manifest.json",
       "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
       "status": "present"
@@ -490,7 +490,7 @@
     {
       "bytes": 220,
       "label": "rule_preamble",
-      "mtime_utc": "2026-06-18T21:50:31Z",
+      "mtime_utc": "2026-06-19T14:56:48Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/preambles/haproxy-with-crs-with-mrts.load",
       "sha256": "5770573af35d8c7ffe9be9c6940b23a84bc1d9dc1abe5df97d939ea150ef02a7",
       "status": "present"
@@ -504,46 +504,46 @@
       "cases": 133,
       "connector": "apache",
       "crs": "no-crs",
-      "duration_seconds": 336,
-      "ended_at": "2026-06-18T18:17:05Z",
-      "fail": 12,
+      "duration_seconds": 342,
+      "ended_at": "2026-06-19T10:58:20Z",
+      "fail": 11,
       "input_hashes": [
         {
           "bytes": 1496,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T18:17:05Z",
+          "mtime_utc": "2026-06-19T10:58:20Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/job.json",
-          "sha256": "f15767d79fbcbf0a3ccdbac91d5e60def2afdd860fcb1d26a68966e28ba915af",
+          "sha256": "f8bffca462db3c5a1d3c5b81c5a88f5b70c46f35fc99587286ddd5a65549b4df",
           "status": "present"
         },
         {
-          "bytes": 189036,
+          "bytes": 189021,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T18:17:05Z",
+          "mtime_utc": "2026-06-19T10:58:20Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
-          "sha256": "ace154664a76f2f7c60f0056f9e7973c959aa37b55ce4832f5c674bde32a4c16",
+          "sha256": "0c83f141005f637e31ccb46dd125689201ba17c855572c227ee246e3e6bb1eb1",
           "status": "present"
         },
         {
-          "bytes": 357835,
+          "bytes": 357816,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T18:17:05Z",
+          "mtime_utc": "2026-06-19T10:58:20Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-          "sha256": "04734a3ae2aaa47b49312b14dcc71ea6bcee783ca2c5508a41bc245761e1abf8",
+          "sha256": "1717c2a630321e9b7bf04cadd161eac0c164673442e843c2bd291994f0a1038c",
           "status": "present"
         },
         {
-          "bytes": 292018,
+          "bytes": 292009,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T18:17:05Z",
+          "mtime_utc": "2026-06-19T10:58:20Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-results.jsonl",
-          "sha256": "1f539b3ddcdd2d312365da7e566732530a9c2ef31f2451cea809bf91e18d2954",
+          "sha256": "a4a24dae01fe67ef518c454e28b44d6dc4637a93abe9f3dbc2818d88d78dda01",
           "status": "present"
         },
         {
           "bytes": 539,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T18:11:29Z",
+          "mtime_utc": "2026-06-19T10:52:38Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/build-manifest.json",
           "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
           "status": "present"
@@ -561,16 +561,16 @@
       "manifest_recorded": true,
       "mrts": "no-mrts",
       "not_executable": 0,
-      "pass": 121,
+      "pass": 122,
       "reason": "job.json exists with rc=2",
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T18:11:29Z",
+      "started_at": "2026-06-19T10:52:38Z",
       "status": "completed_with_mismatches",
       "status_counts": {
-        "fail": 12,
-        "pass": 121
+        "fail": 11,
+        "pass": 122
       },
       "summary_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json"
     },
@@ -581,46 +581,46 @@
       "cases": 140,
       "connector": "nginx",
       "crs": "no-crs",
-      "duration_seconds": 551,
-      "ended_at": "2026-06-18T19:19:10Z",
-      "fail": 26,
+      "duration_seconds": 577,
+      "ended_at": "2026-06-19T12:10:07Z",
+      "fail": 25,
       "input_hashes": [
         {
           "bytes": 1484,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T19:19:10Z",
+          "mtime_utc": "2026-06-19T12:10:07Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/job.json",
-          "sha256": "4258dc7376d7fd7a0fe5437bc964b8c4ef35dd370ca8008ad00fead0c84f537f",
+          "sha256": "09e92d3abe673f36fbbd9d1ab074bece42f3b6332c9a4af25f49cd517874ab98",
           "status": "present"
         },
         {
-          "bytes": 251210,
+          "bytes": 251195,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T19:19:10Z",
+          "mtime_utc": "2026-06-19T12:10:07Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
-          "sha256": "8b5e2116ed5d661fbd144c187a94d89aa726b830b38e8d032560edb7a455d4b3",
+          "sha256": "f28ee3f648a252c2cc889be82334dca4456369c6c7d02fbd7396ab3bba6f11bb",
           "status": "present"
         },
         {
-          "bytes": 391765,
+          "bytes": 391746,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T19:19:10Z",
+          "mtime_utc": "2026-06-19T12:10:07Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-          "sha256": "72b4115b0147eb477a38d2b0a23d7f735a5602bdf47ad22d9570fe75f8b92216",
+          "sha256": "949e28d7142459e86e0cb9ec1fad12b8b7172a5681039421e4075087d6c3de82",
           "status": "present"
         },
         {
-          "bytes": 322437,
+          "bytes": 322428,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T19:19:10Z",
+          "mtime_utc": "2026-06-19T12:10:07Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-results.jsonl",
-          "sha256": "78015092c8cdcabe864955b4b5cd766fb22cbebc04214c2e5ed5d44c6ce477f0",
+          "sha256": "873569b1fc4f62ceee4634ff017cfd2b72d79f704d9d75dcef7ee6a70c22e9a0",
           "status": "present"
         },
         {
           "bytes": 538,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T19:09:59Z",
+          "mtime_utc": "2026-06-19T12:00:30Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/build-manifest.json",
           "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
           "status": "present"
@@ -638,16 +638,16 @@
       "manifest_recorded": true,
       "mrts": "no-mrts",
       "not_executable": 0,
-      "pass": 114,
+      "pass": 115,
       "reason": "job.json exists with rc=2",
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T19:09:59Z",
+      "started_at": "2026-06-19T12:00:30Z",
       "status": "completed_with_mismatches",
       "status_counts": {
-        "fail": 26,
-        "pass": 114
+        "fail": 25,
+        "pass": 115
       },
       "summary_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json"
     },
@@ -658,32 +658,32 @@
       "cases": 133,
       "connector": "haproxy",
       "crs": "no-crs",
-      "duration_seconds": 266,
-      "ended_at": "2026-06-18T21:26:39Z",
-      "fail": 12,
+      "duration_seconds": 278,
+      "ended_at": "2026-06-19T14:27:25Z",
+      "fail": 11,
       "input_hashes": [
         {
           "bytes": 1488,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T21:26:40Z",
+          "mtime_utc": "2026-06-19T14:27:25Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/job.json",
-          "sha256": "072de7cc3d1669021a55169a22ede612da6369d4f2c26407c516424fe528ef76",
+          "sha256": "6501d8a6129791e465f0b1daf80e607660bb34bff4556a73cf0b703589b88d86",
           "status": "present"
         },
         {
-          "bytes": 172793,
+          "bytes": 172778,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T21:26:39Z",
+          "mtime_utc": "2026-06-19T14:27:25Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
-          "sha256": "d9139ccb5020ffa3b8f36c2c6c495ae5ee63b2e39e4d54c3e24c1229c45a9be5",
+          "sha256": "3acb0d0b7bfdc46d706bd0d02f199d7c4bf97b0d9516125bdd681c638ff476af",
           "status": "present"
         },
         {
-          "bytes": 446339,
+          "bytes": 446264,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T21:26:39Z",
+          "mtime_utc": "2026-06-19T14:27:25Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-          "sha256": "4c0a7cd49fcb2998e284a41f5b980d2e18f189af6518c12ae2a229a88c55678b",
+          "sha256": "d20599aa223dad587761dd10551cb44fdbc00b83165baa7071c8d159ecc1ea04",
           "status": "present"
         },
         {
@@ -695,7 +695,7 @@
         {
           "bytes": 540,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T21:22:13Z",
+          "mtime_utc": "2026-06-19T14:22:47Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/build-manifest.json",
           "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
           "status": "present"
@@ -713,16 +713,16 @@
       "manifest_recorded": true,
       "mrts": "no-mrts",
       "not_executable": 0,
-      "pass": 121,
+      "pass": 122,
       "reason": "job.json exists with rc=2",
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/force-all/haproxy-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T21:22:13Z",
+      "started_at": "2026-06-19T14:22:47Z",
       "status": "completed_with_mismatches",
       "status_counts": {
-        "fail": 12,
-        "pass": 121
+        "fail": 11,
+        "pass": 122
       },
       "summary_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json"
     },
@@ -733,46 +733,46 @@
       "cases": 516,
       "connector": "apache",
       "crs": "no-crs",
-      "duration_seconds": 1296,
-      "ended_at": "2026-06-18T18:39:08Z",
+      "duration_seconds": 1314,
+      "ended_at": "2026-06-19T11:25:42Z",
       "fail": 109,
       "input_hashes": [
         {
           "bytes": 1517,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T18:39:08Z",
+          "mtime_utc": "2026-06-19T11:25:42Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/job.json",
-          "sha256": "b4f3143c705468bf8de3d37b9981fd937fc8ebdc6bcac335fc68e941745243dd",
+          "sha256": "584d8dde6a59bc69d94b22e04f1da8e402518147c69fdd50bda014acef86176c",
           "status": "present"
         },
         {
           "bytes": 818298,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T18:39:08Z",
+          "mtime_utc": "2026-06-19T11:25:42Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
-          "sha256": "8fd8f799fcad4158b823a0fc5a853bf54bd9f7a60563a1d2cddcd90d52e47faa",
+          "sha256": "d7c06a31e7d641c4b6fb843eefdef7a4e2051f584282b8627ff6b770d9f62e16",
           "status": "present"
         },
         {
-          "bytes": 1466618,
+          "bytes": 1466582,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T18:39:08Z",
+          "mtime_utc": "2026-06-19T11:25:42Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-          "sha256": "328ab24e97e6d5891a99cda747bdcc4aeda05f1a6cf22c43af2f4c17609fcaaa",
+          "sha256": "0a7ac7b47460d1aece31e5a5cce68ff254229b0d8da71644dd06d92739113aa6",
           "status": "present"
         },
         {
-          "bytes": 1204842,
+          "bytes": 1204816,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T18:39:08Z",
+          "mtime_utc": "2026-06-19T11:25:42Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
-          "sha256": "e7cecb1e4baa8d7b2760c1cb456c1b849ebe65dbe79a50916be7dc7a60e3c836",
+          "sha256": "f6c70563811a84ec2db3bcdf880d33707e1df6e24a658ecfc0dd1a2a0d026f8d",
           "status": "present"
         },
         {
           "bytes": 539,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T18:17:32Z",
+          "mtime_utc": "2026-06-19T11:03:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/build-manifest.json",
           "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
           "status": "present"
@@ -795,7 +795,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T18:17:32Z",
+      "started_at": "2026-06-19T11:03:48Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 109,
@@ -810,46 +810,46 @@
       "cases": 523,
       "connector": "nginx",
       "crs": "no-crs",
-      "duration_seconds": 3212,
-      "ended_at": "2026-06-18T20:13:07Z",
+      "duration_seconds": 3358,
+      "ended_at": "2026-06-19T13:11:48Z",
       "fail": 116,
       "input_hashes": [
         {
           "bytes": 1505,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T20:13:07Z",
+          "mtime_utc": "2026-06-19T13:11:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/job.json",
-          "sha256": "a671bef53d954c03975b34e6d7bb8c87787fa2e0a86e2fe9fd05d702523e8890",
+          "sha256": "9907a077c02ecffbc5dcbbe75d0b436b054ad78fbd63eec69e8c3a8770380ecb",
           "status": "present"
         },
         {
           "bytes": 1024679,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T20:13:07Z",
+          "mtime_utc": "2026-06-19T13:11:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
-          "sha256": "4c41bd972759e89bb361717c0460e49d4a4ea147296f15225101ad106c56a0f5",
+          "sha256": "7878b4c5671e2b3312d229cc4543d489fddd61a334e59fdbb7bde0f214a28975",
           "status": "present"
         },
         {
-          "bytes": 1543823,
+          "bytes": 1543787,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T20:13:07Z",
+          "mtime_utc": "2026-06-19T13:11:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-          "sha256": "898101ba678afb4a5e7c1b696ad52842946f96da8c6225481acb017cca1c8e09",
+          "sha256": "213018f411175c07f783a4ab48618a52e54b07f2be1d36543a18096b3c6013ef",
           "status": "present"
         },
         {
-          "bytes": 1278668,
+          "bytes": 1278642,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T20:13:06Z",
+          "mtime_utc": "2026-06-19T13:11:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-          "sha256": "e8ce34e8dee229fd0478c6c2e982b191b8185f55cdabd9687c528e0ad0286e2f",
+          "sha256": "c0e4b73ef686300b798f275107aec12effe78c3a37988e68b273aad2f712fa92",
           "status": "present"
         },
         {
           "bytes": 538,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T19:19:35Z",
+          "mtime_utc": "2026-06-19T12:15:51Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/build-manifest.json",
           "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
           "status": "present"
@@ -872,7 +872,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T19:19:35Z",
+      "started_at": "2026-06-19T12:15:50Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 116,
@@ -887,32 +887,32 @@
       "cases": 516,
       "connector": "haproxy",
       "crs": "no-crs",
-      "duration_seconds": 1042,
-      "ended_at": "2026-06-18T21:44:27Z",
+      "duration_seconds": 1090,
+      "ended_at": "2026-06-19T14:51:03Z",
       "fail": 109,
       "input_hashes": [
         {
           "bytes": 1509,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T21:44:27Z",
+          "mtime_utc": "2026-06-19T14:51:03Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/job.json",
-          "sha256": "2178d65b5262024bb4ac6e7346eeeebef4ccc09e8c0bd2fc38a80aaf5417266d",
+          "sha256": "8021999a36c6bf0610fd461bd6086cfd319b9ac980d6f2f4c9edee56fb93c428",
           "status": "present"
         },
         {
           "bytes": 757238,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T21:44:27Z",
+          "mtime_utc": "2026-06-19T14:51:03Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
-          "sha256": "186383ac9e4bb6cd445fb31fde3d71246e50e540cbd658333780da424ad02843",
+          "sha256": "5c7b541226a793748c7b20d4912051e35e245edab23e89df18421311ca90f0a6",
           "status": "present"
         },
         {
-          "bytes": 1793592,
+          "bytes": 1793556,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T21:44:27Z",
+          "mtime_utc": "2026-06-19T14:51:03Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
-          "sha256": "7fd2daa0563b88151ee1c449d3a6fd6a320f518a2ebc869ae45a9554607001a1",
+          "sha256": "af1020b64ee7d12bd6580aafa92e5182aaacaf27dd8599991cfdf6cf161deabe",
           "status": "present"
         },
         {
@@ -924,7 +924,7 @@
         {
           "bytes": 540,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T21:27:05Z",
+          "mtime_utc": "2026-06-19T14:32:53Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/build-manifest.json",
           "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
           "status": "present"
@@ -947,7 +947,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/force-all/haproxy-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T21:27:05Z",
+      "started_at": "2026-06-19T14:32:53Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 109,
@@ -962,46 +962,46 @@
       "cases": 134,
       "connector": "apache",
       "crs": "with-crs",
-      "duration_seconds": 367,
-      "ended_at": "2026-06-18T18:45:51Z",
+      "duration_seconds": 366,
+      "ended_at": "2026-06-19T16:01:20Z",
       "fail": 12,
       "input_hashes": [
         {
           "bytes": 1516,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T18:45:51Z",
+          "mtime_utc": "2026-06-19T16:01:20Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/job.json",
-          "sha256": "09b003f3960bcc9b34422f15ed0852ae411af7958b8587f4c8b1db8f63d8dfaf",
+          "sha256": "dcfb59e5b34b9c291d2f1fd351c0c9d5607731454c0e7a6b683dc2c58ad0e1ef",
           "status": "present"
         },
         {
           "bytes": 213224,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T18:45:51Z",
+          "mtime_utc": "2026-06-19T16:01:20Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
-          "sha256": "86fe24c7efe9b6c298a90e968e82ee10197897941e15eff5a51d58aaab920c1c",
+          "sha256": "ecba0eb3f85a8dff74503396a2a98ae80ebcf883bc434a1ab5ca6c73b7aaef2f",
           "status": "present"
         },
         {
-          "bytes": 362239,
+          "bytes": 362203,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T18:45:51Z",
+          "mtime_utc": "2026-06-19T16:01:20Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-          "sha256": "c7512b6b6c2d880983c49e45a84bcc9c5cb08af08b0dd1d1b210a998d2144ee8",
+          "sha256": "2ad3431b993b3b1bd376f883bf7e4e92a69190a88685056a58dd8072e1ed181e",
           "status": "present"
         },
         {
-          "bytes": 295983,
+          "bytes": 295957,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T18:45:50Z",
+          "mtime_utc": "2026-06-19T16:01:19Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-results.jsonl",
-          "sha256": "0cc2482790777ee27268cc02c0587aba6eb34e3ea83db6317a238ed3d7a4f744",
+          "sha256": "f37761021c8ea8d67946447747872986d6b989a5f0f7d8782fdbc236d06cd40b",
           "status": "present"
         },
         {
           "bytes": 539,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T18:39:44Z",
+          "mtime_utc": "2026-06-19T15:55:14Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/build-manifest.json",
           "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
           "status": "present"
@@ -1024,7 +1024,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T18:39:44Z",
+      "started_at": "2026-06-19T15:55:14Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 12,
@@ -1039,46 +1039,46 @@
       "cases": 141,
       "connector": "nginx",
       "crs": "with-crs",
-      "duration_seconds": 613,
-      "ended_at": "2026-06-18T20:23:55Z",
+      "duration_seconds": 641,
+      "ended_at": "2026-06-19T16:17:37Z",
       "fail": 26,
       "input_hashes": [
         {
           "bytes": 1504,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T20:23:55Z",
+          "mtime_utc": "2026-06-19T16:17:37Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/job.json",
-          "sha256": "ff37e9c98de16fbf11d4b6ba7401caa6dda42d52646f405dc39d6e9aebeaec91",
+          "sha256": "3f5477e56a55a0eb4b7c92f5130827663cd70b02eb7c25473358a4a86b299389",
           "status": "present"
         },
         {
           "bytes": 276944,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T20:23:55Z",
+          "mtime_utc": "2026-06-19T16:17:37Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
-          "sha256": "4918463264d04a5e52ae5a185ee3e2991cfd90932c377feaad8db0610ce0cdb2",
+          "sha256": "5a818a6aaf6a36d9c8cfabc4f84e26061099a93eb61ebcb3abfb237d727fae60",
           "status": "present"
         },
         {
-          "bytes": 396393,
+          "bytes": 396357,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T20:23:55Z",
+          "mtime_utc": "2026-06-19T16:17:37Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-          "sha256": "8d5b8c841aed71dbee678d53125c2e10e8ed132d0cc468d1e9d2f44a527ff9b3",
+          "sha256": "fd4de70202d5780055fc4d4ad076133078c876970cf21cf54023d18139dd9fa4",
           "status": "present"
         },
         {
-          "bytes": 326630,
+          "bytes": 326604,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T20:23:54Z",
+          "mtime_utc": "2026-06-19T16:17:37Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-results.jsonl",
-          "sha256": "1cfc956a5b293dedf768903221890c921e4bbc6cbb53664582672c257f399684",
+          "sha256": "395d5e37d1e4eb399ef70b4e40a177099d6f3ab9ed4fde6eabe335c225fa47c5",
           "status": "present"
         },
         {
           "bytes": 538,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T20:13:42Z",
+          "mtime_utc": "2026-06-19T16:06:57Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/build-manifest.json",
           "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
           "status": "present"
@@ -1101,7 +1101,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T20:13:42Z",
+      "started_at": "2026-06-19T16:06:56Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 26,
@@ -1116,32 +1116,32 @@
       "cases": 134,
       "connector": "haproxy",
       "crs": "with-crs",
-      "duration_seconds": 301,
-      "ended_at": "2026-06-18T21:50:04Z",
+      "duration_seconds": 312,
+      "ended_at": "2026-06-19T16:28:10Z",
       "fail": 12,
       "input_hashes": [
         {
           "bytes": 1508,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T21:50:04Z",
+          "mtime_utc": "2026-06-19T16:28:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/job.json",
-          "sha256": "cec350319ac91b03605a189b2c5613c47e9a732205daf9618ab8653ee85c28b5",
+          "sha256": "8f3880a92a2c1da5e5da89b7e2852afa352275aabce7d81c04c32452cb4c8af2",
           "status": "present"
         },
         {
           "bytes": 196960,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T21:50:04Z",
+          "mtime_utc": "2026-06-19T16:28:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
-          "sha256": "44c5896a0ef1603af467b714076038d6c67be5ff74d2b5737efbc86e76320430",
+          "sha256": "076445da559da9eb12ecc8fffbfca94ddc50d8c320e911d07a92156cc032cde6",
           "status": "present"
         },
         {
-          "bytes": 451790,
+          "bytes": 451754,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T21:50:04Z",
+          "mtime_utc": "2026-06-19T16:28:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-          "sha256": "bf78cbc8302c3039960cb3c5f66ef9f6c41d1aac9632357b85708e9261ee09f2",
+          "sha256": "af547bfca06e171781dee73eb432942ce47189d9ab8363fa7c694ed0cd994fda",
           "status": "present"
         },
         {
@@ -1153,7 +1153,7 @@
         {
           "bytes": 540,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T21:45:03Z",
+          "mtime_utc": "2026-06-19T16:22:58Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/build-manifest.json",
           "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
           "status": "present"
@@ -1176,7 +1176,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/force-all/haproxy-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T21:45:03Z",
+      "started_at": "2026-06-19T16:22:58Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 12,
@@ -1191,46 +1191,46 @@
       "cases": 517,
       "connector": "apache",
       "crs": "with-crs",
-      "duration_seconds": 1388,
-      "ended_at": "2026-06-18T19:09:26Z",
+      "duration_seconds": 1423,
+      "ended_at": "2026-06-19T11:55:10Z",
       "fail": 111,
       "input_hashes": [
         {
           "bytes": 1537,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T19:09:26Z",
+          "mtime_utc": "2026-06-19T11:55:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/job.json",
-          "sha256": "ef6adebbec71fb28c20cc7e0aa774ce69b6134d642e083937c3ad6e05085e711",
+          "sha256": "356705da0cb5d8ed3875892b11dd0bad7348567bcdf594ef7728ba1647e1da37",
           "status": "present"
         },
         {
           "bytes": 845867,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T19:09:26Z",
+          "mtime_utc": "2026-06-19T11:55:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
-          "sha256": "972c3f6afc757e1d2f6f5383124c9639ae91318cfeb91d855dc5c5cfc5f35546",
+          "sha256": "d252b109e43132a958fb156383f829de466533a20033a557813bbd0187cae06d",
           "status": "present"
         },
         {
-          "bytes": 1476371,
+          "bytes": 1476335,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T19:09:26Z",
+          "mtime_utc": "2026-06-19T11:55:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-          "sha256": "298825ae37e70ade53f725e230592159acd37a143d06249de6fba7ef82110c79",
+          "sha256": "6f93aac6466c0e301e3bd6dfc3c4bbab4f5955ec884cd28eb28ba6821ab1ba0a",
           "status": "present"
         },
         {
-          "bytes": 1214160,
+          "bytes": 1214134,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T19:09:25Z",
+          "mtime_utc": "2026-06-19T11:55:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
-          "sha256": "00bd0ab1789730f937c549bfd11c4df809460e34e29cdf3073690d7433ac166b",
+          "sha256": "cbc919308386ba096dbcd76d0a244074c682d260ce3d0c20f8c93a47adbb1a62",
           "status": "present"
         },
         {
           "bytes": 539,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T18:46:18Z",
+          "mtime_utc": "2026-06-19T11:31:27Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/build-manifest.json",
           "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
           "status": "present"
@@ -1238,7 +1238,7 @@
         {
           "bytes": 219,
           "label": "rule_preamble",
-          "mtime_utc": "2026-06-18T18:46:18Z",
+          "mtime_utc": "2026-06-19T11:31:27Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/preambles/apache-with-crs-with-mrts.load",
           "sha256": "1076096770e3992d3be0479bb91c7c57de449a1c9cfeea4d95253a77f105234f",
           "status": "present"
@@ -1255,7 +1255,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T18:46:18Z",
+      "started_at": "2026-06-19T11:31:27Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 111,
@@ -1270,46 +1270,46 @@
       "cases": 524,
       "connector": "nginx",
       "crs": "with-crs",
-      "duration_seconds": 3437,
-      "ended_at": "2026-06-18T21:21:38Z",
+      "duration_seconds": 3594,
+      "ended_at": "2026-06-19T14:17:10Z",
       "fail": 118,
       "input_hashes": [
         {
           "bytes": 1525,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T21:21:38Z",
+          "mtime_utc": "2026-06-19T14:17:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json",
-          "sha256": "79d08ce77343c7ae1e3443bf38fb44e5341b1fa0586ca5ed9cbd69b5de8271bd",
+          "sha256": "31606405e016d20afb67ce650aaf098b8194133d87869846344929e74c70b8f9",
           "status": "present"
         },
         {
           "bytes": 1052969,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T21:21:38Z",
+          "mtime_utc": "2026-06-19T14:17:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
-          "sha256": "79114cad6b8c729beaae429b29d4caa467f5ce686a7cd78d7ba9d1dbd7a7c140",
+          "sha256": "d1425a9d5db6ec05270dd7292078437ab1ffd4981efdaadc8b1bf9da902e621f",
           "status": "present"
         },
         {
-          "bytes": 1553812,
+          "bytes": 1553776,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T21:21:38Z",
+          "mtime_utc": "2026-06-19T14:17:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-          "sha256": "ebf9c0111b63f4ccb349e5c4ec1960702ec9e9c5ac53ab70153f60616341aa3d",
+          "sha256": "efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e",
           "status": "present"
         },
         {
-          "bytes": 1288222,
+          "bytes": 1288196,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T21:21:38Z",
+          "mtime_utc": "2026-06-19T14:17:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-          "sha256": "8d05493d1747a79de336faf3347245881ef226b7f9587038d945ff048c9b2a5a",
+          "sha256": "59dd481e19225c369952c566eca3981cb002c7050b699ee45be6dfdbef2d2603",
           "status": "present"
         },
         {
           "bytes": 538,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T20:24:21Z",
+          "mtime_utc": "2026-06-19T13:17:16Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/build-manifest.json",
           "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
           "status": "present"
@@ -1317,7 +1317,7 @@
         {
           "bytes": 218,
           "label": "rule_preamble",
-          "mtime_utc": "2026-06-18T20:24:21Z",
+          "mtime_utc": "2026-06-19T13:17:17Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load",
           "sha256": "79c6dbe2ce8b15f21e9e0af9604f1f0553df025fa65d1c8e690c6dc867494726",
           "status": "present"
@@ -1334,7 +1334,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T20:24:21Z",
+      "started_at": "2026-06-19T13:17:16Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 118,
@@ -1349,32 +1349,32 @@
       "cases": 517,
       "connector": "haproxy",
       "crs": "with-crs",
-      "duration_seconds": 1183,
-      "ended_at": "2026-06-18T22:10:14Z",
+      "duration_seconds": 1225,
+      "ended_at": "2026-06-19T15:17:13Z",
       "fail": 111,
       "input_hashes": [
         {
           "bytes": 1529,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T22:10:14Z",
+          "mtime_utc": "2026-06-19T15:17:13Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/job.json",
-          "sha256": "613dcc0f07c1469b82338799bad839a2973b3cc205ec326430052ab4ae0253e2",
+          "sha256": "be7a1c00e16a92fa3a6d3e9ec4b878df8fa9fdb008e423e301cc704e66734739",
           "status": "present"
         },
         {
           "bytes": 785675,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T22:10:14Z",
+          "mtime_utc": "2026-06-19T15:17:13Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
-          "sha256": "634606d8061ae01aacc6d0e81d3da6d00e865df0db6c36e5528fad49738afb72",
+          "sha256": "444d43f98e73086ef4743f2975eca3dc248c178f237d8e3bc3a008d843405b09",
           "status": "present"
         },
         {
-          "bytes": 1806027,
+          "bytes": 1805991,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T22:10:14Z",
+          "mtime_utc": "2026-06-19T15:17:13Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-          "sha256": "c9e8a6c20d5e510a574f6f49f1e0c215299b8fec8264c4d3acef23d5bc982699",
+          "sha256": "1ff741bf7a50983b1d2e403206f2a75ba4cc21e43a45b0dd530f49cd3b344f46",
           "status": "present"
         },
         {
@@ -1386,7 +1386,7 @@
         {
           "bytes": 540,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T21:50:31Z",
+          "mtime_utc": "2026-06-19T14:56:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/build-manifest.json",
           "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
           "status": "present"
@@ -1394,7 +1394,7 @@
         {
           "bytes": 220,
           "label": "rule_preamble",
-          "mtime_utc": "2026-06-18T21:50:31Z",
+          "mtime_utc": "2026-06-19T14:56:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/preambles/haproxy-with-crs-with-mrts.load",
           "sha256": "5770573af35d8c7ffe9be9c6940b23a84bc1d9dc1abe5df97d939ea150ef02a7",
           "status": "present"
@@ -1411,7 +1411,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/force-all/haproxy-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T21:50:31Z",
+      "started_at": "2026-06-19T14:56:48Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 111,
@@ -1426,14 +1426,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T06:43:21Z",
+    "generated_at": "2026-06-19T16:38:59Z",
     "generated_by": "ci/generate-full-matrix-job-completeness.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -1441,8 +1441,8 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-        "sha256": "fada5d0fadca101488838264f9845932d6c5c1e889a73f7e728d5047efed2011",
-        "source_hash": "fada5d0fadca101488838264f9845932d6c5c1e889a73f7e728d5047efed2011",
+        "sha256": "bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8",
+        "source_hash": "bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8",
         "status": "present"
       },
       {
@@ -1455,29 +1455,29 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/job.json",
-        "sha256": "f15767d79fbcbf0a3ccdbac91d5e60def2afdd860fcb1d26a68966e28ba915af",
-        "source_hash": "f15767d79fbcbf0a3ccdbac91d5e60def2afdd860fcb1d26a68966e28ba915af",
+        "sha256": "f8bffca462db3c5a1d3c5b81c5a88f5b70c46f35fc99587286ddd5a65549b4df",
+        "source_hash": "f8bffca462db3c5a1d3c5b81c5a88f5b70c46f35fc99587286ddd5a65549b4df",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
-        "sha256": "ace154664a76f2f7c60f0056f9e7973c959aa37b55ce4832f5c674bde32a4c16",
-        "source_hash": "ace154664a76f2f7c60f0056f9e7973c959aa37b55ce4832f5c674bde32a4c16",
+        "sha256": "0c83f141005f637e31ccb46dd125689201ba17c855572c227ee246e3e6bb1eb1",
+        "source_hash": "0c83f141005f637e31ccb46dd125689201ba17c855572c227ee246e3e6bb1eb1",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-        "sha256": "04734a3ae2aaa47b49312b14dcc71ea6bcee783ca2c5508a41bc245761e1abf8",
-        "source_hash": "04734a3ae2aaa47b49312b14dcc71ea6bcee783ca2c5508a41bc245761e1abf8",
+        "sha256": "1717c2a630321e9b7bf04cadd161eac0c164673442e843c2bd291994f0a1038c",
+        "source_hash": "1717c2a630321e9b7bf04cadd161eac0c164673442e843c2bd291994f0a1038c",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-results.jsonl",
-        "sha256": "1f539b3ddcdd2d312365da7e566732530a9c2ef31f2451cea809bf91e18d2954",
-        "source_hash": "1f539b3ddcdd2d312365da7e566732530a9c2ef31f2451cea809bf91e18d2954",
+        "sha256": "a4a24dae01fe67ef518c454e28b44d6dc4637a93abe9f3dbc2818d88d78dda01",
+        "source_hash": "a4a24dae01fe67ef518c454e28b44d6dc4637a93abe9f3dbc2818d88d78dda01",
         "status": "present"
       },
       {
@@ -1490,29 +1490,29 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/job.json",
-        "sha256": "4258dc7376d7fd7a0fe5437bc964b8c4ef35dd370ca8008ad00fead0c84f537f",
-        "source_hash": "4258dc7376d7fd7a0fe5437bc964b8c4ef35dd370ca8008ad00fead0c84f537f",
+        "sha256": "09e92d3abe673f36fbbd9d1ab074bece42f3b6332c9a4af25f49cd517874ab98",
+        "source_hash": "09e92d3abe673f36fbbd9d1ab074bece42f3b6332c9a4af25f49cd517874ab98",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
-        "sha256": "8b5e2116ed5d661fbd144c187a94d89aa726b830b38e8d032560edb7a455d4b3",
-        "source_hash": "8b5e2116ed5d661fbd144c187a94d89aa726b830b38e8d032560edb7a455d4b3",
+        "sha256": "f28ee3f648a252c2cc889be82334dca4456369c6c7d02fbd7396ab3bba6f11bb",
+        "source_hash": "f28ee3f648a252c2cc889be82334dca4456369c6c7d02fbd7396ab3bba6f11bb",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-        "sha256": "72b4115b0147eb477a38d2b0a23d7f735a5602bdf47ad22d9570fe75f8b92216",
-        "source_hash": "72b4115b0147eb477a38d2b0a23d7f735a5602bdf47ad22d9570fe75f8b92216",
+        "sha256": "949e28d7142459e86e0cb9ec1fad12b8b7172a5681039421e4075087d6c3de82",
+        "source_hash": "949e28d7142459e86e0cb9ec1fad12b8b7172a5681039421e4075087d6c3de82",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-results.jsonl",
-        "sha256": "78015092c8cdcabe864955b4b5cd766fb22cbebc04214c2e5ed5d44c6ce477f0",
-        "source_hash": "78015092c8cdcabe864955b4b5cd766fb22cbebc04214c2e5ed5d44c6ce477f0",
+        "sha256": "873569b1fc4f62ceee4634ff017cfd2b72d79f704d9d75dcef7ee6a70c22e9a0",
+        "source_hash": "873569b1fc4f62ceee4634ff017cfd2b72d79f704d9d75dcef7ee6a70c22e9a0",
         "status": "present"
       },
       {
@@ -1525,22 +1525,22 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/job.json",
-        "sha256": "072de7cc3d1669021a55169a22ede612da6369d4f2c26407c516424fe528ef76",
-        "source_hash": "072de7cc3d1669021a55169a22ede612da6369d4f2c26407c516424fe528ef76",
+        "sha256": "6501d8a6129791e465f0b1daf80e607660bb34bff4556a73cf0b703589b88d86",
+        "source_hash": "6501d8a6129791e465f0b1daf80e607660bb34bff4556a73cf0b703589b88d86",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
-        "sha256": "d9139ccb5020ffa3b8f36c2c6c495ae5ee63b2e39e4d54c3e24c1229c45a9be5",
-        "source_hash": "d9139ccb5020ffa3b8f36c2c6c495ae5ee63b2e39e4d54c3e24c1229c45a9be5",
+        "sha256": "3acb0d0b7bfdc46d706bd0d02f199d7c4bf97b0d9516125bdd681c638ff476af",
+        "source_hash": "3acb0d0b7bfdc46d706bd0d02f199d7c4bf97b0d9516125bdd681c638ff476af",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-        "sha256": "4c0a7cd49fcb2998e284a41f5b980d2e18f189af6518c12ae2a229a88c55678b",
-        "source_hash": "4c0a7cd49fcb2998e284a41f5b980d2e18f189af6518c12ae2a229a88c55678b",
+        "sha256": "d20599aa223dad587761dd10551cb44fdbc00b83165baa7071c8d159ecc1ea04",
+        "source_hash": "d20599aa223dad587761dd10551cb44fdbc00b83165baa7071c8d159ecc1ea04",
         "status": "present"
       },
       {
@@ -1553,29 +1553,29 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/job.json",
-        "sha256": "b4f3143c705468bf8de3d37b9981fd937fc8ebdc6bcac335fc68e941745243dd",
-        "source_hash": "b4f3143c705468bf8de3d37b9981fd937fc8ebdc6bcac335fc68e941745243dd",
+        "sha256": "584d8dde6a59bc69d94b22e04f1da8e402518147c69fdd50bda014acef86176c",
+        "source_hash": "584d8dde6a59bc69d94b22e04f1da8e402518147c69fdd50bda014acef86176c",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
-        "sha256": "8fd8f799fcad4158b823a0fc5a853bf54bd9f7a60563a1d2cddcd90d52e47faa",
-        "source_hash": "8fd8f799fcad4158b823a0fc5a853bf54bd9f7a60563a1d2cddcd90d52e47faa",
+        "sha256": "d7c06a31e7d641c4b6fb843eefdef7a4e2051f584282b8627ff6b770d9f62e16",
+        "source_hash": "d7c06a31e7d641c4b6fb843eefdef7a4e2051f584282b8627ff6b770d9f62e16",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-        "sha256": "328ab24e97e6d5891a99cda747bdcc4aeda05f1a6cf22c43af2f4c17609fcaaa",
-        "source_hash": "328ab24e97e6d5891a99cda747bdcc4aeda05f1a6cf22c43af2f4c17609fcaaa",
+        "sha256": "0a7ac7b47460d1aece31e5a5cce68ff254229b0d8da71644dd06d92739113aa6",
+        "source_hash": "0a7ac7b47460d1aece31e5a5cce68ff254229b0d8da71644dd06d92739113aa6",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
-        "sha256": "e7cecb1e4baa8d7b2760c1cb456c1b849ebe65dbe79a50916be7dc7a60e3c836",
-        "source_hash": "e7cecb1e4baa8d7b2760c1cb456c1b849ebe65dbe79a50916be7dc7a60e3c836",
+        "sha256": "f6c70563811a84ec2db3bcdf880d33707e1df6e24a658ecfc0dd1a2a0d026f8d",
+        "source_hash": "f6c70563811a84ec2db3bcdf880d33707e1df6e24a658ecfc0dd1a2a0d026f8d",
         "status": "present"
       },
       {
@@ -1588,29 +1588,29 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/job.json",
-        "sha256": "a671bef53d954c03975b34e6d7bb8c87787fa2e0a86e2fe9fd05d702523e8890",
-        "source_hash": "a671bef53d954c03975b34e6d7bb8c87787fa2e0a86e2fe9fd05d702523e8890",
+        "sha256": "9907a077c02ecffbc5dcbbe75d0b436b054ad78fbd63eec69e8c3a8770380ecb",
+        "source_hash": "9907a077c02ecffbc5dcbbe75d0b436b054ad78fbd63eec69e8c3a8770380ecb",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
-        "sha256": "4c41bd972759e89bb361717c0460e49d4a4ea147296f15225101ad106c56a0f5",
-        "source_hash": "4c41bd972759e89bb361717c0460e49d4a4ea147296f15225101ad106c56a0f5",
+        "sha256": "7878b4c5671e2b3312d229cc4543d489fddd61a334e59fdbb7bde0f214a28975",
+        "source_hash": "7878b4c5671e2b3312d229cc4543d489fddd61a334e59fdbb7bde0f214a28975",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-        "sha256": "898101ba678afb4a5e7c1b696ad52842946f96da8c6225481acb017cca1c8e09",
-        "source_hash": "898101ba678afb4a5e7c1b696ad52842946f96da8c6225481acb017cca1c8e09",
+        "sha256": "213018f411175c07f783a4ab48618a52e54b07f2be1d36543a18096b3c6013ef",
+        "source_hash": "213018f411175c07f783a4ab48618a52e54b07f2be1d36543a18096b3c6013ef",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-        "sha256": "e8ce34e8dee229fd0478c6c2e982b191b8185f55cdabd9687c528e0ad0286e2f",
-        "source_hash": "e8ce34e8dee229fd0478c6c2e982b191b8185f55cdabd9687c528e0ad0286e2f",
+        "sha256": "c0e4b73ef686300b798f275107aec12effe78c3a37988e68b273aad2f712fa92",
+        "source_hash": "c0e4b73ef686300b798f275107aec12effe78c3a37988e68b273aad2f712fa92",
         "status": "present"
       },
       {
@@ -1623,22 +1623,22 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/job.json",
-        "sha256": "2178d65b5262024bb4ac6e7346eeeebef4ccc09e8c0bd2fc38a80aaf5417266d",
-        "source_hash": "2178d65b5262024bb4ac6e7346eeeebef4ccc09e8c0bd2fc38a80aaf5417266d",
+        "sha256": "8021999a36c6bf0610fd461bd6086cfd319b9ac980d6f2f4c9edee56fb93c428",
+        "source_hash": "8021999a36c6bf0610fd461bd6086cfd319b9ac980d6f2f4c9edee56fb93c428",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
-        "sha256": "186383ac9e4bb6cd445fb31fde3d71246e50e540cbd658333780da424ad02843",
-        "source_hash": "186383ac9e4bb6cd445fb31fde3d71246e50e540cbd658333780da424ad02843",
+        "sha256": "5c7b541226a793748c7b20d4912051e35e245edab23e89df18421311ca90f0a6",
+        "source_hash": "5c7b541226a793748c7b20d4912051e35e245edab23e89df18421311ca90f0a6",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
-        "sha256": "7fd2daa0563b88151ee1c449d3a6fd6a320f518a2ebc869ae45a9554607001a1",
-        "source_hash": "7fd2daa0563b88151ee1c449d3a6fd6a320f518a2ebc869ae45a9554607001a1",
+        "sha256": "af1020b64ee7d12bd6580aafa92e5182aaacaf27dd8599991cfdf6cf161deabe",
+        "source_hash": "af1020b64ee7d12bd6580aafa92e5182aaacaf27dd8599991cfdf6cf161deabe",
         "status": "present"
       },
       {
@@ -1651,29 +1651,29 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/job.json",
-        "sha256": "09b003f3960bcc9b34422f15ed0852ae411af7958b8587f4c8b1db8f63d8dfaf",
-        "source_hash": "09b003f3960bcc9b34422f15ed0852ae411af7958b8587f4c8b1db8f63d8dfaf",
+        "sha256": "dcfb59e5b34b9c291d2f1fd351c0c9d5607731454c0e7a6b683dc2c58ad0e1ef",
+        "source_hash": "dcfb59e5b34b9c291d2f1fd351c0c9d5607731454c0e7a6b683dc2c58ad0e1ef",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
-        "sha256": "86fe24c7efe9b6c298a90e968e82ee10197897941e15eff5a51d58aaab920c1c",
-        "source_hash": "86fe24c7efe9b6c298a90e968e82ee10197897941e15eff5a51d58aaab920c1c",
+        "sha256": "ecba0eb3f85a8dff74503396a2a98ae80ebcf883bc434a1ab5ca6c73b7aaef2f",
+        "source_hash": "ecba0eb3f85a8dff74503396a2a98ae80ebcf883bc434a1ab5ca6c73b7aaef2f",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-        "sha256": "c7512b6b6c2d880983c49e45a84bcc9c5cb08af08b0dd1d1b210a998d2144ee8",
-        "source_hash": "c7512b6b6c2d880983c49e45a84bcc9c5cb08af08b0dd1d1b210a998d2144ee8",
+        "sha256": "2ad3431b993b3b1bd376f883bf7e4e92a69190a88685056a58dd8072e1ed181e",
+        "source_hash": "2ad3431b993b3b1bd376f883bf7e4e92a69190a88685056a58dd8072e1ed181e",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-results.jsonl",
-        "sha256": "0cc2482790777ee27268cc02c0587aba6eb34e3ea83db6317a238ed3d7a4f744",
-        "source_hash": "0cc2482790777ee27268cc02c0587aba6eb34e3ea83db6317a238ed3d7a4f744",
+        "sha256": "f37761021c8ea8d67946447747872986d6b989a5f0f7d8782fdbc236d06cd40b",
+        "source_hash": "f37761021c8ea8d67946447747872986d6b989a5f0f7d8782fdbc236d06cd40b",
         "status": "present"
       },
       {
@@ -1686,29 +1686,29 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/job.json",
-        "sha256": "ff37e9c98de16fbf11d4b6ba7401caa6dda42d52646f405dc39d6e9aebeaec91",
-        "source_hash": "ff37e9c98de16fbf11d4b6ba7401caa6dda42d52646f405dc39d6e9aebeaec91",
+        "sha256": "3f5477e56a55a0eb4b7c92f5130827663cd70b02eb7c25473358a4a86b299389",
+        "source_hash": "3f5477e56a55a0eb4b7c92f5130827663cd70b02eb7c25473358a4a86b299389",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
-        "sha256": "4918463264d04a5e52ae5a185ee3e2991cfd90932c377feaad8db0610ce0cdb2",
-        "source_hash": "4918463264d04a5e52ae5a185ee3e2991cfd90932c377feaad8db0610ce0cdb2",
+        "sha256": "5a818a6aaf6a36d9c8cfabc4f84e26061099a93eb61ebcb3abfb237d727fae60",
+        "source_hash": "5a818a6aaf6a36d9c8cfabc4f84e26061099a93eb61ebcb3abfb237d727fae60",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-        "sha256": "8d5b8c841aed71dbee678d53125c2e10e8ed132d0cc468d1e9d2f44a527ff9b3",
-        "source_hash": "8d5b8c841aed71dbee678d53125c2e10e8ed132d0cc468d1e9d2f44a527ff9b3",
+        "sha256": "fd4de70202d5780055fc4d4ad076133078c876970cf21cf54023d18139dd9fa4",
+        "source_hash": "fd4de70202d5780055fc4d4ad076133078c876970cf21cf54023d18139dd9fa4",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-results.jsonl",
-        "sha256": "1cfc956a5b293dedf768903221890c921e4bbc6cbb53664582672c257f399684",
-        "source_hash": "1cfc956a5b293dedf768903221890c921e4bbc6cbb53664582672c257f399684",
+        "sha256": "395d5e37d1e4eb399ef70b4e40a177099d6f3ab9ed4fde6eabe335c225fa47c5",
+        "source_hash": "395d5e37d1e4eb399ef70b4e40a177099d6f3ab9ed4fde6eabe335c225fa47c5",
         "status": "present"
       },
       {
@@ -1721,22 +1721,22 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/job.json",
-        "sha256": "cec350319ac91b03605a189b2c5613c47e9a732205daf9618ab8653ee85c28b5",
-        "source_hash": "cec350319ac91b03605a189b2c5613c47e9a732205daf9618ab8653ee85c28b5",
+        "sha256": "8f3880a92a2c1da5e5da89b7e2852afa352275aabce7d81c04c32452cb4c8af2",
+        "source_hash": "8f3880a92a2c1da5e5da89b7e2852afa352275aabce7d81c04c32452cb4c8af2",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
-        "sha256": "44c5896a0ef1603af467b714076038d6c67be5ff74d2b5737efbc86e76320430",
-        "source_hash": "44c5896a0ef1603af467b714076038d6c67be5ff74d2b5737efbc86e76320430",
+        "sha256": "076445da559da9eb12ecc8fffbfca94ddc50d8c320e911d07a92156cc032cde6",
+        "source_hash": "076445da559da9eb12ecc8fffbfca94ddc50d8c320e911d07a92156cc032cde6",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-        "sha256": "bf78cbc8302c3039960cb3c5f66ef9f6c41d1aac9632357b85708e9261ee09f2",
-        "source_hash": "bf78cbc8302c3039960cb3c5f66ef9f6c41d1aac9632357b85708e9261ee09f2",
+        "sha256": "af547bfca06e171781dee73eb432942ce47189d9ab8363fa7c694ed0cd994fda",
+        "source_hash": "af547bfca06e171781dee73eb432942ce47189d9ab8363fa7c694ed0cd994fda",
         "status": "present"
       },
       {
@@ -1749,29 +1749,29 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/job.json",
-        "sha256": "ef6adebbec71fb28c20cc7e0aa774ce69b6134d642e083937c3ad6e05085e711",
-        "source_hash": "ef6adebbec71fb28c20cc7e0aa774ce69b6134d642e083937c3ad6e05085e711",
+        "sha256": "356705da0cb5d8ed3875892b11dd0bad7348567bcdf594ef7728ba1647e1da37",
+        "source_hash": "356705da0cb5d8ed3875892b11dd0bad7348567bcdf594ef7728ba1647e1da37",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
-        "sha256": "972c3f6afc757e1d2f6f5383124c9639ae91318cfeb91d855dc5c5cfc5f35546",
-        "source_hash": "972c3f6afc757e1d2f6f5383124c9639ae91318cfeb91d855dc5c5cfc5f35546",
+        "sha256": "d252b109e43132a958fb156383f829de466533a20033a557813bbd0187cae06d",
+        "source_hash": "d252b109e43132a958fb156383f829de466533a20033a557813bbd0187cae06d",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-        "sha256": "298825ae37e70ade53f725e230592159acd37a143d06249de6fba7ef82110c79",
-        "source_hash": "298825ae37e70ade53f725e230592159acd37a143d06249de6fba7ef82110c79",
+        "sha256": "6f93aac6466c0e301e3bd6dfc3c4bbab4f5955ec884cd28eb28ba6821ab1ba0a",
+        "source_hash": "6f93aac6466c0e301e3bd6dfc3c4bbab4f5955ec884cd28eb28ba6821ab1ba0a",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
-        "sha256": "00bd0ab1789730f937c549bfd11c4df809460e34e29cdf3073690d7433ac166b",
-        "source_hash": "00bd0ab1789730f937c549bfd11c4df809460e34e29cdf3073690d7433ac166b",
+        "sha256": "cbc919308386ba096dbcd76d0a244074c682d260ce3d0c20f8c93a47adbb1a62",
+        "source_hash": "cbc919308386ba096dbcd76d0a244074c682d260ce3d0c20f8c93a47adbb1a62",
         "status": "present"
       },
       {
@@ -1791,29 +1791,29 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json",
-        "sha256": "79d08ce77343c7ae1e3443bf38fb44e5341b1fa0586ca5ed9cbd69b5de8271bd",
-        "source_hash": "79d08ce77343c7ae1e3443bf38fb44e5341b1fa0586ca5ed9cbd69b5de8271bd",
+        "sha256": "31606405e016d20afb67ce650aaf098b8194133d87869846344929e74c70b8f9",
+        "source_hash": "31606405e016d20afb67ce650aaf098b8194133d87869846344929e74c70b8f9",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
-        "sha256": "79114cad6b8c729beaae429b29d4caa467f5ce686a7cd78d7ba9d1dbd7a7c140",
-        "source_hash": "79114cad6b8c729beaae429b29d4caa467f5ce686a7cd78d7ba9d1dbd7a7c140",
+        "sha256": "d1425a9d5db6ec05270dd7292078437ab1ffd4981efdaadc8b1bf9da902e621f",
+        "source_hash": "d1425a9d5db6ec05270dd7292078437ab1ffd4981efdaadc8b1bf9da902e621f",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-        "sha256": "ebf9c0111b63f4ccb349e5c4ec1960702ec9e9c5ac53ab70153f60616341aa3d",
-        "source_hash": "ebf9c0111b63f4ccb349e5c4ec1960702ec9e9c5ac53ab70153f60616341aa3d",
+        "sha256": "efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e",
+        "source_hash": "efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-        "sha256": "8d05493d1747a79de336faf3347245881ef226b7f9587038d945ff048c9b2a5a",
-        "source_hash": "8d05493d1747a79de336faf3347245881ef226b7f9587038d945ff048c9b2a5a",
+        "sha256": "59dd481e19225c369952c566eca3981cb002c7050b699ee45be6dfdbef2d2603",
+        "source_hash": "59dd481e19225c369952c566eca3981cb002c7050b699ee45be6dfdbef2d2603",
         "status": "present"
       },
       {
@@ -1833,22 +1833,22 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/job.json",
-        "sha256": "613dcc0f07c1469b82338799bad839a2973b3cc205ec326430052ab4ae0253e2",
-        "source_hash": "613dcc0f07c1469b82338799bad839a2973b3cc205ec326430052ab4ae0253e2",
+        "sha256": "be7a1c00e16a92fa3a6d3e9ec4b878df8fa9fdb008e423e301cc704e66734739",
+        "source_hash": "be7a1c00e16a92fa3a6d3e9ec4b878df8fa9fdb008e423e301cc704e66734739",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
-        "sha256": "634606d8061ae01aacc6d0e81d3da6d00e865df0db6c36e5528fad49738afb72",
-        "source_hash": "634606d8061ae01aacc6d0e81d3da6d00e865df0db6c36e5528fad49738afb72",
+        "sha256": "444d43f98e73086ef4743f2975eca3dc248c178f237d8e3bc3a008d843405b09",
+        "source_hash": "444d43f98e73086ef4743f2975eca3dc248c178f237d8e3bc3a008d843405b09",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-        "sha256": "c9e8a6c20d5e510a574f6f49f1e0c215299b8fec8264c4d3acef23d5bc982699",
-        "source_hash": "c9e8a6c20d5e510a574f6f49f1e0c215299b8fec8264c4d3acef23d5bc982699",
+        "sha256": "1ff741bf7a50983b1d2e403206f2a75ba4cc21e43a45b0dd530f49cd3b344f46",
+        "source_hash": "1ff741bf7a50983b1d2e403206f2a75ba4cc21e43a45b0dd530f49cd3b344f46",
         "status": "present"
       },
       {
@@ -1922,46 +1922,46 @@
       "cases": 524,
       "connector": "nginx",
       "crs": "with-crs",
-      "duration_seconds": 3437,
-      "ended_at": "2026-06-18T21:21:38Z",
+      "duration_seconds": 3594,
+      "ended_at": "2026-06-19T14:17:10Z",
       "fail": 118,
       "input_hashes": [
         {
           "bytes": 1525,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T21:21:38Z",
+          "mtime_utc": "2026-06-19T14:17:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json",
-          "sha256": "79d08ce77343c7ae1e3443bf38fb44e5341b1fa0586ca5ed9cbd69b5de8271bd",
+          "sha256": "31606405e016d20afb67ce650aaf098b8194133d87869846344929e74c70b8f9",
           "status": "present"
         },
         {
           "bytes": 1052969,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T21:21:38Z",
+          "mtime_utc": "2026-06-19T14:17:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
-          "sha256": "79114cad6b8c729beaae429b29d4caa467f5ce686a7cd78d7ba9d1dbd7a7c140",
+          "sha256": "d1425a9d5db6ec05270dd7292078437ab1ffd4981efdaadc8b1bf9da902e621f",
           "status": "present"
         },
         {
-          "bytes": 1553812,
+          "bytes": 1553776,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T21:21:38Z",
+          "mtime_utc": "2026-06-19T14:17:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-          "sha256": "ebf9c0111b63f4ccb349e5c4ec1960702ec9e9c5ac53ab70153f60616341aa3d",
+          "sha256": "efc447466ad8121a9316477b087e74a7155148082320a9cd57805aa3327f675e",
           "status": "present"
         },
         {
-          "bytes": 1288222,
+          "bytes": 1288196,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T21:21:38Z",
+          "mtime_utc": "2026-06-19T14:17:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-          "sha256": "8d05493d1747a79de336faf3347245881ef226b7f9587038d945ff048c9b2a5a",
+          "sha256": "59dd481e19225c369952c566eca3981cb002c7050b699ee45be6dfdbef2d2603",
           "status": "present"
         },
         {
           "bytes": 538,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T20:24:21Z",
+          "mtime_utc": "2026-06-19T13:17:16Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/build-manifest.json",
           "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
           "status": "present"
@@ -1969,7 +1969,7 @@
         {
           "bytes": 218,
           "label": "rule_preamble",
-          "mtime_utc": "2026-06-18T20:24:21Z",
+          "mtime_utc": "2026-06-19T13:17:17Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/preambles/nginx-with-crs-with-mrts.load",
           "sha256": "79c6dbe2ce8b15f21e9e0af9604f1f0553df025fa65d1c8e690c6dc867494726",
           "status": "present"
@@ -1986,7 +1986,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T20:24:21Z",
+      "started_at": "2026-06-19T13:17:16Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 118,
@@ -2001,46 +2001,46 @@
       "cases": 523,
       "connector": "nginx",
       "crs": "no-crs",
-      "duration_seconds": 3212,
-      "ended_at": "2026-06-18T20:13:07Z",
+      "duration_seconds": 3358,
+      "ended_at": "2026-06-19T13:11:48Z",
       "fail": 116,
       "input_hashes": [
         {
           "bytes": 1505,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T20:13:07Z",
+          "mtime_utc": "2026-06-19T13:11:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/job.json",
-          "sha256": "a671bef53d954c03975b34e6d7bb8c87787fa2e0a86e2fe9fd05d702523e8890",
+          "sha256": "9907a077c02ecffbc5dcbbe75d0b436b054ad78fbd63eec69e8c3a8770380ecb",
           "status": "present"
         },
         {
           "bytes": 1024679,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T20:13:07Z",
+          "mtime_utc": "2026-06-19T13:11:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
-          "sha256": "4c41bd972759e89bb361717c0460e49d4a4ea147296f15225101ad106c56a0f5",
+          "sha256": "7878b4c5671e2b3312d229cc4543d489fddd61a334e59fdbb7bde0f214a28975",
           "status": "present"
         },
         {
-          "bytes": 1543823,
+          "bytes": 1543787,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T20:13:07Z",
+          "mtime_utc": "2026-06-19T13:11:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-          "sha256": "898101ba678afb4a5e7c1b696ad52842946f96da8c6225481acb017cca1c8e09",
+          "sha256": "213018f411175c07f783a4ab48618a52e54b07f2be1d36543a18096b3c6013ef",
           "status": "present"
         },
         {
-          "bytes": 1278668,
+          "bytes": 1278642,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T20:13:06Z",
+          "mtime_utc": "2026-06-19T13:11:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-          "sha256": "e8ce34e8dee229fd0478c6c2e982b191b8185f55cdabd9687c528e0ad0286e2f",
+          "sha256": "c0e4b73ef686300b798f275107aec12effe78c3a37988e68b273aad2f712fa92",
           "status": "present"
         },
         {
           "bytes": 538,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T19:19:35Z",
+          "mtime_utc": "2026-06-19T12:15:51Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/build-manifest.json",
           "sha256": "3f8f804d2954273fad22b5a6ababe4c51a91a3b93e9dd304fc099863e61d4a90",
           "status": "present"
@@ -2063,7 +2063,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T19:19:35Z",
+      "started_at": "2026-06-19T12:15:50Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 116,
@@ -2078,46 +2078,46 @@
       "cases": 517,
       "connector": "apache",
       "crs": "with-crs",
-      "duration_seconds": 1388,
-      "ended_at": "2026-06-18T19:09:26Z",
+      "duration_seconds": 1423,
+      "ended_at": "2026-06-19T11:55:10Z",
       "fail": 111,
       "input_hashes": [
         {
           "bytes": 1537,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T19:09:26Z",
+          "mtime_utc": "2026-06-19T11:55:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/job.json",
-          "sha256": "ef6adebbec71fb28c20cc7e0aa774ce69b6134d642e083937c3ad6e05085e711",
+          "sha256": "356705da0cb5d8ed3875892b11dd0bad7348567bcdf594ef7728ba1647e1da37",
           "status": "present"
         },
         {
           "bytes": 845867,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T19:09:26Z",
+          "mtime_utc": "2026-06-19T11:55:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
-          "sha256": "972c3f6afc757e1d2f6f5383124c9639ae91318cfeb91d855dc5c5cfc5f35546",
+          "sha256": "d252b109e43132a958fb156383f829de466533a20033a557813bbd0187cae06d",
           "status": "present"
         },
         {
-          "bytes": 1476371,
+          "bytes": 1476335,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T19:09:26Z",
+          "mtime_utc": "2026-06-19T11:55:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-          "sha256": "298825ae37e70ade53f725e230592159acd37a143d06249de6fba7ef82110c79",
+          "sha256": "6f93aac6466c0e301e3bd6dfc3c4bbab4f5955ec884cd28eb28ba6821ab1ba0a",
           "status": "present"
         },
         {
-          "bytes": 1214160,
+          "bytes": 1214134,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T19:09:25Z",
+          "mtime_utc": "2026-06-19T11:55:10Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
-          "sha256": "00bd0ab1789730f937c549bfd11c4df809460e34e29cdf3073690d7433ac166b",
+          "sha256": "cbc919308386ba096dbcd76d0a244074c682d260ce3d0c20f8c93a47adbb1a62",
           "status": "present"
         },
         {
           "bytes": 539,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T18:46:18Z",
+          "mtime_utc": "2026-06-19T11:31:27Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/build-manifest.json",
           "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
           "status": "present"
@@ -2125,7 +2125,7 @@
         {
           "bytes": 219,
           "label": "rule_preamble",
-          "mtime_utc": "2026-06-18T18:46:18Z",
+          "mtime_utc": "2026-06-19T11:31:27Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/preambles/apache-with-crs-with-mrts.load",
           "sha256": "1076096770e3992d3be0479bb91c7c57de449a1c9cfeea4d95253a77f105234f",
           "status": "present"
@@ -2142,7 +2142,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T18:46:18Z",
+      "started_at": "2026-06-19T11:31:27Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 111,
@@ -2157,46 +2157,46 @@
       "cases": 516,
       "connector": "apache",
       "crs": "no-crs",
-      "duration_seconds": 1296,
-      "ended_at": "2026-06-18T18:39:08Z",
+      "duration_seconds": 1314,
+      "ended_at": "2026-06-19T11:25:42Z",
       "fail": 109,
       "input_hashes": [
         {
           "bytes": 1517,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T18:39:08Z",
+          "mtime_utc": "2026-06-19T11:25:42Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/job.json",
-          "sha256": "b4f3143c705468bf8de3d37b9981fd937fc8ebdc6bcac335fc68e941745243dd",
+          "sha256": "584d8dde6a59bc69d94b22e04f1da8e402518147c69fdd50bda014acef86176c",
           "status": "present"
         },
         {
           "bytes": 818298,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T18:39:08Z",
+          "mtime_utc": "2026-06-19T11:25:42Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
-          "sha256": "8fd8f799fcad4158b823a0fc5a853bf54bd9f7a60563a1d2cddcd90d52e47faa",
+          "sha256": "d7c06a31e7d641c4b6fb843eefdef7a4e2051f584282b8627ff6b770d9f62e16",
           "status": "present"
         },
         {
-          "bytes": 1466618,
+          "bytes": 1466582,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T18:39:08Z",
+          "mtime_utc": "2026-06-19T11:25:42Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-          "sha256": "328ab24e97e6d5891a99cda747bdcc4aeda05f1a6cf22c43af2f4c17609fcaaa",
+          "sha256": "0a7ac7b47460d1aece31e5a5cce68ff254229b0d8da71644dd06d92739113aa6",
           "status": "present"
         },
         {
-          "bytes": 1204842,
+          "bytes": 1204816,
           "label": "results_jsonl",
-          "mtime_utc": "2026-06-18T18:39:08Z",
+          "mtime_utc": "2026-06-19T11:25:42Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
-          "sha256": "e7cecb1e4baa8d7b2760c1cb456c1b849ebe65dbe79a50916be7dc7a60e3c836",
+          "sha256": "f6c70563811a84ec2db3bcdf880d33707e1df6e24a658ecfc0dd1a2a0d026f8d",
           "status": "present"
         },
         {
           "bytes": 539,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T18:17:32Z",
+          "mtime_utc": "2026-06-19T11:03:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/build-manifest.json",
           "sha256": "18dbf05a0a629641287b1b8efe8f78bc621a7db69337bc1c7f533eef7f7640a1",
           "status": "present"
@@ -2219,7 +2219,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T18:17:32Z",
+      "started_at": "2026-06-19T11:03:48Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 109,
@@ -2234,32 +2234,32 @@
       "cases": 517,
       "connector": "haproxy",
       "crs": "with-crs",
-      "duration_seconds": 1183,
-      "ended_at": "2026-06-18T22:10:14Z",
+      "duration_seconds": 1225,
+      "ended_at": "2026-06-19T15:17:13Z",
       "fail": 111,
       "input_hashes": [
         {
           "bytes": 1529,
           "label": "job_json",
-          "mtime_utc": "2026-06-18T22:10:14Z",
+          "mtime_utc": "2026-06-19T15:17:13Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/job.json",
-          "sha256": "613dcc0f07c1469b82338799bad839a2973b3cc205ec326430052ab4ae0253e2",
+          "sha256": "be7a1c00e16a92fa3a6d3e9ec4b878df8fa9fdb008e423e301cc704e66734739",
           "status": "present"
         },
         {
           "bytes": 785675,
           "label": "run_log",
-          "mtime_utc": "2026-06-18T22:10:14Z",
+          "mtime_utc": "2026-06-19T15:17:13Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
-          "sha256": "634606d8061ae01aacc6d0e81d3da6d00e865df0db6c36e5528fad49738afb72",
+          "sha256": "444d43f98e73086ef4743f2975eca3dc248c178f237d8e3bc3a008d843405b09",
           "status": "present"
         },
         {
-          "bytes": 1806027,
+          "bytes": 1805991,
           "label": "summary_json",
-          "mtime_utc": "2026-06-18T22:10:14Z",
+          "mtime_utc": "2026-06-19T15:17:13Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-          "sha256": "c9e8a6c20d5e510a574f6f49f1e0c215299b8fec8264c4d3acef23d5bc982699",
+          "sha256": "1ff741bf7a50983b1d2e403206f2a75ba4cc21e43a45b0dd530f49cd3b344f46",
           "status": "present"
         },
         {
@@ -2271,7 +2271,7 @@
         {
           "bytes": 540,
           "label": "build_manifest",
-          "mtime_utc": "2026-06-18T21:50:31Z",
+          "mtime_utc": "2026-06-19T14:56:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/build-manifest.json",
           "sha256": "22b44ab88da91f92983ebdd9114ac3c29e4ad4874252c5005ad8242b41b526e7",
           "status": "present"
@@ -2279,7 +2279,7 @@
         {
           "bytes": 220,
           "label": "rule_preamble",
-          "mtime_utc": "2026-06-18T21:50:31Z",
+          "mtime_utc": "2026-06-19T14:56:48Z",
           "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/preambles/haproxy-with-crs-with-mrts.load",
           "sha256": "5770573af35d8c7ffe9be9c6940b23a84bc1d9dc1abe5df97d939ea150ef02a7",
           "status": "present"
@@ -2296,7 +2296,7 @@
       "result_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "results_jsonl": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/force-all/haproxy-results.jsonl",
       "return_code": 2,
-      "started_at": "2026-06-18T21:50:31Z",
+      "started_at": "2026-06-19T14:56:48Z",
       "status": "completed_with_mismatches",
       "status_counts": {
         "fail": 111,

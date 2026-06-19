@@ -38,17 +38,6 @@
         "risk": "low if kept report-only; high if treated as connector multipart parser evidence",
         "safe_fixability": "metadata/report-only; do not change multipart body, rules, Expected status, or connector-core behavior",
         "suspected_cause": "The multipart bodies, Content-Type, and boundary are present, but these fixtures do not enable SecRequestBodyAccess before expecting Multipart FILES/ARGS_NAMES collections."
-      },
-      {
-        "cause": "phase1_request_body_unavailable_or_empty_body",
-        "count": 2,
-        "example_cases": [
-          "phase1_vs_phase2_request_body_gap"
-        ],
-        "label": "Phase 1 request-body unavailable or empty",
-        "risk": "low to medium",
-        "safe_fixability": "not safe to fix by changing the body; that would change the test definition",
-        "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token."
       }
     ],
     "classifications": [
@@ -63,19 +52,15 @@
       {
         "count": 4,
         "value": "runtime-difference"
-      },
-      {
-        "count": 2,
-        "value": "phase1_request_body_unavailable"
       }
     ],
     "connectors": [
       {
-        "count": 17,
+        "count": 16,
         "value": "apache"
       },
       {
-        "count": 17,
+        "count": 16,
         "value": "haproxy"
       }
     ],
@@ -107,25 +92,21 @@
       {
         "count": 4,
         "value": "@contains x-smoke-header"
-      },
-      {
-        "count": 2,
-        "value": "@contains bodyhit"
       }
     ],
     "phases": [
       {
-        "count": 18,
-        "value": "1"
+        "count": 16,
+        "value": "2"
       },
       {
         "count": 16,
-        "value": "2"
+        "value": "1"
       }
     ],
     "priorities": [
       {
-        "count": 30,
+        "count": 28,
         "value": "P3"
       },
       {
@@ -145,10 +126,6 @@
       {
         "count": 4,
         "value": "multipart"
-      },
-      {
-        "count": 2,
-        "value": "phase-handling"
       }
     ],
     "targets": [
@@ -175,15 +152,11 @@
       {
         "count": 4,
         "value": "REQUEST_COOKIES_NAMES"
-      },
-      {
-        "count": 2,
-        "value": "REQUEST_BODY"
       }
     ],
     "transformations": [
       {
-        "count": 26,
+        "count": 24,
         "value": "-"
       },
       {
@@ -197,7 +170,7 @@
     ],
     "variants": [
       {
-        "count": 18,
+        "count": 16,
         "value": "no-crs/no-mrts"
       },
       {
@@ -217,14 +190,10 @@
       {
         "count": 4,
         "value": "intervention_blocking"
-      },
-      {
-        "count": 2,
-        "value": "request_body_processor"
       }
     ]
   },
-  "generated_at": "2026-06-19T06:44:21Z",
+  "generated_at": "2026-06-19T16:39:57Z",
   "groups": {
     "by_cause": [
       {
@@ -354,35 +323,6 @@
           }
         ],
         "value": "multipart_processor_activation_missing"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy"
-        ],
-        "count": 2,
-        "example_cases": [
-          "phase1_vs_phase2_request_body_gap"
-        ],
-        "operators": [
-          {
-            "count": 2,
-            "value": "@contains bodyhit"
-          }
-        ],
-        "phases": [
-          {
-            "count": 2,
-            "value": "1"
-          }
-        ],
-        "targets": [
-          {
-            "count": 2,
-            "value": "REQUEST_BODY"
-          }
-        ],
-        "value": "phase1_request_body_unavailable_or_empty_body"
       }
     ],
     "by_connector": [
@@ -390,16 +330,16 @@
         "connectors": [
           "apache"
         ],
-        "count": 17,
+        "count": 16,
         "example_cases": [
           "duplicate_args_encoded_separator_edge",
           "duplicate_header_case_normalization_gap",
           "edge_semicolon_query_args_names",
           "files_empty_part_future_compatibility",
-          "phase1_vs_phase2_request_body_gap",
           "unicode_double_encoded_uri_runtime_difference",
           "unicode_whitespace_normalization_gap",
-          "v3_request_cookies_names_case_runtime_difference"
+          "v3_request_cookies_names_case_runtime_difference",
+          "v3_request_headers_names_lowercase_runtime_difference"
         ],
         "operators": [
           {
@@ -429,20 +369,16 @@
           {
             "count": 2,
             "value": "@contains x-smoke-header"
-          },
-          {
-            "count": 1,
-            "value": "@contains bodyhit"
           }
         ],
         "phases": [
           {
-            "count": 9,
-            "value": "1"
+            "count": 8,
+            "value": "2"
           },
           {
             "count": 8,
-            "value": "2"
+            "value": "1"
           }
         ],
         "targets": [
@@ -469,10 +405,6 @@
           {
             "count": 2,
             "value": "REQUEST_COOKIES_NAMES"
-          },
-          {
-            "count": 1,
-            "value": "REQUEST_BODY"
           }
         ],
         "value": "apache"
@@ -481,16 +413,16 @@
         "connectors": [
           "haproxy"
         ],
-        "count": 17,
+        "count": 16,
         "example_cases": [
           "duplicate_args_encoded_separator_edge",
           "duplicate_header_case_normalization_gap",
           "edge_semicolon_query_args_names",
           "files_empty_part_future_compatibility",
-          "phase1_vs_phase2_request_body_gap",
           "unicode_double_encoded_uri_runtime_difference",
           "unicode_whitespace_normalization_gap",
-          "v3_request_cookies_names_case_runtime_difference"
+          "v3_request_cookies_names_case_runtime_difference",
+          "v3_request_headers_names_lowercase_runtime_difference"
         ],
         "operators": [
           {
@@ -520,20 +452,16 @@
           {
             "count": 2,
             "value": "@contains x-smoke-header"
-          },
-          {
-            "count": 1,
-            "value": "@contains bodyhit"
           }
         ],
         "phases": [
           {
-            "count": 9,
-            "value": "1"
+            "count": 8,
+            "value": "2"
           },
           {
             "count": 8,
-            "value": "2"
+            "value": "1"
           }
         ],
         "targets": [
@@ -560,10 +488,6 @@
           {
             "count": 2,
             "value": "REQUEST_COOKIES_NAMES"
-          },
-          {
-            "count": 1,
-            "value": "REQUEST_BODY"
           }
         ],
         "value": "haproxy"
@@ -773,35 +697,6 @@
           }
         ],
         "value": "@streq a b"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy"
-        ],
-        "count": 2,
-        "example_cases": [
-          "phase1_vs_phase2_request_body_gap"
-        ],
-        "operators": [
-          {
-            "count": 2,
-            "value": "@contains bodyhit"
-          }
-        ],
-        "phases": [
-          {
-            "count": 2,
-            "value": "1"
-          }
-        ],
-        "targets": [
-          {
-            "count": 2,
-            "value": "REQUEST_BODY"
-          }
-        ],
-        "value": "@contains bodyhit"
       }
     ],
     "by_phase": [
@@ -810,10 +705,9 @@
           "apache",
           "haproxy"
         ],
-        "count": 18,
+        "count": 16,
         "example_cases": [
           "duplicate_header_case_normalization_gap",
-          "phase1_vs_phase2_request_body_gap",
           "unicode_double_encoded_uri_runtime_difference",
           "v3_request_cookies_names_case_runtime_difference",
           "v3_request_headers_names_lowercase_runtime_difference"
@@ -834,15 +728,11 @@
           {
             "count": 4,
             "value": "@contains x-smoke-header"
-          },
-          {
-            "count": 2,
-            "value": "@contains bodyhit"
           }
         ],
         "phases": [
           {
-            "count": 18,
+            "count": 16,
             "value": "1"
           }
         ],
@@ -858,10 +748,6 @@
           {
             "count": 4,
             "value": "REQUEST_COOKIES_NAMES"
-          },
-          {
-            "count": 2,
-            "value": "REQUEST_BODY"
           }
         ],
         "value": "1"
@@ -1043,35 +929,6 @@
           }
         ],
         "value": "multipart"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy"
-        ],
-        "count": 2,
-        "example_cases": [
-          "phase1_vs_phase2_request_body_gap"
-        ],
-        "operators": [
-          {
-            "count": 2,
-            "value": "@contains bodyhit"
-          }
-        ],
-        "phases": [
-          {
-            "count": 2,
-            "value": "1"
-          }
-        ],
-        "targets": [
-          {
-            "count": 2,
-            "value": "REQUEST_BODY"
-          }
-        ],
-        "value": "phase-handling"
       }
     ],
     "by_target": [
@@ -1254,100 +1111,71 @@
           }
         ],
         "value": "REQUEST_URI"
-      },
-      {
-        "connectors": [
-          "apache",
-          "haproxy"
-        ],
-        "count": 2,
-        "example_cases": [
-          "phase1_vs_phase2_request_body_gap"
-        ],
-        "operators": [
-          {
-            "count": 2,
-            "value": "@contains bodyhit"
-          }
-        ],
-        "phases": [
-          {
-            "count": 2,
-            "value": "1"
-          }
-        ],
-        "targets": [
-          {
-            "count": 2,
-            "value": "REQUEST_BODY"
-          }
-        ],
-        "value": "REQUEST_BODY"
       }
     ]
   },
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T06:44:21Z",
+    "generated_at": "2026-06-19T16:39:57Z",
     "generated_by": "ci/generate-no-mrts-intervention-nomatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
-        "sha256": "ba3c88e495c93ac7a05a48a1726a7ec7f73ecda79f22ce7fdff2af83a87b7d35",
-        "source_hash": "ba3c88e495c93ac7a05a48a1726a7ec7f73ecda79f22ce7fdff2af83a87b7d35",
+        "sha256": "42b3aecb4efda7c19caac8f6613a800e81cb3b7f829cd67ac5d6464879f9f5f9",
+        "source_hash": "42b3aecb4efda7c19caac8f6613a800e81cb3b7f829cd67ac5d6464879f9f5f9",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
-        "source_hash": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
+        "sha256": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
+        "source_hash": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80",
-        "source_hash": "40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80",
+        "sha256": "8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4",
+        "source_hash": "8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
-        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "sha256": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
+        "source_hash": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a",
-        "source_hash": "f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a",
+        "sha256": "cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23",
+        "source_hash": "cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -1368,7 +1196,7 @@
     "native_status": {
       "apache": "FAIL",
       "nginx": "FAIL",
-      "summary_generated_at": "2026-06-19T06:43:33Z"
+      "summary_generated_at": "2026-06-19T16:39:12Z"
     },
     "reason": "Native MRTS reports cover upstream MRTS target cases; these 105 rows are framework-owned no-MRTS connector cases.",
     "status": "no native comparator"
@@ -1592,62 +1420,6 @@
       "variant": "no-crs/no-mrts",
       "work_direction": [
         "intervention_blocking"
-      ]
-    },
-    {
-      "actions": [
-        "id:4511",
-        "phase:1",
-        "deny",
-        "status:403",
-        "msg:'phase1 request body gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "phase1_vs_phase2_request_body_gap",
-      "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
-      "cause": "phase1_request_body_unavailable_or_empty_body",
-      "classification": "phase1_request_body_unavailable",
-      "connector": "apache",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "bodyhit",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "operator": "@contains bodyhit",
-      "phase": "1",
-      "priority": "P3",
-      "raw_request_contains_expected_value": false,
-      "request": {
-        "body_length": 0,
-        "body_present": false,
-        "content_type": "application/json",
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low to medium",
-      "rule_id": "4511",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "not safe to fix by changing the body; that would change the test definition",
-      "source_category": "phase-handling",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token.",
-      "target": "REQUEST_BODY",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "request_body_processor"
       ]
     },
     {
@@ -2094,62 +1866,6 @@
       "variant": "no-crs/no-mrts",
       "work_direction": [
         "intervention_blocking"
-      ]
-    },
-    {
-      "actions": [
-        "id:4511",
-        "phase:1",
-        "deny",
-        "status:403",
-        "msg:'phase1 request body gap'"
-      ],
-      "backend_reached": true,
-      "case_id": "phase1_vs_phase2_request_body_gap",
-      "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
-      "cause": "phase1_request_body_unavailable_or_empty_body",
-      "classification": "phase1_request_body_unavailable",
-      "connector": "haproxy",
-      "evidence": {
-        "audit_log_present": "no",
-        "backend_reached": true,
-        "result": "result.json",
-        "target_rule_logged": false
-      },
-      "expected_match_value": "bodyhit",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "operator": "@contains bodyhit",
-      "phase": "1",
-      "priority": "P3",
-      "raw_request_contains_expected_value": false,
-      "request": {
-        "body_length": 0,
-        "body_present": false,
-        "content_type": "application/json",
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "method": "POST",
-        "path": "/",
-        "query": "-"
-      },
-      "risk": "low to medium",
-      "rule_id": "4511",
-      "rule_loaded": true,
-      "rule_matched": false,
-      "safe_fixability": "not safe to fix by changing the body; that would change the test definition",
-      "source_category": "phase-handling",
-      "source_kind": "framework-owned",
-      "suspected_cause": "The rule reads REQUEST_BODY in phase 1 while the case request body does not contain the expected token.",
-      "target": "REQUEST_BODY",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "request_body_processor"
       ]
     },
     {
@@ -3287,28 +3003,28 @@
     "remaining_failure_analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
   },
   "summary": {
-    "backend_reached": 34,
+    "backend_reached": 32,
     "before_after": {
       "intervention_blocking_true_candidates_after": 4,
-      "intervention_blocking_true_candidates_before": 34,
-      "no_mrts_no_match_after": 34,
-      "no_mrts_no_match_before": 34,
+      "intervention_blocking_true_candidates_before": 32,
+      "no_mrts_no_match_after": 32,
+      "no_mrts_no_match_before": 32,
       "p0_p1_intervention_blocking_after": 4,
-      "p0_p1_intervention_blocking_before": 34
+      "p0_p1_intervention_blocking_before": 32
     },
     "full_matrix_totals": {
       "attempted": 3928,
       "blocked": 0,
-      "fail": 774,
+      "fail": 771,
       "not_executable": 0,
-      "pass": 3154,
+      "pass": 3157,
       "pending": 2298
     },
     "intervention_created_connector_missed_403": 0,
-    "no_mrts_no_match": 34,
-    "rule_loaded_no_match": 34,
+    "no_mrts_no_match": 32,
+    "rule_loaded_no_match": 32,
     "rule_matched_no_intervention": 0,
     "rule_not_loaded": 0,
-    "unique_cases": 9
+    "unique_cases": 8
   }
 }

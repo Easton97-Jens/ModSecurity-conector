@@ -1,35 +1,35 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T06:44:32Z`
+> Generated at: `2026-06-19T16:40:08Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-body-processor-analysis.py`
 > Make target: `generate-body-processor-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
-> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
+> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
+> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
 > Input status: `complete`
 
 # Body Processor Failure Analysis
 
-- Generated at: `2026-06-19T06:44:32Z`
-- Before selected metadata fix: request_body_processor **9**, multipart_files **6**, xml_processor **12**, combined **27**.
+- Generated at: `2026-06-19T16:40:08Z`
+- Before selected metadata fix: request_body_processor **6**, multipart_files **6**, xml_processor **12**, combined **24**.
 - After selected metadata fix: request_body_processor **0**, multipart_files **6**, xml_processor **0**, combined **6**.
-- Selected subcluster rows: **9**
+- Selected subcluster rows: **6**
 - URL-encoded form rows moved out of active body-processor work: **12** -> **0**.
 - XML processor activation-missing rows moved out of active xml_processor work: **12** -> **0**.
 - Multipart processor activation-missing rows moved out of active multipart_files work: **0** -> **0**.
-- Rule loaded evidence rows: **10**
-- Target rule matched rows: **0**
-- Backend reached rows: **15**
-- Request body access explicitly on: **0**
-- Collection/target evidence rows: **0**
+- Rule loaded evidence rows: **8**
+- Target rule matched rows: **2**
+- Backend reached rows: **12**
+- Request body access explicitly on: **4**
+- Collection/target evidence rows: **2**
 
 ## Selected Subcluster
 
 - Case: `phase1_vs_phase2_request_body_gap`
-- Count: **9**
+- Count: **6**
 - Action: metadata-only classification: request_body_processor -> connector_gap
 - Why safe: the case has an empty request body and existing source metadata says connector-gap; no request, rule, expected status, or PASS/FAIL value changed
 - Root cause: phase:1 REQUEST_BODY cannot match the expected bodyhit because the YAML request body is empty
@@ -211,10 +211,10 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

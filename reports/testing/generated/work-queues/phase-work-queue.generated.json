@@ -5,19 +5,18 @@
       "next_work": "Start with response_body_non_promoted.",
       "phase_summary": {
         "1": {
-          "queued_entries": 67,
+          "queued_entries": 66,
           "runtime_status": {
-            "FAIL": 67,
-            "PASS": 211
+            "FAIL": 66,
+            "PASS": 212
           },
           "top_problems": {
-            "expected_block_got_200": 65,
+            "expected_block_got_200": 64,
             "expected_pass_but_evidence_missing": 2
           },
           "top_work_directions": {
             "classification_only": 58,
             "collection_semantics": 6,
-            "request_body_processor": 1,
             "transformation_semantics": 2
           }
         },
@@ -65,8 +64,8 @@
         }
       },
       "runtime_status": {
-        "FAIL": 244,
-        "PASS": 1056
+        "FAIL": 243,
+        "PASS": 1057
       },
       "top_3_next_work": [
         "response_body_non_promoted",
@@ -74,14 +73,13 @@
         "response_header_mrts_detection_only"
       ],
       "top_failure_patterns": {
-        "expected_block_got_200": 242,
+        "expected_block_got_200": 241,
         "expected_pass_but_evidence_missing": 2
       },
       "top_work_directions": {
         "classification_only": 179,
         "collection_semantics": 10,
         "multipart_files": 2,
-        "request_body_processor": 1,
         "response_body_non_promoted": 284,
         "response_header_mrts_detection_only": 20,
         "transformation_semantics": 4
@@ -91,19 +89,18 @@
       "next_work": "Start with response_body_non_promoted.",
       "phase_summary": {
         "1": {
-          "queued_entries": 67,
+          "queued_entries": 66,
           "runtime_status": {
-            "FAIL": 67,
-            "PASS": 211
+            "FAIL": 66,
+            "PASS": 212
           },
           "top_problems": {
-            "expected_block_got_200": 65,
+            "expected_block_got_200": 64,
             "expected_pass_but_evidence_missing": 2
           },
           "top_work_directions": {
             "classification_only": 58,
             "collection_semantics": 6,
-            "request_body_processor": 1,
             "transformation_semantics": 2
           }
         },
@@ -151,8 +148,8 @@
         }
       },
       "runtime_status": {
-        "FAIL": 244,
-        "PASS": 1056
+        "FAIL": 243,
+        "PASS": 1057
       },
       "top_3_next_work": [
         "Fix 501 connector gaps around Body/XML/Multipart/SPOA.",
@@ -160,14 +157,13 @@
         "Then close 403->200 intervention_blocking gaps."
       ],
       "top_failure_patterns": {
-        "expected_block_got_200": 242,
+        "expected_block_got_200": 241,
         "expected_pass_but_evidence_missing": 2
       },
       "top_work_directions": {
         "classification_only": 179,
         "collection_semantics": 10,
         "multipart_files": 2,
-        "request_body_processor": 1,
         "response_body_non_promoted": 284,
         "response_header_mrts_detection_only": 20,
         "transformation_semantics": 4
@@ -177,19 +173,18 @@
       "next_work": "Start with response_body_non_promoted.",
       "phase_summary": {
         "1": {
-          "queued_entries": 69,
+          "queued_entries": 68,
           "runtime_status": {
-            "FAIL": 69,
-            "PASS": 213
+            "FAIL": 68,
+            "PASS": 214
           },
           "top_problems": {
-            "expected_block_got_200": 67,
+            "expected_block_got_200": 66,
             "expected_pass_but_evidence_missing": 2
           },
           "top_work_directions": {
             "classification_only": 60,
             "collection_semantics": 6,
-            "request_body_processor": 1,
             "transformation_semantics": 2
           }
         },
@@ -238,8 +233,8 @@
         }
       },
       "runtime_status": {
-        "FAIL": 286,
-        "PASS": 1042
+        "FAIL": 285,
+        "PASS": 1043
       },
       "top_3_next_work": [
         "Fix request_routing / method-location handling for 404/405 clusters.",
@@ -247,14 +242,13 @@
         "Then close intervention_blocking gaps where expected blocks return 200."
       ],
       "top_failure_patterns": {
-        "expected_block_got_200": 278,
+        "expected_block_got_200": 277,
         "expected_pass_but_evidence_missing": 8
       },
       "top_work_directions": {
         "classification_only": 185,
         "collection_semantics": 10,
         "multipart_files": 2,
-        "request_body_processor": 1,
         "response_body_non_promoted": 300,
         "response_header_mrts_detection_only": 20,
         "transformation_semantics": 4
@@ -262,7 +256,7 @@
     }
   },
   "framework_root": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
-  "generated_at": "2026-06-19T06:43:39Z",
+  "generated_at": "2026-06-19T16:39:19Z",
   "guardrails": {
     "classification_is_explanatory_only": true,
     "feature_demo_runtime_cases": 0,
@@ -281,45 +275,45 @@
   "metadata": {
     "category": "work-queues",
     "commit_policy": "versioned-generated",
-    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
     "data_kind": "work-queue",
     "data_origin": "framework",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T06:43:39Z",
+    "generated_at": "2026-06-19T16:39:19Z",
     "generated_by": "framework:ci/generate-phase-work-queue.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
-        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "sha256": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
+        "source_hash": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "1ece47889904965f7cff2af0be36c362cb45f09a41b69eb5979d052665ac935a",
-        "source_hash": "1ece47889904965f7cff2af0be36c362cb45f09a41b69eb5979d052665ac935a",
+        "sha256": "33d505be8e410e1f508c7633e2e716ae5e5100ade9d7a2ae99b85ff60a16d496",
+        "source_hash": "33d505be8e410e1f508c7633e2e716ae5e5100ade9d7a2ae99b85ff60a16d496",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
-        "source_hash": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
+        "sha256": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
+        "source_hash": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -424,7 +418,6 @@
       "classification": {
         "collection_name_normalization_semantics": 18,
         "nolog-expected-no-audit": 6,
-        "phase1_request_body_unavailable": 3,
         "transformation_request_literal_no_match": 6,
         "with_mrts_detection_only_non_disruptive": 170
       },
@@ -452,7 +445,7 @@
       "focus": "action/intervention, request headers, request URI, cookies, and early blocking",
       "goal": "Stabilize Phase 1 first because it avoids body and multipart complexity.",
       "priority": {
-        "P3": 27,
+        "P3": 24,
         "report_only": 176
       },
       "queue": [
@@ -520,37 +513,6 @@
           ],
           "work_direction": [
             "collection_semantics"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase1_vs_phase2_request_body_gap",
-          "category": "phase-handling",
-          "classification": "phase1_request_body_unavailable",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/phase1_vs_phase2_request_body_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "request_body_processor"
           ]
         },
         {
@@ -819,37 +781,6 @@
         },
         {
           "actual_status": 200,
-          "case_id": "phase1_vs_phase2_request_body_gap",
-          "category": "phase-handling",
-          "classification": "phase1_request_body_unavailable",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/phase1_vs_phase2_request_body_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "request_body_processor"
-          ]
-        },
-        {
-          "actual_status": 200,
           "case_id": "unicode_double_encoded_uri_runtime_difference",
           "category": "transformations",
           "classification": "transformation_request_literal_no_match",
@@ -1110,37 +1041,6 @@
           ],
           "work_direction": [
             "collection_semantics"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "phase1_vs_phase2_request_body_gap",
-          "category": "phase-handling",
-          "classification": "phase1_request_body_unavailable",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/phase1_vs_phase2_request_body_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY"
-          ],
-          "work_direction": [
-            "request_body_processor"
           ]
         },
         {
@@ -7076,18 +6976,17 @@
       ],
       "runtime_entries": 838,
       "runtime_status": {
-        "FAIL": 203,
-        "PASS": 635
+        "FAIL": 200,
+        "PASS": 638
       },
       "title": "Phase 1 Work Queue",
       "top_failure_patterns": {
-        "expected_block_got_200": 197,
+        "expected_block_got_200": 194,
         "expected_pass_but_evidence_missing": 6
       },
       "top_work_directions": {
         "classification_only": 176,
         "collection_semantics": 18,
-        "request_body_processor": 3,
         "transformation_semantics": 6
       },
       "unique_runtime_cases": 105
@@ -7101,17 +7000,17 @@
         "xml_processor_activation_missing": 18
       },
       "coverage": {
-        "case_count": 74,
+        "case_count": 75,
         "status_distribution": {
           "active": 5,
-          "imported": 69
+          "imported": 70
         },
         "top_variables": {
           "ARGS:q": 18,
           "ARGS:test": 6,
           "ARGS_NAMES": 6,
           "MULTIPART_FILENAME": 4,
-          "REQUEST_BODY": 9
+          "REQUEST_BODY": 10
         }
       },
       "directions": [
@@ -70207,7 +70106,7 @@
   ],
   "summary": {
     "blocked": 0,
-    "failures": 774,
+    "failures": 771,
     "full_runtime_runs": 12,
     "main_work_direction_by_phase": {
       "1": "classification_only",
@@ -70222,7 +70121,7 @@
       },
       "2": {
         "active": 5,
-        "imported": 69
+        "imported": 70
       },
       "3": {
         "active": 1,
@@ -70235,16 +70134,16 @@
     "not_executable": 0,
     "phase_case_totals": {
       "1": 38,
-      "2": 74,
+      "2": 75,
       "3": 12,
       "4": 20
     },
-    "queued_entries": 1522,
+    "queued_entries": 1519,
     "runtime_entries": 3928,
     "runtime_status_by_phase": {
       "1": {
-        "FAIL": 203,
-        "PASS": 635
+        "FAIL": 200,
+        "PASS": 638
       },
       "2": {
         "FAIL": 391,

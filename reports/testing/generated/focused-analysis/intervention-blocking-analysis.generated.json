@@ -2,15 +2,15 @@
   "distribution": {
     "connectors": [
       {
-        "count": 191,
+        "count": 190,
         "value": "nginx"
       },
       {
-        "count": 187,
+        "count": 186,
         "value": "apache"
       },
       {
-        "count": 187,
+        "count": 186,
         "value": "haproxy"
       }
     ],
@@ -46,29 +46,25 @@
       {
         "count": 12,
         "value": "transformation_request_literal_no_match"
-      },
-      {
-        "count": 3,
-        "value": "phase1_request_body_unavailable"
       }
     ],
     "no_mrts_semantic_connectors": [
       {
-        "count": 15,
+        "count": 14,
         "value": "apache"
       },
       {
-        "count": 15,
+        "count": 14,
         "value": "nginx"
       },
       {
-        "count": 15,
+        "count": 14,
         "value": "haproxy"
       }
     ],
     "no_mrts_semantic_variants": [
       {
-        "count": 24,
+        "count": 21,
         "value": "no-crs/no-mrts"
       },
       {
@@ -78,11 +74,11 @@
     ],
     "phases": [
       {
-        "count": 377,
+        "count": 381,
         "value": "2"
       },
       {
-        "count": 188,
+        "count": 181,
         "value": "1"
       }
     ],
@@ -124,7 +120,7 @@
         "value": "request-body"
       },
       {
-        "count": 9,
+        "count": 6,
         "value": "phase-handling"
       },
       {
@@ -138,7 +134,7 @@
     ],
     "targets": [
       {
-        "count": 205,
+        "count": 204,
         "value": "-"
       },
       {
@@ -146,7 +142,7 @@
         "value": "ARGS:q"
       },
       {
-        "count": 42,
+        "count": 40,
         "value": "REQUEST_BODY"
       },
       {
@@ -228,7 +224,7 @@
         "value": "no-crs/with-mrts"
       },
       {
-        "count": 27,
+        "count": 24,
         "value": "no-crs/no-mrts"
       },
       {
@@ -237,13 +233,13 @@
       }
     ]
   },
-  "generated_at": "2026-06-19T06:44:20Z",
+  "generated_at": "2026-06-19T16:39:55Z",
   "groups": {
     "A": {
       "connectors": [
         "nginx"
       ],
-      "count": 191,
+      "count": 190,
       "example_cases": [
         {
           "backend_reached": true,
@@ -311,22 +307,6 @@
         },
         {
           "backend_reached": true,
-          "case_id": "phase1_vs_phase2_request_body_gap",
-          "connector": "nginx",
-          "intervention_created": false,
-          "method": "-",
-          "operator": "-",
-          "path": "-",
-          "phase": "1",
-          "query": "-",
-          "rule_id": "-",
-          "rule_loaded": false,
-          "rule_matched": false,
-          "target": "-",
-          "variant": "no-crs/no-mrts"
-        },
-        {
-          "backend_reached": true,
           "case_id": "unicode_double_encoded_uri_runtime_difference",
           "connector": "nginx",
           "intervention_created": false,
@@ -372,6 +352,22 @@
           "rule_matched": false,
           "target": "-",
           "variant": "no-crs/no-mrts"
+        },
+        {
+          "backend_reached": true,
+          "case_id": "v3_request_headers_names_lowercase_runtime_difference",
+          "connector": "nginx",
+          "intervention_created": false,
+          "method": "-",
+          "operator": "-",
+          "path": "-",
+          "phase": "1",
+          "query": "-",
+          "rule_id": "-",
+          "rule_loaded": false,
+          "rule_matched": false,
+          "target": "-",
+          "variant": "no-crs/no-mrts"
         }
       ],
       "fixability": "fixable if generated loadfile path is wrong",
@@ -390,7 +386,7 @@
         "apache",
         "haproxy"
       ],
-      "count": 34,
+      "count": 32,
       "example_cases": [
         {
           "backend_reached": true,
@@ -458,22 +454,6 @@
         },
         {
           "backend_reached": true,
-          "case_id": "phase1_vs_phase2_request_body_gap",
-          "connector": "apache",
-          "intervention_created": false,
-          "method": "POST",
-          "operator": "@contains bodyhit",
-          "path": "/",
-          "phase": "1",
-          "query": "-",
-          "rule_id": "4511",
-          "rule_loaded": true,
-          "rule_matched": false,
-          "target": "REQUEST_BODY",
-          "variant": "no-crs/no-mrts"
-        },
-        {
-          "backend_reached": true,
           "case_id": "unicode_double_encoded_uri_runtime_difference",
           "connector": "apache",
           "intervention_created": false,
@@ -518,6 +498,22 @@
           "rule_loaded": true,
           "rule_matched": false,
           "target": "REQUEST_COOKIES_NAMES",
+          "variant": "no-crs/no-mrts"
+        },
+        {
+          "backend_reached": true,
+          "case_id": "v3_request_headers_names_lowercase_runtime_difference",
+          "connector": "apache",
+          "intervention_created": false,
+          "method": "GET",
+          "operator": "@contains x-smoke-header",
+          "path": "/",
+          "phase": "1",
+          "query": "-",
+          "rule_id": "4401",
+          "rule_loaded": true,
+          "rule_matched": false,
+          "target": "REQUEST_HEADERS_NAMES",
           "variant": "no-crs/no-mrts"
         }
       ],
@@ -729,65 +725,65 @@
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T06:44:20Z",
+    "generated_at": "2026-06-19T16:39:55Z",
     "generated_by": "ci/generate-intervention-blocking-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
-        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "sha256": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
+        "source_hash": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
-        "source_hash": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
+        "sha256": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
+        "source_hash": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80",
-        "source_hash": "40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80",
+        "sha256": "8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4",
+        "source_hash": "8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
-        "source_hash": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
+        "sha256": "6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b",
+        "source_hash": "6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a",
-        "source_hash": "f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a",
+        "sha256": "cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23",
+        "source_hash": "cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -803,7 +799,7 @@
     "working_tree_dirty": "dirty"
   },
   "next_fix_plan": {
-    "generated_at": "2026-06-19T06:43:50Z",
+    "generated_at": "2026-06-19T16:39:29Z",
     "reason": "remaining active body-processor work is now multipart-only after URL-encoded and XML metadata splits",
     "recommended_next_fix_cluster": "multipart_files"
   },
@@ -1046,66 +1042,6 @@
       "variant": "no-crs/no-mrts",
       "work_direction": [
         "intervention_blocking"
-      ]
-    },
-    {
-      "actions": [
-        "id:4511",
-        "phase:1",
-        "deny",
-        "status:403",
-        "msg:'phase1 request body gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_present": false,
-      "case_id": "phase1_vs_phase2_request_body_gap",
-      "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
-      "classification": "phase1_request_body_unavailable",
-      "connector": "apache",
-      "connector_set_403": false,
-      "content_type": "application/json",
-      "decision_entries": 0,
-      "decision_rule_ids": [],
-      "disruptive_decisions": 0,
-      "expected_intervention": "deny",
-      "expected_status": 403,
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "fixability": "not a safe intervention fix; requires semantic/native comparison",
-      "group": "B",
-      "group_label": "Rule loaded, no match",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "last_decision": "-",
-      "last_intervention_status": null,
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains bodyhit",
-      "path": "/",
-      "phase": "1",
-      "priority": "P3",
-      "query": "-",
-      "risk": "medium to high",
-      "rule_id": "4511",
-      "rule_in_loadfile": true,
-      "rule_loaded": true,
-      "rule_matched": false,
-      "source_category": "phase-handling",
-      "source_classification": "connector-gap",
-      "source_kind": "framework-owned",
-      "strict_load_errors": false,
-      "suspected_cause": "The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions.",
-      "target": "REQUEST_BODY",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "request_body_processor"
       ]
     },
     {
@@ -1563,57 +1499,6 @@
       "actual_status": 200,
       "backend_reached": true,
       "body_present": false,
-      "case_id": "phase1_vs_phase2_request_body_gap",
-      "case_path": "-",
-      "classification": "phase1_request_body_unavailable",
-      "connector": "nginx",
-      "connector_set_403": false,
-      "content_type": "-",
-      "decision_entries": 0,
-      "decision_rule_ids": [],
-      "disruptive_decisions": 0,
-      "expected_intervention": "-",
-      "expected_status": 403,
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "fixability": "fixable if generated loadfile path is wrong",
-      "group": "A",
-      "group_label": "Rule not loaded",
-      "intervention_created": false,
-      "known_limitations": [],
-      "last_decision": "-",
-      "last_intervention_status": null,
-      "method": "-",
-      "mrts_variant": "no-mrts",
-      "operator": "-",
-      "path": "-",
-      "phase": "1",
-      "priority": "P3",
-      "query": "-",
-      "risk": "low to medium",
-      "rule_id": "-",
-      "rule_in_loadfile": false,
-      "rule_loaded": false,
-      "rule_matched": false,
-      "source_category": "phase-handling",
-      "source_classification": "-",
-      "source_kind": "framework-owned",
-      "strict_load_errors": false,
-      "suspected_cause": "Rule-load evidence is missing or startup logs show a strict rule-load error.",
-      "target": "-",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "request_body_processor"
-      ]
-    },
-    {
-      "actions": [],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_present": false,
       "case_id": "unicode_double_encoded_uri_runtime_difference",
       "case_path": "-",
       "classification": "transformation_request_literal_no_match",
@@ -2051,66 +1936,6 @@
       "variant": "no-crs/no-mrts",
       "work_direction": [
         "intervention_blocking"
-      ]
-    },
-    {
-      "actions": [
-        "id:4511",
-        "phase:1",
-        "deny",
-        "status:403",
-        "msg:'phase1 request body gap'"
-      ],
-      "actual_status": 200,
-      "backend_reached": true,
-      "body_present": false,
-      "case_id": "phase1_vs_phase2_request_body_gap",
-      "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
-      "classification": "phase1_request_body_unavailable",
-      "connector": "haproxy",
-      "connector_set_403": false,
-      "content_type": "application/json",
-      "decision_entries": 2,
-      "decision_rule_ids": [],
-      "disruptive_decisions": 0,
-      "expected_intervention": "deny",
-      "expected_status": 403,
-      "failure_pattern": [
-        "expected_block_got_200"
-      ],
-      "fixability": "not a safe intervention fix; requires semantic/native comparison",
-      "group": "B",
-      "group_label": "Rule loaded, no match",
-      "intervention_created": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "last_decision": "pass",
-      "last_intervention_status": 200,
-      "method": "POST",
-      "mrts_variant": "no-mrts",
-      "operator": "@contains bodyhit",
-      "path": "/",
-      "phase": "1",
-      "priority": "P3",
-      "query": "-",
-      "risk": "medium to high",
-      "rule_id": "4511",
-      "rule_in_loadfile": true,
-      "rule_loaded": true,
-      "rule_matched": false,
-      "source_category": "phase-handling",
-      "source_classification": "connector-gap",
-      "source_kind": "framework-owned",
-      "strict_load_errors": false,
-      "suspected_cause": "The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions.",
-      "target": "REQUEST_BODY",
-      "test_variant": "no-crs",
-      "transformations": [],
-      "variant": "no-crs/no-mrts",
-      "work_direction": [
-        "request_body_processor"
       ]
     },
     {
@@ -4390,21 +4215,21 @@
     },
     {
       "actions": [
-        "id:4511",
-        "phase:1",
+        "id:4512",
+        "phase:2",
         "deny",
         "status:403",
-        "msg:'phase1 request body gap'"
+        "msg:'phase2 request body block'"
       ],
       "actual_status": 200,
       "backend_reached": true,
-      "body_present": false,
+      "body_present": true,
       "case_id": "phase1_vs_phase2_request_body_gap",
       "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
       "classification": "with_mrts_detection_only_non_disruptive",
       "connector": "apache",
       "connector_set_403": false,
-      "content_type": "application/json",
+      "content_type": "text/plain",
       "decision_entries": 0,
       "decision_rule_ids": [],
       "disruptive_decisions": 0,
@@ -4418,8 +4243,7 @@
       "group_label": "Expected block, but effective runtime is non-disruptive",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Phase 1 is a reachability marker only; request-body content is asserted in phase 2."
       ],
       "last_decision": "-",
       "last_intervention_status": null,
@@ -4427,16 +4251,16 @@
       "mrts_variant": "with-mrts",
       "operator": "@contains bodyhit",
       "path": "/",
-      "phase": "1",
+      "phase": "2",
       "priority": "report_only",
       "query": "-",
       "risk": "low for report-only, high if expectations are changed",
-      "rule_id": "4511",
+      "rule_id": "4512",
       "rule_in_loadfile": true,
       "rule_loaded": true,
-      "rule_matched": false,
+      "rule_matched": true,
       "source_category": "phase-handling",
-      "source_classification": "connector-gap",
+      "source_classification": "-",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -13914,21 +13738,21 @@
     },
     {
       "actions": [
-        "id:4511",
-        "phase:1",
+        "id:4512",
+        "phase:2",
         "deny",
         "status:403",
-        "msg:'phase1 request body gap'"
+        "msg:'phase2 request body block'"
       ],
       "actual_status": 200,
       "backend_reached": true,
-      "body_present": false,
+      "body_present": true,
       "case_id": "phase1_vs_phase2_request_body_gap",
       "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
       "classification": "with_mrts_detection_only_non_disruptive",
       "connector": "haproxy",
       "connector_set_403": false,
-      "content_type": "application/json",
+      "content_type": "text/plain",
       "decision_entries": 2,
       "decision_rule_ids": [
         "100028"
@@ -13944,8 +13768,7 @@
       "group_label": "Expected block, but effective runtime is non-disruptive",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Phase 1 is a reachability marker only; request-body content is asserted in phase 2."
       ],
       "last_decision": "pass",
       "last_intervention_status": 200,
@@ -13953,16 +13776,16 @@
       "mrts_variant": "with-mrts",
       "operator": "@contains bodyhit",
       "path": "/",
-      "phase": "1",
+      "phase": "2",
       "priority": "report_only",
       "query": "-",
       "risk": "low for report-only, high if expectations are changed",
-      "rule_id": "4511",
+      "rule_id": "4512",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "phase-handling",
-      "source_classification": "connector-gap",
+      "source_classification": "-",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -20598,21 +20421,21 @@
     },
     {
       "actions": [
-        "id:4511",
-        "phase:1",
+        "id:4512",
+        "phase:2",
         "deny",
         "status:403",
-        "msg:'phase1 request body gap'"
+        "msg:'phase2 request body block'"
       ],
       "actual_status": 200,
       "backend_reached": true,
-      "body_present": false,
+      "body_present": true,
       "case_id": "phase1_vs_phase2_request_body_gap",
       "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
       "classification": "with_mrts_detection_only_non_disruptive",
       "connector": "apache",
       "connector_set_403": false,
-      "content_type": "application/json",
+      "content_type": "text/plain",
       "decision_entries": 0,
       "decision_rule_ids": [],
       "disruptive_decisions": 0,
@@ -20626,8 +20449,7 @@
       "group_label": "Expected block, but effective runtime is non-disruptive",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Phase 1 is a reachability marker only; request-body content is asserted in phase 2."
       ],
       "last_decision": "-",
       "last_intervention_status": null,
@@ -20635,16 +20457,16 @@
       "mrts_variant": "with-mrts",
       "operator": "@contains bodyhit",
       "path": "/",
-      "phase": "1",
+      "phase": "2",
       "priority": "report_only",
       "query": "-",
       "risk": "low for report-only, high if expectations are changed",
-      "rule_id": "4511",
+      "rule_id": "4512",
       "rule_in_loadfile": true,
       "rule_loaded": true,
-      "rule_matched": false,
+      "rule_matched": true,
       "source_category": "phase-handling",
-      "source_classification": "connector-gap",
+      "source_classification": "-",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -30350,24 +30172,24 @@
     },
     {
       "actions": [
-        "id:4511",
-        "phase:1",
+        "id:4512",
+        "phase:2",
         "deny",
         "status:403",
-        "msg:'phase1 request body gap'"
+        "msg:'phase2 request body block'"
       ],
       "actual_status": 200,
       "backend_reached": true,
-      "body_present": false,
+      "body_present": true,
       "case_id": "phase1_vs_phase2_request_body_gap",
       "case_path": "framework:tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
       "classification": "with_mrts_detection_only_non_disruptive",
       "connector": "haproxy",
       "connector_set_403": false,
-      "content_type": "application/json",
+      "content_type": "text/plain",
       "decision_entries": 2,
       "decision_rule_ids": [
-        "920180"
+        "920350"
       ],
       "disruptive_decisions": 0,
       "expected_intervention": "deny",
@@ -30380,8 +30202,7 @@
       "group_label": "Expected block, but effective runtime is non-disruptive",
       "intervention_created": false,
       "known_limitations": [
-        "Classification: connector-gap.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
+        "Phase 1 is a reachability marker only; request-body content is asserted in phase 2."
       ],
       "last_decision": "pass",
       "last_intervention_status": 200,
@@ -30389,16 +30210,16 @@
       "mrts_variant": "with-mrts",
       "operator": "@contains bodyhit",
       "path": "/",
-      "phase": "1",
+      "phase": "2",
       "priority": "report_only",
       "query": "-",
       "risk": "low for report-only, high if expectations are changed",
-      "rule_id": "4511",
+      "rule_id": "4512",
       "rule_in_loadfile": true,
       "rule_loaded": true,
       "rule_matched": false,
       "source_category": "phase-handling",
-      "source_classification": "connector-gap",
+      "source_classification": "-",
       "source_kind": "framework-owned",
       "strict_load_errors": false,
       "suspected_cause": "with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay.",
@@ -33510,20 +33331,20 @@
     "remaining_failure_analysis": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json"
   },
   "summary": {
-    "backend_reached": 565,
+    "backend_reached": 562,
     "connector_lost_intervention": 0,
     "connector_set_403": 0,
     "detection_only_overlay_non_disruptive": 514,
-    "expected_403_actual_200_total": 565,
+    "expected_403_actual_200_total": 562,
     "intervention_blocking_true_candidates": 6,
     "intervention_created": 0,
-    "logged_match_suppressed_by_mrts_overlay": 196,
-    "no_mrts_no_match": 51,
-    "no_mrts_semantic_no_match": 45,
+    "logged_match_suppressed_by_mrts_overlay": 198,
+    "no_mrts_no_match": 48,
+    "no_mrts_semantic_no_match": 42,
     "remaining_p0_p1_intervention_blocking": 6,
-    "rule_in_loadfile": 374,
-    "rule_loaded": 374,
-    "rule_matched": 196,
+    "rule_in_loadfile": 372,
+    "rule_loaded": 372,
+    "rule_matched": 198,
     "strict_rule_load_errors": 0,
     "with_mrts_detection_only_overlay": 514
   }

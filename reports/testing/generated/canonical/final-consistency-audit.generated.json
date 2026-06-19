@@ -131,22 +131,9 @@
         "fixable": "report-only unless the case is meant to exercise strict hard abort",
         "recommended_next_step": "keep minimal/safe/content-type rows as log-only, not hard-abort PASS evidence",
         "risk": "low if reported honestly, high if promoted as hard abort"
-      },
-      {
-        "category": "connector_gap",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "count": 3,
-        "disposition": "connector_gap",
-        "fixable": "unknown; review required",
-        "recommended_next_step": "manual review",
-        "risk": "unknown"
       }
     ],
-    "connector_gap_rows": 45,
+    "connector_gap_rows": 42,
     "report_only_rows": 609,
     "semantic_pending_rows": 42
   },
@@ -178,6 +165,11 @@
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
       },
       {
+        "cluster": "secaction_detection_only_overlay",
+        "count": 0,
+        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive SecAction intervention"
+      },
+      {
         "cluster": "xml_processor_activation_missing",
         "count": 18,
         "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
@@ -199,6 +191,7 @@
       "nolog_expected_no_audit",
       "phase4_hard_abort_capability",
       "response_header_mrts_detection_only",
+      "secaction_detection_only_overlay",
       "transformation_semantics",
       "with_mrts_detection_only_non_disruptive",
       "xml_processor_activation_missing"
@@ -233,85 +226,85 @@
   },
   "freshness": [
     {
-      "generated_at": "2026-06-19T06:43:20Z",
+      "generated_at": "2026-06-19T16:38:58Z",
       "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-19T06:43:31Z",
+      "generated_at": "2026-06-19T16:39:11Z",
       "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-19T06:43:39Z",
+      "generated_at": "2026-06-19T16:39:19Z",
       "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
       "present": true,
       "report_kind": "-"
     },
     {
-      "generated_at": "2026-06-19T06:43:50Z",
+      "generated_at": "2026-06-19T16:39:29Z",
       "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
       "present": true,
       "report_kind": "remaining-full-matrix-failure-analysis"
     },
     {
-      "generated_at": "2026-06-19T06:43:50Z",
+      "generated_at": "2026-06-19T16:39:29Z",
       "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
       "present": true,
       "report_kind": "next-fix-plan"
     },
     {
-      "generated_at": "2026-06-19T06:44:08Z",
+      "generated_at": "2026-06-19T16:39:43Z",
       "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
       "present": true,
       "report_kind": "full-run-evidence"
     },
     {
-      "generated_at": "2026-06-19T06:43:33Z",
+      "generated_at": "2026-06-19T16:39:12Z",
       "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
       "present": true,
       "report_kind": "native-mrts-summary"
     },
     {
-      "generated_at": "2026-06-19T06:43:46Z",
+      "generated_at": "2026-06-19T16:39:25Z",
       "path": "reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json",
       "present": true,
       "report_kind": "phase4-hard-abort-capability"
     },
     {
-      "generated_at": "2026-06-19T06:43:35Z",
+      "generated_at": "2026-06-19T16:39:15Z",
       "path": "reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json",
       "present": true,
       "report_kind": "nolog-audit-evidence-analysis"
     },
     {
-      "generated_at": "2026-06-19T06:43:40Z",
+      "generated_at": "2026-06-19T16:39:19Z",
       "path": "reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json",
       "present": true,
       "report_kind": "response-header-hook-analysis"
     },
     {
-      "generated_at": "2026-06-19T06:44:32Z",
+      "generated_at": "2026-06-19T16:40:08Z",
       "path": "reports/testing/generated/focused-analysis/body-processor-analysis.generated.json",
       "present": true,
       "report_kind": "body-processor-analysis"
     },
     {
-      "generated_at": "2026-06-19T06:44:20Z",
+      "generated_at": "2026-06-19T16:39:55Z",
       "path": "reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json",
       "present": true,
       "report_kind": "intervention-blocking-analysis"
     },
     {
-      "generated_at": "2026-06-19T06:44:21Z",
+      "generated_at": "2026-06-19T16:39:57Z",
       "path": "reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json",
       "present": true,
       "report_kind": "no-mrts-intervention-nomatch-analysis"
     },
     {
-      "generated_at": "2026-06-19T06:44:34Z",
+      "generated_at": "2026-06-19T16:40:09Z",
       "path": "reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json",
       "present": true,
       "report_kind": "rule-chain-semantics-analysis"
@@ -320,17 +313,17 @@
   "full_matrix_summary": {
     "attempted": 3928,
     "blocked": 0,
-    "fail": 774,
+    "fail": 771,
     "not_executable": 0,
-    "pass": 3154,
+    "pass": 3157,
     "pending": 2298
   },
-  "generated_at": "2026-06-19T06:44:35Z",
+  "generated_at": "2026-06-19T16:40:11Z",
   "git_snapshot": {
-    "connector_head": "02d952fa8a986ef519c671973809d7634998e961",
-    "framework_head": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "connector_head": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+    "framework_head": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "submodules": [
-      "62c5dce8733d77138999bf6054fd4b1ec1712d40 modules/ModSecurity-test-Framework (heads/master)",
+      "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4 modules/ModSecurity-test-Framework (heads/master)",
       " 13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main)"
     ]
   },
@@ -347,75 +340,75 @@
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
     "data_kind": "evidence",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T06:44:35Z",
+    "generated_at": "2026-06-19T16:40:11Z",
     "generated_by": "ci/generate-final-consistency-audit.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
-        "source_hash": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
+        "sha256": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
+        "source_hash": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
-        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "sha256": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
+        "source_hash": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
-        "source_hash": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
+        "sha256": "6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b",
+        "source_hash": "6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80",
-        "source_hash": "40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80",
+        "sha256": "8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4",
+        "source_hash": "8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a",
-        "source_hash": "f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a",
+        "sha256": "cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23",
+        "source_hash": "cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "e90c02f636c5b356c7db009eb39b4997c83b6db20d64fc90f796fec9ff3083e8",
-        "source_hash": "e90c02f636c5b356c7db009eb39b4997c83b6db20d64fc90f796fec9ff3083e8",
+        "sha256": "2db466da1006f40605c3fbf9be46e8f370d486be124f3e288e573a1cff96a29f",
+        "source_hash": "2db466da1006f40605c3fbf9be46e8f370d486be124f3e288e573a1cff96a29f",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -481,19 +474,19 @@
     "queue_totals_non_pass": {
       "P0": 6,
       "P2": 60,
-      "P3": 171,
+      "P3": 168,
       "report_only": 537
     },
     "recomputed_failures": {
       "P0": 6,
       "P2": 60,
-      "P3": 171,
+      "P3": 168,
       "report_only": 537
     },
     "recomputed_non_pass": {
       "P0": 6,
       "P2": 60,
-      "P3": 171,
+      "P3": 168,
       "report_only": 537
     }
   },
@@ -519,7 +512,7 @@
   "release_readiness": "needs_attention",
   "remaining_known_gaps": {
     "collection_name_normalization_semantics": 30,
-    "connector_gap": 3,
+    "connector_gap": 0,
     "phase4_connector_gap": 42,
     "phase4_missing_abort_evidence": 72,
     "transformation_semantics": 12
@@ -527,11 +520,11 @@
   "remaining_summary": {
     "attempted": 3928,
     "blocked": 0,
-    "fail": 774,
+    "fail": 771,
     "mrt_imported_failures": 0,
-    "non_mrts_framework_failures": 774,
+    "non_mrts_framework_failures": 771,
     "not_executable": 0,
-    "pass": 3154,
+    "pass": 3157,
     "pending": 2298,
     "unique_failure_cases": 118
   },
@@ -563,11 +556,11 @@
     },
     {
       "cluster": "request_body_processor",
-      "detail": "remaining work-direction rows are classified as phase1 request-body unavailable connector gap",
+      "detail": "no active rows",
       "failed_classification_count": 0,
-      "failed_work_direction_count": 3,
+      "failed_work_direction_count": 0,
       "remaining_category_count": 0,
-      "status": "known_connector_gap_not_active_processor_cluster"
+      "status": "clear"
     },
     {
       "cluster": "multipart_files",

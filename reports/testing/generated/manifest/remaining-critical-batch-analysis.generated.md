@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T06:47:21Z`
+> Generated at: `2026-06-19T16:41:18Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-critical-batch-analysis.py`
 > Make target: `generate-remaining-critical-batch-analysis`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
-> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
+> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
+> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
 > Input status: `complete`
 
 # Remaining Critical Batch Analysis
@@ -17,42 +17,38 @@
 
 | Metric | Before | After |
 | --- | --- | --- |
-| Total mismatches | 787 | 774 |
-| Critical mismatches | 83 | 46 |
-| Merge readiness | FAIL | FAIL |
+| Total mismatches | 787 | 771 |
+| Critical mismatches | 83 | 0 |
+| Merge readiness | FAIL | PASS |
 
 ## Cluster Ranking
 
 | Rank | Cluster | Count | Connectors | Cases |
 | --- | --- | --- | --- | --- |
-| 1 | connector_capability_gap / phase-handling | 9 | apache, haproxy, nginx | phase1_vs_phase2_request_body_gap |
-| 2 | expected_status_mismatch / actions | 6 | apache, haproxy, nginx | v3_secaction_block |
-| 3 | expected_status_mismatch / response-body | 6 | nginx | phase4_response_body_empty_future_target, phase4_response_body_html_text_normalization_probe, response_body_basic_block |
-| 4 | unknown / response-body | 6 | nginx | nginx_phase4_content_type_out_of_scope, nginx_phase4_minimal_log_only, nginx_phase4_safe_log_only |
-| 5 | connector_capability_gap / audit-log | 4 | nginx | phase4_auditlog_outbound_escaped_value_gap, phase4_auditlog_outbound_message_connector_gap |
-| 6 | expected_status_mismatch / audit-log | 4 | nginx | phase4_auditlog_outbound_multiline_section_gap, pr70_phase4_response_body_audit_xfail |
-| 7 | runtime_regression / response-body | 4 | nginx | phase4_response_body_html_entity_decode_gap, phase4_response_body_unicode_runtime_difference |
-| 8 | expected_status_mismatch / crs | 3 | apache, haproxy, nginx | crs_sqli_anomaly_block |
-| 9 | runtime_regression / audit-log | 2 | nginx | phase4_auditlog_outbound_rule_id_runtime_difference |
-| 10 | connector_capability_gap / response-body | 2 | nginx | phase4_response_body_chunk_assumption_connector_gap |
+
+_No rows available. Reason: no remaining critical mismatch clusters in the official report._
 
 ## Decisions
 
-| Cluster | Decision | Rows | New Classification | Native Comparison | Full-Matrix Refresh Needed | Repro |
-| --- | --- | --- | --- | --- | --- | --- |
-| connector_capability_gap / body-processors / xml_namespace_edge_connector_gap | FIX_INPUT_REFRESH_REQUIRED | 12 | - | full_matrix_refresh_needed | no | `make verified-case CONNECTOR=nginx CASE=xml_namespace_edge_connector_gap CRS=no-crs MRTS=no-mrts` |
-| expected_status_mismatch / body-processors / xml_request_body_malformed_connector_gap | RECLASSIFY | 12 | libmodsecurity_xml_parser_semantics | native_comparison_complete | no | `make verified-case CONNECTOR=nginx CASE=xml_request_body_malformed_connector_gap CRS=no-crs MRTS=no-mrts` |
-| expected_status_mismatch / transformations / unicode_whitespace_normalization_gap | DEFER | 12 | - | native_comparison_missing | no | `make verified-case CONNECTOR=nginx CASE=unicode_whitespace_normalization_gap CRS=no-crs MRTS=no-mrts` |
-| runtime_regression / transformations / unicode_double_encoded_uri_runtime_difference | DEFER | 12 | - | native_comparison_missing | no | `make verified-case CONNECTOR=nginx CASE=unicode_double_encoded_uri_runtime_difference CRS=no-crs MRTS=no-mrts` |
-| timeout_or_incomplete / transformations / v2_transformation_url_decode_invalid_sequence_mapped_candidate | FIX_INPUT_REFRESH_REQUIRED | 12 | - | runtime_reached_actual_match | no | `make verified-case CONNECTOR=haproxy CASE=v2_transformation_url_decode_invalid_sequence_mapped_candidate CRS=no-crs MRTS=no-mrts` |
+| Cluster | Decision | Rows | New Classification | Native Comparison | Full-Matrix Refresh Needed | Phase1 Body Gap | Phase2 Runtime | Connector Phase Gap | SecAction Runtime | SecAction Intervention | SecAction No Intervention | Native SecAction Same | Targeted Only | Repro |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| connector_capability_gap / phase-handling / phase1_vs_phase2_request_body_gap | FIX_INPUT_REFRESH_REQUIRED | 9 | - | native_phase_comparison_complete | no | yes | yes | no | - | - | - | - | yes | `make verified-case CONNECTOR=nginx CASE=phase1_vs_phase2_request_body_gap CRS=no-crs MRTS=no-mrts` |
+| expected_status_mismatch / actions / v3_secaction_block | RECLASSIFY | 6 | secaction_detection_only_overlay | secaction_native_control_complete | no | - | - | - | yes | yes | yes | no-mrts only; with-mrts overlay intentionally differs | - | `make verified-case CONNECTOR=haproxy CASE=v3_secaction_block CRS=no-crs MRTS=with-mrts` |
+| connector_capability_gap / body-processors / xml_namespace_edge_connector_gap | FIX_INPUT_REFRESH_REQUIRED | 12 | - | full_matrix_refresh_needed | no | - | - | - | - | - | - | - | - | `make verified-case CONNECTOR=nginx CASE=xml_namespace_edge_connector_gap CRS=no-crs MRTS=no-mrts` |
+| expected_status_mismatch / body-processors / xml_request_body_malformed_connector_gap | RECLASSIFY | 12 | libmodsecurity_xml_parser_semantics | native_comparison_complete | no | - | - | - | - | - | - | - | - | `make verified-case CONNECTOR=nginx CASE=xml_request_body_malformed_connector_gap CRS=no-crs MRTS=no-mrts` |
+| expected_status_mismatch / transformations / unicode_whitespace_normalization_gap | DEFER | 12 | - | native_comparison_missing | no | - | - | - | - | - | - | - | - | `make verified-case CONNECTOR=nginx CASE=unicode_whitespace_normalization_gap CRS=no-crs MRTS=no-mrts` |
+| runtime_regression / transformations / unicode_double_encoded_uri_runtime_difference | DEFER | 12 | - | native_comparison_missing | no | - | - | - | - | - | - | - | - | `make verified-case CONNECTOR=nginx CASE=unicode_double_encoded_uri_runtime_difference CRS=no-crs MRTS=no-mrts` |
+| timeout_or_incomplete / transformations / v2_transformation_url_decode_invalid_sequence_mapped_candidate | FIX_INPUT_REFRESH_REQUIRED | 12 | - | runtime_reached_actual_match | no | - | - | - | - | - | - | - | - | `make verified-case CONNECTOR=haproxy CASE=v2_transformation_url_decode_invalid_sequence_mapped_candidate CRS=no-crs MRTS=no-mrts` |
 
 ## Native Comparison
 
 | Case | Status | Evidence |
 | --- | --- | --- |
+| phase1_vs_phase2_request_body_gap | native_phase_comparison_complete | native actual=403, expected=403; targeted connectors=apache:403, nginx:403, haproxy:403; phase 1 is a pass-only reachability marker and phase 2 REQUEST_BODY rule 4512 blocks. |
 | unicode_double_encoded_uri_runtime_difference | native_comparison_complete | native actual=200, expected=403; targeted connectors=apache:-, nginx:-, haproxy:-. |
 | unicode_whitespace_normalization_gap | native_comparison_complete | native actual=200, expected=403; targeted connectors=apache:-, nginx:-, haproxy:-. |
 | v2_transformation_url_decode_invalid_sequence_mapped_candidate | native_comparison_complete | native actual=403, expected=403; targeted connectors=apache:403, nginx:403, haproxy:403. |
+| v3_secaction_block | secaction_native_control_complete | native actual=403, expected=403; no-MRTS targeted connectors=apache:403, nginx:403, haproxy:403; with-MRTS targeted connectors=apache:200, nginx:200, haproxy:200. Native and no-MRTS block via SecAction rule 3312; with-MRTS loads MRTS_001_INIT ctl:ruleEngine=DetectionOnly, so disruptive SecAction is report-only. |
 | xml_namespace_edge_connector_gap | full_matrix_refresh_needed | native_comparison_complete: native actual=403, expected=403; targeted connectors=apache:403, nginx:403, haproxy:403; XML processor control present and XML:/* target matches. |
 | xml_request_body_malformed_connector_gap | native_comparison_complete | runtime_reached_actual_mismatch: native actual=200, expected=403; targeted connectors=apache:200, nginx:200, haproxy:200; XML processor control present, but no native rule match/parser-error evidence, so malformed XML parser semantics remain deferred. |
 
@@ -60,6 +56,9 @@
 
 | Phase | Cluster | Case | Connector | Variant | Status | Runtime Classification | Actual | Rule | Matched Data | XML Processor Evidence | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TARGETED | connector_capability_gap / phase-handling | phase1_vs_phase2_request_body_gap | apache | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T101249Z-apache-phase1_vs_phase2_request_body_gap-no-crs-no-mrts/result.json |
+| TARGETED | connector_capability_gap / phase-handling | phase1_vs_phase2_request_body_gap | nginx | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T101257Z-nginx-phase1_vs_phase2_request_body_gap-no-crs-no-mrts/result.json |
+| TARGETED | connector_capability_gap / phase-handling | phase1_vs_phase2_request_body_gap | haproxy | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | 4512 | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T101308Z-haproxy-phase1_vs_phase2_request_body_gap-no-crs-no-mrts/result.json |
 | TARGETED | runtime_regression / transformations | unicode_double_encoded_uri_runtime_difference | apache | no-crs/no-mrts | FAIL | runtime_reached_actual_mismatch | 200 | - | - | - | /var/tmp/ModSecurity-conector-verified/build/xml-unicode-transform-targeted-20260618/results/unicode_double_encoded_uri_runtime_difference-apache-result.json |
 | TARGETED | runtime_regression / transformations | unicode_double_encoded_uri_runtime_difference | nginx | no-crs/no-mrts | FAIL | runtime_reached_actual_mismatch | 200 | - | - | - | /var/tmp/ModSecurity-conector-verified/build/xml-unicode-transform-targeted-20260618/results/unicode_double_encoded_uri_runtime_difference-nginx-result.json |
 | TARGETED | runtime_regression / transformations | unicode_double_encoded_uri_runtime_difference | haproxy | no-crs/no-mrts | FAIL | runtime_reached_actual_mismatch | 200 | - | - | - | /var/tmp/ModSecurity-conector-verified/build/xml-unicode-transform-targeted-20260618/results/unicode_double_encoded_uri_runtime_difference-haproxy-result.json |
@@ -69,6 +68,15 @@
 | TARGETED | timeout_or_incomplete / transformations | v2_transformation_url_decode_invalid_sequence_mapped_candidate | apache | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260618T174008Z-apache-v2_transformation_url_decode_invalid_sequence_mapped_candidate-no-crs-no-mrts/result.json |
 | TARGETED | timeout_or_incomplete / transformations | v2_transformation_url_decode_invalid_sequence_mapped_candidate | nginx | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260618T174019Z-nginx-v2_transformation_url_decode_invalid_sequence_mapped_candidate-no-crs-no-mrts/result.json |
 | TARGETED | timeout_or_incomplete / transformations | v2_transformation_url_decode_invalid_sequence_mapped_candidate | haproxy | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | 4406 | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260618T174031Z-haproxy-v2_transformation_url_decode_invalid_sequence_mapped_candidate-no-crs-no-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | apache | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102707Z-apache-v3_secaction_block-no-crs-no-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | apache | no-crs/with-mrts | FAIL | runtime_reached_actual_mismatch | 200 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102710Z-apache-v3_secaction_block-no-crs-with-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | apache | with-crs/with-mrts | FAIL | runtime_reached_actual_mismatch | 200 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102721Z-apache-v3_secaction_block-with-crs-with-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | nginx | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102731Z-nginx-v3_secaction_block-no-crs-no-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | nginx | no-crs/with-mrts | FAIL | runtime_reached_actual_mismatch | 200 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102736Z-nginx-v3_secaction_block-no-crs-with-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | nginx | with-crs/with-mrts | FAIL | runtime_reached_actual_mismatch | 200 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102747Z-nginx-v3_secaction_block-with-crs-with-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | haproxy | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102759Z-haproxy-v3_secaction_block-no-crs-no-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | haproxy | no-crs/with-mrts | FAIL | runtime_reached_actual_mismatch | 200 | 100028 | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102801Z-haproxy-v3_secaction_block-no-crs-with-mrts/result.json |
+| TARGETED | expected_status_mismatch / actions | v3_secaction_block | haproxy | with-crs/with-mrts | FAIL | runtime_reached_actual_mismatch | 200 | 920350 | - | - | /var/tmp/ModSecurity-conector-verified/case-runs/20260619T102810Z-haproxy-v3_secaction_block-with-crs-with-mrts/result.json |
 | TARGETED | connector_capability_gap / body-processors | xml_namespace_edge_connector_gap | apache | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | ctl:requestBodyProcessor=XML | /var/tmp/ModSecurity-conector-verified/case-runs/20260618T175804Z-apache-xml_namespace_edge_connector_gap-no-crs-no-mrts/result.json |
 | TARGETED | connector_capability_gap / body-processors | xml_namespace_edge_connector_gap | nginx | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | - | - | ctl:requestBodyProcessor=XML | /var/tmp/ModSecurity-conector-verified/case-runs/20260618T175812Z-nginx-xml_namespace_edge_connector_gap-no-crs-no-mrts/result.json |
 | TARGETED | connector_capability_gap / body-processors | xml_namespace_edge_connector_gap | haproxy | no-crs/no-mrts | PASS | runtime_reached_actual_match | 403 | 4711 | - | ctl:requestBodyProcessor=XML | /var/tmp/ModSecurity-conector-verified/case-runs/20260618T175824Z-haproxy-xml_namespace_edge_connector_gap-no-crs-no-mrts/result.json |
@@ -82,18 +90,18 @@
 
 - Reason: all affected Full-Matrix jobs ended after the YAML/input fixes
 
-- Current official top critical cluster: `connector_capability_gap / phase-handling` (9).
+- Current official top critical cluster: `-` (-).
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `6934388824f6a335f3ffb3e8282b0c0ec98d28b3e466b9bce7266e9db3b5fcd4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `c8f7955fa9cad007f033b6c9a0aa8497595be59f409105d5f6cd74a35efa3c4a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `3f11d1fce15cdfa561cc96ef730cbd1b5604528e8f8a7fa8b2e7209629377e3b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `e90c02f636c5b356c7db009eb39b4997c83b6db20d64fc90f796fec9ff3083e8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `682daa5f4a31c9630b61a6bb5cc29090283acfdbfe6c37a3da83ce0008e437e1` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `6a6d411311f909bc8dfa5b5f194ecffa5c41ac228894b68ca2d1b967469345f8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `401ad4822628cf5abd03471a376848f5bb77f4fab934c603cbcda42c89f60050` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `2db466da1006f40605c3fbf9be46e8f370d486be124f3e288e573a1cff96a29f` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

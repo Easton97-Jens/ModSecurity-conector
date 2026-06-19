@@ -1,48 +1,48 @@
 {
   "data_source_policy": "verified-inputs-only",
-  "generated_at": "2026-06-19T06:44:08Z",
+  "generated_at": "2026-06-19T16:39:43Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T06:44:08Z",
+    "generated_at": "2026-06-19T16:39:43Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
-        "source_hash": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
+        "sha256": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
+        "source_hash": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
-        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "sha256": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
+        "source_hash": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
-        "source_hash": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
+        "sha256": "6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b",
+        "source_hash": "6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -58,7 +58,7 @@
     "working_tree_dirty": "dirty"
   },
   "mrts_native": {
-    "generated_at": "2026-06-18T18:06:16Z",
+    "generated_at": "2026-06-19T15:44:00Z",
     "report_json": "reports/testing/generated/mrts-native/mrts-native-full.generated.json",
     "report_md": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
     "reports": {

@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T18:06:02Z`
+> Generated at: `2026-06-19T10:15:46Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
-> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
+> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
+> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -80,7 +80,7 @@
 | action_allow_phase1_pass | `tests/cases/phases/phase1/action_allow_phase1_pass.yaml` | common | 1 | - | - | - | imported | - | active | - | unknown | no | - |
 | action_deny_phase1 | `tests/cases/phases/phase1/action_deny_phase1.yaml` | common | 1 | - | - | - | imported | - | active | - | unknown | no | - |
 | action_status_401_phase1_block | `tests/cases/phases/phase1/action_status_401_phase1_block.yaml` | common | 1 | ARGS | @streq | - | imported | - | active | - | unknown | no | - |
-| phase1_vs_phase2_request_body_gap | `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml` | common | 1 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
+| phase1_vs_phase2_request_body_gap | `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml` | common | 1,2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
 | action_deny_phase2 | `tests/cases/phases/phase2/action_deny_phase2.yaml` | common | 2 | - | - | - | imported | - | active | - | unknown | no | - |
 | collection_args_combined_size_block | `tests/cases/phases/phase2/collection_args_combined_size_block.yaml` | common | 2 | ARGS_COMBINED_SIZE | @eq | - | imported | - | active | - | unknown | no | - |
 | collection_args_get_block | `tests/cases/phases/phase2/collection_args_get_block.yaml` | common | 2 | ARGS_GET | @streq | - | imported | - | active | - | unknown | no | - |

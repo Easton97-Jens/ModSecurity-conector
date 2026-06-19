@@ -61,6 +61,7 @@ FAILURE_CATEGORIES = (
     "response_header_backend_setup",
     "response_header_multi_value_gap",
     "response_header_mrts_detection_only",
+    "secaction_detection_only_overlay",
     "with_mrts_detection_only_non_disruptive",
     "response_header_hook",
     "request_routing",
@@ -98,6 +99,7 @@ BODY_PROCESSOR_CONNECTOR_GAP_CASES = {
     "phase1_vs_phase2_request_body_gap",
 }
 REPORT_ONLY_SINGLE_CONNECTOR_CATEGORIES = {
+    "secaction_detection_only_overlay",
     "with_mrts_detection_only_non_disruptive",
     "response_header_mrts_detection_only",
     "phase4_missing_abort_evidence",
@@ -130,6 +132,10 @@ NOT_NEXT_RECOMMENDATIONS = (
     {
         "cluster": "with_mrts_detection_only_non_disruptive",
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action",
+    },
+    {
+        "cluster": "secaction_detection_only_overlay",
+        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive SecAction intervention",
     },
     {
         "cluster": "xml_processor_activation_missing",
@@ -250,6 +256,8 @@ def failure_category(entry: dict[str, Any]) -> str:
 
     if classification == "with_mrts_detection_only_non_disruptive":
         return "with_mrts_detection_only_non_disruptive"
+    if classification == "secaction_detection_only_overlay":
+        return "secaction_detection_only_overlay"
     if classification == "xml_processor_activation_missing":
         return "xml_processor_activation_missing"
     if classification == "multipart_processor_activation_missing":
@@ -591,6 +599,7 @@ def fixability(category: str) -> str:
         "response_header_backend_setup": "likely harness/backend fix; add deterministic target response headers before judging connector parity",
         "response_header_multi_value_gap": "connector/hook gap; HAProxy Set-Cookie multi-value exposure needs focused evidence or implementation work",
         "response_header_mrts_detection_only": "classification-only; with-MRTS DetectionOnly overlay suppresses disruptive action",
+        "secaction_detection_only_overlay": "classification-only; with-MRTS DetectionOnly overlay makes disruptive SecAction rules non-blocking",
         "with_mrts_detection_only_non_disruptive": "classification-only; with-MRTS DetectionOnly overlay makes disruptive request-side rules non-blocking",
         "response_header_hook": "possible connector/hook work; start with response-header capture evidence",
         "harness_evidence_issue": "likely quick win if evidence files/log matching are missing",
@@ -604,6 +613,7 @@ def risk(category: str) -> str:
         "response_header_backend_setup": "low to medium",
         "response_header_multi_value_gap": "medium",
         "response_header_mrts_detection_only": "low; report-only if kept separate from PASS promotion",
+        "secaction_detection_only_overlay": "low; report-only and not a connector blocking bug",
         "with_mrts_detection_only_non_disruptive": "low; report-only and not a connector blocking bug",
         "response_header_hook": "medium",
         "request_body_processor": "medium",
@@ -634,6 +644,7 @@ def recommended_step(category: str) -> str:
         "response_header_backend_setup": "add deterministic response headers to the Apache/NGINX harness/backend probes, then rerun targeted Phase 3 response-header cases",
         "response_header_multi_value_gap": "triage HAProxy Set-Cookie multi-value exposure through SPOE response-header evidence",
         "response_header_mrts_detection_only": "keep with-MRTS DetectionOnly rows classification-only; do not promote to PASS without disruptive runtime evidence",
+        "secaction_detection_only_overlay": "keep with-MRTS SecAction DetectionOnly rows classification-only; no connector fix while no-MRTS/native controls block",
         "with_mrts_detection_only_non_disruptive": "keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases",
         "collection_name_normalization_semantics": "compare collection-name normalization semantics against native/libmodsecurity before treating as a runtime fix",
         "response_header_hook": "triage response-header phase 3 capture on Apache/NGINX first, then HAProxy",

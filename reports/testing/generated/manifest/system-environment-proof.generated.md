@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T06:43:17Z`
+> Generated at: `2026-06-19T16:38:55Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-system-environment-proof.py`
 > Make target: `generate-system-environment-proof`
 > Owner: `system`
 > Severity: `critical`
-> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
-> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
+> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
+> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
 > Input status: `complete`
 
 # System Environment Proof
@@ -20,7 +20,7 @@
 | Proof generation status | `PASS` |
 | Embedded strict evidence gate | `FAIL` |
 | Overall target status | `FAIL` |
-| Strict gate reason | check-generated-report-layout: FAIL; - full-matrix critical mismatches detected: 46; merge dashboard cannot PASS |
+| Strict gate reason | check-generated-report-layout: FAIL; - reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md:27: empty table lacks a Missing/Empty explanation |
 
 ## OS / System
 
@@ -188,11 +188,11 @@
 
 | Command | Status | Return Code | Duration | Notes |
 |---|---|---:|---:|---|
-| `make refresh-connector-reports` | PASS | 0 | 90.584 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
-| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.468 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make lint` | PASS | 0 | 6.132 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
-| `make quick-check` | PASS | 0 | 7.044 | PYTHONPYCACHEPREFIX="/var/tmp/ModSecurity-conector-verified/build/pycache" .venv/bin/python -P -m py_compile "/root/git/ModSecurity-conector/modules/ModSecurity-test-Fra |
-| `git status --short` | PASS | 0 | 0.043 |  M repo |
+| `make refresh-connector-reports` | PASS | 0 | 88.707 | refresh-connector-reports: RUN /root/git/ModSecurity-conector/.v |
+| `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout` | FAIL | 2 | 1.557 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `make lint` | FAIL | 2 | 4.92 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `make quick-check` | FAIL | 2 | 5.051 | make[1]: Leaving directory '/root/git/ModSecurity-conector' |
+| `git status --short` | PASS | 0 | 0.051 |  M reports/testing/generate |
 
 ## Report Layout Evidence
 
@@ -216,22 +216,22 @@
 
 | Command | Status | Return Code | Output Hash |
 |---|---|---:|---|
-| `git_status_short` | PASS | 0 | `de0d5536c42f05bc8d4f6777ed0e180cdb5575c8f92d029eef893027a8792ef0` |
-| `git_head` | PASS | 0 | `0e618932f22d269183713dc05d6b66b6139802bca3af4a8aec166bd1195bf1f5` |
+| `git_status_short` | PASS | 0 | `8ae5ea8fd693bdffdf236ab08f6b6df02d084d594b4611ade91c5665752e2347` |
+| `git_head` | PASS | 0 | `da8677c056d4a08e2224df739ff8f41acfb5ba1c3a50299c4068ad9fad718ab4` |
 | `git_branch` | PASS | 0 | `9b3162498c21d7f960877099174ecea13410bd21d12440b2ea8868117fc08ae0` |
-| `git_submodule_status` | PASS | 0 | `d8e40383386c5df038b3e6d54d9bd3e92d50533b016ff22732248c213bdc0fb0` |
-| `git_diff_stat` | PASS | 0 | `f4590707b7177d232130ccf6b68b1c775bd6a7f025adab18a8db79dc07222bb1` |
-| `framework_status_short` | PASS | 0 | `1b296b71da36599c564b37c4f7a0967c4cf0fdc97d7f17cbcb3f4599c132c36b` |
-| `framework_head` | PASS | 0 | `b0bfff46cba425382d40be5183466f8ae2d450473929f3adc4bc78b3f56c6ff7` |
-| `framework_diff_stat` | PASS | 0 | `8f467e239fcd71a27c2bb877ece92d5114c79d9bd5edc32e1ff2e618d39078ea` |
+| `git_submodule_status` | PASS | 0 | `f256cf95b4e149e080500a0a3302e9b1d1f6b18517aa8fe102e1ccef451716e0` |
+| `git_diff_stat` | PASS | 0 | `b882db5e52555a2a065ffc7cd74aa3fe7f4b2e8696dcd354ad5d07d599fb322b` |
+| `framework_status_short` | PASS | 0 | `4900bbfad7239954dfdbfb0db2ba61f6fef82dce628d25ae88ea8faef5c51581` |
+| `framework_head` | PASS | 0 | `fd40a8ba6ba33295195a2629126cfd790fd2129697d02ee7333edf8aca8442a7` |
+| `framework_diff_stat` | PASS | 0 | `56d8476e6002bc3b1b1d14f44599688a686affbb1556d4b1f4380c068e245f90` |
 
 ## Proof Summary
 
 The generated report layout was validated on the system above.
 - `make refresh-connector-reports`: PASS
 - `env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout`: FAIL
-- `make lint`: PASS
-- `make quick-check`: PASS
+- `make lint`: FAIL
+- `make quick-check`: FAIL
 - `git status --short`: PASS
 - Flat generated root files: 0
 - Categorized generated report files: 78
@@ -240,9 +240,9 @@ The generated report layout was validated on the system above.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `6012f4e3bb6c02fccb4a1d0ecd4dd3de414c791097d49de75bcef4345d3f2384` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `f2f33b246130a9b3f5821e2fa4158f601590b32ce042f9bedb3e97d5510cd37b` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `c8f7955fa9cad007f033b6c9a0aa8497595be59f409105d5f6cd74a35efa3c4a` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-refresh-manifest.generated.json` | `bb02ebe1056c2feefa79b84e49d1419209845aa7c41bb5339c01e9f7b6186282` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `e422a08561f2a79a4298b4c89b237d4fefe174c373758ed8df5978f516326468` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/merge-readiness-dashboard.generated.json` | `6a6d411311f909bc8dfa5b5f194ecffa5c41ac228894b68ca2d1b967469345f8` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

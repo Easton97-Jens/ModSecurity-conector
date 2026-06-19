@@ -279,7 +279,7 @@
     "GO_FTW_PROMPT_EXPECTED_LATEST": "v2.2.0",
     "GO_FTW_SOURCE_URL": "https://github.com/coreruleset/go-ftw"
   },
-  "generated_at": "2026-06-18T21:50:20Z",
+  "generated_at": "2026-06-19T16:22:55Z",
   "git_components": [
     {
       "actual_head": "2fd49292d751fc383b8faf7da6a8d480904774d0",
@@ -319,9 +319,9 @@
       "submodule_status_clean": true,
       "tree": {
         "exists": true,
-        "file_count": 874,
-        "sha256_manifest": "6eb165e118e330edcdf7dad28098040077e050fd90f86f0fd93a51965d9fbcf7",
-        "total_size": 21561097
+        "file_count": 927,
+        "sha256_manifest": "8ebeea592f9e4c22f2bfce3718377fff0d523c10306da7447ea9edeb600d8b4b",
+        "total_size": 21625802
       },
       "url": "https://github.com/coreruleset/coreruleset.git"
     },
@@ -486,14 +486,14 @@
   "metadata": {
     "category": "cache",
     "commit_policy": "local-only",
-    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
     "data_kind": "cache",
     "data_origin": "cache",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T21:50:20Z",
+    "generated_at": "2026-06-19T16:22:55Z",
     "generated_by": "ci/prepare-runtime-components.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -501,8 +501,8 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json",
-        "sha256": "5a45afcb8f93102c86fdb03641f0bcb37ab5d956dd97bd3f1f52ff77f466a29a",
-        "source_hash": "5a45afcb8f93102c86fdb03641f0bcb37ab5d956dd97bd3f1f52ff77f466a29a",
+        "sha256": "3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec",
+        "source_hash": "3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec",
         "status": "present"
       }
     ],
@@ -530,7 +530,7 @@
     },
     "component": "modsecurity",
     "dependency_hash": "6520718cfc3861c8b4bd8046bfb3c50674a89f771041673ed3b132f5cbf8fea4",
-    "generated_at": "2026-06-18T21:50:19Z",
+    "generated_at": "2026-06-19T16:22:53Z",
     "include_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/include",
     "lib_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib",
     "lib_file": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",
@@ -737,18 +737,18 @@
         }
       }
     ],
-    "generated_at": "2026-06-18T21:50:20Z",
+    "generated_at": "2026-06-19T16:22:55Z",
     "metadata": {
       "category": "cache",
       "commit_policy": "local-only",
-      "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+      "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
       "data_kind": "cache",
       "data_origin": "cache",
       "data_source_policy": "verified-inputs-only",
       "empty_inputs": [],
-      "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+      "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
       "framework_working_tree_dirty": "dirty",
-      "generated_at": "2026-06-18T21:50:20Z",
+      "generated_at": "2026-06-19T16:22:55Z",
       "generated_by": "ci/prepare-runtime-components.py",
       "generated_notice": "Generated file - do not edit manually.",
       "input_status": "complete",
@@ -756,8 +756,8 @@
         {
           "notes": "input file available",
           "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
-          "sha256": "b03335cee32cc94173603efb8e0484ffb32d81953a1b81bd55538e5430d77106",
-          "source_hash": "b03335cee32cc94173603efb8e0484ffb32d81953a1b81bd55538e5430d77106",
+          "sha256": "469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789",
+          "source_hash": "469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789",
           "status": "present"
         }
       ],
@@ -785,7 +785,7 @@
       },
       "component": "modsecurity",
       "dependency_hash": "6520718cfc3861c8b4bd8046bfb3c50674a89f771041673ed3b132f5cbf8fea4",
-      "generated_at": "2026-06-18T21:50:19Z",
+      "generated_at": "2026-06-19T16:22:53Z",
       "include_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/include",
       "lib_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib",
       "lib_file": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",
@@ -1005,7 +1005,7 @@
       },
       "component": "modsecurity",
       "dependency_hash": "6520718cfc3861c8b4bd8046bfb3c50674a89f771041673ed3b132f5cbf8fea4",
-      "generated_at": "2026-06-18T21:50:19Z",
+      "generated_at": "2026-06-19T16:22:53Z",
       "include_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/include",
       "lib_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib",
       "lib_file": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",

@@ -688,42 +688,6 @@
       ]
     },
     {
-      "category": "connector_gap",
-      "connectors": [
-        "apache",
-        "haproxy",
-        "nginx"
-      ],
-      "count": 3,
-      "fixable": "unknown; review required",
-      "recommended_next_step": "manual review",
-      "risk": "unknown",
-      "typical_examples": [
-        {
-          "actual_status": 200,
-          "case_id": "phase1_vs_phase2_request_body_gap",
-          "classification": "phase1_request_body_unavailable",
-          "connector": "apache",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "method": "POST",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "1",
-          "query": "-",
-          "rule_id": "4511",
-          "runtime_verified": "false",
-          "variable": "REQUEST_BODY",
-          "variant": "no-crs/no-mrts",
-          "work_direction": [
-            "request_body_processor"
-          ]
-        }
-      ]
-    },
-    {
       "category": "audit_log_evidence",
       "connectors": [],
       "count": 0,
@@ -734,6 +698,15 @@
     },
     {
       "category": "classification_only",
+      "connectors": [],
+      "count": 0,
+      "fixable": "unknown; review required",
+      "recommended_next_step": "manual review",
+      "risk": "unknown",
+      "typical_examples": []
+    },
+    {
+      "category": "connector_gap",
       "connectors": [],
       "count": 0,
       "fixable": "unknown; review required",
@@ -877,6 +850,15 @@
       "typical_examples": []
     },
     {
+      "category": "secaction_detection_only_overlay",
+      "connectors": [],
+      "count": 0,
+      "fixable": "classification-only; with-MRTS DetectionOnly overlay makes disruptive SecAction rules non-blocking",
+      "recommended_next_step": "keep with-MRTS SecAction DetectionOnly rows classification-only; no connector fix while no-MRTS/native controls block",
+      "risk": "low; report-only and not a connector blocking bug",
+      "typical_examples": []
+    },
+    {
       "category": "unknown_requires_review",
       "connectors": [],
       "count": 0,
@@ -895,99 +877,99 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-19T06:43:50Z",
+  "generated_at": "2026-06-19T16:39:29Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T06:43:50Z",
+    "generated_at": "2026-06-19T16:39:29Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
-        "source_hash": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
+        "sha256": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
+        "source_hash": "8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
-        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "sha256": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
+        "source_hash": "e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
-        "source_hash": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
+        "sha256": "6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b",
+        "source_hash": "6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "3955e19d67942c04ee251ff389d5481f6896e9ad564c49927f67a9f8fd65c55e",
-        "source_hash": "3955e19d67942c04ee251ff389d5481f6896e9ad564c49927f67a9f8fd65c55e",
+        "sha256": "dabee7c16e86e08aa838e738d2822538eb90ab4e1bc16c83e467dd40aeec3c9a",
+        "source_hash": "dabee7c16e86e08aa838e738d2822538eb90ab4e1bc16c83e467dd40aeec3c9a",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
-        "sha256": "828bef8d3b3e7007337b6960c235f38f2499f19502bd145aba6bba8c5f7dcc89",
-        "source_hash": "828bef8d3b3e7007337b6960c235f38f2499f19502bd145aba6bba8c5f7dcc89",
+        "sha256": "8a9d0c44783aedde91f730a53c08c5a802a29998bbe244f4f82fb03fe193ee09",
+        "source_hash": "8a9d0c44783aedde91f730a53c08c5a802a29998bbe244f4f82fb03fe193ee09",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "sha256": "8c51a5df1cf88c5ec3f9476ef02fa02740e5bf5bf598214a5adc76ad80cb90ea",
-        "source_hash": "8c51a5df1cf88c5ec3f9476ef02fa02740e5bf5bf598214a5adc76ad80cb90ea",
+        "sha256": "ece2b1e07ae4dcc4d0f90ac21ff86f0bd2817c5906835365b313d0570f3e064e",
+        "source_hash": "ece2b1e07ae4dcc4d0f90ac21ff86f0bd2817c5906835365b313d0570f3e064e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "6f80c01c4e5af53144685e17d1cb95a4416862f6a2a04b2b79cb5d87b08bdc48",
-        "source_hash": "6f80c01c4e5af53144685e17d1cb95a4416862f6a2a04b2b79cb5d87b08bdc48",
+        "sha256": "6c266638bedb64d6eef5e4019166250a91bbe6fdd891c6305983989d78a3ffbd",
+        "source_hash": "6c266638bedb64d6eef5e4019166250a91bbe6fdd891c6305983989d78a3ffbd",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
-        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
+        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "6da3160351259ac1f864890e3666c2f2f7acd4c8eebd06e1a3df5d0b85f67550",
-        "source_hash": "6da3160351259ac1f864890e3666c2f2f7acd4c8eebd06e1a3df5d0b85f67550",
+        "sha256": "3a383219cecd9ef88202f413c5b3c01a814f1f5b5995d652f2beafaacb02287a",
+        "source_hash": "3a383219cecd9ef88202f413c5b3c01a814f1f5b5995d652f2beafaacb02287a",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -1129,6 +1111,10 @@
         "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive request-side action"
       },
       {
+        "cluster": "secaction_detection_only_overlay",
+        "reason": "classification-only: with-MRTS DetectionOnly overlay suppresses disruptive SecAction intervention"
+      },
+      {
         "cluster": "xml_processor_activation_missing",
         "reason": "classification-only: XML body and Content-Type exist, but these fixtures do not enable ctl:requestBodyProcessor=XML"
       },
@@ -1178,24 +1164,24 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-19T06:43:31Z",
-    "full_run_evidence": "2026-06-19T06:42:17Z",
-    "full_runtime_matrix": "2026-06-19T06:43:20Z",
-    "mrts_native_apache": "2026-06-19T06:43:33Z",
-    "mrts_native_nginx": "2026-06-19T06:43:33Z",
-    "mrts_native_summary": "2026-06-19T06:43:33Z",
-    "nginx_mrts_http500_cluster_analysis": "2026-06-19T06:43:27Z",
-    "phase_work_queue": "2026-06-19T06:43:39Z",
-    "runtime_build_cache": "2026-06-18T21:50:20Z"
+    "connector_work_queue": "2026-06-19T16:39:11Z",
+    "full_run_evidence": "2026-06-19T16:38:18Z",
+    "full_runtime_matrix": "2026-06-19T16:38:58Z",
+    "mrts_native_apache": "2026-06-19T16:39:12Z",
+    "mrts_native_nginx": "2026-06-19T16:39:12Z",
+    "mrts_native_summary": "2026-06-19T16:39:12Z",
+    "nginx_mrts_http500_cluster_analysis": "2026-06-19T16:39:06Z",
+    "phase_work_queue": "2026-06-19T16:39:19Z",
+    "runtime_build_cache": "2026-06-19T16:22:55Z"
   },
   "summary": {
     "attempted": 3928,
     "blocked": 0,
-    "fail": 774,
+    "fail": 771,
     "mrt_imported_failures": 0,
-    "non_mrts_framework_failures": 774,
+    "non_mrts_framework_failures": 771,
     "not_executable": 0,
-    "pass": 3154,
+    "pass": 3157,
     "pending": 2298,
     "unique_failure_cases": 118
   },
