@@ -77,3 +77,24 @@ the runtime harness independent of compiled adapter code.
 `common/src/capabilities.c` provides C-first descriptor helpers for future
 connector code. The active Python/Shell runners mirror the same metadata names
 without FFI.
+
+## Connector Capability Boundaries
+
+The productive connectors share the contract in
+`docs/architecture/connector-contract.md`. The current evidence-scoped
+capability boundaries are:
+
+- NGINX can produce phase-4 response-body rule-match and audit evidence, but
+  late disruptive response-body enforcement can still return HTTP 200. This is
+  classified as `nginx_phase4_response_body_enforcement_gap`.
+- MRTS `with-mrts` runs may set `ctl:ruleEngine=DetectionOnly`; disruptive
+  actions are then intentionally non-blocking and classified as
+  `with_mrts_detection_only_overlay`.
+- HAProxy uses SPOA/SPOP `decision.jsonl` records as structured decision
+  evidence. `rule_id=0` means no rule match; `decision=pass` or `deny` and
+  `intervention_status` are central fields.
+- Apache remains the reference-near control connector for many cases, but some
+  harness logs expose less structured rule-match details than NGINX/HAProxy.
+
+These notes document known evidence boundaries only. They do not change YAML
+expectations, generated PASS/FAIL values, or connector request processing.
