@@ -37,6 +37,7 @@ INPUT_REPORTS = (
 )
 
 REPORT_ONLY_CATEGORIES = {
+    "secaction_detection_only_overlay",
     "with_mrts_detection_only_non_disruptive",
     "response_header_mrts_detection_only",
     "xml_processor_activation_missing",
@@ -60,6 +61,7 @@ NOT_NEXT_CLUSTERS = {
     "transformation_semantics",
     "nolog_expected_no_audit",
     "response_header_mrts_detection_only",
+    "secaction_detection_only_overlay",
     "with_mrts_detection_only_non_disruptive",
     "xml_processor_activation_missing",
     "multipart_processor_activation_missing",

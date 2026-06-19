@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:37:01Z`
+> Generated at: `2026-06-19T16:57:55Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Generated Connector Gap Summary
@@ -23,8 +23,8 @@
 | request_body_json_invalid_runtime_difference | `tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_BODY | unknown | - |
 | multipart_empty_filename_connector_gap | `tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml` | imported | active | connector-gap | MULTIPART_FILENAME | unknown | - |
 | multipart_encoded_filename_runtime_difference | `tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml` | imported | active | runtime-difference | MULTIPART_FILENAME | unknown | - |
-| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | imported | active | connector-gap | XML | unknown | - |
-| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | imported | active | connector-gap | XML | unknown | - |
+| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | imported | active | connector-gap | REQUEST_HEADERS:Content-Type, XML:/* | unknown | - |
+| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | imported | active | connector-gap | REQUEST_HEADERS:Content-Type, XML | unknown | - |
 | v3_args_names_duplicate_query_connector_gap | `tests/cases/future-gap/v3_args_names_duplicate_query_connector_gap.yaml` | imported | active | connector-gap | ARGS_NAMES | unknown | - |
 | v3_request_cookies_names_case_runtime_difference | `tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_COOKIES_NAMES | unknown | - |
 | v3_request_headers_names_duplicate_connector_gap | `tests/cases/request/headers/v3_request_headers_names_duplicate_connector_gap.yaml` | imported | active | connector-gap | REQUEST_HEADERS_NAMES | unknown | - |

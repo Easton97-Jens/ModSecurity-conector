@@ -34,9 +34,12 @@ BASELINE = {
 }
 NON_CRITICAL_CLASSIFICATIONS = {
     "known_not_next",
+    "secaction_detection_only_overlay",
     "with_mrts_detection_only_overlay",
     "libmodsecurity_collection_semantics",
     "libmodsecurity_collection_name_case_semantics",
+    "libmodsecurity_transformation_semantics",
+    "libmodsecurity_xml_parser_semantics",
     "nolog_expected_no_audit",
 }
 DUPLICATE_HEADER_CASE = "duplicate_header_case_normalization_gap"
@@ -47,7 +50,11 @@ YAML_FIX_CASES = {
     "unicode_whitespace_normalization_gap",
 }
 TRANSFORMATION_DEFER_CASE = "unicode_double_encoded_uri_runtime_difference"
+PHASE_HANDLING_FIX_CASE = "phase1_vs_phase2_request_body_gap"
+SECACTION_DETECTION_ONLY_CASE = "v3_secaction_block"
 CURRENT_ANALYSIS_CASES = {
+    "phase1_vs_phase2_request_body_gap",
+    "v3_secaction_block",
     "xml_namespace_edge_connector_gap",
     "xml_request_body_malformed_connector_gap",
     "unicode_whitespace_normalization_gap",
@@ -55,6 +62,8 @@ CURRENT_ANALYSIS_CASES = {
     "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
 }
 REPRESENTATIVE_REPRO_COMMANDS = {
+    "phase1_vs_phase2_request_body_gap": "make verified-case CONNECTOR=nginx CASE=phase1_vs_phase2_request_body_gap CRS=no-crs MRTS=no-mrts",
+    "v3_secaction_block": "make verified-case CONNECTOR=haproxy CASE=v3_secaction_block CRS=no-crs MRTS=with-mrts",
     "xml_namespace_edge_connector_gap": "make verified-case CONNECTOR=nginx CASE=xml_namespace_edge_connector_gap CRS=no-crs MRTS=no-mrts",
     "xml_request_body_malformed_connector_gap": "make verified-case CONNECTOR=nginx CASE=xml_request_body_malformed_connector_gap CRS=no-crs MRTS=no-mrts",
     "unicode_whitespace_normalization_gap": "make verified-case CONNECTOR=nginx CASE=unicode_whitespace_normalization_gap CRS=no-crs MRTS=no-mrts",
@@ -67,6 +76,9 @@ CURRENT_TARGETED_ROOT = Path(
 VERIFIED_RUN_ROOT = Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified"))
 YAML_FIX_FILES = {
     "modules/ModSecurity-test-Framework/tests/cases/body/json/json_empty_body_future_compatibility.yaml",
+    "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
+    "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+    "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
     "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml",
     "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_empty_future_target.yaml",
     "modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
@@ -200,23 +212,59 @@ def latest_case_run(case: str, connector: str, variant: str = "no-crs-no-mrts") 
     return candidates[-1] if candidates else None
 
 
-def latest_case_run_status(case: str, connector: str) -> dict[str, Any] | None:
-    case_run_path = latest_case_run(case, connector)
+def latest_case_run_status(case: str, connector: str, variant: str = "no-crs-no-mrts") -> dict[str, Any] | None:
+    case_run_path = latest_case_run(case, connector, variant=variant)
     if case_run_path is None:
         return None
+    variant_parts = variant.split("-")
+    crs = "-".join(variant_parts[:2]) if len(variant_parts) >= 4 else "no-crs"
+    mrts = "-".join(variant_parts[2:]) if len(variant_parts) >= 4 else "no-mrts"
     case_run = read_json(case_run_path)
     run_dir = case_run_path.parent
     result_path = run_dir / "result.json"
     item = result_status(str(result_path))
     item["case_run"] = str(case_run_path)
+    item["variant"] = f"{crs}/{mrts}"
+    item["crs"] = crs
+    item["mrts"] = mrts
     item["full_matrix_refresh_needed"] = bool(case_run.get("full_matrix_refresh_needed", False))
     rule_evidence = case_run.get("rule_evidence")
     if isinstance(rule_evidence, dict):
         item["rule_id"] = item.get("rule_id") or rule_evidence.get("rule_id")
         item["matched_data"] = item.get("matched_data") or rule_evidence.get("matched_data")
         item["matched_variable"] = item.get("matched_variable") or rule_evidence.get("matched_variable")
+    case_definition = case_run.get("case_definition")
+    rules = ""
+    if isinstance(case_definition, dict):
+        rules = str(case_definition.get("rules") or "")
+        case_path = Path(str(case_definition.get("path") or ""))
+        if not rules and case_path.is_file():
+            try:
+                rules = case_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                rules = ""
+    xml_processor = "ctl:requestBodyProcessor=XML" in rules
+    xml_target = "XML:/*" in rules or "SecRule XML" in rules
+    if case.startswith("xml_"):
+        item["xml_processor_evidence"] = (
+            "ctl:requestBodyProcessor=XML" if xml_processor else "xml_processor_control_missing"
+        )
+        item["xml_target_evidence"] = "XML collection target present" if xml_target else "-"
+    else:
+        item["xml_processor_evidence"] = "-"
+        item["xml_target_evidence"] = "-"
     item["runtime_classification"] = runtime_reached_status(item)
     return item
+
+
+def latest_native_case_run(case: str) -> dict[str, Any] | None:
+    runs_root = VERIFIED_RUN_ROOT / "native-case-runs"
+    if not runs_root.is_dir():
+        return None
+    candidates = sorted(runs_root.glob(f"*-{case}/native-case-run.json"))
+    if not candidates:
+        return None
+    return read_json(candidates[-1])
 
 
 def critical_ranking(mismatches: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -275,45 +323,155 @@ def case_reflection(mismatches: list[dict[str, Any]], cases: set[str]) -> dict[s
 
 def targeted_repros() -> list[dict[str, Any]]:
     clusters = {
+        "phase1_vs_phase2_request_body_gap": "connector_capability_gap / phase-handling",
         "xml_namespace_edge_connector_gap": "connector_capability_gap / body-processors",
         "xml_request_body_malformed_connector_gap": "expected_status_mismatch / body-processors",
         "unicode_whitespace_normalization_gap": "expected_status_mismatch / transformations",
         "unicode_double_encoded_uri_runtime_difference": "runtime_regression / transformations",
         "v2_transformation_url_decode_invalid_sequence_mapped_candidate": "timeout_or_incomplete / transformations",
+        "v3_secaction_block": "expected_status_mismatch / actions",
     }
     output = []
     for case in sorted(CURRENT_ANALYSIS_CASES):
+        variants = ["no-crs-no-mrts"]
+        if case == SECACTION_DETECTION_ONLY_CASE:
+            variants = ["no-crs-no-mrts", "no-crs-with-mrts", "with-crs-with-mrts"]
         for connector in ("apache", "nginx", "haproxy"):
-            item = None
-            if case == "v2_transformation_url_decode_invalid_sequence_mapped_candidate":
-                item = latest_case_run_status(case, connector)
-            if item is None:
-                result_file = CURRENT_TARGETED_ROOT / "results" / f"{case}-{connector}-result.json"
-                item = result_status(str(result_file))
-                item["runtime_classification"] = runtime_reached_status(item)
-            item.update(
-                {
-                    "cluster": clusters[case],
-                    "case": case,
-                    "connector": connector,
-                    "variant": "no-crs/no-mrts",
-                    "phase": "TARGETED",
-                    "log_file": str(CURRENT_TARGETED_ROOT / f"{case}-{connector}.log"),
-                }
-            )
-            if case == "v2_transformation_url_decode_invalid_sequence_mapped_candidate" and item.get("case_run"):
-                item["log_file"] = str(Path(str(item["case_run"])).parent / "logs")
-            if connector == "haproxy":
-                item["decision_log"] = str(CURRENT_TARGETED_ROOT / "results" / f"{case}-haproxy-decision.jsonl")
-                if case == "v2_transformation_url_decode_invalid_sequence_mapped_candidate" and item.get("case_run"):
-                    item["decision_log"] = str(Path(str(item["case_run"])).parent / "logs")
-            output.append(item)
+            for variant in variants:
+                item = None
+                if case in {
+                    SECACTION_DETECTION_ONLY_CASE,
+                    "phase1_vs_phase2_request_body_gap",
+                    "xml_namespace_edge_connector_gap",
+                    "xml_request_body_malformed_connector_gap",
+                    "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+                }:
+                    item = latest_case_run_status(case, connector, variant=variant)
+                if item is None:
+                    result_file = CURRENT_TARGETED_ROOT / "results" / f"{case}-{connector}-result.json"
+                    item = result_status(str(result_file))
+                    item["runtime_classification"] = runtime_reached_status(item)
+                item.update(
+                    {
+                        "cluster": clusters[case],
+                        "case": case,
+                        "connector": connector,
+                        "variant": item.get("variant") or "no-crs/no-mrts",
+                        "phase": "TARGETED",
+                        "log_file": str(CURRENT_TARGETED_ROOT / f"{case}-{connector}.log"),
+                    }
+                )
+                if case in {
+                    SECACTION_DETECTION_ONLY_CASE,
+                    "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+                } and item.get("case_run"):
+                    item["log_file"] = str(Path(str(item["case_run"])).parent / "logs")
+                if case.startswith("xml_") and item.get("case_run"):
+                    item["log_file"] = str(Path(str(item["case_run"])).parent / "logs")
+                if case == "phase1_vs_phase2_request_body_gap" and item.get("case_run"):
+                    item["log_file"] = str(Path(str(item["case_run"])).parent / "logs")
+                if connector == "haproxy":
+                    item["decision_log"] = str(CURRENT_TARGETED_ROOT / "results" / f"{case}-haproxy-decision.jsonl")
+                    if case in {
+                        SECACTION_DETECTION_ONLY_CASE,
+                        "phase1_vs_phase2_request_body_gap",
+                        "xml_namespace_edge_connector_gap",
+                        "xml_request_body_malformed_connector_gap",
+                        "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+                    } and item.get("case_run"):
+                        item["decision_log"] = str(Path(str(item["case_run"])).parent / "logs")
+                output.append(item)
     return output
 
 
 def native_comparison_status() -> list[dict[str, Any]]:
     rows = []
     for case in sorted(CURRENT_ANALYSIS_CASES):
+        native = latest_native_case_run(case)
+        if native:
+            native_actual = native.get("native_actual")
+            expected = native.get("expected_status")
+            connector_repros = [latest_case_run_status(case, connector) for connector in ("apache", "nginx", "haproxy")]
+            connector_statuses = ", ".join(
+                f"{connector}:{item.get('actual', '-') if item else '-'}"
+                for connector, item in zip(("apache", "nginx", "haproxy"), connector_repros)
+            )
+            if case == SECACTION_DETECTION_ONLY_CASE:
+                with_mrts_repros = [
+                    latest_case_run_status(case, connector, variant="no-crs-with-mrts")
+                    for connector in ("apache", "nginx", "haproxy")
+                ]
+                with_mrts_statuses = ", ".join(
+                    f"{connector}:{item.get('actual', '-') if item else '-'}"
+                    for connector, item in zip(("apache", "nginx", "haproxy"), with_mrts_repros)
+                )
+                rows.append(
+                    {
+                        "case": case,
+                        "status": "secaction_native_control_complete",
+                        "evidence": (
+                            f"native actual={native_actual}, expected={expected}; no-MRTS targeted connectors={connector_statuses}; "
+                            f"with-MRTS targeted connectors={with_mrts_statuses}. Native and no-MRTS block via SecAction "
+                            "rule 3312; with-MRTS loads MRTS_001_INIT ctl:ruleEngine=DetectionOnly, so disruptive "
+                            "SecAction is report-only."
+                        ),
+                    }
+                )
+                continue
+            if case == PHASE_HANDLING_FIX_CASE:
+                all_targeted_match = all(
+                    item and item.get("runtime_classification") == "runtime_reached_actual_match"
+                    for item in connector_repros
+                )
+                rows.append(
+                    {
+                        "case": case,
+                        "status": "native_phase_comparison_complete" if all_targeted_match else "fixture_experiment_targeted_only",
+                        "evidence": (
+                            f"native actual={native_actual}, expected={expected}; targeted connectors={connector_statuses}; "
+                            "phase 1 is a pass-only reachability marker and phase 2 REQUEST_BODY rule 4512 blocks."
+                        ),
+                    }
+                )
+                continue
+            if case == "xml_namespace_edge_connector_gap":
+                all_targeted_match = all(
+                    item and item.get("runtime_classification") == "runtime_reached_actual_match"
+                    for item in connector_repros
+                )
+                status = "full_matrix_refresh_needed" if all_targeted_match else "fixture_experiment_targeted_only"
+                rows.append(
+                    {
+                        "case": case,
+                        "status": status,
+                        "evidence": (
+                            f"native_comparison_complete: native actual={native_actual}, expected={expected}; "
+                            f"targeted connectors={connector_statuses}; XML processor control present and XML:/* target matches."
+                        ),
+                    }
+                )
+                continue
+            if case == "xml_request_body_malformed_connector_gap":
+                rows.append(
+                    {
+                        "case": case,
+                        "status": "native_comparison_complete",
+                        "evidence": (
+                            f"runtime_reached_actual_mismatch: native actual={native_actual}, expected={expected}; "
+                            f"targeted connectors={connector_statuses}; XML processor control present, but no native "
+                            "rule match/parser-error evidence, so malformed XML parser semantics remain deferred."
+                        ),
+                    }
+                )
+                continue
+            rows.append(
+                {
+                    "case": case,
+                    "status": "native_comparison_complete",
+                    "evidence": f"native actual={native_actual}, expected={expected}; targeted connectors={connector_statuses}.",
+                }
+            )
+            continue
         if case == "v2_transformation_url_decode_invalid_sequence_mapped_candidate":
             latest = [latest_case_run_status(case, connector) for connector in ("apache", "nginx", "haproxy")]
             if all(item and item.get("runtime_classification") == "runtime_reached_actual_match" for item in latest):
@@ -362,34 +520,167 @@ def build_payload(connector_root: Path) -> tuple[dict[str, Any], list[Path]]:
         len(invalid_repros) == 3
         and all(item.get("runtime_classification") == "runtime_reached_actual_match" for item in invalid_repros)
     )
+    phase_repros = [
+        item
+        for item in repros
+        if item.get("case") == PHASE_HANDLING_FIX_CASE
+    ]
+    phase_fixed_targeted = (
+        len(phase_repros) == 3
+        and all(item.get("runtime_classification") == "runtime_reached_actual_match" for item in phase_repros)
+    )
+    phase_native = latest_native_case_run(PHASE_HANDLING_FIX_CASE) or {}
+    phase_native_matches = str(phase_native.get("native_actual") or "") == "403"
+    phase_reflection = case_reflection(mismatches, {PHASE_HANDLING_FIX_CASE})
+    namespace_repros = [
+        item
+        for item in repros
+        if item.get("case") == "xml_namespace_edge_connector_gap"
+    ]
+    namespace_fixed_targeted = (
+        len(namespace_repros) == 3
+        and all(item.get("runtime_classification") == "runtime_reached_actual_match" for item in namespace_repros)
+    )
+    malformed_repros = [
+        item
+        for item in repros
+        if item.get("case") == "xml_request_body_malformed_connector_gap"
+    ]
+    malformed_runtime_mismatch = (
+        len(malformed_repros) == 3
+        and all(item.get("runtime_classification") == "runtime_reached_actual_mismatch" for item in malformed_repros)
+    )
+    malformed_reflection = case_reflection(mismatches, {"xml_request_body_malformed_connector_gap"})
+    malformed_reclassified = (
+        malformed_reflection.get("official_critical_rows") == 0
+        and malformed_reflection.get("classifications", {}).get("libmodsecurity_xml_parser_semantics") == 12
+    )
+    secaction_reflection = case_reflection(mismatches, {SECACTION_DETECTION_ONLY_CASE})
+    secaction_reclassified = (
+        secaction_reflection.get("official_critical_rows") == 0
+        and secaction_reflection.get("classifications", {}).get("secaction_detection_only_overlay") == 6
+    )
+    secaction_no_mrts_repros = [
+        item
+        for item in repros
+        if item.get("case") == SECACTION_DETECTION_ONLY_CASE and item.get("variant") == "no-crs/no-mrts"
+    ]
+    secaction_with_mrts_repros = [
+        item
+        for item in repros
+        if item.get("case") == SECACTION_DETECTION_ONLY_CASE and item.get("variant") in {"no-crs/with-mrts", "with-crs/with-mrts"}
+    ]
+    secaction_native = latest_native_case_run(SECACTION_DETECTION_ONLY_CASE) or {}
+    secaction_native_matches_no_mrts = len(secaction_no_mrts_repros) == 3 and str(secaction_native.get("native_actual") or "") == "403" and all(
+        item.get("runtime_classification") == "runtime_reached_actual_match" for item in secaction_no_mrts_repros
+    )
+    secaction_with_mrts_non_intervening = len(secaction_with_mrts_repros) == 6 and all(
+        item.get("runtime_classification") == "runtime_reached_actual_mismatch"
+        and str(item.get("actual") or "") == "200"
+        for item in secaction_with_mrts_repros
+    )
     decisions = [
         {
+            "cluster": "connector_capability_gap / phase-handling / phase1_vs_phase2_request_body_gap",
+            "decision": "FIX_INPUT_REFRESH_REQUIRED" if phase_fixed_targeted and phase_native_matches else "DEFER",
+            "rows": 9,
+            "new_classification": "-",
+            "native_comparison": "native_phase_comparison_complete" if phase_native_matches else "native_phase_comparison_missing",
+            "full_matrix_refresh_needed": phase_fixed_targeted and not matrix_refresh_status["fresh"],
+            "official_after": phase_reflection,
+            "phase1_body_expectation_gap": True,
+            "phase2_runtime_reached": phase_fixed_targeted,
+            "connector_phase_gap": False,
+            "native_phase_not_applicable": False,
+            "targeted_only": True,
+            "evidence": (
+                "The original fixture asserted REQUEST_BODY in phase 1, omitted SecRequestBodyAccess On, and sent an empty "
+                "body, so expected HTTP 403 was not logically derivable. Full-Matrix no-CRS rows reached runtime and "
+                "returned HTTP 200 on Apache, NGINX, and HAProxy; HAProxy decision evidence showed phase 2 and "
+                "request_body_seen=true with no disruptive rule match. The YAML now keeps phase 1 as a pass-only "
+                "reachability marker and moves the body assertion to phase 2 rule 4512 with body 'bodyhit'. Targeted "
+                "Apache, NGINX, HAProxy, and native libmodsecurity now return HTTP 403 with rule 4512. Official "
+                "Full-Matrix rows remain stale until rerun."
+                if phase_fixed_targeted and phase_native_matches
+                else (
+                    "Phase-handling evidence is incomplete. Do not reclassify official rows until targeted connector "
+                    "and native evidence agree on the corrected phase 2 body assertion."
+                )
+            ),
+        },
+        {
+            "cluster": "expected_status_mismatch / actions / v3_secaction_block",
+            "decision": "RECLASSIFY" if secaction_reclassified else "DEFER",
+            "rows": 6,
+            "new_classification": "secaction_detection_only_overlay" if secaction_reclassified else "-",
+            "native_comparison": "secaction_native_control_complete" if secaction_native_matches_no_mrts else "native_comparison_missing",
+            "full_matrix_refresh_needed": False,
+            "official_after": secaction_reflection,
+            "secaction_runtime_reached": secaction_reclassified,
+            "secaction_intervention_seen": secaction_native_matches_no_mrts,
+            "secaction_no_intervention": secaction_with_mrts_non_intervening,
+            "native_secaction_same_as_connectors": "no-mrts only; with-mrts overlay intentionally differs",
+            "targeted_only": False,
+            "evidence": (
+                "The YAML SecAction is syntactically complete: id 3312, phase:2, deny, status:403, nolog, msg. "
+                "Fresh Full-Matrix rows are limited to with-MRTS variants. The generated with-MRTS smoke rules "
+                "include MRTS_001_INIT, which sets ctl:ruleEngine=DetectionOnly, before the SecAction. Apache, "
+                "NGINX, and HAProxy no-MRTS controls return HTTP 403, and native libmodsecurity returns 403 via "
+                "rule 3312. The with-MRTS targeted and Full-Matrix rows return HTTP 200 with runtime reached; "
+                "HAProxy decision evidence shows decision=pass, disruptive=false, intervention_status=200. "
+                "These six rows are report-only DetectionOnly overlay semantics, not connector intervention gaps."
+                if secaction_reclassified
+                else (
+                    "SecAction evidence is incomplete. Keep the rows critical until Full-Matrix classification, "
+                    "targeted no-MRTS controls, and native SecAction evidence agree."
+                )
+            ),
+        },
+        {
             "cluster": "connector_capability_gap / body-processors / xml_namespace_edge_connector_gap",
-            "decision": "DOCUMENT",
+            "decision": "FIX_INPUT_REFRESH_REQUIRED" if namespace_fixed_targeted else "DOCUMENT",
             "rows": 12,
             "new_classification": "-",
-            "native_comparison": "native_comparison_missing",
+            "native_comparison": "full_matrix_refresh_needed" if namespace_fixed_targeted else "fixture_experiment_targeted_only",
             "official_after": case_reflection(mismatches, {"xml_namespace_edge_connector_gap"}),
-            "full_matrix_refresh_needed": False,
+            "full_matrix_refresh_needed": namespace_fixed_targeted and not matrix_refresh_status["fresh"],
             "evidence": (
-                "Targeted Apache, NGINX, and HAProxy no-crs/no-mrts repros all return 200 instead of 403 "
-                "with no rule match. HAProxy records modsecurity_processed=true and request_body_seen=true. "
-                "The generated rule file contains only SecRule XML and no XML request-body processor "
-                "activation, so the best current finding is a test/input fixture gap, not a connector-only bug."
+                "Fixture evidence showed no explicit XML request-body processor control and a non-matching XML "
+                "collection rule. The YAML now enables ctl:requestBodyProcessor=XML and uses the established "
+                "XML:/* target against the namespaced body. Targeted Apache, NGINX, and HAProxy no-crs/no-mrts "
+                "repros now return HTTP 403, and native libmodsecurity also returns 403 with rule 4711. Official "
+                "Full-Matrix rows remain stale until the affected jobs are rerun."
+                if namespace_fixed_targeted
+                else (
+                    "The XML namespace fixture still has only targeted evidence and no fresh Full-Matrix run. "
+                    "Do not reclassify official rows until connector and native evidence are complete."
+                )
             ),
         },
         {
             "cluster": "expected_status_mismatch / body-processors / xml_request_body_malformed_connector_gap",
-            "decision": "DEFER",
+            "decision": "RECLASSIFY" if malformed_reclassified else "DEFER",
             "rows": 12,
-            "new_classification": "-",
-            "native_comparison": "native_comparison_missing",
-            "full_matrix_refresh_needed": False,
-            "official_after": case_reflection(mismatches, {"xml_request_body_malformed_connector_gap"}),
+            "new_classification": "libmodsecurity_xml_parser_semantics" if malformed_reclassified else "-",
+            "native_comparison": "native_comparison_complete" if malformed_runtime_mismatch else "native_comparison_missing",
+            "full_matrix_refresh_needed": not matrix_refresh_status["fresh"],
+            "official_after": malformed_reflection,
             "evidence": (
-                "Targeted repros all return 200 instead of 403 with no rule match. The generated rule file "
-                "also lacks explicit XML processor activation. Because the body is malformed XML, native "
-                "libmodsecurity parser semantics are needed before tightening the fixture or reclassifying."
+                "The YAML explicitly enables ctl:requestBodyProcessor=XML and targets the XML collection. "
+                "Targeted Apache, NGINX, and HAProxy return HTTP 200 with no rule match; native "
+                "libmodsecurity also returns 200. Native debug evidence shows XML parser initialization, "
+                "well_formed 0, and Failed to parse document, followed by rule 4408 returning 0 against "
+                "the XML collection. The official Full-Matrix rows are fresh and all connector variants "
+                "match native, so this case is reclassified as libmodsecurity XML parser semantics rather "
+                "than a connector gap."
+                if malformed_reclassified
+                else (
+                    "The YAML now explicitly enables ctl:requestBodyProcessor=XML, but targeted Apache, NGINX, "
+                    "and HAProxy still return HTTP 200 with no rule match. Native libmodsecurity also returns "
+                    "200 with no intervention for the malformed body. Because there is no parser-error variable "
+                    "or native parser-error control in this fixture, the case remains deferred as malformed XML "
+                    "parser semantics/fixture expectation work, not a connector-only gap."
+                )
             ),
         },
         {
@@ -497,6 +788,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
             item.get("new_classification", "-"),
             item.get("native_comparison", "-"),
             "yes" if item.get("full_matrix_refresh_needed") else "no",
+            "yes" if item.get("phase1_body_expectation_gap") else "-",
+            "yes" if item.get("phase2_runtime_reached") else "-",
+            "yes" if item.get("connector_phase_gap") else "no" if "connector_phase_gap" in item else "-",
+            "yes" if item.get("secaction_runtime_reached") else "-",
+            "yes" if item.get("secaction_intervention_seen") else "-",
+            "yes" if item.get("secaction_no_intervention") else "-",
+            item.get("native_secaction_same_as_connectors", "-"),
+            "yes" if item.get("targeted_only") else "-",
             f"`{item.get('repro_command', '-')}`",
         ]
         for item in payload["decisions"]
@@ -517,6 +816,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             item.get("actual") or "-",
             item.get("rule_id") or "-",
             item.get("matched_data") or "-",
+            item.get("xml_processor_evidence") or "-",
             item["evidence_file"],
         ]
         for item in payload["targeted_repros"]
@@ -528,13 +828,19 @@ def render_markdown(payload: dict[str, Any]) -> str:
         ["Critical mismatches", before["critical_mismatch_count"], after["critical_mismatch_count"]],
         ["Merge readiness", "FAIL", after["merge_readiness"]],
     ]
+    cluster_ranking_section = md_table(["Rank", "Cluster", "Count", "Connectors", "Cases"], ranking_rows)
+    if not ranking_rows:
+        cluster_ranking_section = (
+            f"{cluster_ranking_section}\n\n"
+            "_No rows available. Reason: no remaining critical mismatch clusters in the official report._"
+        )
     return "\n\n".join(
         [
             "# Remaining Critical Batch Analysis",
             "## Official Before / After",
             md_table(["Metric", "Before", "After"], metric_rows),
             "## Cluster Ranking",
-            md_table(["Rank", "Cluster", "Count", "Connectors", "Cases"], ranking_rows),
+            cluster_ranking_section,
             "## Decisions",
             md_table(
                 [
@@ -544,6 +850,14 @@ def render_markdown(payload: dict[str, Any]) -> str:
                     "New Classification",
                     "Native Comparison",
                     "Full-Matrix Refresh Needed",
+                    "Phase1 Body Gap",
+                    "Phase2 Runtime",
+                    "Connector Phase Gap",
+                    "SecAction Runtime",
+                    "SecAction Intervention",
+                    "SecAction No Intervention",
+                    "Native SecAction Same",
+                    "Targeted Only",
                     "Repro",
                 ],
                 decision_rows,
@@ -563,6 +877,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
                     "Actual",
                     "Rule",
                     "Matched Data",
+                    "XML Processor Evidence",
                     "Evidence",
                 ],
                 repro_rows,

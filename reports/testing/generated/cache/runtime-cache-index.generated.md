@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T12:14:56Z`
+> Generated at: `2026-06-19T16:22:55Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/update-runtime-reports.py`
 > Make target: `prepare-runtime-components`
 > Owner: `cache`
 > Severity: `cache`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Runtime Cache Index
@@ -24,9 +24,9 @@
 
 | Item | Status | SHA256 | Path |
 |---|---|---|---|
-| component-cache manifest | present | `3904de5ba72723df9e99e34169abd8ba43423752dc66626f0e69c8d5bd6f7d6e` | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` |
-| runtime build-cache manifest | present | `964c9388125b93f11548f80f1efc1e7d8b317131b89d14370f824b39bf0be6f9` | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` |
-| git components manifest | present | `6c3711d80a42ddaf2636437dc3344047472747ddda4fcd91b4d58958b20175b2` | `/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json` |
+| component-cache manifest | present | `3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec` | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` |
+| runtime build-cache manifest | present | `469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789` | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` |
+| git components manifest | present | `c4e18783b970500f25f92964b3035b9b441fe307da19582c3de4ce62b66b2b86` | `/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json` |
 | runtime env | present | `4dc7cbd3c334faeac71db45df2839a4ff297029d8746d80f2cc38683429dedf8` | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-env.sh` |
 
 ## Components
@@ -62,9 +62,9 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `3904de5ba72723df9e99e34169abd8ba43423752dc66626f0e69c8d5bd6f7d6e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | `964c9388125b93f11548f80f1efc1e7d8b317131b89d14370f824b39bf0be6f9` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json` | `6c3711d80a42ddaf2636437dc3344047472747ddda4fcd91b4d58958b20175b2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json` | `469f87fe5487ee2770567fa49e980ec79e88106f7c4b6f1cd37a4627bbba4789` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/git-components.json` | `c4e18783b970500f25f92964b3035b9b441fe307da19582c3de4ce62b66b2b86` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/runtime-env.sh` | `4dc7cbd3c334faeac71db45df2839a4ff297029d8746d80f2cc38683429dedf8` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information

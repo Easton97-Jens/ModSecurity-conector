@@ -1,21 +1,21 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T12:14:56Z`
+> Generated at: `2026-06-19T16:22:55Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/prepare-runtime-components.py`
 > Make target: `prepare-runtime-components`
 > Owner: `cache`
 > Severity: `cache`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Runtime Component Cache
 
 - Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 - Build root: `/var/tmp/ModSecurity-conector-verified/build`
-- Generated at: `2026-06-18T12:14:56Z`
+- Generated at: `2026-06-19T16:22:55Z`
 - Local cache binaries and source trees are not committed; this report records provenance.
 
 | Component | Status | Build ID / Ref | Path |
@@ -32,7 +32,7 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `3904de5ba72723df9e99e34169abd8ba43423752dc66626f0e69c8d5bd6f7d6e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/component-cache/manifest.json` | `3778b68a3aad6b58a8b178772552e423541ff7be524de4b074285d65ce6e7eec` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

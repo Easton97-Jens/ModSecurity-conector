@@ -1,26 +1,26 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T17:48:43Z`
+> Generated at: `2026-06-19T16:59:10Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Merge Readiness Dashboard
 
-Merge Readiness: `FAIL`
+Merge Readiness: `WARN`
 
 ## Summary
 
 | Check | Status | Notes |
 |---|---|---|
-| Full Runtime Matrix | PASS | complete=True jobs=12/12 missing=[] runtime_timeout=False refresh_timeout=False PASS=3141 FAIL=775 BLOCKED=0 |
-| Runtime Mismatch Analysis | FAIL | mismatches=787 critical=83 categories={'connector_capability_gap': 27, 'expected_status_mismatch': 31, 'framework_expected_behavior_gap': 1, 'known_not_next': 102, 'libmodsecurity_collection_name_case_semantics': 36, 'libmodsecurity_collection_semantics': 24, 'libmodsecurity_transformation_semantics': 24, 'nolog_expected_no_audit': 6, 'runtime_regression': 6, 'timeout_or_incomplete': 12, 'unknown': 6, 'with_mrts_detection_only_overlay': 512} |
+| Full Runtime Matrix | PASS | complete=True jobs=12/12 missing=[] runtime_timeout=False refresh_timeout=False PASS=3157 FAIL=771 BLOCKED=0 |
+| Runtime Mismatch Analysis | PASS | mismatches=771 critical=0 categories={'known_not_next': 102, 'libmodsecurity_collection_name_case_semantics': 36, 'libmodsecurity_collection_semantics': 24, 'libmodsecurity_transformation_semantics': 24, 'libmodsecurity_xml_parser_semantics': 12, 'nginx_phase4_response_body_enforcement_gap': 22, 'nolog_expected_no_audit': 6, 'phase4_rule_match_no_disruptive_intervention': 6, 'secaction_detection_only_overlay': 6, 'with_mrts_detection_only_overlay': 533} |
 | Final Consistency Audit | PASS | needs_attention |
 | Missing Inputs / Skipped Reports | PASS | none |
 | Optional Producer Evidence | PASS | available/not required |
@@ -29,35 +29,35 @@ Merge Readiness: `FAIL`
 | Critical Input Freshness | PASS | fresh |
 | Verified Run Consistency | PASS | consistent |
 | Failed Generators | PASS | none |
-| Submodule Status | WARN | parent, framework_submodule |
+| Submodule Status | WARN | parent |
 
 ## Decision
 
-Merge readiness: `FAIL`
+Merge readiness: `WARN`
 
-Reason: Full-Matrix completed and critical runtime mismatches are present.
+Reason: Core canonical reports are generated; warning conditions are documented.
 
 ## Evidence
 
 - Verified run id: `2026-06-16T19-12-00Z-614c8049`
-- Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-- Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
-- Primary blocker: `multipart_files`
+- Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
+- Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
+- Primary blocker: `unknown`
 - Recommended next fix cluster: `multipart_files`
 - Evidence scope: `full`
 - Full-Matrix complete: `True`
 - Full-Matrix completeness: `12` / `12`
 - Missing Full-Matrix jobs: `-`
 - Full-Matrix refresh timeout: `False`
-- Runtime mismatches / critical: `787` / `83`
-- Full-Matrix PASS/FAIL/BLOCKED/NOT_EXECUTABLE: `3141` / `775` / `0` / `12`
+- Runtime mismatches / critical: `771` / `0`
+- Full-Matrix PASS/FAIL/BLOCKED/NOT_EXECUTABLE: `3157` / `771` / `0` / `0`
 
 ## Submodules
 
 | Name | Path | SHA | Branch | Dirty | Status |
 |---|---|---|---|---|---|
-| parent | `.` | `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5` | `master` | dirty | present |
-| framework_submodule | `modules/ModSecurity-test-Framework` | `2334d31b942fd79770c7381b02fcaf031cccc4d2` | `master` | dirty | present |
+| parent | `.` | `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f` | `master` | dirty | present |
+| framework_submodule | `modules/ModSecurity-test-Framework` | `dc19582d89bd8ef50463c5a9c5a0271cc37bb958` | `master` | clean | present |
 | mrts_submodule | `modules/ModSecurity-test-Framework/tools/MRTS` | `13aa91291adea12d5c607fdd165d010fcfb1da78` | `HEAD` | clean | present |
 | framework_sibling_checkout | `/root/git/ModSecurity-test-Framework` | `not_found` | `not_found` | not_found | not_found |
 
@@ -65,12 +65,12 @@ Reason: Full-Matrix completed and critical runtime mismatches are present.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/final-consistency-audit.generated.json` | `31a8d27c3d070d7f919fd623d79f5be158e4a46a578fc526db20142a23b80a95` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `dc80194255be5520bb8d5768e95f9b0990ae0256bf9264458ac1b5449be5e600` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `61c0a9c5f0bea6171e8d1bd48e35873d594e48aa76cb05f1b54b11b7d28b514e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/final-consistency-audit.generated.json` | `d969736e6a6b68e331b83c17dd8edb8516314b1d78dd5e8c9ab41806bfea1502` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `45c592a17f99671474b5f510d59c5c5f162861bcc74e37f4a7c72e6e4bc6a736` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `df4c56d7bd0afa823a2a90b4808120369d1c8281b8a00eed7266f1654369c62a` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `9398f825fbe26f5d562ba7cc7fc0e39d4cc3a59a9c35e5727d75e385d20fe9a4` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
