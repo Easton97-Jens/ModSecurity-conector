@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:39:57Z`
+> Generated at: `2026-06-19T16:52:48Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-no-mrts-intervention-nomatch-analysis.py`
 > Make target: `generate-no-mrts-intervention-nomatch-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
-> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
+> Connector SHA: `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # No-MRTS Intervention No-Match Analysis
 
-- Generated at: `2026-06-19T16:39:57Z`
+- Generated at: `2026-06-19T16:52:48Z`
 - no-MRTS expected `403` / actual `200` rows with loaded rule and no match: **32**
 - Unique cases: **8**
 - Rule not loaded: **0**
@@ -158,11 +158,11 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `42b3aecb4efda7c19caac8f6613a800e81cb3b7f829cd67ac5d6464879f9f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `01a816a7d7bf3062a4b8a236aa9d1a56cf008828c6b67a09ce939b0fe9da9d9d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `d31fb8c743fe579a70cd77d1d455f749b99e3682d1737d2751c70f3b46c520a8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `3425a08630d7eee65c73745216c902a605453363e9b26c12d62d042fabddf0a0` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `06d58887a5b4c5497345a54792d90cfa4c910b3ae1610b2f0efed714c60f3a54` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `67eae92c2d1fde007978f559f16c43598eb52d2c4a80fd0bd171c4748cfb62ff` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

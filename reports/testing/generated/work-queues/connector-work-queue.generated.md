@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:39:11Z`
+> Generated at: `2026-06-19T16:52:01Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-connector-work-queue.py`
 > Make target: `generate-work-queue`
 > Owner: `framework`
 > Severity: `important`
-> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
-> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
+> Connector SHA: `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Connector Work Queue
@@ -16,7 +16,7 @@
 Generated file - do not edit manually.
 
 ## Executive Summary
-- Generated at: `2026-06-19T16:39:11Z`
+- Generated at: `2026-06-19T16:52:01Z`
 - Total runtime cases analyzed: **3928**
 - Total failures: **771**
 - P0/P1/P2/P3: **6** / **0** / **60** / **168**
@@ -290,7 +290,7 @@ Generated file - do not edit manually.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `d31fb8c743fe579a70cd77d1d455f749b99e3682d1737d2751c70f3b46c520a8` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

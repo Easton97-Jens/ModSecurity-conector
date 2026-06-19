@@ -28,7 +28,7 @@
       "variable": "ARGS"
     }
   ],
-  "generated_at": "2026-06-19T16:39:12Z",
+  "generated_at": "2026-06-19T16:52:03Z",
   "guardrails": [
     "tools/MRTS read-only",
     "system paths read-only",
@@ -105,14 +105,14 @@
   "metadata": {
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T16:39:12Z",
+    "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-19T16:52:03Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",

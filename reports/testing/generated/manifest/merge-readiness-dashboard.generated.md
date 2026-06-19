@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:40:14Z`
+> Generated at: `2026-06-19T16:53:02Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
-> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
+> Connector SHA: `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Merge Readiness Dashboard
@@ -29,7 +29,7 @@ Merge Readiness: `WARN`
 | Critical Input Freshness | PASS | fresh |
 | Verified Run Consistency | PASS | consistent |
 | Failed Generators | PASS | none |
-| Submodule Status | WARN | parent, framework_submodule |
+| Submodule Status | WARN | parent |
 
 ## Decision
 
@@ -40,8 +40,8 @@ Reason: Core canonical reports are generated; warning conditions are documented.
 ## Evidence
 
 - Verified run id: `2026-06-16T19-12-00Z-614c8049`
-- Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
-- Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
+- Connector SHA: `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199`
+- Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 - Primary blocker: `unknown`
 - Recommended next fix cluster: `multipart_files`
 - Evidence scope: `full`
@@ -56,8 +56,8 @@ Reason: Core canonical reports are generated; warning conditions are documented.
 
 | Name | Path | SHA | Branch | Dirty | Status |
 |---|---|---|---|---|---|
-| parent | `.` | `58b2135bb8adf12a4cad8afb448d1156e801cc00` | `master` | dirty | present |
-| framework_submodule | `modules/ModSecurity-test-Framework` | `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4` | `master` | dirty | present |
+| parent | `.` | `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199` | `master` | dirty | present |
+| framework_submodule | `modules/ModSecurity-test-Framework` | `dc19582d89bd8ef50463c5a9c5a0271cc37bb958` | `master` | clean | present |
 | mrts_submodule | `modules/ModSecurity-test-Framework/tools/MRTS` | `13aa91291adea12d5c607fdd165d010fcfb1da78` | `HEAD` | clean | present |
 | framework_sibling_checkout | `/root/git/ModSecurity-test-Framework` | `not_found` | `not_found` | not_found | not_found |
 
@@ -65,12 +65,12 @@ Reason: Core canonical reports are generated; warning conditions are documented.
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `682daa5f4a31c9630b61a6bb5cc29090283acfdbfe6c37a3da83ce0008e437e1` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/final-consistency-audit.generated.json` | `d31ab608dc993cfc14d4e8f35efb90bf8b05b7525aece85acac725e5232bca68` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `2db466da1006f40605c3fbf9be46e8f370d486be124f3e288e573a1cff96a29f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `e422a08561f2a79a4298b4c89b237d4fefe174c373758ed8df5978f516326468` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `d31fb8c743fe579a70cd77d1d455f749b99e3682d1737d2751c70f3b46c520a8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/final-consistency-audit.generated.json` | `9e5065e706377fbcc774d1dc719a4d21a6b89df3253a5152bafb7ebb98047657` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `67eae92c2d1fde007978f559f16c43598eb52d2c4a80fd0bd171c4748cfb62ff` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `6d5df1521cb6cfe501824c42c2268704efba9b4f8650b1a3b7f5e118a95fdeda` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/report-freshness.generated.json` | `e856939760c5a09019bf18123407cd8ed5cbb49d80c2f011ee9a2d1e1501d1bc` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

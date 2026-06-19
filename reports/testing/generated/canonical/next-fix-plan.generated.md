@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:39:29Z`
+> Generated at: `2026-06-19T16:52:19Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
-> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
+> Connector SHA: `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Next Fix Plan
 
-Generated at: `2026-06-19T16:39:29Z`
+Generated at: `2026-06-19T16:52:19Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -54,7 +54,7 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `bfa3cabbbf52f2b8b8b2ca91c24f077f102a7119a94e22a6699a51a67291dde1` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `175509da3032c554ef269c7327c8a333ac6b22deb6978dfcccfc97ba5ed51b08` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

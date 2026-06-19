@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:45:44Z`
+> Generated at: `2026-06-19T16:52:04Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/run-native-case-comparison.py`
 > Make target: `generate-native-semantics-comparison`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
-> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
+> Connector SHA: `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Native Semantics Comparison
@@ -27,11 +27,18 @@
 
 | Case | Native Actual | Connector Actuals | Native Match | Decision | Classification Hint | Full-Matrix Refresh Needed |
 | --- | --- | --- | --- | --- | --- | --- |
-| phase4_auditlog_outbound_message_connector_gap | 200 | apache:no-crs/with-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics | no |
+| unicode_whitespace_normalization_gap | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics | no |
+| unicode_double_encoded_uri_runtime_difference | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics | no |
+| xml_namespace_edge_connector_gap | 403 | apache:no-crs/with-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/with-mrts=200 | yes | DEFER | common_harness_or_input_issue_possible | no |
+| xml_request_body_malformed_connector_gap | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics | no |
+| v2_transformation_url_decode_invalid_sequence_mapped_candidate | 403 | apache:no-crs/with-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/with-mrts=200 | yes | DEFER | common_harness_or_input_issue_possible | no |
 
 ## Reclassified
 
-_No rows available. Reason: no current official rows are classified from native semantics evidence._
+| Case | Rows | Classification | Native Actual | Decision |
+| --- | --- | --- | --- | --- |
+| unicode_whitespace_normalization_gap | 12 | libmodsecurity_transformation_semantics | 200 | DOCUMENT |
+| unicode_double_encoded_uri_runtime_difference | 12 | libmodsecurity_transformation_semantics | 200 | DOCUMENT |
 
 ## Fixed
 
@@ -41,7 +48,8 @@ _No rows available. Reason: this pass added native comparison tooling only._
 
 | Case | Reason |
 | --- | --- |
-| _No rows available. Reason: no data._ | _No rows available. Reason: no data._ |
+| xml_namespace_edge_connector_gap | common_harness_or_input_issue_possible |
+| v2_transformation_url_decode_invalid_sequence_mapped_candidate | common_harness_or_input_issue_possible |
 
 ## Notes
 
@@ -55,9 +63,17 @@ _No rows available. Reason: this pass added native comparison tooling only._
 |---|---|---|---|---|
 | Declared input | `ci/run-native-case-comparison.py` | `c62686d446b5b50102d78a03509fb6883b7a084d975684fb5e1b809473c726de` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `ci/native_modsecurity_oracle.c` | `57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `682daa5f4a31c9630b61a6bb5cc29090283acfdbfe6c37a3da83ce0008e437e1` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml` | `8a7afb18ab9f7913b8bb10fe4f3b55c912e9e42e7da9ed2d1065841caf2f434a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T164544Z-phase4_auditlog_outbound_message_connector_gap/native-case-run.json` | `47b29058ed2f33405045eeb42a941d54242fa599247763b49de11e8a516926a6` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml` | `d712ede8bab7f74851255571299327a0e166e562798e4d5ac64d3a122b45a61d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | `9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `modules/ModSecurity-test-Framework/tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml` | `889068df10e66f52e5f5cbce49d5640be4f55e33ac09bbd21a469826e65a74ec` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | `97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | `b0f83be8f28c6c12030822e625605bac6c53c99e685eb191350159ad852494cf` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T175942Z-xml_namespace_edge_connector_gap/native-case-run.json` | `9f2741cfa08f9cf813e123da398c973ec1dae1e76a83a8da755aee5ae08fdb92` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | `7bf2dacc4c5b4de76ccbd33b01fecf0dc598930dd4289497500e40be5816ce88` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | `38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml` | `66a559e2c72e40e78dfc04723dfa823f495dbad75789d1e8becc81892be426df` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/native-case-run.json` | `a7dae3db2178486d2f0d91702be394aaaa60390a6b3df0654119aac198cdd942` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 
@@ -66,5 +82,13 @@ _No rows available. Reason: this pass added native comparison tooling only._
 | `ci/run-native-case-comparison.py` | present | input file available |
 | `ci/native_modsecurity_oracle.c` | present | input file available |
 | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | present | input file available |
-| `modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T164544Z-phase4_auditlog_outbound_message_connector_gap/native-case-run.json` | present | input file available |
+| `modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | present | input file available |
+| `modules/ModSecurity-test-Framework/tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | present | input file available |
+| `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T175942Z-xml_namespace_edge_connector_gap/native-case-run.json` | present | input file available |
+| `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | present | input file available |
+| `modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/native-case-run.json` | present | input file available |

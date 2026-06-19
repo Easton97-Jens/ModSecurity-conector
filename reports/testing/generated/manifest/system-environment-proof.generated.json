@@ -2,57 +2,57 @@
   "checks": [
     {
       "command": "make refresh-connector-reports",
-      "duration_seconds": 88.707,
-      "finished_at": "2026-06-19T16:40:24Z",
+      "duration_seconds": 87.016,
+      "finished_at": "2026-06-19T16:53:13Z",
       "output_excerpt": "make[1]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/refresh-connector-reports.py --connector-root \"/root/git/ModSecurity-conector\" --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\" --build-root \"/var/tmp/ModSecurity-conector-verified/build\" --native-root \"/var/tmp/ModSecurity-conector-verified/build/mrts-native\"\nrefresh-connector-reports: RUN make -C /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework generate-test-matrix PYTHON=/root/git/ModSecurity-conector/.venv/bin/python FRAMEWORK_ROOT=/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework CONNECTOR_ROOT=/root/git/ModSecurity-conector OUTPUT_ROOT=/root/git/ModSecurity-conector SKIP_ROOT_SUMMARY=1\nmake[2]: Entering directory '/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework'\nsh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; if [ \"$MODSECURITY_MRTS_VARIANT\" = \"with-mrts\" ]; then mrts_import_cases; fi; \"/root/git/ModSecurity-conector/.venv/bin/python\" ci/generate-case-matrix.py --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\" --connector-root \"/root/git/ModSecurity-conector\" --output-root \"/root/git/ModSecurity-conector\" --skip-root-summary'\nmake[2]: Leaving directory '/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework'\nrefresh-connector-reports: RUN /root/git/ModSecurity-conector/.venv/bin/python ci/generate-full-runtime-matrix.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --build-root /var/tmp/ModSecurity-conector-verified/build/full-matrix --log-root /var/tmp/ModSecurity-conector-verified/build/full-matrix --manifest /var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl --output-dir /root/git/ModSecurity-conector/reports/testing/generated\nrefresh-connector-reports: RUN /root/git/ModSecurity-conector/.venv/bin/python ci/generate-full-matrix-job-completeness.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --build-root /var/tmp/ModSecurity-conector-verified/build --output-dir /root/git/ModSecurity-conector/reports/testing/generated/manifest --verified-run-id 2026-06-16T19-12-00Z-614c8049 --verified-commands-file /var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json --rewrite-manifest\n/root/git/ModSecurity-conector/reports/testing/generated/manifest/full-matrix-job-completeness.generated.md\nrefresh-connector-reports: RUN /root/git/ModSecurity-conector/.venv/bin/python ci/generate-verified-runtime-mismatch-analysis.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --build-root /var/tmp/ModSecurity-conector-verified/build --output-dir /root/git/ModSecurity-conector/reports/testing/generated/manifest --verified-run-id 2026-06-16T19-12-00Z-614c8049 --verified-commands-file /var/tmp/ModSecurity-conector-verified/build/verified-runs/2026-06-16T19-12-00Z-614c8049/verified-commands.json\n/root/git/ModSecurity-conector/reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.md\nrefresh-connector-reports: RUN /root/git/ModSecurity-conector/.venv/bin/python ci/generate-nginx-mrts-http500-cluster-analysis.py --connector-root /root/git/ModSecurity-conector --framework-root /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework --build-root /var/tmp/ModSecurity-conector-verified/build --output-dir /root/git/ModSecurity-conector/reports/testing/generated/manifest --verified-run-id 2026-06-16T19-12-00Z-614c8049\n/root/git/ModSecurity-conector/reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md\nrefresh-connector-reports: RUN /root/git/ModSecurity-conector/.v",
       "output_sha256": "16b482ddcae0570764a2d743ad6756abac18b9af047117fc926788ff3bfc6b59",
       "return_code": 0,
-      "started_at": "2026-06-19T16:38:56Z",
+      "started_at": "2026-06-19T16:51:46Z",
       "status": "PASS"
     },
     {
       "command": "env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout",
-      "duration_seconds": 1.557,
-      "finished_at": "2026-06-19T16:40:26Z",
-      "output_excerpt": "make[1]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-generated-report-layout.py --connector-root \"/root/git/ModSecurity-conector\" --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"\ncheck-generated-report-layout: FAIL\n- reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md:27: empty table lacks a Missing/Empty explanation\nmake[1]: *** [Makefile:225: check-generated-report-layout] Error 1\nmake[1]: Leaving directory '/root/git/ModSecurity-conector'",
-      "output_sha256": "adb685ab95e02e827963684e5572cd5f123de5da1bb4f5f4d3688f763f157526",
-      "return_code": 2,
-      "started_at": "2026-06-19T16:40:24Z",
-      "status": "FAIL"
+      "duration_seconds": 1.518,
+      "finished_at": "2026-06-19T16:53:15Z",
+      "output_excerpt": "make[1]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-generated-report-layout.py --connector-root \"/root/git/ModSecurity-conector\" --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"\ncheck-generated-report-layout: PASS\nmake[1]: Leaving directory '/root/git/ModSecurity-conector'",
+      "output_sha256": "c34860f0f1190f1344d7f510e01954f20fbc2f328ed6e347d862f65a9c1d2c8f",
+      "return_code": 0,
+      "started_at": "2026-06-19T16:53:13Z",
+      "status": "PASS"
     },
     {
       "command": "make lint",
-      "duration_seconds": 4.92,
-      "finished_at": "2026-06-19T16:40:31Z",
-      "output_excerpt": "make[1]: Entering directory '/root/git/ModSecurity-conector'\nsh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh\nif command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo \"bash unavailable\"; fi\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/tests/normalizers/*.py \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/tests/runners/*.py \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/ci/*.py\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile ci/*.py\nmake check-framework-fixture-syntax\nmake[2]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-framework-fixture-syntax.py --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"\ncheck-framework-fixture-syntax: PASS\nmake[2]: Leaving directory '/root/git/ModSecurity-conector'\nmake report-governance\nmake[2]: Entering directory '/root/git/ModSecurity-conector'\nmake check-runtime-path-policy\nmake[3]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-runtime-path-policy.py\nBLOCKED: test_path is under /root and is not a safe runtime path: /root/.local/state/foo\nhaproxy_smoke: path-policy-selftest PASS\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /var/lib/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /var/log/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /usr/local/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /etc/foo\ncheck-runtime-path-policy: PASS\nmake[3]: Leaving directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-generated-report-layout.py --connector-root \"/root/git/ModSecurity-conector\" --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\" --governance-only\ncheck-generated-report-layout: FAIL\n- reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md:27: empty table lacks a Missing/Empty explanation\nmake[2]: *** [Makefile:229: report-governance] Error 1\nmake[2]: Leaving directory '/root/git/ModSecurity-conector'\nmake[1]: *** [Makefile:548: lint] Error 2\nmake[1]: Leaving directory '/root/git/ModSecurity-conector'",
-      "output_sha256": "070f830624cd4e478b901fc1fbbde64f8bb78efb7df5f598ba71f78a1ef3e77a",
-      "return_code": 2,
-      "started_at": "2026-06-19T16:40:26Z",
-      "status": "FAIL"
+      "duration_seconds": 6.474,
+      "finished_at": "2026-06-19T16:53:21Z",
+      "output_excerpt": "make[1]: Entering directory '/root/git/ModSecurity-conector'\nsh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh\nif command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo \"bash unavailable\"; fi\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/tests/normalizers/*.py \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/tests/runners/*.py \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/ci/*.py\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile ci/*.py\nmake check-framework-fixture-syntax\nmake[2]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-framework-fixture-syntax.py --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"\ncheck-framework-fixture-syntax: PASS\nmake[2]: Leaving directory '/root/git/ModSecurity-conector'\nmake report-governance\nmake[2]: Entering directory '/root/git/ModSecurity-conector'\nmake check-runtime-path-policy\nmake[3]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-runtime-path-policy.py\nBLOCKED: test_path is under /root and is not a safe runtime path: /root/.local/state/foo\nhaproxy_smoke: path-policy-selftest PASS\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /var/lib/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /var/log/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /usr/local/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /etc/foo\ncheck-runtime-path-policy: PASS\nmake[3]: Leaving directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-generated-report-layout.py --connector-root \"/root/git/ModSecurity-conector\" --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\" --governance-only\ncheck-generated-report-layout: PASS\nmake[2]: Leaving directory '/root/git/ModSecurity-conector'\n.venv/bin/python -m json.tool config/testing/import-status.json >/dev/null\nCONNECTOR_ROOT=\"/root/git/ModSecurity-conector\" .venv/bin/python \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/check-python-deps.py\"\nCONNECTOR_ROOT=\"/root/git/ModSecurity-conector\" .venv/bin/python \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/check-workflow-yaml.py\"\nok .github/workflows/test-envoy.yml\nok .github/workflows/test-haproxy.yml\nok .github/workflows/test-lighttpd.yml\nok .github/workflows/test-traefik.yml\nok .github/workflows/test-full-smoke-sequential.yml\nok .github/workflows/lint.yml\nok .github/workflows/quick-framework-check.yml\nok .github/workflows/test-apache.yml\nok .github/workflows/test-common.yml\nok .github/workflows/test-nginx.yml\nok .github/workflows/verified-report-governance.yml\nCONNECTOR_ROOT=\"/root/git/ModSecurity-conector\" .venv/bin/python \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/check-doc-links.py\"\ndoc links ok\nsh \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/check-crs-version-pinning.sh\"\nsh ci/check-common-helpers.sh\ncommon_helper_smoke: pass output=/var/tmp/ModSecurity-conector-verified/build/common-helper-smoke\nsh ci/check-adapter-helpers.sh\nadapter_helper_smoke: pass output=/var/tmp/ModSecurity-conector-verified/build/adapter-helper-smoke\nsh ci/check-adapter-metadata-drift.sh\nadapter_metadata_drift: ok\nif command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else echo \"actionlint unavailable\"; fi\nactionlint unavailable\ngit diff --check\nmake[1]: Leaving directory '/root/git/ModSecurity-conector'",
+      "output_sha256": "8e5ba92cbdb3c49f0952d8f57c7da7990eb7c31494d3fd512f6e9678ed679d19",
+      "return_code": 0,
+      "started_at": "2026-06-19T16:53:15Z",
+      "status": "PASS"
     },
     {
       "command": "make quick-check",
-      "duration_seconds": 5.051,
-      "finished_at": "2026-06-19T16:40:36Z",
-      "output_excerpt": "make[1]: Entering directory '/root/git/ModSecurity-conector'\nsh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh\nif command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo \"bash unavailable\"; fi\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/tests/normalizers/*.py \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/tests/runners/*.py \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/ci/*.py\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile ci/*.py\nmake check-framework-fixture-syntax\nmake[2]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-framework-fixture-syntax.py --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"\ncheck-framework-fixture-syntax: PASS\nmake[2]: Leaving directory '/root/git/ModSecurity-conector'\nmake report-governance\nmake[2]: Entering directory '/root/git/ModSecurity-conector'\nmake check-runtime-path-policy\nmake[3]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-runtime-path-policy.py\nBLOCKED: test_path is under /root and is not a safe runtime path: /root/.local/state/foo\nhaproxy_smoke: path-policy-selftest PASS\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /var/lib/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /var/log/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /usr/local/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /etc/foo\ncheck-runtime-path-policy: PASS\nmake[3]: Leaving directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-generated-report-layout.py --connector-root \"/root/git/ModSecurity-conector\" --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\" --governance-only\ncheck-generated-report-layout: FAIL\n- reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md:27: empty table lacks a Missing/Empty explanation\nmake[2]: *** [Makefile:229: report-governance] Error 1\nmake[2]: Leaving directory '/root/git/ModSecurity-conector'\nmake[1]: *** [Makefile:548: lint] Error 2\nmake[1]: Leaving directory '/root/git/ModSecurity-conector'",
-      "output_sha256": "070f830624cd4e478b901fc1fbbde64f8bb78efb7df5f598ba71f78a1ef3e77a",
-      "return_code": 2,
-      "started_at": "2026-06-19T16:40:31Z",
-      "status": "FAIL"
+      "duration_seconds": 7.513,
+      "finished_at": "2026-06-19T16:53:29Z",
+      "output_excerpt": "make[1]: Entering directory '/root/git/ModSecurity-conector'\nsh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh\nif command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo \"bash unavailable\"; fi\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/tests/normalizers/*.py \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/tests/runners/*.py \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"/ci/*.py\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile ci/*.py\nmake check-framework-fixture-syntax\nmake[2]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-framework-fixture-syntax.py --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\"\ncheck-framework-fixture-syntax: PASS\nmake[2]: Leaving directory '/root/git/ModSecurity-conector'\nmake report-governance\nmake[2]: Entering directory '/root/git/ModSecurity-conector'\nmake check-runtime-path-policy\nmake[3]: Entering directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-runtime-path-policy.py\nBLOCKED: test_path is under /root and is not a safe runtime path: /root/.local/state/foo\nhaproxy_smoke: path-policy-selftest PASS\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /var/lib/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /var/log/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /usr/local/foo\nhaproxy_smoke: blocked SOURCE_ROOT must not use a system path: /etc/foo\ncheck-runtime-path-policy: PASS\nmake[3]: Leaving directory '/root/git/ModSecurity-conector'\n\"/root/git/ModSecurity-conector/.venv/bin/python\" ci/check-generated-report-layout.py --connector-root \"/root/git/ModSecurity-conector\" --framework-root \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework\" --governance-only\ncheck-generated-report-layout: PASS\nmake[2]: Leaving directory '/root/git/ModSecurity-conector'\n.venv/bin/python -m json.tool config/testing/import-status.json >/dev/null\nCONNECTOR_ROOT=\"/root/git/ModSecurity-conector\" .venv/bin/python \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/check-python-deps.py\"\nCONNECTOR_ROOT=\"/root/git/ModSecurity-conector\" .venv/bin/python \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/check-workflow-yaml.py\"\nok .github/workflows/test-envoy.yml\nok .github/workflows/test-haproxy.yml\nok .github/workflows/test-lighttpd.yml\nok .github/workflows/test-traefik.yml\nok .github/workflows/test-full-smoke-sequential.yml\nok .github/workflows/lint.yml\nok .github/workflows/quick-framework-check.yml\nok .github/workflows/test-apache.yml\nok .github/workflows/test-common.yml\nok .github/workflows/test-nginx.yml\nok .github/workflows/verified-report-governance.yml\nCONNECTOR_ROOT=\"/root/git/ModSecurity-conector\" .venv/bin/python \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/check-doc-links.py\"\ndoc links ok\nsh \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/check-crs-version-pinning.sh\"\nsh ci/check-common-helpers.sh\ncommon_helper_smoke: pass output=/var/tmp/ModSecurity-conector-verified/build/common-helper-smoke\nsh ci/check-adapter-helpers.sh\nadapter_helper_smoke: pass output=/var/tmp/ModSecurity-conector-verified/build/adapter-helper-smoke\nsh ci/check-adapter-metadata-drift.sh\nadapter_metadata_drift: ok\nif command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/*.yml; else echo \"actionlint unavailable\"; fi\nactionlint unavailable\ngit diff --check\nPYTHONPYCACHEPREFIX=\"/var/tmp/ModSecurity-conector-verified/build/pycache\" .venv/bin/python -P -m py_compile \"/root/git/ModSecurity-conector/modules/ModSecurity-test-Fra",
+      "output_sha256": "705bf412da2a0c1e058be7581e8f03cfa2c956b46d457a279e2ebf3bcd30d50a",
+      "return_code": 0,
+      "started_at": "2026-06-19T16:53:21Z",
+      "status": "PASS"
     },
     {
       "command": "git status --short",
-      "duration_seconds": 0.051,
-      "finished_at": "2026-06-19T16:40:36Z",
-      "output_excerpt": "M ci/generate-final-consistency-audit.py\n M ci/generate-remaining-critical-batch-analysis.py\n M ci/generate-remaining-failure-analysis.py\n M ci/generate-verified-runtime-mismatch-analysis.py\n m modules/ModSecurity-test-Framework\n M reports/testing/README.md\n M reports/testing/generated/cache/runtime-build-cache.generated.json\n M reports/testing/generated/cache/runtime-build-cache.generated.md\n M reports/testing/generated/cache/runtime-cache-index.generated.json\n M reports/testing/generated/cache/runtime-cache-index.generated.md\n M reports/testing/generated/cache/runtime-component-cache.generated.json\n M reports/testing/generated/cache/runtime-component-cache.generated.md\n M reports/testing/generated/canonical/final-consistency-audit.generated.json\n M reports/testing/generated/canonical/final-consistency-audit.generated.md\n M reports/testing/generated/canonical/full-run-evidence.generated.json\n M reports/testing/generated/canonical/full-run-evidence.generated.md\n M reports/testing/generated/canonical/full-runtime-matrix.generated.json\n M reports/testing/generated/canonical/full-runtime-matrix.generated.md\n M reports/testing/generated/canonical/next-fix-plan.generated.json\n M reports/testing/generated/canonical/next-fix-plan.generated.md\n M reports/testing/generated/canonical/remaining-failure-analysis.generated.json\n M reports/testing/generated/canonical/remaining-failure-analysis.generated.md\n M reports/testing/generated/coverage/case-matrix.generated.md\n M reports/testing/generated/coverage/connector-gap-summary.generated.md\n M reports/testing/generated/coverage/coverage-summary.generated.md\n M reports/testing/generated/coverage/phase-coverage.generated.md\n M reports/testing/generated/coverage/xfail-summary.generated.md\n M reports/testing/generated/focused-analysis/body-processor-analysis.generated.json\n M reports/testing/generated/focused-analysis/body-processor-analysis.generated.md\n M reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json\n M reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md\n M reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json\n M reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md\n M reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json\n M reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md\n M reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json\n M reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md\n M reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json\n M reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md\n M reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json\n M reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md\n M reports/testing/generated/manifest/full-matrix-job-completeness.generated.json\n M reports/testing/generated/manifest/full-matrix-job-completeness.generated.md\n M reports/testing/generated/manifest/generator-runtime-summary.generated.md\n M reports/testing/generated/manifest/merge-readiness-dashboard.generated.json\n M reports/testing/generated/manifest/merge-readiness-dashboard.generated.md\n M reports/testing/generated/manifest/native-semantics-comparison.generated.json\n M reports/testing/generated/manifest/native-semantics-comparison.generated.md\n M reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json\n M reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md\n M reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.json\n M reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md\n M reports/testing/generated/manifest/report-data-lineage.generated.json\n M reports/testing/generate",
-      "output_sha256": "8ae5ea8fd693bdffdf236ab08f6b6df02d084d594b4611ade91c5665752e2347",
+      "duration_seconds": 0.109,
+      "finished_at": "2026-06-19T16:53:29Z",
+      "output_excerpt": "M reports/testing/README.md\n M reports/testing/generated/cache/runtime-build-cache.generated.json\n M reports/testing/generated/cache/runtime-build-cache.generated.md\n M reports/testing/generated/cache/runtime-cache-index.generated.json\n M reports/testing/generated/cache/runtime-cache-index.generated.md\n M reports/testing/generated/cache/runtime-component-cache.generated.json\n M reports/testing/generated/cache/runtime-component-cache.generated.md\n M reports/testing/generated/canonical/final-consistency-audit.generated.json\n M reports/testing/generated/canonical/final-consistency-audit.generated.md\n M reports/testing/generated/canonical/full-run-evidence.generated.json\n M reports/testing/generated/canonical/full-run-evidence.generated.md\n M reports/testing/generated/canonical/full-runtime-matrix.generated.json\n M reports/testing/generated/canonical/full-runtime-matrix.generated.md\n M reports/testing/generated/canonical/next-fix-plan.generated.json\n M reports/testing/generated/canonical/next-fix-plan.generated.md\n M reports/testing/generated/canonical/remaining-failure-analysis.generated.json\n M reports/testing/generated/canonical/remaining-failure-analysis.generated.md\n M reports/testing/generated/coverage/case-matrix.generated.md\n M reports/testing/generated/coverage/connector-gap-summary.generated.md\n M reports/testing/generated/coverage/coverage-summary.generated.md\n M reports/testing/generated/coverage/phase-coverage.generated.md\n M reports/testing/generated/coverage/xfail-summary.generated.md\n M reports/testing/generated/focused-analysis/body-processor-analysis.generated.json\n M reports/testing/generated/focused-analysis/body-processor-analysis.generated.md\n M reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json\n M reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md\n M reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json\n M reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md\n M reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json\n M reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md\n M reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json\n M reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md\n M reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json\n M reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md\n M reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json\n M reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md\n M reports/testing/generated/manifest/full-matrix-job-completeness.generated.json\n M reports/testing/generated/manifest/full-matrix-job-completeness.generated.md\n M reports/testing/generated/manifest/generator-runtime-summary.generated.md\n M reports/testing/generated/manifest/merge-readiness-dashboard.generated.json\n M reports/testing/generated/manifest/merge-readiness-dashboard.generated.md\n M reports/testing/generated/manifest/native-semantics-comparison.generated.json\n M reports/testing/generated/manifest/native-semantics-comparison.generated.md\n M reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json\n M reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md\n M reports/testing/generated/manifest/report-data-lineage.generated.json\n M reports/testing/generated/manifest/report-data-lineage.generated.md\n M reports/testing/generated/manifest/report-dependency-graph.generated.json\n M reports/testing/generated/manifest/report-dependency-graph.generated.md\n M reports/testing/generated/manifest/report-freshness.generated.json\n M reports/testing/generated/manifest/report-freshness.generated.md\n M reports/testing/generated/manifest/report-path-migration.generate",
+      "output_sha256": "87c42278ca7d133deeff67b175a3e9957c4922d6eeaa93207af4ff49dda3210e",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:36Z",
+      "started_at": "2026-06-19T16:53:29Z",
       "status": "PASS"
     }
   ],
   "data_source_policy": "verified-inputs-only",
-  "embedded_strict_evidence_gate": "FAIL",
+  "embedded_strict_evidence_gate": "PASS",
   "framework_common_sh_status": "loaded",
   "framework_environment": {
     "common_sh_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/ci/common.sh",
@@ -118,86 +118,86 @@
       "VERIFIED_TMP_ROOT": "/var/tmp/ModSecurity-conector-verified/tmp"
     }
   },
-  "generated_at": "2026-06-19T16:38:55Z",
+  "generated_at": "2026-06-19T16:51:46Z",
   "git": {
     "framework_diff_stat": {
       "command": "git -C /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework diff --stat",
-      "duration_seconds": 0.016,
-      "finished_at": "2026-06-19T16:40:38Z",
-      "output_excerpt": ".../phases/phase1/phase1_vs_phase2_request_body_gap.yaml     | 12 +++++++-----\n 1 file changed, 7 insertions(+), 5 deletions(-)",
-      "output_sha256": "56d8476e6002bc3b1b1d14f44599688a686affbb1556d4b1f4380c068e245f90",
+      "duration_seconds": 0.015,
+      "finished_at": "2026-06-19T16:53:31Z",
+      "output_excerpt": "",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:38Z",
+      "started_at": "2026-06-19T16:53:31Z",
       "status": "PASS"
     },
     "framework_head": {
       "command": "git -C /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework rev-parse HEAD",
-      "duration_seconds": 0.004,
-      "finished_at": "2026-06-19T16:40:38Z",
-      "output_excerpt": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
-      "output_sha256": "fd40a8ba6ba33295195a2629126cfd790fd2129697d02ee7333edf8aca8442a7",
+      "duration_seconds": 0.005,
+      "finished_at": "2026-06-19T16:53:31Z",
+      "output_excerpt": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
+      "output_sha256": "678c6c2458b79e5581ea4c9b734ac74c991cebfbf74c46b70fca8f9d115de491",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:38Z",
+      "started_at": "2026-06-19T16:53:31Z",
       "status": "PASS"
     },
     "framework_status_short": {
       "command": "git -C /root/git/ModSecurity-conector/modules/ModSecurity-test-Framework status --short",
-      "duration_seconds": 0.02,
-      "finished_at": "2026-06-19T16:40:38Z",
-      "output_excerpt": "M tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
-      "output_sha256": "4900bbfad7239954dfdbfb0db2ba61f6fef82dce628d25ae88ea8faef5c51581",
+      "duration_seconds": 0.021,
+      "finished_at": "2026-06-19T16:53:31Z",
+      "output_excerpt": "",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:38Z",
+      "started_at": "2026-06-19T16:53:31Z",
       "status": "PASS"
     },
     "git_branch": {
       "command": "git rev-parse --abbrev-ref HEAD",
       "duration_seconds": 0.003,
-      "finished_at": "2026-06-19T16:40:37Z",
+      "finished_at": "2026-06-19T16:53:30Z",
       "output_excerpt": "master",
       "output_sha256": "9b3162498c21d7f960877099174ecea13410bd21d12440b2ea8868117fc08ae0",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:37Z",
+      "started_at": "2026-06-19T16:53:30Z",
       "status": "PASS"
     },
     "git_diff_stat": {
       "command": "git diff --stat",
-      "duration_seconds": 0.314,
-      "finished_at": "2026-06-19T16:40:38Z",
-      "output_excerpt": "ci/generate-final-consistency-audit.py             |    2 +\n ci/generate-remaining-critical-batch-analysis.py   |  237 +-\n ci/generate-remaining-failure-analysis.py          |   11 +\n ci/generate-verified-runtime-mismatch-analysis.py  |  595 +++++\n modules/ModSecurity-test-Framework                 |    0\n reports/testing/README.md                          |  126 +-\n .../cache/runtime-build-cache.generated.json       |   14 +-\n .../cache/runtime-build-cache.generated.md         |    8 +-\n .../cache/runtime-cache-index.generated.json       |   26 +-\n .../cache/runtime-cache-index.generated.md         |   18 +-\n .../cache/runtime-component-cache.generated.json   |   36 +-\n .../cache/runtime-component-cache.generated.md     |   10 +-\n .../final-consistency-audit.generated.json         |  135 +-\n .../canonical/final-consistency-audit.generated.md |   74 +-\n .../canonical/full-run-evidence.generated.json     |   34 +-\n .../canonical/full-run-evidence.generated.md       |   12 +-\n .../canonical/full-runtime-matrix.generated.json   |  100 +-\n .../canonical/full-runtime-matrix.generated.md     |   36 +-\n .../canonical/next-fix-plan.generated.json         |   20 +-\n .../generated/canonical/next-fix-plan.generated.md |   11 +-\n .../remaining-failure-analysis.generated.json      |  154 +-\n .../remaining-failure-analysis.generated.md        |   30 +-\n .../generated/coverage/case-matrix.generated.md    |    8 +-\n .../coverage/connector-gap-summary.generated.md    |    6 +-\n .../coverage/coverage-summary.generated.md         |    8 +-\n .../generated/coverage/phase-coverage.generated.md |    8 +-\n .../generated/coverage/xfail-summary.generated.md  |    8 +-\n .../body-processor-analysis.generated.json         |  353 +--\n .../body-processor-analysis.generated.md           |   32 +-\n .../intervention-blocking-analysis.generated.json  |  397 +---\n .../intervention-blocking-analysis.generated.md    |   40 +-\n ...ts-intervention-nomatch-analysis.generated.json |  398 +---\n ...mrts-intervention-nomatch-analysis.generated.md |   54 +-\n .../nolog-audit-evidence.generated.json            |   32 +-\n .../nolog-audit-evidence.generated.md              |   12 +-\n .../phase4-hard-abort-capability.generated.json    |   48 +-\n .../phase4-hard-abort-capability.generated.md      |   18 +-\n .../response-header-hook-analysis.generated.json   |   32 +-\n .../response-header-hook-analysis.generated.md     |   12 +-\n .../rule-chain-semantics-analysis.generated.json   |   52 +-\n .../rule-chain-semantics-analysis.generated.md     |   16 +-\n .../full-matrix-job-completeness.generated.json    |  938 ++++----\n .../full-matrix-job-completeness.generated.md      |  244 +-\n .../generator-runtime-summary.generated.md         |  176 +-\n .../merge-readiness-dashboard.generated.json       |   95 +-\n .../merge-readiness-dashboard.generated.md         |   42 +-\n .../native-semantics-comparison.generated.json     |   16 +-\n .../native-semantics-comparison.generated.md       |    8 +-\n ...nx-mrts-http500-cluster-analysis.generated.json |   46 +-\n ...ginx-mrts-http500-cluster-analysis.generated.md |   18 +-\n ...emaining-critical-batch-analysis.generated.json |  635 +++--\n .../remaining-critical-batch-analysis.generated.md |   66 +-\n .../manifest/report-data-lineage.generated.json    |  172 +-\n .../manifest/report-data-lineage.generated.md      |   50 +-\n .../report-dependency-graph.generated.json         |  172 +-\n .../manifest/report-dependency-graph.generated.md  |   50 +-\n .../manifest/report-freshness.generated.json       | 2446 +++++++++----------\n .../manifest/report-freshness.generated.md         |  204 +-\n .../manifest/report-path-migration.generated.json  |    8 +-\n .../manifest/report-path-migration.generated.md    |    6 +-\n .../report-refresh-manifest.generated.json         | 2506 ++++++++++----------\n .../manifest/report-refresh-manifest.generated.md  |  230 +-\n .../system-environment-proof.generated.json        |  146 +-\n .../manifest/system-environment-proof.generated",
-      "output_sha256": "b882db5e52555a2a065ffc7cd74aa3fe7f4b2e8696dcd354ad5d07d599fb322b",
+      "duration_seconds": 0.27,
+      "finished_at": "2026-06-19T16:53:31Z",
+      "output_excerpt": "reports/testing/README.md                          |  114 +-\n .../cache/runtime-build-cache.generated.json       |    6 +-\n .../cache/runtime-build-cache.generated.md         |    4 +-\n .../cache/runtime-cache-index.generated.json       |    6 +-\n .../cache/runtime-cache-index.generated.md         |    4 +-\n .../cache/runtime-component-cache.generated.json   |   12 +-\n .../cache/runtime-component-cache.generated.md     |    4 +-\n .../final-consistency-audit.generated.json         |   92 +-\n .../canonical/final-consistency-audit.generated.md |   54 +-\n .../canonical/full-run-evidence.generated.json     |   34 +-\n .../canonical/full-run-evidence.generated.md       |   12 +-\n .../canonical/full-runtime-matrix.generated.json   |   10 +-\n .../canonical/full-runtime-matrix.generated.md     |    8 +-\n .../canonical/next-fix-plan.generated.json         |   18 +-\n .../generated/canonical/next-fix-plan.generated.md |   10 +-\n .../remaining-failure-analysis.generated.json      |   90 +-\n .../remaining-failure-analysis.generated.md        |   24 +-\n .../generated/coverage/case-matrix.generated.md    |    6 +-\n .../coverage/connector-gap-summary.generated.md    |    6 +-\n .../coverage/coverage-summary.generated.md         |    6 +-\n .../generated/coverage/phase-coverage.generated.md |    6 +-\n .../generated/coverage/xfail-summary.generated.md  |    6 +-\n .../body-processor-analysis.generated.json         |   42 +-\n .../body-processor-analysis.generated.md           |   16 +-\n .../intervention-blocking-analysis.generated.json  |   52 +-\n .../intervention-blocking-analysis.generated.md    |   18 +-\n ...ts-intervention-nomatch-analysis.generated.json |   52 +-\n ...mrts-intervention-nomatch-analysis.generated.md |   18 +-\n .../nolog-audit-evidence.generated.json            |   34 +-\n .../nolog-audit-evidence.generated.md              |   12 +-\n .../phase4-hard-abort-capability.generated.json    |   50 +-\n .../phase4-hard-abort-capability.generated.md      |   18 +-\n .../response-header-hook-analysis.generated.json   |   34 +-\n .../response-header-hook-analysis.generated.md     |   12 +-\n .../rule-chain-semantics-analysis.generated.json   |   50 +-\n .../rule-chain-semantics-analysis.generated.md     |   16 +-\n .../full-matrix-job-completeness.generated.json    |   18 +-\n .../full-matrix-job-completeness.generated.md      |    6 +-\n .../generator-runtime-summary.generated.md         |  174 +-\n .../merge-readiness-dashboard.generated.json       |   81 +-\n .../merge-readiness-dashboard.generated.md         |   28 +-\n .../native-semantics-comparison.generated.json     | 1357 ++++++++++-\n .../native-semantics-comparison.generated.md       |   46 +-\n ...nx-mrts-http500-cluster-analysis.generated.json |   26 +-\n ...ginx-mrts-http500-cluster-analysis.generated.md |   10 +-\n .../manifest/report-data-lineage.generated.json    |  162 +-\n .../manifest/report-data-lineage.generated.md      |   44 +-\n .../report-dependency-graph.generated.json         |  162 +-\n .../manifest/report-dependency-graph.generated.md  |   44 +-\n .../manifest/report-freshness.generated.json       | 2378 +++++++++----------\n .../manifest/report-freshness.generated.md         |  202 +-\n .../manifest/report-path-migration.generated.json  |   10 +-\n .../manifest/report-path-migration.generated.md    |    6 +-\n .../report-refresh-manifest.generated.json         | 2444 ++++++++++----------\n .../manifest/report-refresh-manifest.generated.md  |  228 +-\n .../system-environment-proof.generated.json        |  180 +-\n .../manifest/system-environment-proof.generated.md |   48 +-\n ...rified-runtime-mismatch-analysis.generated.json |   10 +-\n ...verified-runtime-mismatch-analysis.generated.md |    6 +-\n .../mrts-native/mrts-native-apache.generated.json  |   10 +-\n .../mrts-native/mrts-native-apache.generated.md    |    8 +-\n .../mrts-native/mrts-native-full.generated.json    |   10 +-\n .../mrts-native/mrts-native-full.generated.md      |    8 +-\n .../mrts-native/mrts-native-nginx.generated.json  ",
+      "output_sha256": "6ab1c8f57bb4876e05cbf46c6406128d973716335c9d127da65b4e87b7044dbc",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:37Z",
+      "started_at": "2026-06-19T16:53:30Z",
       "status": "PASS"
     },
     "git_head": {
       "command": "git rev-parse HEAD",
-      "duration_seconds": 0.004,
-      "finished_at": "2026-06-19T16:40:37Z",
-      "output_excerpt": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
-      "output_sha256": "da8677c056d4a08e2224df739ff8f41acfb5ba1c3a50299c4068ad9fad718ab4",
+      "duration_seconds": 0.003,
+      "finished_at": "2026-06-19T16:53:30Z",
+      "output_excerpt": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+      "output_sha256": "a492a06cbe4e505ae10fe38e6464a850d155e1d2d53bb90a404a1d900fd5b647",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:37Z",
+      "started_at": "2026-06-19T16:53:30Z",
       "status": "PASS"
     },
     "git_status_short": {
       "command": "git status --short",
-      "duration_seconds": 0.052,
-      "finished_at": "2026-06-19T16:40:37Z",
-      "output_excerpt": "M ci/generate-final-consistency-audit.py\n M ci/generate-remaining-critical-batch-analysis.py\n M ci/generate-remaining-failure-analysis.py\n M ci/generate-verified-runtime-mismatch-analysis.py\n m modules/ModSecurity-test-Framework\n M reports/testing/README.md\n M reports/testing/generated/cache/runtime-build-cache.generated.json\n M reports/testing/generated/cache/runtime-build-cache.generated.md\n M reports/testing/generated/cache/runtime-cache-index.generated.json\n M reports/testing/generated/cache/runtime-cache-index.generated.md\n M reports/testing/generated/cache/runtime-component-cache.generated.json\n M reports/testing/generated/cache/runtime-component-cache.generated.md\n M reports/testing/generated/canonical/final-consistency-audit.generated.json\n M reports/testing/generated/canonical/final-consistency-audit.generated.md\n M reports/testing/generated/canonical/full-run-evidence.generated.json\n M reports/testing/generated/canonical/full-run-evidence.generated.md\n M reports/testing/generated/canonical/full-runtime-matrix.generated.json\n M reports/testing/generated/canonical/full-runtime-matrix.generated.md\n M reports/testing/generated/canonical/next-fix-plan.generated.json\n M reports/testing/generated/canonical/next-fix-plan.generated.md\n M reports/testing/generated/canonical/remaining-failure-analysis.generated.json\n M reports/testing/generated/canonical/remaining-failure-analysis.generated.md\n M reports/testing/generated/coverage/case-matrix.generated.md\n M reports/testing/generated/coverage/connector-gap-summary.generated.md\n M reports/testing/generated/coverage/coverage-summary.generated.md\n M reports/testing/generated/coverage/phase-coverage.generated.md\n M reports/testing/generated/coverage/xfail-summary.generated.md\n M reports/testing/generated/focused-analysis/body-processor-analysis.generated.json\n M reports/testing/generated/focused-analysis/body-processor-analysis.generated.md\n M reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json\n M reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md\n M reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json\n M reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md\n M reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json\n M reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md\n M reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json\n M reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md\n M reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json\n M reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md\n M reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json\n M reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md\n M reports/testing/generated/manifest/full-matrix-job-completeness.generated.json\n M reports/testing/generated/manifest/full-matrix-job-completeness.generated.md\n M reports/testing/generated/manifest/generator-runtime-summary.generated.md\n M reports/testing/generated/manifest/merge-readiness-dashboard.generated.json\n M reports/testing/generated/manifest/merge-readiness-dashboard.generated.md\n M reports/testing/generated/manifest/native-semantics-comparison.generated.json\n M reports/testing/generated/manifest/native-semantics-comparison.generated.md\n M reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json\n M reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md\n M reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.json\n M reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md\n M reports/testing/generated/manifest/report-data-lineage.generated.json\n M reports/testing/generate",
-      "output_sha256": "8ae5ea8fd693bdffdf236ab08f6b6df02d084d594b4611ade91c5665752e2347",
+      "duration_seconds": 0.109,
+      "finished_at": "2026-06-19T16:53:30Z",
+      "output_excerpt": "M reports/testing/README.md\n M reports/testing/generated/cache/runtime-build-cache.generated.json\n M reports/testing/generated/cache/runtime-build-cache.generated.md\n M reports/testing/generated/cache/runtime-cache-index.generated.json\n M reports/testing/generated/cache/runtime-cache-index.generated.md\n M reports/testing/generated/cache/runtime-component-cache.generated.json\n M reports/testing/generated/cache/runtime-component-cache.generated.md\n M reports/testing/generated/canonical/final-consistency-audit.generated.json\n M reports/testing/generated/canonical/final-consistency-audit.generated.md\n M reports/testing/generated/canonical/full-run-evidence.generated.json\n M reports/testing/generated/canonical/full-run-evidence.generated.md\n M reports/testing/generated/canonical/full-runtime-matrix.generated.json\n M reports/testing/generated/canonical/full-runtime-matrix.generated.md\n M reports/testing/generated/canonical/next-fix-plan.generated.json\n M reports/testing/generated/canonical/next-fix-plan.generated.md\n M reports/testing/generated/canonical/remaining-failure-analysis.generated.json\n M reports/testing/generated/canonical/remaining-failure-analysis.generated.md\n M reports/testing/generated/coverage/case-matrix.generated.md\n M reports/testing/generated/coverage/connector-gap-summary.generated.md\n M reports/testing/generated/coverage/coverage-summary.generated.md\n M reports/testing/generated/coverage/phase-coverage.generated.md\n M reports/testing/generated/coverage/xfail-summary.generated.md\n M reports/testing/generated/focused-analysis/body-processor-analysis.generated.json\n M reports/testing/generated/focused-analysis/body-processor-analysis.generated.md\n M reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json\n M reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.md\n M reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json\n M reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.md\n M reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json\n M reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.md\n M reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json\n M reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.md\n M reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json\n M reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.md\n M reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json\n M reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.md\n M reports/testing/generated/manifest/full-matrix-job-completeness.generated.json\n M reports/testing/generated/manifest/full-matrix-job-completeness.generated.md\n M reports/testing/generated/manifest/generator-runtime-summary.generated.md\n M reports/testing/generated/manifest/merge-readiness-dashboard.generated.json\n M reports/testing/generated/manifest/merge-readiness-dashboard.generated.md\n M reports/testing/generated/manifest/native-semantics-comparison.generated.json\n M reports/testing/generated/manifest/native-semantics-comparison.generated.md\n M reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.json\n M reports/testing/generated/manifest/nginx-mrts-http500-cluster-analysis.generated.md\n M reports/testing/generated/manifest/report-data-lineage.generated.json\n M reports/testing/generated/manifest/report-data-lineage.generated.md\n M reports/testing/generated/manifest/report-dependency-graph.generated.json\n M reports/testing/generated/manifest/report-dependency-graph.generated.md\n M reports/testing/generated/manifest/report-freshness.generated.json\n M reports/testing/generated/manifest/report-freshness.generated.md\n M reports/testing/generated/manifest/report-path-migration.generate",
+      "output_sha256": "87c42278ca7d133deeff67b175a3e9957c4922d6eeaa93207af4ff49dda3210e",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:37Z",
+      "started_at": "2026-06-19T16:53:30Z",
       "status": "PASS"
     },
     "git_submodule_status": {
       "command": "git submodule status --recursive",
-      "duration_seconds": 0.112,
-      "finished_at": "2026-06-19T16:40:37Z",
-      "output_excerpt": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4 modules/ModSecurity-test-Framework (heads/master)\n 13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main)",
-      "output_sha256": "f256cf95b4e149e080500a0a3302e9b1d1f6b18517aa8fe102e1ccef451716e0",
+      "duration_seconds": 0.108,
+      "finished_at": "2026-06-19T16:53:30Z",
+      "output_excerpt": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958 modules/ModSecurity-test-Framework (heads/master)\n 13aa91291adea12d5c607fdd165d010fcfb1da78 modules/ModSecurity-test-Framework/tools/MRTS (heads/main)",
+      "output_sha256": "6c1d462016aed1965bcbc99385794104338b56b2f064ac148092ed368adf551f",
       "return_code": 0,
-      "started_at": "2026-06-19T16:40:37Z",
+      "started_at": "2026-06-19T16:53:30Z",
       "status": "PASS"
     }
   },
@@ -253,18 +253,18 @@
       },
       {
         "command": "env ALLOW_IN_PROGRESS_SYSTEM_PROOF=1 make check-generated-report-layout",
-        "return_code": 2,
-        "status": "FAIL"
+        "return_code": 0,
+        "status": "PASS"
       },
       {
         "command": "make lint",
-        "return_code": 2,
-        "status": "FAIL"
+        "return_code": 0,
+        "status": "PASS"
       },
       {
         "command": "make quick-check",
-        "return_code": 2,
-        "status": "FAIL"
+        "return_code": 0,
+        "status": "PASS"
       },
       {
         "command": "git status --short",
@@ -273,45 +273,45 @@
       }
     ],
     "commit_policy": "versioned-generated",
-    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
     "data_kind": "system-proof",
     "data_origin": "external-local",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T16:38:55Z",
+    "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-19T16:51:46Z",
     "generated_by": "ci/generate-system-environment-proof.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
-        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
+        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/report-refresh-manifest.generated.json",
-        "sha256": "bb02ebe1056c2feefa79b84e49d1419209845aa7c41bb5339c01e9f7b6186282",
-        "source_hash": "bb02ebe1056c2feefa79b84e49d1419209845aa7c41bb5339c01e9f7b6186282",
+        "sha256": "e0a6a49938ad4fbc66ba97837f32c3d13899ee294d4b32e1d8c8fac9496ec369",
+        "source_hash": "e0a6a49938ad4fbc66ba97837f32c3d13899ee294d4b32e1d8c8fac9496ec369",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
-        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
+        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/report-freshness.generated.json",
-        "sha256": "e422a08561f2a79a4298b4c89b237d4fefe174c373758ed8df5978f516326468",
-        "source_hash": "e422a08561f2a79a4298b4c89b237d4fefe174c373758ed8df5978f516326468",
+        "sha256": "e856939760c5a09019bf18123407cd8ed5cbb49d80c2f011ee9a2d1e1501d1bc",
+        "source_hash": "e856939760c5a09019bf18123407cd8ed5cbb49d80c2f011ee9a2d1e1501d1bc",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
-        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
+        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/merge-readiness-dashboard.generated.json",
-        "sha256": "6a6d411311f909bc8dfa5b5f194ecffa5c41ac228894b68ca2d1b967469345f8",
-        "source_hash": "6a6d411311f909bc8dfa5b5f194ecffa5c41ac228894b68ca2d1b967469345f8",
+        "sha256": "c6d7da95075e4aff54aa3a899bdb795817dc4073e77f976d92a3ffd3f49320e3",
+        "source_hash": "c6d7da95075e4aff54aa3a899bdb795817dc4073e77f976d92a3ffd3f49320e3",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -336,7 +336,7 @@
     "version": "26.04 LTS (Resolute Raccoon)",
     "working_directory": "/root/git/ModSecurity-conector"
   },
-  "overall_target_status": "FAIL",
+  "overall_target_status": "PASS",
   "proof_generation_status": "PASS",
   "python": {
     "pip_freeze": {
@@ -591,7 +591,7 @@
     "runtime_env_path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-env.sh",
     "status": "PASS"
   },
-  "strict_evidence_gate_reason": "check-generated-report-layout: FAIL; - reports/testing/generated/manifest/remaining-critical-batch-analysis.generated.md:27: empty table lacks a Missing/Empty explanation",
+  "strict_evidence_gate_reason": "strict generated-report evidence gate passed",
   "tools": [
     {
       "attempted_command": "git",

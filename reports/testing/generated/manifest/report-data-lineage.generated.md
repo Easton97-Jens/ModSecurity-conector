@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:40:14Z`
+> Generated at: `2026-06-19T16:53:02Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/refresh-connector-reports.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `58b2135bb8adf12a4cad8afb448d1156e801cc00`
-> Framework SHA: `6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4`
+> Connector SHA: `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199`
+> Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Report Data Lineage
@@ -73,25 +73,25 @@
 | Declared input | `ci/native_modsecurity_oracle.c` | `57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `ci/run-native-case-comparison.py` | `c62686d446b5b50102d78a03509fb6883b7a084d975684fb5e1b809473c726de` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `2db466da1006f40605c3fbf9be46e8f370d486be124f3e288e573a1cff96a29f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `8e2d2ac2aff46856cd32e419ff73f333ce37a5321b15fad5f8b93bff85c1f16e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `cde00865dd00752f1a857c92f0f9db74adaa032921c7619bec174a9371034d23` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `8d20679b744b065ef1b19c70135e47a1ae078af23bd4d394349d78a624a640a4` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `33d505be8e410e1f508c7633e2e716ae5e5100ade9d7a2ae99b85ff60a16d496` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | `c094ad744691ddc16d86f247720264df53ba1710fccd03b443555c0e2353977f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `42b3aecb4efda7c19caac8f6613a800e81cb3b7f829cd67ac5d6464879f9f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | `fef57f4802a7a606f527614bb6807ab434ac19cbb35349fd9f6899bed365b708` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json` | `0b233448cf42ef0a79103b42718f1d8b64a4e83ed2009375c6e101fa7a6f3999` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | `99a1313443b6902af4e0e673eba79071d1e34c662e92dbd700154839450efdba` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json` | `018472ace1d129017f55e7386d7d9c0ca6bab97d21ebfba439179777b1bf4c79` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json` | `b04c000ebc809e6bf482e54266f71339a02ffb04e289d4e91ca22cf8611ea319` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `401ad4822628cf5abd03471a376848f5bb77f4fab934c603cbcda42c89f60050` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `682daa5f4a31c9630b61a6bb5cc29090283acfdbfe6c37a3da83ce0008e437e1` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `6c266638bedb64d6eef5e4019166250a91bbe6fdd891c6305983989d78a3ffbd` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `3a383219cecd9ef88202f413c5b3c01a814f1f5b5995d652f2beafaacb02287a` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `ece2b1e07ae4dcc4d0f90ac21ff86f0bd2817c5906835365b313d0570f3e064e` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e9871fd60f06407d734b70f836656ba81f931d31fb6bfeee010f365ac87fa926` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `6230717b3d574fafec127dec16059901f1137ca001ff092886a4d2170cf6387b` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-run-evidence.generated.json` | `6d5df1521cb6cfe501824c42c2268704efba9b4f8650b1a3b7f5e118a95fdeda` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `d31fb8c743fe579a70cd77d1d455f749b99e3682d1737d2751c70f3b46c520a8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `67eae92c2d1fde007978f559f16c43598eb52d2c4a80fd0bd171c4748cfb62ff` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `3425a08630d7eee65c73745216c902a605453363e9b26c12d62d042fabddf0a0` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/coverage/phase-coverage.generated.md` | `29862a2e4f832fae922a1ba8122959b0cd65524a8402eedf278aa01b403630d2` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/body-processor-analysis.generated.json` | `d30ecfbc12cbefff50a58ba3ceab626d2742905cd3c06ce04b1513a155da2fb8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `01a816a7d7bf3062a4b8a236aa9d1a56cf008828c6b67a09ce939b0fe9da9d9d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/no-mrts-intervention-nomatch-analysis.generated.json` | `6ef3582077540985ce7faec308e6705f793159ebdfe625b2b9696030bcfaacae` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/nolog-audit-evidence.generated.json` | `cbf076ace54abdb1cc48f1b4949214b915f545126d84c075432ef8a3fc667302` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/phase4-hard-abort-capability.generated.json` | `322f3b513b7ea1c505fe8dce3c68e594c322f12b4a46cc6e179fc76f53de852d` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/response-header-hook-analysis.generated.json` | `bc7c0541a052c92f89a42cef9a62b1d1100fc4ddda657c5283af8d9c28a0b4d1` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/rule-chain-semantics-analysis.generated.json` | `f2357860fb3b3d9628b24fed40a70bc64bd166e9cf120e35f3eccf01391f5b94` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/full-matrix-job-completeness.generated.json` | `9a7d2f6a8c313d7fb88071c69847f3cbb2aaf8eb90466cc56056c2199d8c44b7` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-apache.generated.json` | `69b359db6b8f622d3c56c149b90807db442dca4742eba51272dbe88d16111ed3` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-nginx.generated.json` | `d168d51d79ae446b3230f92e65e8bd65828db400208075a79a95dc86066b56f4` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/mrts-native/mrts-native-summary.generated.json` | `ff6dde3562a1c8ba49cfb5eed760ef3f8485671921fe299c3b685872424b6587` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `06d58887a5b4c5497345a54792d90cfa4c910b3ae1610b2f0efed714c60f3a54` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `93aebf69a825222541d159eec9d295f24c861960da56a43d8f8117d656edee9a` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `reports/testing/runtime-validation-snapshot.json` | `c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information

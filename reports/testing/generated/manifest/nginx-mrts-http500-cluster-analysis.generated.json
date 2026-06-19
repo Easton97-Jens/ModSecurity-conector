@@ -29,7 +29,7 @@
       "risk": "low"
     }
   ],
-  "generated_at": "2026-06-19T16:39:06Z",
+  "generated_at": "2026-06-19T16:51:57Z",
   "groups": [],
   "inputs": {
     "full_matrix_job_completeness": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
@@ -53,14 +53,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
+    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
-    "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-19T16:39:06Z",
+    "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-19T16:51:57Z",
     "generated_by": "ci/generate-nginx-mrts-http500-cluster-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -94,22 +94,22 @@
         "status": "present"
       },
       {
-        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
-        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
+        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
-        "sha256": "401ad4822628cf5abd03471a376848f5bb77f4fab934c603cbcda42c89f60050",
-        "source_hash": "401ad4822628cf5abd03471a376848f5bb77f4fab934c603cbcda42c89f60050",
+        "sha256": "9a7d2f6a8c313d7fb88071c69847f3cbb2aaf8eb90466cc56056c2199d8c44b7",
+        "source_hash": "9a7d2f6a8c313d7fb88071c69847f3cbb2aaf8eb90466cc56056c2199d8c44b7",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "58b2135bb8adf12a4cad8afb448d1156e801cc00",
-        "framework_sha": "6cb57e476a40f8644d4cb84b8a0f9a7016a71ff4",
+        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
-        "sha256": "682daa5f4a31c9630b61a6bb5cc29090283acfdbfe6c37a3da83ce0008e437e1",
-        "source_hash": "682daa5f4a31c9630b61a6bb5cc29090283acfdbfe6c37a3da83ce0008e437e1",
+        "sha256": "a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65",
+        "source_hash": "a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
