@@ -1,13 +1,13 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T16:51:50Z`
+> Generated at: `2026-06-19T16:57:57Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-full-matrix-job-completeness.py`
 > Make target: `generate-full-matrix-job-completeness`
 > Owner: `manifest`
 > Severity: `critical`
-> Connector SHA: `6e5fba8960f4cf3e8cb38bb870c2a15c271dd199`
+> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 

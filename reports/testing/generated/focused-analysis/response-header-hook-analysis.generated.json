@@ -6,7 +6,7 @@
     "root_cause": "monolithic response_header_hook cluster is reduced to MRTS DetectionOnly overlay after backend setup and HAProxy Set-Cookie multi-value evidence are stabilized",
     "runtime_status_changed": false
   },
-  "generated_at": "2026-06-19T16:52:10Z",
+  "generated_at": "2026-06-19T16:58:16Z",
   "groups": {
     "by_case": [
       {
@@ -244,45 +244,45 @@
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T16:52:10Z",
+    "generated_at": "2026-06-19T16:58:16Z",
     "generated_by": "ci/generate-response-header-hook-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "06d58887a5b4c5497345a54792d90cfa4c910b3ae1610b2f0efed714c60f3a54",
-        "source_hash": "06d58887a5b4c5497345a54792d90cfa4c910b3ae1610b2f0efed714c60f3a54",
+        "sha256": "89f3d29f508ef24e279589f6a3fa791c2f62d5a13ca89f58b10adb4ba4cd3484",
+        "source_hash": "89f3d29f508ef24e279589f6a3fa791c2f62d5a13ca89f58b10adb4ba4cd3484",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "d31fb8c743fe579a70cd77d1d455f749b99e3682d1737d2751c70f3b46c520a8",
-        "source_hash": "d31fb8c743fe579a70cd77d1d455f749b99e3682d1737d2751c70f3b46c520a8",
+        "sha256": "3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007",
+        "source_hash": "3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "29862a2e4f832fae922a1ba8122959b0cd65524a8402eedf278aa01b403630d2",
-        "source_hash": "29862a2e4f832fae922a1ba8122959b0cd65524a8402eedf278aa01b403630d2",
+        "sha256": "6c36afa87a2f63eaa9ff2df91e08759b8f657ee9a8090112afcc534174e98e70",
+        "source_hash": "6c36afa87a2f63eaa9ff2df91e08759b8f657ee9a8090112afcc534174e98e70",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }

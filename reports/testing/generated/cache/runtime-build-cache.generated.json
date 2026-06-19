@@ -136,7 +136,7 @@
   "metadata": {
     "category": "cache",
     "commit_policy": "local-only",
-    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
     "data_kind": "cache",
     "data_origin": "cache",
     "data_source_policy": "verified-inputs-only",

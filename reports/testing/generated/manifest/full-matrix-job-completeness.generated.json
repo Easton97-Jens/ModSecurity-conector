@@ -1,16 +1,16 @@
 {
   "complete_jobs": 12,
-  "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+  "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
   "data_source_policy": "verified-inputs-only",
   "evidence_scope": "full",
   "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-  "generated_at": "2026-06-19T16:51:50Z",
-  "generated_at_utc": "2026-06-19T16:51:50Z",
+  "generated_at": "2026-06-19T16:57:57Z",
+  "generated_at_utc": "2026-06-19T16:57:57Z",
   "inputs": [
     {
       "bytes": 6506,
       "label": "full_matrix_manifest",
-      "mtime_utc": "2026-06-19T16:51:50Z",
+      "mtime_utc": "2026-06-19T16:57:57Z",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
       "sha256": "bca8c97edc4f6d5bab304488e596af2a047b9f5f17994cf72ef64ae748430ff8",
       "status": "present"
@@ -1426,14 +1426,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T16:51:50Z",
+    "generated_at": "2026-06-19T16:57:57Z",
     "generated_by": "ci/generate-full-matrix-job-completeness.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",

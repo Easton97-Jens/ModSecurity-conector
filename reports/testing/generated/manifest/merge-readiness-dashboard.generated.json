@@ -1,5 +1,5 @@
 {
-  "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+  "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
   "critical_missing_reports": [],
   "critical_producer_not_run": [],
   "critical_run_mismatches": [],
@@ -13,7 +13,7 @@
       "expected": "-",
       "name": "parent",
       "path": ".",
-      "sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+      "sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
       "status": "present"
     }
   ],
@@ -35,79 +35,79 @@
     "pass": 3157,
     "pending": 2298
   },
-  "generated_at": "2026-06-19T16:53:02Z",
+  "generated_at": "2026-06-19T16:59:10Z",
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
     "data_kind": "dashboard",
     "data_origin": "manifest",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T16:53:02Z",
+    "generated_at": "2026-06-19T16:59:10Z",
     "generated_by": "ci/refresh-connector-reports.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "d31fb8c743fe579a70cd77d1d455f749b99e3682d1737d2751c70f3b46c520a8",
-        "source_hash": "d31fb8c743fe579a70cd77d1d455f749b99e3682d1737d2751c70f3b46c520a8",
+        "sha256": "3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007",
+        "source_hash": "3f41446a7fb73a361c12e31507673774698ec41d108f2c8e75c8c57b8d2ef007",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
-        "sha256": "a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65",
-        "source_hash": "a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65",
+        "sha256": "340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e",
+        "source_hash": "340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/final-consistency-audit.generated.json",
-        "sha256": "9e5065e706377fbcc774d1dc719a4d21a6b89df3253a5152bafb7ebb98047657",
-        "source_hash": "9e5065e706377fbcc774d1dc719a4d21a6b89df3253a5152bafb7ebb98047657",
+        "sha256": "d969736e6a6b68e331b83c17dd8edb8516314b1d78dd5e8c9ab41806bfea1502",
+        "source_hash": "d969736e6a6b68e331b83c17dd8edb8516314b1d78dd5e8c9ab41806bfea1502",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "67eae92c2d1fde007978f559f16c43598eb52d2c4a80fd0bd171c4748cfb62ff",
-        "source_hash": "67eae92c2d1fde007978f559f16c43598eb52d2c4a80fd0bd171c4748cfb62ff",
+        "sha256": "45c592a17f99671474b5f510d59c5c5f162861bcc74e37f4a7c72e6e4bc6a736",
+        "source_hash": "45c592a17f99671474b5f510d59c5c5f162861bcc74e37f4a7c72e6e4bc6a736",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "6d5df1521cb6cfe501824c42c2268704efba9b4f8650b1a3b7f5e118a95fdeda",
-        "source_hash": "6d5df1521cb6cfe501824c42c2268704efba9b4f8650b1a3b7f5e118a95fdeda",
+        "sha256": "df4c56d7bd0afa823a2a90b4808120369d1c8281b8a00eed7266f1654369c62a",
+        "source_hash": "df4c56d7bd0afa823a2a90b4808120369d1c8281b8a00eed7266f1654369c62a",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/report-freshness.generated.json",
-        "sha256": "e856939760c5a09019bf18123407cd8ed5cbb49d80c2f011ee9a2d1e1501d1bc",
-        "source_hash": "e856939760c5a09019bf18123407cd8ed5cbb49d80c2f011ee9a2d1e1501d1bc",
+        "sha256": "9398f825fbe26f5d562ba7cc7fc0e39d4cc3a59a9c35e5727d75e385d20fe9a4",
+        "source_hash": "9398f825fbe26f5d562ba7cc7fc0e39d4cc3a59a9c35e5727d75e385d20fe9a4",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -158,7 +158,7 @@
       "expected": "-",
       "name": "parent",
       "path": ".",
-      "sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+      "sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
       "status": "present"
     },
     {

@@ -29,7 +29,7 @@
       "risk": "low"
     }
   ],
-  "generated_at": "2026-06-19T16:51:57Z",
+  "generated_at": "2026-06-19T16:58:04Z",
   "groups": [],
   "inputs": {
     "full_matrix_job_completeness": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
@@ -53,14 +53,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T16:51:57Z",
+    "generated_at": "2026-06-19T16:58:04Z",
     "generated_by": "ci/generate-nginx-mrts-http500-cluster-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -94,22 +94,22 @@
         "status": "present"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
-        "sha256": "9a7d2f6a8c313d7fb88071c69847f3cbb2aaf8eb90466cc56056c2199d8c44b7",
-        "source_hash": "9a7d2f6a8c313d7fb88071c69847f3cbb2aaf8eb90466cc56056c2199d8c44b7",
+        "sha256": "a54dc3f43ffc6d2eb4493ad56c58e6eff959cb2ce1380f5eb3d4b4e02003f5c2",
+        "source_hash": "a54dc3f43ffc6d2eb4493ad56c58e6eff959cb2ce1380f5eb3d4b4e02003f5c2",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
-        "sha256": "a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65",
-        "source_hash": "a8909f651e4e60be0c10c6cb24a1c11f98b9e99845a47a31c42aa64a727c0e65",
+        "sha256": "340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e",
+        "source_hash": "340546dbab42432eef255f99fda65c0d4301db589d6ac5c9f2a201a94326420e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },

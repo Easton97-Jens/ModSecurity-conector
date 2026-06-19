@@ -1,37 +1,37 @@
 {
-  "generated_at": "2026-06-19T16:52:03Z",
+  "generated_at": "2026-06-19T16:58:10Z",
   "metadata": {
     "category": "mrts-native",
     "commit_policy": "optional-generated",
-    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
     "data_kind": "evidence",
     "data_origin": "mrts",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T16:52:03Z",
+    "generated_at": "2026-06-19T16:58:10Z",
     "generated_by": "framework:ci/generate-mrts-native-report.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "69b359db6b8f622d3c56c149b90807db442dca4742eba51272dbe88d16111ed3",
-        "source_hash": "69b359db6b8f622d3c56c149b90807db442dca4742eba51272dbe88d16111ed3",
+        "sha256": "a628c7910973dfe3ea2379d1de447632bb7a68bc93945814d7e5922711b01933",
+        "source_hash": "a628c7910973dfe3ea2379d1de447632bb7a68bc93945814d7e5922711b01933",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+        "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "d168d51d79ae446b3230f92e65e8bd65828db400208075a79a95dc86066b56f4",
-        "source_hash": "d168d51d79ae446b3230f92e65e8bd65828db400208075a79a95dc86066b56f4",
+        "sha256": "dcb7aea74fa53c58425123bf580dbe52ae9898bbc0af29bd38ee98925848c833",
+        "source_hash": "dcb7aea74fa53c58425123bf580dbe52ae9898bbc0af29bd38ee98925848c833",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }

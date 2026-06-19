@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-06-19T16:52:19Z",
+  "generated_at": "2026-06-19T16:58:27Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
+    "connector_sha": "5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T16:52:19Z",
+    "generated_at": "2026-06-19T16:58:27Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
-    "input_status": "complete",
+    "input_status": "stale",
     "inputs": [
       {
         "connector_sha": "6e5fba8960f4cf3e8cb38bb870c2a15c271dd199",
         "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
-        "notes": "input file available",
+        "notes": "generated report input is stale: connector_sha differs",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "175509da3032c554ef269c7327c8a333ac6b22deb6978dfcccfc97ba5ed51b08",
-        "source_hash": "175509da3032c554ef269c7327c8a333ac6b22deb6978dfcccfc97ba5ed51b08",
-        "status": "present",
+        "sha256": "3425a08630d7eee65c73745216c902a605453363e9b26c12d62d042fabddf0a0",
+        "source_hash": "3425a08630d7eee65c73745216c902a605453363e9b26c12d62d042fabddf0a0",
+        "status": "stale",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
     ],
