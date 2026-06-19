@@ -1,0 +1,326 @@
+{
+  "connector_candidate_ranking": [
+    {
+      "connector": "envoy",
+      "difficulty": "high",
+      "expected_value": "high",
+      "rank": 1,
+      "recommendation": "Next proof: ext_proc/ext_authz sidecar runtime smoke with request blocking and explicit body-mode evidence.",
+      "risk": "medium-high"
+    },
+    {
+      "connector": "litespeed",
+      "difficulty": "medium",
+      "expected_value": "medium-high",
+      "rank": 2,
+      "recommendation": "Run installation/licensing proof for OpenLiteSpeed first; do not implement until automation is proven.",
+      "risk": "high"
+    },
+    {
+      "connector": "traefik",
+      "difficulty": "medium-high",
+      "expected_value": "medium",
+      "rank": 3,
+      "recommendation": "Prototype a decision-service/forwardAuth harness before any Go plugin work.",
+      "risk": "high"
+    },
+    {
+      "connector": "lighttpd",
+      "difficulty": "high",
+      "expected_value": "medium",
+      "rank": 4,
+      "recommendation": "Perform hook/proxy architecture spike before implementation.",
+      "risk": "high"
+    }
+  ],
+  "connector_status_matrix": [
+    {
+      "build_scripts": "yes",
+      "build_target": "yes",
+      "capability_notes": [
+        "production verified runtime connector",
+        "framework runtime and full-matrix evidence present"
+      ],
+      "connector": "apache",
+      "directory": "yes",
+      "example_config": "yes",
+      "full_matrix": "yes",
+      "make_targets": "yes",
+      "modsecurity_integration": "yes",
+      "readme": "yes",
+      "recommendation": "Keep in verified runtime/full-matrix maintenance.",
+      "report_integration": "yes",
+      "runtime_harness": "yes",
+      "status": "production_verified",
+      "tests": "framework_owned",
+      "verified_case": "yes",
+      "verified_root_runtime_components": "yes"
+    },
+    {
+      "build_scripts": "yes",
+      "build_target": "yes",
+      "capability_notes": [
+        "production verified runtime connector",
+        "OpenResty is initially covered as an nginx runtime variant"
+      ],
+      "connector": "nginx",
+      "directory": "yes",
+      "example_config": "yes",
+      "full_matrix": "yes",
+      "make_targets": "yes",
+      "modsecurity_integration": "yes",
+      "readme": "yes",
+      "recommendation": "Keep in verified runtime/full-matrix maintenance.",
+      "report_integration": "yes",
+      "runtime_harness": "yes",
+      "status": "production_verified",
+      "tests": "framework_owned",
+      "verified_case": "yes",
+      "verified_root_runtime_components": "yes"
+    },
+    {
+      "build_scripts": "yes",
+      "build_target": "yes",
+      "capability_notes": [
+        "production verified runtime connector",
+        "SPOE-sidecar integration path is documented"
+      ],
+      "connector": "haproxy",
+      "directory": "yes",
+      "example_config": "yes",
+      "full_matrix": "yes",
+      "make_targets": "yes",
+      "modsecurity_integration": "yes",
+      "readme": "yes",
+      "recommendation": "Keep in verified runtime/full-matrix maintenance.",
+      "report_integration": "yes",
+      "runtime_harness": "yes",
+      "status": "production_verified",
+      "tests": "framework_owned",
+      "verified_case": "yes",
+      "verified_root_runtime_components": "yes"
+    },
+    {
+      "build_scripts": "yes",
+      "build_target": "yes",
+      "capability_notes": [
+        "partial bridge starter only; no runtime-verified Envoy adapter",
+        "most realistic proof path is ext_proc or ext_authz sidecar before considering native/WASM work",
+        "request/response body coverage depends on Envoy buffering/streaming mode limits"
+      ],
+      "connector": "envoy",
+      "directory": "yes",
+      "example_config": "yes",
+      "full_matrix": "no",
+      "make_targets": "yes",
+      "modsecurity_integration": "starter_only",
+      "readme": "yes",
+      "recommendation": "Recommended next connector: prove ext_proc/ext_authz runtime smoke before implementation expansion.",
+      "report_integration": "roadmap_only",
+      "runtime_harness": "yes",
+      "status": "partial_skeleton",
+      "tests": "framework_owned",
+      "verified_case": "no",
+      "verified_root_runtime_components": "no"
+    },
+    {
+      "build_scripts": "yes",
+      "build_target": "yes",
+      "capability_notes": [
+        "partial bridge starter only; no native lighttpd module, FastCGI, or SCGI bridge",
+        "blocking is plausible only after a selected hook/proxy architecture is proven"
+      ],
+      "connector": "lighttpd",
+      "directory": "yes",
+      "example_config": "yes",
+      "full_matrix": "no",
+      "make_targets": "yes",
+      "modsecurity_integration": "starter_only",
+      "readme": "yes",
+      "recommendation": "Keep as scaffold until architecture and runtime harness proof exist.",
+      "report_integration": "roadmap_only",
+      "runtime_harness": "yes",
+      "status": "partial_skeleton",
+      "tests": "framework_owned",
+      "verified_case": "no",
+      "verified_root_runtime_components": "no"
+    },
+    {
+      "build_scripts": "yes",
+      "build_target": "yes",
+      "capability_notes": [
+        "partial decision-service starter only; no Go plugin/middleware or runtime harness",
+        "direct libmodsecurity embedding is not proven; reverse-proxy/decision-service harness is lower-risk"
+      ],
+      "connector": "traefik",
+      "directory": "yes",
+      "example_config": "yes",
+      "full_matrix": "no",
+      "make_targets": "yes",
+      "modsecurity_integration": "starter_only",
+      "readme": "yes",
+      "recommendation": "Keep as scaffold until architecture and runtime harness proof exist.",
+      "report_integration": "roadmap_only",
+      "runtime_harness": "yes",
+      "status": "partial_skeleton",
+      "tests": "framework_owned",
+      "verified_case": "no",
+      "verified_root_runtime_components": "no"
+    },
+    {
+      "build_scripts": "no",
+      "build_target": "no",
+      "capability_notes": [
+        "planned candidate; no repository directory yet",
+        "OpenLiteSpeed/LiteSpeed ModSecurity compatibility needs license/download/automation proof before implementation"
+      ],
+      "connector": "litespeed",
+      "directory": "no",
+      "example_config": "no",
+      "full_matrix": "no",
+      "make_targets": "no",
+      "modsecurity_integration": "no",
+      "readme": "no",
+      "recommendation": "Run OpenLiteSpeed install/licensing/CRS proof before adding connector directory.",
+      "report_integration": "roadmap_only",
+      "runtime_harness": "no",
+      "status": "planned",
+      "tests": "no",
+      "verified_case": "no",
+      "verified_root_runtime_components": "no"
+    },
+    {
+      "build_scripts": "no",
+      "build_target": "no",
+      "capability_notes": [
+        "covered_by_nginx",
+        "do not create a separate connector at this stage"
+      ],
+      "connector": "openresty",
+      "directory": "no",
+      "example_config": "no",
+      "full_matrix": "no",
+      "make_targets": "no",
+      "modsecurity_integration": "no",
+      "readme": "no",
+      "recommendation": "Cover as nginx runtime variant or compatibility smoke only.",
+      "report_integration": "roadmap_only",
+      "runtime_harness": "no",
+      "status": "covered_by_existing_connector",
+      "tests": "no",
+      "verified_case": "no",
+      "verified_root_runtime_components": "no"
+    }
+  ],
+  "full_matrix_rows_added": false,
+  "generated_at": "2026-06-19T17:36:41Z",
+  "litespeed_candidate": {
+    "candidate": "LiteSpeed / OpenLiteSpeed",
+    "key_risks": [
+      "license/download automation",
+      "edition differences",
+      "ModSecurity-engine compatibility",
+      "CI installability"
+    ],
+    "next_proof_step": "OpenLiteSpeed package/container install proof with one CRS blocking fixture and captured evidence",
+    "status": "planned"
+  },
+  "metadata": {
+    "category": "manifest",
+    "commit_policy": "versioned-generated",
+    "connector_sha": "983ce2a2918c3a3c649cd84364b6dcfdc9e53506",
+    "data_kind": "roadmap_only",
+    "data_origin": "repository",
+    "data_source_policy": "verified-inputs-only",
+    "empty_inputs": [],
+    "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
+    "framework_working_tree_dirty": "clean",
+    "generated_at": "2026-06-19T17:36:41Z",
+    "generated_by": "ci/generate-connector-roadmap.py",
+    "generated_notice": "Generated file - do not edit manually.",
+    "input_status": "complete",
+    "inputs": [
+      {
+        "notes": "input directory available",
+        "path": "connectors",
+        "source_hash": "1627bb92c5756d6f37fe7f678a30211b2ad2a694b3bf2c269f32f6d7523a44cd",
+        "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "Makefile",
+        "sha256": "22368c84b5502b69ed3ea9c6ecaac7e3f82bb6a3ea661a78c0f8bee7f6015d20",
+        "source_hash": "22368c84b5502b69ed3ea9c6ecaac7e3f82bb6a3ea661a78c0f8bee7f6015d20",
+        "status": "present"
+      },
+      {
+        "notes": "input directory available",
+        "path": "ci",
+        "source_hash": "f1e134e757036b53da0197a46cdc0db2298a63bb23af16cc1e6ea24561dcf085",
+        "status": "present"
+      },
+      {
+        "notes": "input directory available",
+        "path": "config",
+        "source_hash": "ae2f671756d889c00872b67962e0112910de7a0a00bb8cf6ebe9d490723cccbb",
+        "status": "present"
+      },
+      {
+        "notes": "input directory available",
+        "path": "docs",
+        "source_hash": "7c0eab4174dcf7c2a752a9a8481ad3bc69a6757917ff9a52b0375acff7b892ee",
+        "status": "present"
+      },
+      {
+        "notes": "input directory available",
+        "path": "reports/testing/generated",
+        "source_hash": "890788099601d1d6f311a8ae95e0f3f8d55ccfa4732eaffbb53ddd1213786a04",
+        "status": "present"
+      }
+    ],
+    "make_target": "refresh-connector-reports",
+    "missing_inputs": [],
+    "owner": "manifest",
+    "report_key": "connector_roadmap",
+    "report_scope": "roadmap_only",
+    "schema_version": 1,
+    "severity": "informational",
+    "unknown_inputs": [],
+    "verified_run_id": "2026-06-19T17-36-41Z-983ce2a2",
+    "working_tree_dirty": "dirty"
+  },
+  "openresty_decision": {
+    "decision": "covered_by_nginx",
+    "reason": "NGINX-based runtime",
+    "separate_connector": "no"
+  },
+  "recommended_next_connector": "envoy",
+  "report_scope": "roadmap_only",
+  "runtime_values_invented": false,
+  "technical_feasibility": {
+    "envoy": {
+      "blocking": "realistic for request blocking with ext_authz/ext_proc; response-body disruptive semantics require explicit filter-mode proof",
+      "integration": "realistic via ext_proc gRPC sidecar or ext_authz decision service; WASM/Lua are possible but not currently represented in the repo",
+      "limits": "body coverage is governed by Envoy buffering/streaming settings and partial-body behavior; must be evidenced per case",
+      "phases": "request headers/body and response headers/body are conceptually mappable through Envoy HTTP filters, subject to configured processing modes"
+    },
+    "lighttpd": {
+      "blocking": "realistic only after the chosen hook can stop forwarding before upstream commit",
+      "integration": "no native ModSecurity adapter is present; needs either a native module study or proxy/sidecar bridge",
+      "limits": "unknown until module/proxy architecture and buffering behavior are selected",
+      "phases": "request headers/body are more likely first; response phases need separate hook proof"
+    },
+    "litespeed": {
+      "blocking": "plausible if the server's own ModSecurity engine can be driven in CI with CRS fixtures",
+      "integration": "OpenLiteSpeed and LiteSpeed Enterprise advertise ModSecurity-compatible rule support, but this repo has no connector or harness",
+      "limits": "license, package availability, edition differences, and non-libmodsecurity engine compatibility are the main risks",
+      "phases": "must be mapped empirically from server logs/results rather than assumed equivalent to libmodsecurity v3 connectors"
+    },
+    "traefik": {
+      "blocking": "request blocking is realistic through middleware/decision service; response-body blocking is higher risk",
+      "integration": "plugin/middleware or forwardAuth-style decision service are the likely paths; direct libmodsecurity integration is not proven",
+      "limits": "depends on plugin/middleware body buffering and Yaegi/Go runtime constraints",
+      "phases": "request header/body first; response phases require Go middleware/harness evidence"
+    }
+  }
+}
