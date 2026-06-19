@@ -132,18 +132,18 @@
       }
     }
   ],
-  "generated_at": "2026-06-18T12:14:56Z",
+  "generated_at": "2026-06-18T21:50:20Z",
   "metadata": {
     "category": "cache",
     "commit_policy": "local-only",
-    "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
     "data_kind": "cache",
     "data_origin": "cache",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T12:14:56Z",
+    "generated_at": "2026-06-18T21:50:20Z",
     "generated_by": "ci/prepare-runtime-components.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -151,8 +151,8 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/component-cache/runtime-build-cache.json",
-        "sha256": "964c9388125b93f11548f80f1efc1e7d8b317131b89d14370f824b39bf0be6f9",
-        "source_hash": "964c9388125b93f11548f80f1efc1e7d8b317131b89d14370f824b39bf0be6f9",
+        "sha256": "b03335cee32cc94173603efb8e0484ffb32d81953a1b81bd55538e5430d77106",
+        "source_hash": "b03335cee32cc94173603efb8e0484ffb32d81953a1b81bd55538e5430d77106",
         "status": "present"
       }
     ],
@@ -180,7 +180,7 @@
     },
     "component": "modsecurity",
     "dependency_hash": "6520718cfc3861c8b4bd8046bfb3c50674a89f771041673ed3b132f5cbf8fea4",
-    "generated_at": "2026-06-18T12:14:55Z",
+    "generated_at": "2026-06-18T21:50:19Z",
     "include_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/include",
     "lib_dir": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib",
     "lib_file": "/var/tmp/ModSecurity-conector-verified/component-cache/prefix/modsecurity/0c409318fd2de4832f756d82abd85ef2c99e9e31d002a7bfc7d97ed83ab9bb72/lib/libmodsecurity.so",

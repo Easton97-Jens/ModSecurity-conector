@@ -11,23 +11,22 @@
     "runtime_matrix_results": "/var/tmp/ModSecurity-conector-verified/build/results"
   },
   "by_classification": {
-    "connector_capability_gap": 27,
-    "expected_status_mismatch": 31,
-    "framework_expected_behavior_gap": 1,
+    "connector_capability_gap": 15,
+    "expected_status_mismatch": 19,
     "known_not_next": 102,
     "libmodsecurity_collection_name_case_semantics": 36,
     "libmodsecurity_collection_semantics": 24,
     "libmodsecurity_transformation_semantics": 24,
+    "libmodsecurity_xml_parser_semantics": 12,
     "nolog_expected_no_audit": 6,
     "runtime_regression": 6,
-    "timeout_or_incomplete": 12,
     "unknown": 6,
-    "with_mrts_detection_only_overlay": 512
+    "with_mrts_detection_only_overlay": 524
   },
   "by_connector": {
-    "apache": 248,
-    "haproxy": 249,
-    "nginx": 290
+    "apache": 244,
+    "haproxy": 244,
+    "nginx": 286
   },
   "commands": {
     "full_matrix_classification": "completed_with_mismatches",
@@ -37,7 +36,7 @@
     "full_matrix_job_statuses": [
       {
         "connector": "apache",
-        "duration_seconds": 338,
+        "duration_seconds": 336,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -47,7 +46,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 552,
+        "duration_seconds": 551,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -57,7 +56,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 271,
+        "duration_seconds": 266,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -67,7 +66,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1291,
+        "duration_seconds": 1296,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -77,7 +76,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3208,
+        "duration_seconds": 3212,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -87,7 +86,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1049,
+        "duration_seconds": 1042,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -97,7 +96,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 365,
+        "duration_seconds": 367,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -107,7 +106,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 609,
+        "duration_seconds": 613,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -117,7 +116,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 309,
+        "duration_seconds": 301,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -127,7 +126,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1380,
+        "duration_seconds": 1388,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -137,7 +136,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3439,
+        "duration_seconds": 3437,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -147,7 +146,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1182,
+        "duration_seconds": 1183,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -244,7 +243,7 @@
       "timeout_seconds": 1800
     }
   },
-  "critical_mismatch_count": 83,
+  "critical_mismatch_count": 46,
   "data_source_policy": "verified-inputs-only",
   "evidence_scope": "full",
   "full_matrix": {
@@ -257,7 +256,7 @@
     "job_statuses": [
       {
         "connector": "apache",
-        "duration_seconds": 338,
+        "duration_seconds": 336,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -267,7 +266,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 552,
+        "duration_seconds": 551,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -277,7 +276,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 271,
+        "duration_seconds": 266,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -287,7 +286,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1291,
+        "duration_seconds": 1296,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -297,7 +296,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3208,
+        "duration_seconds": 3212,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -307,7 +306,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1049,
+        "duration_seconds": 1042,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -317,7 +316,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 365,
+        "duration_seconds": 367,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -327,7 +326,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 609,
+        "duration_seconds": 613,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -337,7 +336,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 309,
+        "duration_seconds": 301,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -347,7 +346,7 @@
       },
       {
         "connector": "apache",
-        "duration_seconds": 1380,
+        "duration_seconds": 1388,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -357,7 +356,7 @@
       },
       {
         "connector": "nginx",
-        "duration_seconds": 3439,
+        "duration_seconds": 3437,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -367,7 +366,7 @@
       },
       {
         "connector": "haproxy",
-        "duration_seconds": 1182,
+        "duration_seconds": 1183,
         "log_path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/run.log",
         "manifest_recorded": true,
         "return_code": 2,
@@ -387,97 +386,97 @@
     "status": "complete",
     "timeout": false
   },
-  "generated_at": "2026-06-18T17:47:46Z",
+  "generated_at": "2026-06-19T06:43:27Z",
   "inputs": [
     {
       "bytes": 6506,
       "label": "full matrix manifest",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-      "sha256": "05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4",
+      "sha256": "fada5d0fadca101488838264f9845932d6c5c1e889a73f7e728d5047efed2011",
       "status": "present"
     },
     {
-      "bytes": 357964,
+      "bytes": 357835,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "00f16a615027b01044651ace2785621bfe46fbcb56aefda5b509c777a6060bee",
+      "sha256": "04734a3ae2aaa47b49312b14dcc71ea6bcee783ca2c5508a41bc245761e1abf8",
       "status": "present"
     },
     {
-      "bytes": 446159,
+      "bytes": 446339,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "88934b32904dbf58aa322c6c489a411737dc0c90fce9dc2fe433716b8ac3d7a0",
+      "sha256": "4c0a7cd49fcb2998e284a41f5b980d2e18f189af6518c12ae2a229a88c55678b",
       "status": "present"
     },
     {
-      "bytes": 391912,
+      "bytes": 391765,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "ef9a0cae4f356eb87acbcd1d594da74f72ceb418d75cb5f10131bddc23ae7f03",
+      "sha256": "72b4115b0147eb477a38d2b0a23d7f735a5602bdf47ad22d9570fe75f8b92216",
       "status": "present"
     },
     {
-      "bytes": 1466811,
+      "bytes": 1466618,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "c33c6c8b8a6dd3e4ff26a5e4e45056e6b3a0cf5d01566048f5b842e95636af84",
+      "sha256": "328ab24e97e6d5891a99cda747bdcc4aeda05f1a6cf22c43af2f4c17609fcaaa",
       "status": "present"
     },
     {
-      "bytes": 1793334,
+      "bytes": 1793592,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "7f6978c3e76c7e44e6609e554d66086328ee401ada671adef1e1a32ba49e8a4b",
+      "sha256": "7fd2daa0563b88151ee1c449d3a6fd6a320f518a2ebc869ae45a9554607001a1",
       "status": "present"
     },
     {
-      "bytes": 1544034,
+      "bytes": 1543823,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "4b39d17d56c7f74c1a859c18f57e861233e46534512bb17275789d15e25bfa73",
+      "sha256": "898101ba678afb4a5e7c1b696ad52842946f96da8c6225481acb017cca1c8e09",
       "status": "present"
     },
     {
-      "bytes": 362370,
+      "bytes": 362239,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "bad577ee975476ad4e188c904bf320015a9a19546174031cd16aa45f4b50603e",
+      "sha256": "c7512b6b6c2d880983c49e45a84bcc9c5cb08af08b0dd1d1b210a998d2144ee8",
       "status": "present"
     },
     {
-      "bytes": 451649,
+      "bytes": 451790,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "18b390115059d795246975499af920dd75b5de84a8d5349a9fd21e6f9e7fc89f",
+      "sha256": "bf78cbc8302c3039960cb3c5f66ef9f6c41d1aac9632357b85708e9261ee09f2",
       "status": "present"
     },
     {
-      "bytes": 396542,
+      "bytes": 396393,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "9afa8bcb0438ac9e436c22b2c9bae5900d99371bb2784e7e6e84b5dce8ad22bd",
+      "sha256": "8d5b8c841aed71dbee678d53125c2e10e8ed132d0cc468d1e9d2f44a527ff9b3",
       "status": "present"
     },
     {
-      "bytes": 1476566,
+      "bytes": 1476371,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
-      "sha256": "9a364b71a33156bbd9fa33fdf19be58655d1842a976348a90e34da836809a6fc",
+      "sha256": "298825ae37e70ade53f725e230592159acd37a143d06249de6fba7ef82110c79",
       "status": "present"
     },
     {
-      "bytes": 1805769,
+      "bytes": 1806027,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
-      "sha256": "a6641c40989fd073c5385a8f414545b8752589d1f50897770af8450432581112",
+      "sha256": "c9e8a6c20d5e510a574f6f49f1e0c215299b8fec8264c4d3acef23d5bc982699",
       "status": "present"
     },
     {
-      "bytes": 1554025,
+      "bytes": 1553812,
       "label": "full_matrix source",
       "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-      "sha256": "26784a8ca26bfd9cc9d089218c56c315b5ffe5886db7554e0434d7aa7a4a52f3",
+      "sha256": "ebf9c0111b63f4ccb349e5c4ec1960702ec9e9c5ac53ab70153f60616341aa3d",
       "status": "present"
     },
     {
@@ -500,6 +499,13 @@
       "path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json",
       "sha256": "97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820",
       "status": "present"
+    },
+    {
+      "bytes": 14001,
+      "label": "native libmodsecurity case oracle",
+      "path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+      "sha256": "38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5",
+      "status": "present"
     }
   ],
   "merge_readiness": "FAIL",
@@ -507,14 +513,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T17:47:46Z",
+    "generated_at": "2026-06-19T06:43:27Z",
     "generated_by": "ci/generate-verified-runtime-mismatch-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -529,8 +535,8 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/full-runtime-matrix-runs.jsonl",
-        "sha256": "05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4",
-        "source_hash": "05187cad277e3352bbc54ba68260c25e3cad2001d726f43e765e00965ca324c4",
+        "sha256": "fada5d0fadca101488838264f9845932d6c5c1e889a73f7e728d5047efed2011",
+        "source_hash": "fada5d0fadca101488838264f9845932d6c5c1e889a73f7e728d5047efed2011",
         "status": "present"
       },
       {
@@ -546,6 +552,13 @@
         "sha256": "9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3",
         "source_hash": "9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3",
         "status": "present"
+      },
+      {
+        "notes": "input file available",
+        "path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "sha256": "38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5",
+        "source_hash": "38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5",
+        "status": "present"
       }
     ],
     "make_target": "generate-verified-runtime-mismatch-analysis",
@@ -558,7 +571,7 @@
     "verified_run_id": "2026-06-16T19-12-00Z-614c8049",
     "working_tree_dirty": "dirty"
   },
-  "mismatch_count": 787,
+  "mismatch_count": 774,
   "mismatches": [
     {
       "actual": "200",
@@ -1021,39 +1034,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase1",
-        "request-uri",
-        "transformations"
-      ],
-      "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-      "category": "transformations",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-      "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
-      "known_limitations": [
-        "Invalid percent-encoding handling varies and is currently unproven across connectors."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-      "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
-      "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "collections",
@@ -1255,37 +1235,6 @@
     {
       "actual": "200",
       "capabilities": [
-        "request-body"
-      ],
-      "case": "xml_namespace_edge_connector_gap",
-      "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-      "expected": "403",
-      "failure_mode": "runtime_reached_actual_mismatch",
-      "full_matrix_refresh_needed": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "runtime_evidence_state": "runtime_reached_actual_mismatch",
-      "runtime_reached": true,
-      "source": "ModSecurity-apache:tests/regression/rule/10-xml.t",
-      "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
         "intervention",
         "phase2",
         "request-body",
@@ -1293,10 +1242,49 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "n/a",
+          "result": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -1312,7 +1300,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -4898,7 +4886,7 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase1",
@@ -4907,26 +4895,33 @@
       ],
       "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
       "category": "transformations",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
       "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
+      "failure_mode": "runtime_reached_actual_mismatch",
+      "full_matrix_refresh_needed": false,
       "known_limitations": [
         "Invalid percent-encoding handling varies and is currently unproven across connectors."
       ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
+      "runtime_evidence_state": "runtime_reached_actual_mismatch",
+      "runtime_reached": true,
       "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -5579,10 +5574,17 @@
       ],
       "case": "xml_namespace_edge_connector_gap",
       "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/no-crs/with-mrts/apache/apache-runtime/xml_namespace_edge_connector_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -5599,7 +5601,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -5656,10 +5658,49 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "n/a",
+          "result": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -5675,7 +5716,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -6183,39 +6224,6 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase1",
-        "request-uri",
-        "transformations"
-      ],
-      "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-      "category": "transformations",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-      "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
-      "known_limitations": [
-        "Invalid percent-encoding handling varies and is currently unproven across connectors."
-      ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-      "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
-      "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "actions",
@@ -6474,37 +6482,6 @@
     {
       "actual": "200",
       "capabilities": [
-        "request-body"
-      ],
-      "case": "xml_namespace_edge_connector_gap",
-      "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "apache",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-      "expected": "403",
-      "failure_mode": "runtime_reached_actual_mismatch",
-      "full_matrix_refresh_needed": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "runtime_evidence_state": "runtime_reached_actual_mismatch",
-      "runtime_reached": true,
-      "source": "ModSecurity-apache:tests/regression/rule/10-xml.t",
-      "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
         "intervention",
         "phase2",
         "request-body",
@@ -6512,10 +6489,49 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "n/a",
+          "result": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -6531,7 +6547,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -10147,7 +10163,7 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase1",
@@ -10156,26 +10172,33 @@
       ],
       "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
       "category": "transformations",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
       "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
+      "failure_mode": "runtime_reached_actual_mismatch",
+      "full_matrix_refresh_needed": false,
       "known_limitations": [
         "Invalid percent-encoding handling varies and is currently unproven across connectors."
       ],
-      "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
+      "runtime_evidence_state": "runtime_reached_actual_mismatch",
+      "runtime_reached": true,
       "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -10885,10 +10908,17 @@
       ],
       "case": "xml_namespace_edge_connector_gap",
       "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "full-matrix/with-crs/with-mrts/apache/apache-runtime/xml_namespace_edge_connector_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -10905,7 +10935,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "Apache with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -10962,10 +10992,49 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "n/a",
+          "result": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "apache",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -10981,7 +11050,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/apache/results/force-all/apache-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -11522,39 +11591,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase1",
-        "request-uri",
-        "transformations"
-      ],
-      "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-      "category": "transformations",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-      "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
-      "known_limitations": [
-        "Invalid percent-encoding handling varies and is currently unproven across connectors."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
-      "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "collections",
@@ -11756,37 +11792,6 @@
     {
       "actual": "200",
       "capabilities": [
-        "request-body"
-      ],
-      "case": "xml_namespace_edge_connector_gap",
-      "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-      "expected": "403",
-      "failure_mode": "runtime_reached_actual_mismatch",
-      "full_matrix_refresh_needed": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "runtime_evidence_state": "runtime_reached_actual_mismatch",
-      "runtime_reached": true,
-      "source": "ModSecurity-apache:tests/regression/rule/10-xml.t",
-      "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
         "intervention",
         "phase2",
         "request-body",
@@ -11794,10 +11799,54 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "decision": "pass",
+          "decision_log": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/decision.jsonl",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "matched_value_snippet": "",
+          "matched_variable": "",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "true",
+          "result": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "rule_id": "0"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -11813,7 +11862,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -15896,7 +15945,7 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase1",
@@ -15905,26 +15954,40 @@
       ],
       "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
       "category": "transformations",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/v2_transformation_url_decode_invalid_sequence_mapped_candidate/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
       "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
+      "failure_mode": "runtime_reached_actual_mismatch",
+      "full_matrix_refresh_needed": false,
       "known_limitations": [
         "Invalid percent-encoding handling varies and is currently unproven across connectors."
       ],
-      "reason": "",
+      "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
+      "runtime_evidence_state": "runtime_reached_actual_mismatch",
+      "runtime_reached": true,
       "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -16647,10 +16710,24 @@
       ],
       "case": "xml_namespace_edge_connector_gap",
       "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/no-crs/with-mrts/haproxy/haproxy-runtime-cases/xml_namespace_edge_connector_gap/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -16667,7 +16744,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -16731,10 +16808,54 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "decision": "pass",
+          "decision_log": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/decision.jsonl",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "matched_value_snippet": "",
+          "matched_variable": "",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "true",
+          "result": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "rule_id": "100028"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -16750,7 +16871,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -17125,38 +17246,6 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "503",
-      "capabilities": [
-        "intervention",
-        "phase2"
-      ],
-      "case": "operator_endswith_pass_no_match_phase2",
-      "category": "operators",
-      "classification": "framework_expected_behavior_gap",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/operator_endswith_pass_no_match_phase2/result.json",
-      "expected": "200",
-      "failure_mode": "runtime_reached_actual_mismatch",
-      "full_matrix_refresh_needed": false,
-      "known_limitations": [
-        "Classification: pending-runtime-verification.",
-        "Pending cross-connector runtime verification; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 200; observed HTTP 503",
-      "requires_crs": false,
-      "runtime_evidence_state": "runtime_reached_actual_mismatch",
-      "runtime_reached": true,
-      "source": "ModSecurity_V2:tests/op/endsWith.t",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Expected behavior is still pending runtime verification.",
-      "test_expectation_wrong": true,
-      "variant": "with-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "request-body"
@@ -17300,39 +17389,6 @@
       "source_scope": "full_matrix",
       "status": "fail",
       "technical_cause": "Connector-free libmodsecurity C API oracle returns the same non-disruptive status as all Apache, NGINX, and HAProxy full-matrix variants for this transformation fixture.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase1",
-        "request-uri",
-        "transformations"
-      ],
-      "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-      "category": "transformations",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-      "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
-      "known_limitations": [
-        "Invalid percent-encoding handling varies and is currently unproven across connectors."
-      ],
-      "reason": "",
-      "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
-      "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -17595,37 +17651,6 @@
     {
       "actual": "200",
       "capabilities": [
-        "request-body"
-      ],
-      "case": "xml_namespace_edge_connector_gap",
-      "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "haproxy",
-      "document_only": false,
-      "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-      "expected": "403",
-      "failure_mode": "runtime_reached_actual_mismatch",
-      "full_matrix_refresh_needed": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "expected HTTP 403; observed HTTP 200",
-      "requires_crs": false,
-      "runtime_evidence_state": "runtime_reached_actual_mismatch",
-      "runtime_reached": true,
-      "source": "ModSecurity-apache:tests/regression/rule/10-xml.t",
-      "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
         "intervention",
         "phase2",
         "request-body",
@@ -17633,10 +17658,54 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "decision": "pass",
+          "decision_log": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/decision.jsonl",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "matched_value_snippet": "",
+          "matched_variable": "",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "true",
+          "result": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "rule_id": "920350"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -17652,7 +17721,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -21765,7 +21834,7 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase1",
@@ -21774,26 +21843,40 @@
       ],
       "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
       "category": "transformations",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/v2_transformation_url_decode_invalid_sequence_mapped_candidate/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
       "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
       "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
+      "failure_mode": "runtime_reached_actual_mismatch",
+      "full_matrix_refresh_needed": false,
       "known_limitations": [
         "Invalid percent-encoding handling varies and is currently unproven across connectors."
       ],
-      "reason": "",
+      "reason": "expected HTTP 403; observed HTTP 200",
       "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
+      "runtime_evidence_state": "runtime_reached_actual_mismatch",
+      "runtime_reached": true,
       "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -22573,10 +22656,24 @@
       ],
       "case": "xml_namespace_edge_connector_gap",
       "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "decision": "pass",
+        "decision_entries": "1",
+        "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/decision.jsonl",
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "disruptive": "false",
+        "intervention_status": "200",
+        "note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+        "phases": "2",
+        "rules_file": "full-matrix/with-crs/with-mrts/haproxy/haproxy-runtime-cases/xml_namespace_edge_connector_gap/conf/modsecurity-smoke.conf",
+        "spoa_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/spoa-agent.log",
+        "spoa_runtime_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/spoa-runtime.stderr.log"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; HAProxy/SPOA decision evidence is report-only",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -22593,7 +22690,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "HAProxy with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -22657,10 +22754,54 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "decision": "pass",
+          "decision_log": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/decision.jsonl",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "matched_value_snippet": "",
+          "matched_variable": "",
+          "modsecurity_processed": "true",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "true",
+          "result": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
+          "rule_id": "920350"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "haproxy",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -22676,7 +22817,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/haproxy/results/haproxy-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -23684,39 +23825,6 @@
       "variant": "no-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase1",
-        "request-uri",
-        "transformations"
-      ],
-      "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-      "category": "transformations",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-      "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
-      "known_limitations": [
-        "Invalid percent-encoding handling varies and is currently unproven across connectors."
-      ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-      "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
-      "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
-      "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "collections",
@@ -23918,37 +24026,6 @@
     {
       "actual": "200",
       "capabilities": [
-        "request-body"
-      ],
-      "case": "xml_namespace_edge_connector_gap",
-      "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_namespace_edge_connector_gap/result.json",
-      "expected": "403",
-      "failure_mode": "runtime_reached_actual_mismatch",
-      "full_matrix_refresh_needed": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "runtime_evidence_state": "runtime_reached_actual_mismatch",
-      "runtime_reached": true,
-      "source": "ModSecurity-apache:tests/regression/rule/10-xml.t",
-      "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
-      "test_expectation_wrong": false,
-      "variant": "no-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
         "intervention",
         "phase2",
         "request-body",
@@ -23956,10 +24033,49 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "n/a",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_request_body_malformed_connector_gap/result.json"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -23975,7 +24091,7 @@
       "source_file": "full-matrix/no-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "no-crs/no-mrts"
     },
@@ -27810,7 +27926,7 @@
       "variant": "no-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase1",
@@ -27819,26 +27935,33 @@
       ],
       "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
       "category": "transformations",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
       "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
+      "failure_mode": "runtime_reached_actual_mismatch",
+      "full_matrix_refresh_needed": false,
       "known_limitations": [
         "Invalid percent-encoding handling varies and is currently unproven across connectors."
       ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
+      "runtime_evidence_state": "runtime_reached_actual_mismatch",
+      "runtime_reached": true,
       "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -28491,10 +28614,17 @@
       ],
       "case": "xml_namespace_edge_connector_gap",
       "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_namespace_edge_connector_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/runtime/xml_namespace_edge_connector_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_namespace_edge_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -28511,7 +28641,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -28568,10 +28698,49 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "n/a",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_request_body_malformed_connector_gap/result.json"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -28587,7 +28756,7 @@
       "source_file": "full-matrix/no-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "no-crs/with-mrts"
     },
@@ -29548,39 +29717,6 @@
       "variant": "with-crs/no-mrts"
     },
     {
-      "actual": "http_status",
-      "capabilities": [
-        "intervention",
-        "phase1",
-        "request-uri",
-        "transformations"
-      ],
-      "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-      "category": "transformations",
-      "classification": "timeout_or_incomplete",
-      "code_fix_needed": false,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-      "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
-      "known_limitations": [
-        "Invalid percent-encoding handling varies and is currently unproven across connectors."
-      ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-      "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
-      "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
-      "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
       "actual": "200",
       "capabilities": [
         "actions",
@@ -29839,37 +29975,6 @@
     {
       "actual": "200",
       "capabilities": [
-        "request-body"
-      ],
-      "case": "xml_namespace_edge_connector_gap",
-      "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
-      "connector": "nginx",
-      "document_only": false,
-      "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_namespace_edge_connector_gap/result.json",
-      "expected": "403",
-      "failure_mode": "runtime_reached_actual_mismatch",
-      "full_matrix_refresh_needed": false,
-      "known_limitations": [
-        "Classification: connector-gap.",
-        "Runtime verification pending; not counted as verified PASS."
-      ],
-      "reason": "fail: expected HTTP 403, observed 200",
-      "requires_crs": false,
-      "runtime_evidence_state": "runtime_reached_actual_mismatch",
-      "runtime_reached": true,
-      "source": "ModSecurity-apache:tests/regression/rule/10-xml.t",
-      "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
-      "source_scope": "full_matrix",
-      "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
-      "test_expectation_wrong": false,
-      "variant": "with-crs/no-mrts"
-    },
-    {
-      "actual": "200",
-      "capabilities": [
         "intervention",
         "phase2",
         "request-body",
@@ -29877,10 +29982,49 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "n/a",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_request_body_malformed_connector_gap/result.json"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -29896,7 +30040,7 @@
       "source_file": "full-matrix/with-crs/no-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "with-crs/no-mrts"
     },
@@ -33761,7 +33905,7 @@
       "variant": "with-crs/with-mrts"
     },
     {
-      "actual": "http_status",
+      "actual": "200",
       "capabilities": [
         "intervention",
         "phase1",
@@ -33770,26 +33914,33 @@
       ],
       "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
       "category": "transformations",
-      "classification": "timeout_or_incomplete",
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
       "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
       "expected": "403",
-      "failure_mode": "fixture_syntax_error",
-      "full_matrix_refresh_needed": true,
+      "failure_mode": "runtime_reached_actual_mismatch",
+      "full_matrix_refresh_needed": false,
       "known_limitations": [
         "Invalid percent-encoding handling varies and is currently unproven across connectors."
       ],
-      "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
+      "reason": "fail: expected HTTP 403, observed 200",
       "requires_crs": false,
-      "runtime_evidence_state": "not_reached_not_executable",
-      "runtime_reached": false,
+      "runtime_evidence_state": "runtime_reached_actual_mismatch",
+      "runtime_reached": true,
       "source": "ModSecurity_V2:tests/tfn/urlDecode.t",
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
-      "status": "not_executable",
-      "technical_cause": "Case did not execute to a comparable live result.",
+      "status": "fail",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -34499,10 +34650,17 @@
       ],
       "case": "xml_namespace_edge_connector_gap",
       "category": "body-processors",
-      "classification": "connector_capability_gap",
-      "code_fix_needed": true,
+      "classification": "with_mrts_detection_only_overlay",
+      "classification_evidence": {
+        "detection_only_rule": "mrts/upstream-config-tests/rules/MRTS_001_INIT.conf",
+        "error_log": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_namespace_edge_connector_gap/error.log",
+        "note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+        "rules_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/runtime/xml_namespace_edge_connector_gap/conf/modsecurity-smoke.conf"
+      },
+      "classification_note": "MRTS DetectionOnly overlay; disruptive smoke rule match is report-only",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_namespace_edge_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -34519,7 +34677,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Case is already marked as a connector capability gap.",
+      "technical_cause": "NGINX with-MRTS loaded an MRTS rule that sets ctl:ruleEngine=DetectionOnly; the runtime log shows the smoke rule matched, but disruptive actions are non-blocking in this overlay.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -34576,10 +34734,49 @@
       ],
       "case": "xml_request_body_malformed_connector_gap",
       "category": "body-processors",
-      "classification": "expected_status_mismatch",
-      "code_fix_needed": true,
+      "classification": "libmodsecurity_xml_parser_semantics",
+      "classification_evidence": {
+        "connector_comparison": {
+          "connector_actual": "200",
+          "meaning": "same_as_native",
+          "native_actual": "200",
+          "same": true
+        },
+        "debug_log": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/logs/debug.log",
+        "expected": "403",
+        "input_hash": "aef9bf7cef950c3e3049e2cd1f1a67b7e6ff18a37c1be3863cf43392e61ca919",
+        "libmodsecurity": "ModSecurity v3.0.15 (Linux)",
+        "native_actual": "200",
+        "native_case_path": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "native_case_run": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json",
+        "native_result_path": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-result.json",
+        "native_run_dir": "/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap",
+        "note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+        "parser_debug_markers": [
+          "XML: Initialising parser.",
+          "XML: Parsing complete (well_formed 0).",
+          "XML: Failed to parse document.",
+          "(Rule: 4408) Executing operator",
+          "Rule returned 0."
+        ],
+        "request_sha256": "01647c40660fe214e43303c1ef8aea0c3379cea6e6151c6992542204f13b8350",
+        "row_evidence": {
+          "actual": "200",
+          "expected": "403",
+          "full_matrix_refresh_needed": "false",
+          "live_executed": "true",
+          "modsecurity_processed": "n/a",
+          "observed_transport_result": "http_status",
+          "request_body_seen": "n/a",
+          "result": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_request_body_malformed_connector_gap/result.json"
+        },
+        "rules_sha256": "3921034ae1299b9c7ab8fc9d946631aa873c41d127eefc98339e70b54b045960",
+        "xml_processor_control_present": true
+      },
+      "classification_note": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
+      "code_fix_needed": false,
       "connector": "nginx",
-      "document_only": false,
+      "document_only": true,
       "evidence_file": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_request_body_malformed_connector_gap/result.json",
       "expected": "403",
       "failure_mode": "runtime_reached_actual_mismatch",
@@ -34595,7 +34792,7 @@
       "source_file": "full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
       "source_scope": "full_matrix",
       "status": "fail",
-      "technical_cause": "Observed HTTP status differs from expected status.",
+      "technical_cause": "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the fixture rule targets the XML collection and no XML collection rule match or parser-error intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity.",
       "test_expectation_wrong": false,
       "variant": "with-crs/with-mrts"
     },
@@ -34707,10 +34904,6 @@
       "count": 12
     },
     {
-      "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-      "count": 12
-    },
-    {
       "case": "v3_request_cookies_names_case_runtime_difference",
       "count": 12
     },
@@ -34720,10 +34913,6 @@
     },
     {
       "case": "xml_deep_nesting_future_target",
-      "count": 12
-    },
-    {
-      "case": "xml_namespace_edge_connector_gap",
       "count": 12
     },
     {
@@ -34876,6 +35065,14 @@
     },
     {
       "case": "multipart_empty_filename_connector_gap",
+      "count": 6
+    },
+    {
+      "case": "multipart_encoded_filename_runtime_difference",
+      "count": 6
+    },
+    {
+      "case": "multipart_filename_block",
       "count": 6
     }
   ],

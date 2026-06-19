@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T17:48:28Z`
+> Generated at: `2026-06-19T06:44:21Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-no-mrts-intervention-nomatch-analysis.py`
 > Make target: `generate-no-mrts-intervention-nomatch-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
+> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
 > Input status: `complete`
 
 # No-MRTS Intervention No-Match Analysis
 
-- Generated at: `2026-06-18T17:48:28Z`
+- Generated at: `2026-06-19T06:44:21Z`
 - no-MRTS expected `403` / actual `200` rows with loaded rule and no match: **34**
 - Unique cases: **9**
 - Rule not loaded: **0**
@@ -121,8 +121,8 @@
 | no-MRTS no-match | 34 | 34 |
 | intervention_blocking true candidates | 34 | 4 |
 | P0/P1 intervention_blocking rows | 34 | 4 |
-| full-matrix pass | 3141 | 3141 |
-| full-matrix fail | 775 | 775 |
+| full-matrix pass | 3154 | 3154 |
+| full-matrix fail | 774 | 774 |
 | full-matrix blocked |  |  |
 
 ## Representative Records
@@ -164,11 +164,11 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `73d795ebf64608c9a3db9d38e2559410ddb07a45c807a42979ced4f1d9ff3fc2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/focused-analysis/intervention-blocking-analysis.generated.json` | `ba3c88e495c93ac7a05a48a1726a7ec7f73ecda79f22ce7fdff2af83a87b7d35` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

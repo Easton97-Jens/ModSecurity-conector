@@ -1,48 +1,48 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T17:48:27Z`
+> Generated at: `2026-06-19T06:44:20Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-intervention-blocking-analysis.py`
 > Make target: `generate-intervention-blocking-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
+> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
 > Input status: `complete`
 
 # Intervention Blocking Analysis
 
-- Generated at: `2026-06-18T17:48:27Z`
-- Expected `403` / actual `200` rows under review: **559**.
+- Generated at: `2026-06-19T06:44:20Z`
+- Expected `403` / actual `200` rows under review: **565**.
 - Intervention-blocking true candidates: **6** runtime-fixable rows.
 - Remaining P0/P1 intervention-blocking rows: **6**.
-- DetectionOnly overlay non-disruptive rows: **508** report-only rows.
+- DetectionOnly overlay non-disruptive rows: **514** report-only rows.
 - no-MRTS semantic no-match rows: **45** metadata-only rows.
-- Rule in generated loadfile: **370**
+- Rule in generated loadfile: **374**
 - Strict rule-load errors: **0**
-- Rule matched: **191**
+- Rule matched: **196**
 - Disruptive intervention evidence: **0**
 - Connector lost intervention evidence: **0**
 - Connector returned 403 from that evidence: **0**
-- Backend/client 200 reached: **559**
+- Backend/client 200 reached: **565**
 
 ## Key Split
 
-- with-MRTS DetectionOnly overlay rows: **508**
-- with-MRTS rows with logged target-rule match suppressed by that overlay: **191**
+- with-MRTS DetectionOnly overlay rows: **514**
+- with-MRTS rows with logged target-rule match suppressed by that overlay: **196**
 - no-MRTS rows with loaded rule but no match evidence: **51**
 
 ## A-H Groups
 
 | group | label | count | connectors | variants | suspected cause | fixability | risk |
 | --- | --- | ---: | --- | --- | --- | --- | --- |
-| A | Rule not loaded | 189 | nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | Rule-load evidence is missing or startup logs show a strict rule-load error. | fixable if generated loadfile path is wrong | low to medium |
+| A | Rule not loaded | 191 | nginx | no-crs/no-mrts, no-crs/with-mrts, with-crs/no-mrts, with-crs/with-mrts | Rule-load evidence is missing or startup logs show a strict rule-load error. | fixable if generated loadfile path is wrong | low to medium |
 | B | Rule loaded, no match | 34 | apache, haproxy | no-crs/no-mrts, with-crs/no-mrts | The rule is present and no strict load error is visible, but no target rule hit appears in logs or HAProxy decisions. | not a safe intervention fix; requires semantic/native comparison | medium to high |
 | C | Rule matched, no intervention created | 0 | - | - | - | - | - |
 | D | Intervention created, connector did not set 403 | 0 | - | - | - | - | - |
 | E | Intervention created, runner/evidence missed it | 0 | - | - | - | - | - |
-| F | Expected block, but effective runtime is non-disruptive | 336 | apache, haproxy | no-crs/with-mrts, with-crs/with-mrts | with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay. | classification/report-only unless the MRTS overlay policy changes | low for report-only, high if expectations are changed |
+| F | Expected block, but effective runtime is non-disruptive | 340 | apache, haproxy | no-crs/with-mrts, with-crs/with-mrts | with-MRTS loads MRTS INIT, which sets ctl:ruleEngine=DetectionOnly; disruptive actions are intentionally non-blocking in this overlay. | classification/report-only unless the MRTS overlay policy changes | low for report-only, high if expectations are changed |
 | G | CRS changed behavior | 0 | - | - | - | - | - |
 | H | Connector-specific blocking gap | 0 | - | - | - | - | - |
 
@@ -111,11 +111,11 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/full-runtime-matrix.generated.json` | `fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

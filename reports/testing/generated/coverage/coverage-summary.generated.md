@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:37:01Z`
+> Generated at: `2026-06-18T18:06:02Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
+> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
 > Input status: `complete`
 
 # Generated Coverage Summary
@@ -43,15 +43,17 @@
 - `REQUEST_HEADERS_NAMES`: 5
 - `ARGS:a`: 4
 - `REQUEST_COOKIES_NAMES`: 4
-- `XML`: 4
 - `ARGS:param1`: 4
 - `MULTIPART_FILENAME`: 4
 - `ARGS`: 4
 - `RESPONSE_HEADERS:Set-Cookie`: 4
 - `ARGS:probe`: 4
+- `XML`: 3
 - `ARGS:chain_a`: 3
 - `ARGS:chain_b`: 3
 - `FILES_NAMES`: 2
+- `REQUEST_HEADERS:Content-Type`: 2
+- `XML:/*`: 2
 - `TX:SCORE`: 2
 - `REQUEST_COOKIES:USER_TOKEN`: 2
 - `RESPONSE_HEADERS:Location`: 2
@@ -64,7 +66,6 @@
 - `ARGS:name`: 1
 - `FILES_COMBINED_SIZE`: 1
 - `FILES:filedata1`: 1
-- `XML:/*`: 1
 - `REQUEST_HEADERS:X-Missing`: 1
 - `REQUEST_HEADERS:X-Phase`: 1
 - `ARGS_COMBINED_SIZE`: 1
@@ -79,7 +80,7 @@
 - `RESPONSE_HEADERS:Server`: 1
 
 ## By phase
-- phase 1: 36
+- phase 1: 38
 - phase 2: 74
 - phase 3: 12
 - phase 4: 20

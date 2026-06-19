@@ -7,7 +7,7 @@
         "haproxy",
         "nginx"
       ],
-      "count": 513,
+      "count": 519,
       "fixable": "classification-only; with-MRTS DetectionOnly overlay makes disruptive request-side rules non-blocking",
       "recommended_next_step": "keep with-MRTS request-side DetectionOnly rows report-only; continue intervention analysis on no-MRTS no-match cases",
       "risk": "low; report-only and not a connector blocking bug",
@@ -406,7 +406,7 @@
         "haproxy",
         "nginx"
       ],
-      "count": 24,
+      "count": 18,
       "fixable": "classification-only; XML body exists but the fixture does not enable the XML request body processor",
       "recommended_next_step": "keep XML processor activation-missing rows report-only; do not change rules or Expected statuses",
       "risk": "low if kept report-only; high if treated as connector runtime evidence",
@@ -457,7 +457,7 @@
         },
         {
           "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
+          "case_id": "xml_request_body_malformed_connector_gap",
           "classification": "xml_processor_activation_missing",
           "connector": "apache",
           "expected_status": 403,
@@ -467,11 +467,11 @@
           "method": "POST",
           "path": "/",
           "pending_or_non_promoted": false,
-          "phase": "2",
+          "phase": "1",
           "query": "-",
-          "rule_id": "4711",
+          "rule_id": "44080",
           "runtime_verified": "false",
-          "variable": "XML",
+          "variable": "REQUEST_HEADERS:Content-Type",
           "variant": "no-crs/no-mrts",
           "work_direction": [
             "classification_only"
@@ -724,40 +724,6 @@
       ]
     },
     {
-      "category": "unknown_requires_review",
-      "connectors": [
-        "haproxy"
-      ],
-      "count": 1,
-      "fixable": "unknown; review required",
-      "recommended_next_step": "manual review",
-      "risk": "unknown",
-      "typical_examples": [
-        {
-          "actual_status": 503,
-          "case_id": "operator_endswith_pass_no_match_phase2",
-          "classification": "runtime-difference",
-          "connector": "haproxy",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_200_got_503"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "q=abcdef",
-          "rule_id": "4503",
-          "runtime_verified": "false",
-          "variable": "ARGS:q",
-          "variant": "with-crs/no-mrts",
-          "work_direction": [
-            "operator_semantics"
-          ]
-        }
-      ]
-    },
-    {
       "category": "audit_log_evidence",
       "connectors": [],
       "count": 0,
@@ -911,6 +877,15 @@
       "typical_examples": []
     },
     {
+      "category": "unknown_requires_review",
+      "connectors": [],
+      "count": 0,
+      "fixable": "unknown; review required",
+      "recommended_next_step": "manual review",
+      "risk": "unknown",
+      "typical_examples": []
+    },
+    {
       "category": "xml_processor",
       "connectors": [],
       "count": 0,
@@ -920,99 +895,99 @@
       "typical_examples": []
     }
   ],
-  "generated_at": "2026-06-18T17:48:09Z",
+  "generated_at": "2026-06-19T06:43:50Z",
   "metadata": {
     "category": "canonical",
     "commit_policy": "versioned-generated",
-    "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
     "data_kind": "focused-analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T17:48:09Z",
+    "generated_at": "2026-06-19T06:43:50Z",
     "generated_by": "ci/generate-remaining-failure-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2",
-        "source_hash": "890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2",
+        "sha256": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
+        "source_hash": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d",
-        "source_hash": "c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d",
+        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975",
-        "source_hash": "a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975",
+        "sha256": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
+        "source_hash": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-run-evidence.generated.json",
-        "sha256": "755c309851358ba542c968738f1aa22892b600fab94b6c7f44ef1181b4021f5a",
-        "source_hash": "755c309851358ba542c968738f1aa22892b600fab94b6c7f44ef1181b4021f5a",
+        "sha256": "3955e19d67942c04ee251ff389d5481f6896e9ad564c49927f67a9f8fd65c55e",
+        "source_hash": "3955e19d67942c04ee251ff389d5481f6896e9ad564c49927f67a9f8fd65c55e",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/cache/runtime-build-cache.generated.json",
-        "sha256": "940591881d51212ec497a44480db3a4afa312e9f07dbeac2513fafd31865422b",
-        "source_hash": "940591881d51212ec497a44480db3a4afa312e9f07dbeac2513fafd31865422b",
+        "sha256": "828bef8d3b3e7007337b6960c235f38f2499f19502bd145aba6bba8c5f7dcc89",
+        "source_hash": "828bef8d3b3e7007337b6960c235f38f2499f19502bd145aba6bba8c5f7dcc89",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-summary.generated.json",
-        "sha256": "48f9f3e71041a9a865f438af408bf5196f56184aa0d07f60bab5e7b5c1e42a87",
-        "source_hash": "48f9f3e71041a9a865f438af408bf5196f56184aa0d07f60bab5e7b5c1e42a87",
+        "sha256": "8c51a5df1cf88c5ec3f9476ef02fa02740e5bf5bf598214a5adc76ad80cb90ea",
+        "source_hash": "8c51a5df1cf88c5ec3f9476ef02fa02740e5bf5bf598214a5adc76ad80cb90ea",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-apache.generated.json",
-        "sha256": "03bb0aefae70d11b6fdf0c7bdbf372bdfce9285c160a675deadc08ff526a01d3",
-        "source_hash": "03bb0aefae70d11b6fdf0c7bdbf372bdfce9285c160a675deadc08ff526a01d3",
+        "sha256": "6f80c01c4e5af53144685e17d1cb95a4416862f6a2a04b2b79cb5d87b08bdc48",
+        "source_hash": "6f80c01c4e5af53144685e17d1cb95a4416862f6a2a04b2b79cb5d87b08bdc48",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.json",
-        "sha256": "425f99fe2b96bf291a2c688f8dd34a4eb756f8c496aecb909b8ce996f616f5a8",
-        "source_hash": "425f99fe2b96bf291a2c688f8dd34a4eb756f8c496aecb909b8ce996f616f5a8",
+        "sha256": "6da3160351259ac1f864890e3666c2f2f7acd4c8eebd06e1a3df5d0b85f67550",
+        "source_hash": "6da3160351259ac1f864890e3666c2f2f7acd4c8eebd06e1a3df5d0b85f67550",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -1129,19 +1104,7 @@
         "why": "largest semantic cluster; likely needs native/libmodsecurity comparison before any fix"
       }
     ],
-    "P4": [
-      {
-        "cluster_name": "rule_chain_semantics and small single-connector leftovers",
-        "connector": "mostly nginx for connector-only leftovers",
-        "count": 1,
-        "likely_change": "focused per-case triage only when runtime-fixable evidence remains",
-        "risk": "low to medium",
-        "tests": [
-          "targeted single-case smokes"
-        ],
-        "why": "small connector-only leftovers after report-only and not-next groups are excluded"
-      }
-    ]
+    "P4": []
   },
   "recommendation": {
     "not_next": [
@@ -1215,24 +1178,24 @@
   },
   "report_kind": "remaining-full-matrix-failure-analysis",
   "source_reports": {
-    "connector_work_queue": "2026-06-18T17:47:51Z",
-    "full_run_evidence": "2026-06-18T17:30:53Z",
-    "full_runtime_matrix": "2026-06-18T17:47:40Z",
-    "mrts_native_apache": "2026-06-18T17:47:53Z",
-    "mrts_native_nginx": "2026-06-18T17:47:53Z",
-    "mrts_native_summary": "2026-06-18T17:47:53Z",
-    "nginx_mrts_http500_cluster_analysis": "2026-06-18T17:47:47Z",
-    "phase_work_queue": "2026-06-18T17:47:58Z",
-    "runtime_build_cache": "2026-06-18T12:14:56Z"
+    "connector_work_queue": "2026-06-19T06:43:31Z",
+    "full_run_evidence": "2026-06-19T06:42:17Z",
+    "full_runtime_matrix": "2026-06-19T06:43:20Z",
+    "mrts_native_apache": "2026-06-19T06:43:33Z",
+    "mrts_native_nginx": "2026-06-19T06:43:33Z",
+    "mrts_native_summary": "2026-06-19T06:43:33Z",
+    "nginx_mrts_http500_cluster_analysis": "2026-06-19T06:43:27Z",
+    "phase_work_queue": "2026-06-19T06:43:39Z",
+    "runtime_build_cache": "2026-06-18T21:50:20Z"
   },
   "summary": {
     "attempted": 3928,
     "blocked": 0,
-    "fail": 775,
+    "fail": 774,
     "mrt_imported_failures": 0,
-    "non_mrts_framework_failures": 775,
-    "not_executable": 12,
-    "pass": 3141,
+    "non_mrts_framework_failures": 774,
+    "not_executable": 0,
+    "pass": 3154,
     "pending": 2298,
     "unique_failure_cases": 118
   },
@@ -1336,7 +1299,7 @@
           "apache"
         ],
         "corpus": "none",
-        "count": 22,
+        "count": 20,
         "examples": [
           {
             "actual_status": 200,
@@ -1509,6 +1472,51 @@
         ]
       },
       {
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "apache / with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
+        "connectors": [
+          "apache"
+        ],
+        "corpus": "none",
+        "count": 14,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "edge_plus_vs_space_runtime_difference",
+            "classification": "with_mrts_detection_only_non_disruptive",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "q=plus+space",
+            "rule_id": "4515",
+            "runtime_verified": "false",
+            "variable": "REQUEST_URI",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "classification_only"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "transformations",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "classification_only"
+        ]
+      },
+      {
         "category": "phase4_missing_abort_evidence",
         "classification": "response-body-non-promoted",
         "cluster_name": "apache / phase4_missing_abort_evidence / response-body / phase:4 / 403\u2192200",
@@ -1633,51 +1641,6 @@
         ],
         "phase": "1",
         "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/with-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "classification_only"
-        ]
-      },
-      {
-        "category": "with_mrts_detection_only_non_disruptive",
-        "classification": "with_mrts_detection_only_non_disruptive",
-        "cluster_name": "apache / with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
-        "connectors": [
-          "apache"
-        ],
-        "corpus": "none",
-        "count": 12,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "edge_plus_vs_space_runtime_difference",
-            "classification": "with_mrts_detection_only_non_disruptive",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
-            "runtime_verified": "false",
-            "variable": "REQUEST_URI",
-            "variant": "no-crs/with-mrts",
-            "work_direction": [
-              "classification_only"
-            ]
-          }
-        ],
-        "phase": "1",
-        "source_category": "transformations",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -1947,42 +1910,6 @@
         "variants": [
           "no-crs/with-mrts",
           "with-crs/with-mrts"
-        ]
-      },
-      {
-        "case_id": "operator_endswith_pass_no_match_phase2",
-        "category": "unknown_requires_review",
-        "connectors": [
-          "haproxy"
-        ],
-        "count": 1,
-        "example": {
-          "actual_status": 503,
-          "case_id": "operator_endswith_pass_no_match_phase2",
-          "classification": "runtime-difference",
-          "connector": "haproxy",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_200_got_503"
-          ],
-          "method": "GET",
-          "path": "/",
-          "pending_or_non_promoted": false,
-          "phase": "2",
-          "query": "q=abcdef",
-          "rule_id": "4503",
-          "runtime_verified": "false",
-          "variable": "ARGS:q",
-          "variant": "with-crs/no-mrts",
-          "work_direction": [
-            "operator_semantics"
-          ]
-        },
-        "status_pairs": {
-          "200\u2192503": 1
-        },
-        "variants": [
-          "with-crs/no-mrts"
         ]
       }
     ],
@@ -2497,7 +2424,7 @@
           "haproxy"
         ],
         "corpus": "none",
-        "count": 22,
+        "count": 20,
         "examples": [
           {
             "actual_status": 200,
@@ -2717,6 +2644,51 @@
       {
         "category": "with_mrts_detection_only_non_disruptive",
         "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "haproxy / with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
+        "connectors": [
+          "haproxy"
+        ],
+        "corpus": "none",
+        "count": 14,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "edge_plus_vs_space_runtime_difference",
+            "classification": "with_mrts_detection_only_non_disruptive",
+            "connector": "haproxy",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "q=plus+space",
+            "rule_id": "4515",
+            "runtime_verified": "false",
+            "variable": "REQUEST_URI",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "classification_only"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "transformations",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "classification_only"
+        ]
+      },
+      {
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
         "cluster_name": "haproxy / with_mrts_detection_only_non_disruptive / operators / phase:2 / 403\u2192200",
         "connectors": [
           "haproxy"
@@ -2794,51 +2766,6 @@
         ],
         "phase": "1",
         "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/with-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "classification_only"
-        ]
-      },
-      {
-        "category": "with_mrts_detection_only_non_disruptive",
-        "classification": "with_mrts_detection_only_non_disruptive",
-        "cluster_name": "haproxy / with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
-        "connectors": [
-          "haproxy"
-        ],
-        "corpus": "none",
-        "count": 12,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "edge_plus_vs_space_runtime_difference",
-            "classification": "with_mrts_detection_only_non_disruptive",
-            "connector": "haproxy",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
-            "runtime_verified": "false",
-            "variable": "REQUEST_URI",
-            "variant": "no-crs/with-mrts",
-            "work_direction": [
-              "classification_only"
-            ]
-          }
-        ],
-        "phase": "1",
-        "source_category": "transformations",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -2955,7 +2882,7 @@
           "nginx"
         ],
         "corpus": "none",
-        "count": 66,
+        "count": 60,
         "examples": [
           {
             "actual_status": 200,
@@ -3184,6 +3111,53 @@
       {
         "category": "with_mrts_detection_only_non_disruptive",
         "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 42,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "edge_plus_vs_space_runtime_difference",
+            "classification": "with_mrts_detection_only_non_disruptive",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "q=plus+space",
+            "rule_id": "4515",
+            "runtime_verified": "false",
+            "variable": "REQUEST_URI",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "classification_only"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "transformations",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "classification_only"
+        ]
+      },
+      {
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
         "cluster_name": "with_mrts_detection_only_non_disruptive / operators / phase:2 / 403\u2192200",
         "connectors": [
           "apache",
@@ -3265,53 +3239,6 @@
         ],
         "phase": "1",
         "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/with-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "classification_only"
-        ]
-      },
-      {
-        "category": "with_mrts_detection_only_non_disruptive",
-        "classification": "with_mrts_detection_only_non_disruptive",
-        "cluster_name": "with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 36,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "edge_plus_vs_space_runtime_difference",
-            "classification": "with_mrts_detection_only_non_disruptive",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
-            "runtime_verified": "false",
-            "variable": "REQUEST_URI",
-            "variant": "no-crs/with-mrts",
-            "work_direction": [
-              "classification_only"
-            ]
-          }
-        ],
-        "phase": "1",
-        "source_category": "transformations",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -3463,51 +3390,6 @@
         ]
       },
       {
-        "category": "with_mrts_detection_only_non_disruptive",
-        "classification": "with_mrts_detection_only_non_disruptive",
-        "cluster_name": "nginx / with_mrts_detection_only_non_disruptive / body-processors / phase:2 / 403\u2192200",
-        "connectors": [
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 22,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "json_duplicate_keys_runtime_difference",
-            "classification": "with_mrts_detection_only_non_disruptive",
-            "connector": "nginx",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "-",
-            "path": "-",
-            "pending_or_non_promoted": false,
-            "phase": "2",
-            "query": "-",
-            "rule_id": "-",
-            "runtime_verified": "false",
-            "variable": "-",
-            "variant": "no-crs/with-mrts",
-            "work_direction": [
-              "classification_only"
-            ]
-          }
-        ],
-        "phase": "2",
-        "source_category": "body-processors",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/with-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "classification_only"
-        ]
-      },
-      {
         "category": "phase4_missing_abort_evidence",
         "classification": "response-body-non-promoted",
         "cluster_name": "nginx / phase4_missing_abort_evidence / audit-log / phase:4 / 403\u2192200",
@@ -3552,6 +3434,51 @@
         ],
         "work_direction": [
           "response_body_non_promoted"
+        ]
+      },
+      {
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "nginx / with_mrts_detection_only_non_disruptive / body-processors / phase:2 / 403\u2192200",
+        "connectors": [
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 20,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "json_duplicate_keys_runtime_difference",
+            "classification": "with_mrts_detection_only_non_disruptive",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "-",
+            "path": "-",
+            "pending_or_non_promoted": false,
+            "phase": "2",
+            "query": "-",
+            "rule_id": "-",
+            "runtime_verified": "false",
+            "variable": "-",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "classification_only"
+            ]
+          }
+        ],
+        "phase": "2",
+        "source_category": "body-processors",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "classification_only"
         ]
       },
       {
@@ -3692,6 +3619,51 @@
       {
         "category": "with_mrts_detection_only_non_disruptive",
         "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "nginx / with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
+        "connectors": [
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 14,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "edge_plus_vs_space_runtime_difference",
+            "classification": "with_mrts_detection_only_non_disruptive",
+            "connector": "nginx",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "-",
+            "path": "-",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "-",
+            "rule_id": "-",
+            "runtime_verified": "false",
+            "variable": "-",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "classification_only"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "transformations",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "classification_only"
+        ]
+      },
+      {
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
         "cluster_name": "nginx / with_mrts_detection_only_non_disruptive / operators / phase:2 / 403\u2192200",
         "connectors": [
           "nginx"
@@ -3724,51 +3696,6 @@
         ],
         "phase": "2",
         "source_category": "operators",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/with-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "classification_only"
-        ]
-      },
-      {
-        "category": "with_mrts_detection_only_non_disruptive",
-        "classification": "with_mrts_detection_only_non_disruptive",
-        "cluster_name": "nginx / with_mrts_detection_only_non_disruptive / audit-log / phase:1 / 403\u2192200",
-        "connectors": [
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 12,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "audit_log_empty_sections_future_target",
-            "classification": "with_mrts_detection_only_non_disruptive",
-            "connector": "nginx",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "-",
-            "path": "-",
-            "pending_or_non_promoted": false,
-            "phase": "1",
-            "query": "-",
-            "rule_id": "-",
-            "runtime_verified": "false",
-            "variable": "-",
-            "variant": "no-crs/with-mrts",
-            "work_direction": [
-              "classification_only"
-            ]
-          }
-        ],
-        "phase": "1",
-        "source_category": "audit-log",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -3885,7 +3812,7 @@
           "nginx"
         ],
         "corpus": "none",
-        "count": 66,
+        "count": 60,
         "examples": [
           {
             "actual_status": 200,
@@ -4114,6 +4041,53 @@
       {
         "category": "with_mrts_detection_only_non_disruptive",
         "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 42,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "edge_plus_vs_space_runtime_difference",
+            "classification": "with_mrts_detection_only_non_disruptive",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "q=plus+space",
+            "rule_id": "4515",
+            "runtime_verified": "false",
+            "variable": "REQUEST_URI",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "classification_only"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "transformations",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "classification_only"
+        ]
+      },
+      {
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
         "cluster_name": "with_mrts_detection_only_non_disruptive / operators / phase:2 / 403\u2192200",
         "connectors": [
           "apache",
@@ -4195,53 +4169,6 @@
         ],
         "phase": "1",
         "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/with-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "classification_only"
-        ]
-      },
-      {
-        "category": "with_mrts_detection_only_non_disruptive",
-        "classification": "with_mrts_detection_only_non_disruptive",
-        "cluster_name": "with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 36,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "edge_plus_vs_space_runtime_difference",
-            "classification": "with_mrts_detection_only_non_disruptive",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
-            "runtime_verified": "false",
-            "variable": "REQUEST_URI",
-            "variant": "no-crs/with-mrts",
-            "work_direction": [
-              "classification_only"
-            ]
-          }
-        ],
-        "phase": "1",
-        "source_category": "transformations",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [
@@ -4358,7 +4285,7 @@
           "nginx"
         ],
         "corpus": "none",
-        "count": 66,
+        "count": 60,
         "examples": [
           {
             "actual_status": 200,
@@ -4587,6 +4514,53 @@
       {
         "category": "with_mrts_detection_only_non_disruptive",
         "classification": "with_mrts_detection_only_non_disruptive",
+        "cluster_name": "with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
+        "connectors": [
+          "apache",
+          "haproxy",
+          "nginx"
+        ],
+        "corpus": "none",
+        "count": 42,
+        "examples": [
+          {
+            "actual_status": 200,
+            "case_id": "edge_plus_vs_space_runtime_difference",
+            "classification": "with_mrts_detection_only_non_disruptive",
+            "connector": "apache",
+            "expected_status": 403,
+            "failure_pattern": [
+              "expected_block_got_200"
+            ],
+            "method": "GET",
+            "path": "/",
+            "pending_or_non_promoted": false,
+            "phase": "1",
+            "query": "q=plus+space",
+            "rule_id": "4515",
+            "runtime_verified": "false",
+            "variable": "REQUEST_URI",
+            "variant": "no-crs/with-mrts",
+            "work_direction": [
+              "classification_only"
+            ]
+          }
+        ],
+        "phase": "1",
+        "source_category": "transformations",
+        "source_kind": "framework-owned",
+        "status_pair": "403\u2192200",
+        "variants": [
+          "no-crs/with-mrts",
+          "with-crs/with-mrts"
+        ],
+        "work_direction": [
+          "classification_only"
+        ]
+      },
+      {
+        "category": "with_mrts_detection_only_non_disruptive",
+        "classification": "with_mrts_detection_only_non_disruptive",
         "cluster_name": "with_mrts_detection_only_non_disruptive / operators / phase:2 / 403\u2192200",
         "connectors": [
           "apache",
@@ -4668,53 +4642,6 @@
         ],
         "phase": "1",
         "source_category": "audit-log",
-        "source_kind": "framework-owned",
-        "status_pair": "403\u2192200",
-        "variants": [
-          "no-crs/with-mrts",
-          "with-crs/with-mrts"
-        ],
-        "work_direction": [
-          "classification_only"
-        ]
-      },
-      {
-        "category": "with_mrts_detection_only_non_disruptive",
-        "classification": "with_mrts_detection_only_non_disruptive",
-        "cluster_name": "with_mrts_detection_only_non_disruptive / transformations / phase:1 / 403\u2192200",
-        "connectors": [
-          "apache",
-          "haproxy",
-          "nginx"
-        ],
-        "corpus": "none",
-        "count": 36,
-        "examples": [
-          {
-            "actual_status": 200,
-            "case_id": "edge_plus_vs_space_runtime_difference",
-            "classification": "with_mrts_detection_only_non_disruptive",
-            "connector": "apache",
-            "expected_status": 403,
-            "failure_pattern": [
-              "expected_block_got_200"
-            ],
-            "method": "GET",
-            "path": "/",
-            "pending_or_non_promoted": false,
-            "phase": "1",
-            "query": "q=plus+space",
-            "rule_id": "4515",
-            "runtime_verified": "false",
-            "variable": "REQUEST_URI",
-            "variant": "no-crs/with-mrts",
-            "work_direction": [
-              "classification_only"
-            ]
-          }
-        ],
-        "phase": "1",
-        "source_category": "transformations",
         "source_kind": "framework-owned",
         "status_pair": "403\u2192200",
         "variants": [

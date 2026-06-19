@@ -380,7 +380,9 @@ def run_native_case(
         "connector_comparison": comparison["rows"],
         "classification_hint": comparison["classification_hint"],
         "decision": comparison["decision"],
-        "full_matrix_refresh_needed": False,
+        "full_matrix_refresh_needed": any(
+            bool(row.get("full_matrix_refresh_needed")) for row in comparison["rows"]
+        ),
     }
     write_json(run_dir / "native-case-run.json", report)
     (run_dir / "native-case-run.md").write_text(render_case_markdown(report), encoding="utf-8")
@@ -522,6 +524,9 @@ def refresh_official_context(connector_root: Path, reports: list[dict[str, Any]]
         item["connector_comparison"] = comparison["rows"]
         item["classification_hint"] = comparison["classification_hint"]
         item["decision"] = comparison["decision"]
+        item["full_matrix_refresh_needed"] = any(
+            bool(row.get("full_matrix_refresh_needed")) for row in comparison["rows"]
+        )
         refreshed.append(item)
     return refreshed
 
@@ -603,6 +608,7 @@ def render_case_markdown(report: dict[str, Any]) -> str:
                     ["Rule ID", ", ".join(report.get("log_evidence", {}).get("rule_ids", [])) or "-"],
                     ["Matched Data", ", ".join(report.get("log_evidence", {}).get("matched_data", [])) or "-"],
                     ["Classification Hint", report.get("classification_hint", "-")],
+                    ["Full-Matrix Refresh Needed", "yes" if report.get("full_matrix_refresh_needed") else "no"],
                 ],
             ),
             "## Connector Comparison",
@@ -655,6 +661,7 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
                 "yes" if item.get("native_match") else "no",
                 item.get("decision", "-"),
                 item.get("classification_hint", "-"),
+                "yes" if item.get("full_matrix_refresh_needed") else "no",
             ]
         )
     reclassified = payload.get("reclassified", [])
@@ -688,7 +695,15 @@ def render_summary_markdown(payload: dict[str, Any]) -> str:
             ),
             "## Native Comparisons",
             md_table(
-                ["Case", "Native Actual", "Connector Actuals", "Native Match", "Decision", "Classification Hint"],
+                [
+                    "Case",
+                    "Native Actual",
+                    "Connector Actuals",
+                    "Native Match",
+                    "Decision",
+                    "Classification Hint",
+                    "Full-Matrix Refresh Needed",
+                ],
                 comparison_rows,
             ),
             "## Reclassified",
@@ -747,7 +762,7 @@ def write_summary_report(
         "cases": reports,
         "reclassified": reclassified_rows(reports),
         "fixed": [],
-        "full_matrix_refresh_needed": False,
+        "full_matrix_refresh_needed": any(bool(item.get("full_matrix_refresh_needed")) for item in reports),
     }
     metadata = build_metadata(
         generated_by=GENERATED_REPORTS["native_semantics_comparison"].generator,

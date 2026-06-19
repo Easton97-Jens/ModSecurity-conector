@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T17:47:38Z`
+> Generated at: `2026-06-18T18:06:02Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
+> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -52,9 +52,9 @@
 | multipart_files_value_block | `tests/cases/body/multipart/multipart_files_value_block.yaml` | common | 2 | FILES:filedata1 | @contains | - | imported | - | active | - | unknown | no | - |
 | multipart_invalid_boundary_future_target | `tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml` | common | 2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
 | xml_deep_nesting_future_target | `tests/cases/body/xml/xml_deep_nesting_future_target.yaml` | common | 2 | XML | @contains | - | imported | - | active | - | unknown | no | - |
-| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | common | 2 | XML | @contains | - | imported | - | active | - | unknown | no | - |
+| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | common | 1,2 | REQUEST_HEADERS:Content-Type, XML:/* | @contains, @rx | lowercase, none | imported | - | active | - | unknown | no | - |
 | xml_request_body_block | `tests/cases/body/xml/xml_request_body_block.yaml` | common | 1,2 | XML:/* | @contains | lowercase, none | imported | - | active | - | unknown | no | - |
-| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | common | 2 | XML | @contains | - | imported | - | active | - | unknown | no | - |
+| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | common | 1,2 | REQUEST_HEADERS:Content-Type, XML | @contains, @rx | lowercase, none | imported | - | active | - | unknown | no | - |
 | nginx_phase4_content_type_out_of_scope | `tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | nginx_phase4_minimal_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | nginx_phase4_safe_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |

@@ -61,7 +61,7 @@
       }
     ]
   },
-  "generated_at": "2026-06-18T17:48:37Z",
+  "generated_at": "2026-06-19T06:44:32Z",
   "groups": [
     {
       "body_kind": "multipart",
@@ -154,55 +154,55 @@
   "metadata": {
     "category": "focused-analysis",
     "commit_policy": "versioned-generated",
-    "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
     "data_kind": "focused-analysis",
     "data_origin": "connector",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T17:48:37Z",
+    "generated_at": "2026-06-19T06:44:32Z",
     "generated_by": "ci/generate-body-processor-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d",
-        "source_hash": "c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d",
+        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/remaining-failure-analysis.generated.json",
-        "sha256": "41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0",
-        "source_hash": "41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0",
+        "sha256": "40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80",
+        "source_hash": "40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/phase-work-queue.generated.json",
-        "sha256": "a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975",
-        "source_hash": "a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975",
+        "sha256": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
+        "source_hash": "d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/next-fix-plan.generated.json",
-        "sha256": "23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8",
-        "source_hash": "23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8",
+        "sha256": "f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a",
+        "source_hash": "f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -1226,10 +1226,10 @@
     },
     "backend_reached": 15,
     "before_metadata_fix": {
-      "combined": 31,
+      "combined": 27,
       "multipart_files": 6,
       "request_body_processor": 9,
-      "xml_processor": 16
+      "xml_processor": 12
     },
     "collection_evidence": 0,
     "multipart_activation_missing_subcluster_count": 0,
@@ -1240,7 +1240,7 @@
     "selected_subcluster_count": 9,
     "urlencoded_form_active_after_report_sync": 0,
     "urlencoded_form_subcluster_count": 12,
-    "xml_activation_missing_subcluster_count": 16,
+    "xml_activation_missing_subcluster_count": 12,
     "xml_processor_active_after_report_sync": 0
   },
   "urlencoded_form_subcluster": {
@@ -1881,37 +1881,34 @@
   },
   "xml_activation_missing_subcluster": {
     "active_xml_processor_after_report_sync": 0,
-    "active_xml_processor_before_report_sync": 16,
-    "backend_reached_count": 16,
+    "active_xml_processor_before_report_sync": 12,
+    "backend_reached_count": 12,
     "body_hashes": {
       "0c13b76b5721981c5ae77b5629399200d777a7e3b54e6c6d1dbbd43b0d5b75d6": 4,
-      "7eebe35c1d4703c2ed4df34cea9d4149c8aa61bbc104d7c2db81978128ae96e4": 4,
       "9aab1567b5d32b5a5a60ad9f5f6f8f8cf485dbf9aa938905e71a0e88b009f011": 4,
       "a1cbdf58569b7f77dd47ef83641e48fe830098618b019034b88563050b12eb06": 4
     },
     "body_lengths": {
       "21": 4,
       "50": 4,
-      "53": 4,
       "9": 4
     },
-    "body_sent_count": 16,
+    "body_sent_count": 12,
     "case_ids": {
       "parser_xml_partial_body_future_target": 4,
       "xml_deep_nesting_future_target": 4,
-      "xml_namespace_edge_connector_gap": 4,
       "xml_request_body_malformed_connector_gap": 4
     },
     "classification": "xml_processor_activation_missing",
     "connectors": {
-      "apache": 8,
-      "haproxy": 8
+      "apache": 6,
+      "haproxy": 6
     },
-    "content_type_correct_count": 16,
+    "content_type_correct_count": 12,
     "content_types": {
-      "application/xml": 16
+      "application/xml": 12
     },
-    "count": 16,
+    "count": 12,
     "examples": [
       {
         "actions": [
@@ -2045,71 +2042,6 @@
       },
       {
         "actions": [
-          "id:4711",
-          "phase:2",
-          "deny",
-          "status:403",
-          "msg:'xml namespace edge gap'"
-        ],
-        "actual_status": 200,
-        "backend_reached": true,
-        "body_kind": "xml",
-        "body_length": 53,
-        "body_preview": "<ns:root xmlns:ns=\"urn:test\"><ns:a>1</ns:a></ns:root>",
-        "body_sha256": "7eebe35c1d4703c2ed4df34cea9d4149c8aa61bbc104d7c2db81978128ae96e4",
-        "case_id": "xml_namespace_edge_connector_gap",
-        "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
-        "classification": "xml_processor_activation_missing",
-        "collection_evidence": "no",
-        "connector": "apache",
-        "content_type": "application/xml",
-        "expected_status": 403,
-        "failure_category": "xml_processor_activation_missing",
-        "failure_pattern": [
-          "expected_block_got_200"
-        ],
-        "functional_area": [
-          "action_intervention",
-          "request_body_urlencoded",
-          "request_body_xml"
-        ],
-        "known_limitations": [
-          "Classification: connector-gap.",
-          "Runtime verification pending; not counted as verified PASS."
-        ],
-        "method": "POST",
-        "mrts_variant": "no-mrts",
-        "multipart_boundary": "-",
-        "multipart_boundary_status": "not_applicable",
-        "multipart_field_names": [],
-        "multipart_filenames": [],
-        "multipart_parser": "unknown",
-        "multipart_part_count": 0,
-        "operator": "@contains ns:root",
-        "parse_error": false,
-        "path": "/",
-        "phase": "2",
-        "priority": "report_only",
-        "query": "-",
-        "queue_category": "body-processors",
-        "request_body_access": "unknown",
-        "request_body_seen": "unknown",
-        "rule_id": "4711",
-        "rule_in_loadfile": true,
-        "rule_matched": false,
-        "source_corpus": "none",
-        "source_kind": "framework-owned",
-        "target": "XML",
-        "test_variant": "no-crs",
-        "transformations": [],
-        "variant": "no-crs/no-mrts",
-        "work_direction": [
-          "classification_only"
-        ],
-        "xml_processor": "unknown"
-      },
-      {
-        "actions": [
           "id:4408",
           "phase:2",
           "deny",
@@ -2136,7 +2068,8 @@
         "functional_area": [
           "action_intervention",
           "request_body_urlencoded",
-          "request_body_xml"
+          "request_body_xml",
+          "request_headers"
         ],
         "known_limitations": [
           "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
@@ -2156,7 +2089,7 @@
         "priority": "report_only",
         "query": "-",
         "queue_category": "body-processors",
-        "request_body_access": "unknown",
+        "request_body_access": "yes",
         "request_body_seen": "unknown",
         "rule_id": "4408",
         "rule_in_loadfile": true,
@@ -2170,7 +2103,7 @@
         "work_direction": [
           "classification_only"
         ],
-        "xml_processor": "unknown"
+        "xml_processor": "yes"
       },
       {
         "actions": [
@@ -2304,71 +2237,6 @@
       },
       {
         "actions": [
-          "id:4711",
-          "phase:2",
-          "deny",
-          "status:403",
-          "msg:'xml namespace edge gap'"
-        ],
-        "actual_status": 200,
-        "backend_reached": true,
-        "body_kind": "xml",
-        "body_length": 53,
-        "body_preview": "<ns:root xmlns:ns=\"urn:test\"><ns:a>1</ns:a></ns:root>",
-        "body_sha256": "7eebe35c1d4703c2ed4df34cea9d4149c8aa61bbc104d7c2db81978128ae96e4",
-        "case_id": "xml_namespace_edge_connector_gap",
-        "case_path": "framework:tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
-        "classification": "xml_processor_activation_missing",
-        "collection_evidence": "no",
-        "connector": "haproxy",
-        "content_type": "application/xml",
-        "expected_status": 403,
-        "failure_category": "xml_processor_activation_missing",
-        "failure_pattern": [
-          "expected_block_got_200"
-        ],
-        "functional_area": [
-          "action_intervention",
-          "request_body_urlencoded",
-          "request_body_xml"
-        ],
-        "known_limitations": [
-          "Classification: connector-gap.",
-          "Runtime verification pending; not counted as verified PASS."
-        ],
-        "method": "POST",
-        "mrts_variant": "no-mrts",
-        "multipart_boundary": "-",
-        "multipart_boundary_status": "not_applicable",
-        "multipart_field_names": [],
-        "multipart_filenames": [],
-        "multipart_parser": "unknown",
-        "multipart_part_count": 0,
-        "operator": "@contains ns:root",
-        "parse_error": true,
-        "path": "/",
-        "phase": "2",
-        "priority": "report_only",
-        "query": "-",
-        "queue_category": "body-processors",
-        "request_body_access": "unknown",
-        "request_body_seen": "yes",
-        "rule_id": "4711",
-        "rule_in_loadfile": true,
-        "rule_matched": false,
-        "source_corpus": "none",
-        "source_kind": "framework-owned",
-        "target": "XML",
-        "test_variant": "no-crs",
-        "transformations": [],
-        "variant": "no-crs/no-mrts",
-        "work_direction": [
-          "classification_only"
-        ],
-        "xml_processor": "unknown"
-      },
-      {
-        "actions": [
           "id:4408",
           "phase:2",
           "deny",
@@ -2395,7 +2263,8 @@
         "functional_area": [
           "action_intervention",
           "request_body_urlencoded",
-          "request_body_xml"
+          "request_body_xml",
+          "request_headers"
         ],
         "known_limitations": [
           "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
@@ -2415,7 +2284,7 @@
         "priority": "report_only",
         "query": "-",
         "queue_category": "body-processors",
-        "request_body_access": "unknown",
+        "request_body_access": "yes",
         "request_body_seen": "yes",
         "rule_id": "4408",
         "rule_in_loadfile": true,
@@ -2429,7 +2298,7 @@
         "work_direction": [
           "classification_only"
         ],
-        "xml_processor": "unknown"
+        "xml_processor": "yes"
       },
       {
         "actions": [
@@ -2495,40 +2364,168 @@
           "classification_only"
         ],
         "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4712",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'deep xml future target'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "xml",
+        "body_length": 50,
+        "body_preview": "<a><b><c><d><deepnode>v</deepnode></d></c></b></a>",
+        "body_sha256": "9aab1567b5d32b5a5a60ad9f5f6f8f8cf485dbf9aa938905e71a0e88b009f011",
+        "case_id": "xml_deep_nesting_future_target",
+        "case_path": "framework:tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
+        "classification": "xml_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "apache",
+        "content_type": "application/xml",
+        "expected_status": 403,
+        "failure_category": "xml_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "request_body_urlencoded",
+          "request_body_xml"
+        ],
+        "known_limitations": [
+          "Classification: future-compatibility.",
+          "Runtime verification pending; not counted as verified PASS."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
+        "operator": "@contains deepnode",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "body-processors",
+        "request_body_access": "unknown",
+        "request_body_seen": "unknown",
+        "rule_id": "4712",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "XML",
+        "test_variant": "with-crs",
+        "transformations": [],
+        "variant": "with-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "unknown"
+      },
+      {
+        "actions": [
+          "id:4408",
+          "phase:2",
+          "deny",
+          "status:403",
+          "msg:'former XFAIL malformed XML connector gap'"
+        ],
+        "actual_status": 200,
+        "backend_reached": true,
+        "body_kind": "xml",
+        "body_length": 21,
+        "body_preview": "<root><broken></root>",
+        "body_sha256": "0c13b76b5721981c5ae77b5629399200d777a7e3b54e6c6d1dbbd43b0d5b75d6",
+        "case_id": "xml_request_body_malformed_connector_gap",
+        "case_path": "framework:tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+        "classification": "xml_processor_activation_missing",
+        "collection_evidence": "no",
+        "connector": "apache",
+        "content_type": "application/xml",
+        "expected_status": 403,
+        "failure_category": "xml_processor_activation_missing",
+        "failure_pattern": [
+          "expected_block_got_200"
+        ],
+        "functional_area": [
+          "action_intervention",
+          "request_body_urlencoded",
+          "request_body_xml",
+          "request_headers"
+        ],
+        "known_limitations": [
+          "Malformed XML parser/error behavior is not yet normalized in shared connector smoke."
+        ],
+        "method": "POST",
+        "mrts_variant": "no-mrts",
+        "multipart_boundary": "-",
+        "multipart_boundary_status": "not_applicable",
+        "multipart_field_names": [],
+        "multipart_filenames": [],
+        "multipart_parser": "unknown",
+        "multipart_part_count": 0,
+        "operator": "@contains broken",
+        "parse_error": false,
+        "path": "/",
+        "phase": "2",
+        "priority": "report_only",
+        "query": "-",
+        "queue_category": "body-processors",
+        "request_body_access": "yes",
+        "request_body_seen": "unknown",
+        "rule_id": "4408",
+        "rule_in_loadfile": true,
+        "rule_matched": false,
+        "source_corpus": "none",
+        "source_kind": "framework-owned",
+        "target": "XML",
+        "test_variant": "with-crs",
+        "transformations": [],
+        "variant": "with-crs/no-mrts",
+        "work_direction": [
+          "classification_only"
+        ],
+        "xml_processor": "yes"
       }
     ],
     "fix": "metadata/report-only; no XML body, rule, Expected status, connector-core behavior, or PASS/FAIL value changed",
     "operators": {
       "@contains broken": 4,
       "@contains deepnode": 4,
-      "@contains ns:root": 4,
       "@contains root": 4
     },
     "priority": "report_only",
-    "request_body_access_on_count": 0,
+    "request_body_access_on_count": 4,
     "request_body_seen": {
-      "unknown": 8,
-      "yes": 8
+      "unknown": 6,
+      "yes": 6
     },
     "risk": "low when kept report-only; high if treated as a connector XML parser failure without processor activation",
     "root_cause": "The XML bodies and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML, so XML collection population is not expected evidence.",
     "rule_ids": {
       "4408": 4,
       "4610": 4,
-      "4711": 4,
       "4712": 4
     },
-    "rule_loaded_count": 16,
+    "rule_loaded_count": 12,
     "rule_matched_count": 0,
     "targets": {
-      "XML": 16
+      "XML": 12
     },
     "variants": {
-      "no-crs/no-mrts": 8,
-      "with-crs/no-mrts": 8
+      "no-crs/no-mrts": 6,
+      "with-crs/no-mrts": 6
     },
     "work_direction": "classification_only",
     "xml_collection_evidence_count": 0,
-    "xml_processor_active_count": 0
+    "xml_processor_active_count": 4
   }
 }

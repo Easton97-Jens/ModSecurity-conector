@@ -26,22 +26,22 @@ Generated file - do not edit manually.
 | `REQUEST_HEADERS_NAMES` | 5 |
 | `ARGS:a` | 4 |
 | `REQUEST_COOKIES_NAMES` | 4 |
-| `XML` | 4 |
 | `ARGS:param1` | 4 |
 | `MULTIPART_FILENAME` | 4 |
 | `ARGS` | 4 |
 | `RESPONSE_HEADERS:Set-Cookie` | 4 |
 | `ARGS:probe` | 4 |
+| `XML` | 3 |
 | `ARGS:chain_a` | 3 |
 | `ARGS:chain_b` | 3 |
 | `FILES_NAMES` | 2 |
-| `TX:SCORE` | 2 |
-| `REQUEST_COOKIES:USER_TOKEN` | 2 |
+| `REQUEST_HEADERS:Content-Type` | 2 |
+| `XML:/*` | 2 |
 
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
-| 1 | 36 |
+| 1 | 38 |
 | 2 | 74 |
 | 3 | 12 |
 | 4 | 20 |

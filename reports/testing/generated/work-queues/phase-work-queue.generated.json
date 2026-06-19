@@ -7,34 +7,31 @@
         "1": {
           "queued_entries": 67,
           "runtime_status": {
-            "FAIL": 63,
-            "NOT_EXECUTABLE": 4,
-            "PASS": 207
+            "FAIL": 67,
+            "PASS": 211
           },
           "top_problems": {
-            "expected_block_got_200": 61,
-            "expected_pass_but_evidence_missing": 2,
-            "not_executable": 4
+            "expected_block_got_200": 65,
+            "expected_pass_but_evidence_missing": 2
           },
           "top_work_directions": {
-            "classification_only": 54,
+            "classification_only": 58,
             "collection_semantics": 6,
             "request_body_processor": 1,
-            "request_uri_mapping": 4,
             "transformation_semantics": 2
           }
         },
         "2": {
-          "queued_entries": 133,
+          "queued_entries": 129,
           "runtime_status": {
-            "FAIL": 133,
+            "FAIL": 129,
             "PASS": 357
           },
           "top_problems": {
-            "expected_block_got_200": 133
+            "expected_block_got_200": 129
           },
           "top_work_directions": {
-            "classification_only": 125,
+            "classification_only": 121,
             "collection_semantics": 4,
             "multipart_files": 2,
             "transformation_semantics": 2
@@ -69,8 +66,7 @@
       },
       "runtime_status": {
         "FAIL": 244,
-        "NOT_EXECUTABLE": 4,
-        "PASS": 1052
+        "PASS": 1056
       },
       "top_3_next_work": [
         "response_body_non_promoted",
@@ -79,15 +75,13 @@
       ],
       "top_failure_patterns": {
         "expected_block_got_200": 242,
-        "expected_pass_but_evidence_missing": 2,
-        "not_executable": 4
+        "expected_pass_but_evidence_missing": 2
       },
       "top_work_directions": {
         "classification_only": 179,
         "collection_semantics": 10,
         "multipart_files": 2,
         "request_body_processor": 1,
-        "request_uri_mapping": 4,
         "response_body_non_promoted": 284,
         "response_header_mrts_detection_only": 20,
         "transformation_semantics": 4
@@ -99,38 +93,33 @@
         "1": {
           "queued_entries": 67,
           "runtime_status": {
-            "FAIL": 63,
-            "NOT_EXECUTABLE": 4,
-            "PASS": 207
+            "FAIL": 67,
+            "PASS": 211
           },
           "top_problems": {
-            "expected_block_got_200": 61,
-            "expected_pass_but_evidence_missing": 2,
-            "not_executable": 4
+            "expected_block_got_200": 65,
+            "expected_pass_but_evidence_missing": 2
           },
           "top_work_directions": {
-            "classification_only": 54,
+            "classification_only": 58,
             "collection_semantics": 6,
             "request_body_processor": 1,
-            "request_uri_mapping": 4,
             "transformation_semantics": 2
           }
         },
         "2": {
-          "queued_entries": 134,
+          "queued_entries": 129,
           "runtime_status": {
-            "FAIL": 134,
-            "PASS": 356
+            "FAIL": 129,
+            "PASS": 357
           },
           "top_problems": {
-            "expected_200_got_503": 1,
-            "expected_block_got_200": 133
+            "expected_block_got_200": 129
           },
           "top_work_directions": {
-            "classification_only": 125,
+            "classification_only": 121,
             "collection_semantics": 4,
             "multipart_files": 2,
-            "operator_semantics": 1,
             "transformation_semantics": 2
           }
         },
@@ -162,9 +151,8 @@
         }
       },
       "runtime_status": {
-        "FAIL": 245,
-        "NOT_EXECUTABLE": 4,
-        "PASS": 1051
+        "FAIL": 244,
+        "PASS": 1056
       },
       "top_3_next_work": [
         "Fix 501 connector gaps around Body/XML/Multipart/SPOA.",
@@ -172,18 +160,14 @@
         "Then close 403->200 intervention_blocking gaps."
       ],
       "top_failure_patterns": {
-        "expected_200_got_503": 1,
         "expected_block_got_200": 242,
-        "expected_pass_but_evidence_missing": 2,
-        "not_executable": 4
+        "expected_pass_but_evidence_missing": 2
       },
       "top_work_directions": {
         "classification_only": 179,
         "collection_semantics": 10,
         "multipart_files": 2,
-        "operator_semantics": 1,
         "request_body_processor": 1,
-        "request_uri_mapping": 4,
         "response_body_non_promoted": 284,
         "response_header_mrts_detection_only": 20,
         "transformation_semantics": 4
@@ -195,34 +179,31 @@
         "1": {
           "queued_entries": 69,
           "runtime_status": {
-            "FAIL": 65,
-            "NOT_EXECUTABLE": 4,
-            "PASS": 209
+            "FAIL": 69,
+            "PASS": 213
           },
           "top_problems": {
-            "expected_block_got_200": 63,
-            "expected_pass_but_evidence_missing": 2,
-            "not_executable": 4
+            "expected_block_got_200": 67,
+            "expected_pass_but_evidence_missing": 2
           },
           "top_work_directions": {
-            "classification_only": 56,
+            "classification_only": 60,
             "collection_semantics": 6,
             "request_body_processor": 1,
-            "request_uri_mapping": 4,
             "transformation_semantics": 2
           }
         },
         "2": {
-          "queued_entries": 137,
+          "queued_entries": 133,
           "runtime_status": {
-            "FAIL": 137,
+            "FAIL": 133,
             "PASS": 361
           },
           "top_problems": {
-            "expected_block_got_200": 137
+            "expected_block_got_200": 133
           },
           "top_work_directions": {
-            "classification_only": 129,
+            "classification_only": 125,
             "collection_semantics": 4,
             "multipart_files": 2,
             "transformation_semantics": 2
@@ -258,8 +239,7 @@
       },
       "runtime_status": {
         "FAIL": 286,
-        "NOT_EXECUTABLE": 4,
-        "PASS": 1038
+        "PASS": 1042
       },
       "top_3_next_work": [
         "Fix request_routing / method-location handling for 404/405 clusters.",
@@ -268,15 +248,13 @@
       ],
       "top_failure_patterns": {
         "expected_block_got_200": 278,
-        "expected_pass_but_evidence_missing": 8,
-        "not_executable": 4
+        "expected_pass_but_evidence_missing": 8
       },
       "top_work_directions": {
         "classification_only": 185,
         "collection_semantics": 10,
         "multipart_files": 2,
         "request_body_processor": 1,
-        "request_uri_mapping": 4,
         "response_body_non_promoted": 300,
         "response_header_mrts_detection_only": 20,
         "transformation_semantics": 4
@@ -284,7 +262,7 @@
     }
   },
   "framework_root": "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework",
-  "generated_at": "2026-06-18T17:47:58Z",
+  "generated_at": "2026-06-19T06:43:39Z",
   "guardrails": {
     "classification_is_explanatory_only": true,
     "feature_demo_runtime_cases": 0,
@@ -303,45 +281,45 @@
   "metadata": {
     "category": "work-queues",
     "commit_policy": "versioned-generated",
-    "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
     "data_kind": "work-queue",
     "data_origin": "framework",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T17:47:58Z",
+    "generated_at": "2026-06-19T06:43:39Z",
     "generated_by": "framework:ci/generate-phase-work-queue.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
     "inputs": [
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/work-queues/connector-work-queue.generated.json",
-        "sha256": "c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d",
-        "source_hash": "c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d",
+        "sha256": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
+        "source_hash": "e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/coverage/phase-coverage.generated.md",
-        "sha256": "af2f261979262ecd57d0aa89cdf95a0b74058f5b7ac08c703f4f1d92cdf64483",
-        "source_hash": "af2f261979262ecd57d0aa89cdf95a0b74058f5b7ac08c703f4f1d92cdf64483",
+        "sha256": "1ece47889904965f7cff2af0be36c362cb45f09a41b69eb5979d052665ac935a",
+        "source_hash": "1ece47889904965f7cff2af0be36c362cb45f09a41b69eb5979d052665ac935a",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/canonical/full-runtime-matrix.generated.json",
-        "sha256": "890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2",
-        "source_hash": "890da243b91305746a7f8658e29fd2e9f814b10a001885be834c69bed542dba2",
+        "sha256": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
+        "source_hash": "fdaa878e3a9e246ae057fe7b46c2208f20c4aa87cc7fbf1e679467bfcfe69d25",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       }
@@ -446,16 +424,15 @@
       "classification": {
         "collection_name_normalization_semantics": 18,
         "nolog-expected-no-audit": 6,
-        "pending": 12,
         "phase1_request_body_unavailable": 3,
         "transformation_request_literal_no_match": 6,
-        "with_mrts_detection_only_non_disruptive": 158
+        "with_mrts_detection_only_non_disruptive": 170
       },
       "coverage": {
-        "case_count": 36,
+        "case_count": 38,
         "status_distribution": {
           "active": 2,
-          "imported": 34
+          "imported": 36
         },
         "top_variables": {
           "ARGS:a": 4,
@@ -475,8 +452,8 @@
       "focus": "action/intervention, request headers, request URI, cookies, and early blocking",
       "goal": "Stabilize Phase 1 first because it avoids body and multipart complexity.",
       "priority": {
-        "P3": 39,
-        "report_only": 164
+        "P3": 27,
+        "report_only": 176
       },
       "queue": [
         {
@@ -640,138 +617,6 @@
           ],
           "work_direction": [
             "transformation_semantics"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "not_executable: Apache rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
           ]
         },
         {
@@ -1070,138 +915,6 @@
           ]
         },
         {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
           "actual_status": 200,
           "case_id": "v3_request_cookies_names_case_runtime_difference",
           "category": "collections",
@@ -1494,138 +1207,6 @@
           ],
           "work_direction": [
             "transformation_semantics"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
-          ]
-        },
-        {
-          "actual_status": null,
-          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "category": "transformations",
-          "classification": "pending",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "not_executable"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_uri",
-            "transformations"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "1",
-          "priority": "P3",
-          "reason": "not_executable: NGINX rejected generated ModSecurity rules; see /var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/configtest.log",
-          "runtime_status": "NOT_EXECUTABLE",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_URI",
-            "TRANSFORMATIONS"
-          ],
-          "work_direction": [
-            "request_uri_mapping"
           ]
         },
         {
@@ -2930,6 +2511,72 @@
         },
         {
           "actual_status": 200,
+          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+          "category": "transformations",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "apache",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_uri",
+            "transformations"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_URI",
+            "TRANSFORMATIONS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+          "category": "transformations",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "apache",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_uri",
+            "transformations"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_URI",
+            "TRANSFORMATIONS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
           "classification": "nolog-expected-no-audit",
@@ -3513,6 +3160,72 @@
             "INTERVENTION",
             "REQUEST_HEADERS",
             "REQUEST_HEADERS_NAMES"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "xml_namespace_edge_connector_gap",
+          "category": "body-processors",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "apache",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_body_urlencoded",
+            "request_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_BODY",
+            "REQUEST_HEADERS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "xml_namespace_edge_connector_gap",
+          "category": "body-processors",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "apache",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_body_urlencoded",
+            "request_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_BODY",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -4688,6 +4401,72 @@
         },
         {
           "actual_status": 200,
+          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+          "category": "transformations",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "haproxy",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_uri",
+            "transformations"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "expected HTTP 403; observed HTTP 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_URI",
+            "TRANSFORMATIONS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+          "category": "transformations",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "haproxy",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_uri",
+            "transformations"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "expected HTTP 403; observed HTTP 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_URI",
+            "TRANSFORMATIONS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
           "classification": "nolog-expected-no-audit",
@@ -5271,6 +5050,72 @@
             "INTERVENTION",
             "REQUEST_HEADERS",
             "REQUEST_HEADERS_NAMES"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "xml_namespace_edge_connector_gap",
+          "category": "body-processors",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "haproxy",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_body_urlencoded",
+            "request_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "expected HTTP 403; observed HTTP 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_BODY",
+            "REQUEST_HEADERS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "xml_namespace_edge_connector_gap",
+          "category": "body-processors",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "haproxy",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_body_urlencoded",
+            "request_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "expected HTTP 403; observed HTTP 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_BODY",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -6508,6 +6353,72 @@
         },
         {
           "actual_status": 200,
+          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+          "category": "transformations",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "nginx",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_uri",
+            "transformations"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_URI",
+            "TRANSFORMATIONS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+          "category": "transformations",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "nginx",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_uri",
+            "transformations"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_URI",
+            "TRANSFORMATIONS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
           "case_id": "v3_action_nolog_pass_no_audit",
           "category": "actions",
           "classification": "nolog-expected-no-audit",
@@ -7095,36 +7006,99 @@
           "work_direction": [
             "classification_only"
           ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "xml_namespace_edge_connector_gap",
+          "category": "body-processors",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "nginx",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_namespace_edge_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_body_urlencoded",
+            "request_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "no-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_BODY",
+            "REQUEST_HEADERS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
+        },
+        {
+          "actual_status": 200,
+          "case_id": "xml_namespace_edge_connector_gap",
+          "category": "body-processors",
+          "classification": "with_mrts_detection_only_non_disruptive",
+          "connector": "nginx",
+          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_namespace_edge_connector_gap/result.json",
+          "expected_status": 403,
+          "failure_pattern": [
+            "expected_block_got_200"
+          ],
+          "functional_area": [
+            "action_intervention",
+            "request_body_urlencoded",
+            "request_headers"
+          ],
+          "mrts_corpus": "none",
+          "mrts_variant": "with-mrts",
+          "phase": "1",
+          "priority": "report_only",
+          "reason": "fail: expected HTTP 403, observed 200",
+          "runtime_status": "FAIL",
+          "source_kind": "framework-owned",
+          "test_variant": "with-crs",
+          "variable_or_collection": [
+            "INTERVENTION",
+            "REQUEST_BODY",
+            "REQUEST_HEADERS"
+          ],
+          "work_direction": [
+            "classification_only"
+          ]
         }
       ],
-      "runtime_entries": 826,
+      "runtime_entries": 838,
       "runtime_status": {
-        "FAIL": 191,
-        "NOT_EXECUTABLE": 12,
-        "PASS": 623
+        "FAIL": 203,
+        "PASS": 635
       },
       "title": "Phase 1 Work Queue",
       "top_failure_patterns": {
-        "expected_block_got_200": 185,
-        "expected_pass_but_evidence_missing": 6,
-        "not_executable": 12
+        "expected_block_got_200": 197,
+        "expected_pass_but_evidence_missing": 6
       },
       "top_work_directions": {
-        "classification_only": 164,
+        "classification_only": 176,
         "collection_semantics": 18,
         "request_body_processor": 3,
-        "request_uri_mapping": 12,
         "transformation_semantics": 6
       },
-      "unique_runtime_cases": 104
+      "unique_runtime_cases": 105
     },
     "2": {
       "classification": {
         "collection_name_normalization_semantics": 12,
-        "runtime-difference": 7,
+        "runtime-difference": 6,
         "transformation_request_literal_no_match": 6,
-        "with_mrts_detection_only_non_disruptive": 355,
-        "xml_processor_activation_missing": 24
+        "with_mrts_detection_only_non_disruptive": 349,
+        "xml_processor_activation_missing": 18
       },
       "coverage": {
         "case_count": 74,
@@ -7136,8 +7110,8 @@
           "ARGS:q": 18,
           "ARGS:test": 6,
           "ARGS_NAMES": 6,
-          "REQUEST_BODY": 9,
-          "XML": 4
+          "MULTIPART_FILENAME": 4,
+          "REQUEST_BODY": 9
         }
       },
       "directions": [
@@ -7154,9 +7128,8 @@
       "goal": "Treat Phase 2 as the largest coverage lever, but split body/XML/multipart work into separate clusters.",
       "priority": {
         "P0": 6,
-        "P2": 1,
         "P3": 18,
-        "report_only": 379
+        "report_only": 367
       },
       "queue": [
         {
@@ -7355,39 +7328,6 @@
           ],
           "work_direction": [
             "multipart_files"
-          ]
-        },
-        {
-          "actual_status": 503,
-          "case_id": "operator_endswith_pass_no_match_phase2",
-          "category": "operators",
-          "classification": "runtime-difference",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/operator_endswith_pass_no_match_phase2/result.json",
-          "expected_status": 200,
-          "failure_pattern": [
-            "expected_200_got_503"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "args",
-            "operators"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "P2",
-          "reason": "expected HTTP 200; observed HTTP 503",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "ARGS",
-            "OPERATORS"
-          ],
-          "work_direction": [
-            "operator_semantics"
           ]
         },
         {
@@ -11631,138 +11571,6 @@
         },
         {
           "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "xml_processor_activation_missing",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "xml_processor_activation_missing",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "apache",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
           "case_id": "xml_request_body_block",
           "category": "body-processors",
           "classification": "with_mrts_detection_only_non_disruptive",
@@ -11845,7 +11653,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "no-mrts",
@@ -11858,7 +11667,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -11878,7 +11688,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "with-mrts",
@@ -11891,7 +11702,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -11911,7 +11723,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "no-mrts",
@@ -11924,7 +11737,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -11944,7 +11758,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "with-mrts",
@@ -11957,7 +11772,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -15742,138 +15558,6 @@
         },
         {
           "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "xml_processor_activation_missing",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "xml_processor_activation_missing",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "haproxy",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "expected HTTP 403; observed HTTP 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
           "case_id": "xml_request_body_block",
           "category": "body-processors",
           "classification": "with_mrts_detection_only_non_disruptive",
@@ -15956,7 +15640,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "no-mrts",
@@ -15969,7 +15654,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -15989,7 +15675,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "with-mrts",
@@ -16002,7 +15689,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -16022,7 +15710,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "no-mrts",
@@ -16035,7 +15724,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -16055,7 +15745,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "with-mrts",
@@ -16068,7 +15759,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -19977,138 +19669,6 @@
         },
         {
           "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "xml_processor_activation_missing",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "no-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "xml_processor_activation_missing",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "no-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
-          "case_id": "xml_namespace_edge_connector_gap",
-          "category": "body-processors",
-          "classification": "with_mrts_detection_only_non_disruptive",
-          "connector": "nginx",
-          "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_namespace_edge_connector_gap/result.json",
-          "expected_status": 403,
-          "failure_pattern": [
-            "expected_block_got_200"
-          ],
-          "functional_area": [
-            "action_intervention",
-            "request_body_urlencoded",
-            "request_body_xml"
-          ],
-          "mrts_corpus": "none",
-          "mrts_variant": "with-mrts",
-          "phase": "2",
-          "priority": "report_only",
-          "reason": "fail: expected HTTP 403, observed 200",
-          "runtime_status": "FAIL",
-          "source_kind": "framework-owned",
-          "test_variant": "with-crs",
-          "variable_or_collection": [
-            "INTERVENTION",
-            "REQUEST_BODY",
-            "XML"
-          ],
-          "work_direction": [
-            "classification_only"
-          ]
-        },
-        {
-          "actual_status": 200,
           "case_id": "xml_request_body_block",
           "category": "body-processors",
           "classification": "with_mrts_detection_only_non_disruptive",
@@ -20191,7 +19751,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "no-mrts",
@@ -20204,7 +19765,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -20224,7 +19786,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "with-mrts",
@@ -20237,7 +19800,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -20257,7 +19821,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "no-mrts",
@@ -20270,7 +19835,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -20290,7 +19856,8 @@
           "functional_area": [
             "action_intervention",
             "request_body_urlencoded",
-            "request_body_xml"
+            "request_body_xml",
+            "request_headers"
           ],
           "mrts_corpus": "none",
           "mrts_variant": "with-mrts",
@@ -20303,7 +19870,8 @@
           "variable_or_collection": [
             "INTERVENTION",
             "REQUEST_BODY",
-            "XML"
+            "XML",
+            "REQUEST_HEADERS"
           ],
           "work_direction": [
             "classification_only"
@@ -20442,10 +20010,10 @@
           ]
         }
       ],
-      "runtime_entries": 1478,
+      "runtime_entries": 1466,
       "runtime_status": {
-        "FAIL": 404,
-        "PASS": 1074
+        "FAIL": 391,
+        "PASS": 1075
       },
       "subgroups": {
         "args": {
@@ -20646,39 +20214,6 @@
               ],
               "work_direction": [
                 "multipart_files"
-              ]
-            },
-            {
-              "actual_status": 503,
-              "case_id": "operator_endswith_pass_no_match_phase2",
-              "category": "operators",
-              "classification": "runtime-difference",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/operator_endswith_pass_no_match_phase2/result.json",
-              "expected_status": 200,
-              "failure_pattern": [
-                "expected_200_got_503"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "operators"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 200; observed HTTP 503",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "OPERATORS"
-              ],
-              "work_direction": [
-                "operator_semantics"
               ]
             },
             {
@@ -24802,138 +24337,6 @@
             },
             {
               "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "apache",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "apache",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "apache",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "apache",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
               "case_id": "xml_request_body_block",
               "category": "body-processors",
               "classification": "with_mrts_detection_only_non_disruptive",
@@ -25016,7 +24419,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -25029,7 +24433,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -25049,7 +24454,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -25062,7 +24468,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -25082,7 +24489,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -25095,7 +24503,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -25115,7 +24524,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -25128,7 +24538,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -28793,138 +28204,6 @@
             },
             {
               "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
               "case_id": "xml_request_body_block",
               "category": "body-processors",
               "classification": "with_mrts_detection_only_non_disruptive",
@@ -29007,7 +28286,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -29020,7 +28300,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -29040,7 +28321,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -29053,7 +28335,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -29073,7 +28356,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -29086,7 +28370,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -29106,7 +28391,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -29119,7 +28405,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -32908,138 +32195,6 @@
             },
             {
               "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "nginx",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "nginx",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "nginx",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "nginx",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
               "case_id": "xml_request_body_block",
               "category": "body-processors",
               "classification": "with_mrts_detection_only_non_disruptive",
@@ -33122,7 +32277,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -33135,7 +32291,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -33155,7 +32312,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -33168,7 +32326,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -33188,7 +32347,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -33201,7 +32361,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -33221,7 +32382,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -33234,7 +32396,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -33373,22 +32536,20 @@
               ]
             }
           ],
-          "queued_entries": 392,
-          "runtime_entries": 1232,
+          "queued_entries": 379,
+          "runtime_entries": 1220,
           "runtime_status": {
-            "FAIL": 392,
-            "PASS": 840
+            "FAIL": 379,
+            "PASS": 841
           },
           "title": "Phase 2 / ARGS and ARGS_NAMES",
           "top_failure_patterns": {
-            "expected_200_got_503": 1,
-            "expected_block_got_200": 391
+            "expected_block_got_200": 379
           },
           "top_work_directions": {
-            "classification_only": 367,
+            "classification_only": 355,
             "collection_semantics": 12,
             "multipart_files": 6,
-            "operator_semantics": 1,
             "transformation_semantics": 6
           }
         },
@@ -37204,39 +36365,6 @@
         "operators": {
           "queue": [
             {
-              "actual_status": 503,
-              "case_id": "operator_endswith_pass_no_match_phase2",
-              "category": "operators",
-              "classification": "runtime-difference",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/operator_endswith_pass_no_match_phase2/result.json",
-              "expected_status": 200,
-              "failure_pattern": [
-                "expected_200_got_503"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "args",
-                "operators"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "P2",
-              "reason": "expected HTTP 200; observed HTTP 503",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "ARGS",
-                "OPERATORS"
-              ],
-              "work_direction": [
-                "operator_semantics"
-              ]
-            },
-            {
               "actual_status": 200,
               "case_id": "v2_operator_begins_with_block",
               "category": "operators",
@@ -38623,20 +37751,18 @@
               ]
             }
           ],
-          "queued_entries": 43,
+          "queued_entries": 42,
           "runtime_entries": 750,
           "runtime_status": {
-            "FAIL": 43,
-            "PASS": 707
+            "FAIL": 42,
+            "PASS": 708
           },
           "title": "Phase 2 / Operators",
           "top_failure_patterns": {
-            "expected_200_got_503": 1,
             "expected_block_got_200": 42
           },
           "top_work_directions": {
-            "classification_only": 42,
-            "operator_semantics": 1
+            "classification_only": 42
           }
         },
         "transformations": {
@@ -41511,138 +40637,6 @@
             },
             {
               "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "apache",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "apache",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "apache",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "apache",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/apache/logs/apache-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
               "case_id": "xml_request_body_block",
               "category": "body-processors",
               "classification": "with_mrts_detection_only_non_disruptive",
@@ -41725,7 +40719,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -41738,7 +40733,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -41758,7 +40754,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -41771,7 +40768,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -41791,7 +40789,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -41804,7 +40803,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -41824,7 +40824,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -41837,7 +40838,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -42109,138 +41111,6 @@
             },
             {
               "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/no-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/no-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "haproxy",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/haproxy/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "expected HTTP 403; observed HTTP 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
               "case_id": "xml_request_body_block",
               "category": "body-processors",
               "classification": "with_mrts_detection_only_non_disruptive",
@@ -42323,7 +41193,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -42336,7 +41207,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -42356,7 +41228,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -42369,7 +41242,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -42389,7 +41263,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -42402,7 +41277,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -42422,7 +41298,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -42435,7 +41312,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -42707,138 +41585,6 @@
             },
             {
               "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "nginx",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-no-mrts-nginx-19000/logs/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "nginx",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/no-crs-with-mrts-nginx-22000/logs/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "no-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "xml_processor_activation_missing",
-              "connector": "nginx",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-no-mrts-nginx-25000/logs/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "no-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
-              "case_id": "xml_namespace_edge_connector_gap",
-              "category": "body-processors",
-              "classification": "with_mrts_detection_only_non_disruptive",
-              "connector": "nginx",
-              "evidence": "/var/tmp/ModSecurity-conector-verified/nginx-harness/ModSecurity-conector-full-matrix/with-crs-with-mrts-nginx-28000/logs/xml_namespace_edge_connector_gap/result.json",
-              "expected_status": 403,
-              "failure_pattern": [
-                "expected_block_got_200"
-              ],
-              "functional_area": [
-                "action_intervention",
-                "request_body_urlencoded",
-                "request_body_xml"
-              ],
-              "mrts_corpus": "none",
-              "mrts_variant": "with-mrts",
-              "phase": "2",
-              "priority": "report_only",
-              "reason": "fail: expected HTTP 403, observed 200",
-              "runtime_status": "FAIL",
-              "source_kind": "framework-owned",
-              "test_variant": "with-crs",
-              "variable_or_collection": [
-                "INTERVENTION",
-                "REQUEST_BODY",
-                "XML"
-              ],
-              "work_direction": [
-                "classification_only"
-              ]
-            },
-            {
-              "actual_status": 200,
               "case_id": "xml_request_body_block",
               "category": "body-processors",
               "classification": "with_mrts_detection_only_non_disruptive",
@@ -42921,7 +41667,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -42934,7 +41681,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -42954,7 +41702,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -42967,7 +41716,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -42987,7 +41737,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "no-mrts",
@@ -43000,7 +41751,8 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
@@ -43020,7 +41772,8 @@
               "functional_area": [
                 "action_intervention",
                 "request_body_urlencoded",
-                "request_body_xml"
+                "request_body_xml",
+                "request_headers"
               ],
               "mrts_corpus": "none",
               "mrts_variant": "with-mrts",
@@ -43033,41 +41786,40 @@
               "variable_or_collection": [
                 "INTERVENTION",
                 "REQUEST_BODY",
-                "XML"
+                "XML",
+                "REQUEST_HEADERS"
               ],
               "work_direction": [
                 "classification_only"
               ]
             }
           ],
-          "queued_entries": 54,
-          "runtime_entries": 66,
+          "queued_entries": 42,
+          "runtime_entries": 54,
           "runtime_status": {
-            "FAIL": 54,
+            "FAIL": 42,
             "PASS": 12
           },
           "title": "Phase 2 / XML",
           "top_failure_patterns": {
-            "expected_block_got_200": 54
+            "expected_block_got_200": 42
           },
           "top_work_directions": {
-            "classification_only": 54
+            "classification_only": 42
           }
         }
       },
       "title": "Phase 2 Work Queue",
       "top_failure_patterns": {
-        "expected_200_got_503": 1,
-        "expected_block_got_200": 403
+        "expected_block_got_200": 391
       },
       "top_work_directions": {
-        "classification_only": 379,
+        "classification_only": 367,
         "collection_semantics": 12,
         "multipart_files": 6,
-        "operator_semantics": 1,
         "transformation_semantics": 6
       },
-      "unique_runtime_cases": 176
+      "unique_runtime_cases": 175
     },
     "3": {
       "classification": {
@@ -71455,7 +70207,7 @@
   ],
   "summary": {
     "blocked": 0,
-    "failures": 775,
+    "failures": 774,
     "full_runtime_runs": 12,
     "main_work_direction_by_phase": {
       "1": "classification_only",
@@ -71466,7 +70218,7 @@
     "metadata_status_by_phase": {
       "1": {
         "active": 2,
-        "imported": 34
+        "imported": 36
       },
       "2": {
         "active": 5,
@@ -71480,24 +70232,23 @@
         "imported": 20
       }
     },
-    "not_executable": 12,
+    "not_executable": 0,
     "phase_case_totals": {
-      "1": 36,
+      "1": 38,
       "2": 74,
       "3": 12,
       "4": 20
     },
-    "queued_entries": 1535,
+    "queued_entries": 1522,
     "runtime_entries": 3928,
     "runtime_status_by_phase": {
       "1": {
-        "FAIL": 191,
-        "NOT_EXECUTABLE": 12,
-        "PASS": 623
+        "FAIL": 203,
+        "PASS": 635
       },
       "2": {
-        "FAIL": 404,
-        "PASS": 1074
+        "FAIL": 391,
+        "PASS": 1075
       },
       "3": {
         "FAIL": 60,

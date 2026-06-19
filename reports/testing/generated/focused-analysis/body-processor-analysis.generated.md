@@ -1,24 +1,24 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T17:48:37Z`
+> Generated at: `2026-06-19T06:44:32Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-body-processor-analysis.py`
 > Make target: `generate-body-processor-analysis`
 > Owner: `connector`
 > Severity: `informational`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
+> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
 > Input status: `complete`
 
 # Body Processor Failure Analysis
 
-- Generated at: `2026-06-18T17:48:37Z`
-- Before selected metadata fix: request_body_processor **9**, multipart_files **6**, xml_processor **16**, combined **31**.
+- Generated at: `2026-06-19T06:44:32Z`
+- Before selected metadata fix: request_body_processor **9**, multipart_files **6**, xml_processor **12**, combined **27**.
 - After selected metadata fix: request_body_processor **0**, multipart_files **6**, xml_processor **0**, combined **6**.
 - Selected subcluster rows: **9**
 - URL-encoded form rows moved out of active body-processor work: **12** -> **0**.
-- XML processor activation-missing rows moved out of active xml_processor work: **16** -> **0**.
+- XML processor activation-missing rows moved out of active xml_processor work: **12** -> **0**.
 - Multipart processor activation-missing rows moved out of active multipart_files work: **0** -> **0**.
 - Rule loaded evidence rows: **10**
 - Target rule matched rows: **0**
@@ -69,36 +69,36 @@
 
 ## XML Processor Activation-Missing Subcluster
 
-- Count: **16**
-- Active xml_processor rows before report sync: **16**
+- Count: **12**
+- Active xml_processor rows before report sync: **12**
 - Active xml_processor rows after report sync: **0**
 - Classification: `xml_processor_activation_missing`
 - Work direction: `classification_only`
 - Priority: `report_only`
-- Body sent rows: **16**
-- Correct XML Content-Type rows: **16**
-- SecRequestBodyAccess On rows: **0**
-- XML processor active rows: **0**
-- Rule loaded rows: **16**
+- Body sent rows: **12**
+- Correct XML Content-Type rows: **12**
+- SecRequestBodyAccess On rows: **4**
+- XML processor active rows: **4**
+- Rule loaded rows: **12**
 - Rule matched rows: **0**
 - XML collection evidence rows: **0**
-- Backend reached rows: **16**
+- Backend reached rows: **12**
 - Root cause: The XML bodies and Content-Type are present, but these fixtures do not enable SecRequestBodyAccess/ctl:requestBodyProcessor=XML, so XML collection population is not expected evidence.
 - Fix: metadata/report-only; no XML body, rule, Expected status, connector-core behavior, or PASS/FAIL value changed
 - Risk: low when kept report-only; high if treated as a connector XML parser failure without processor activation
 
 | field | distribution |
 | --- | --- |
-| connectors | `apache`: 8, `haproxy`: 8 |
-| variants | `no-crs/no-mrts`: 8, `with-crs/no-mrts`: 8 |
-| case_ids | `parser_xml_partial_body_future_target`: 4, `xml_deep_nesting_future_target`: 4, `xml_namespace_edge_connector_gap`: 4, `xml_request_body_malformed_connector_gap`: 4 |
-| rule_ids | `4610`: 4, `4712`: 4, `4711`: 4, `4408`: 4 |
-| targets | `XML`: 16 |
-| operators | `@contains root`: 4, `@contains deepnode`: 4, `@contains ns:root`: 4, `@contains broken`: 4 |
-| content_types | `application/xml`: 16 |
-| body_lengths | `9`: 4, `50`: 4, `53`: 4, `21`: 4 |
-| body_hashes | `a1cbdf58569b7f77dd47ef83641e48fe830098618b019034b88563050b12eb06`: 4, `9aab1567b5d32b5a5a60ad9f5f6f8f8cf485dbf9aa938905e71a0e88b009f011`: 4, `7eebe35c1d4703c2ed4df34cea9d4149c8aa61bbc104d7c2db81978128ae96e4`: 4, `0c13b76b5721981c5ae77b5629399200d777a7e3b54e6c6d1dbbd43b0d5b75d6`: 4 |
-| request_body_seen | `unknown`: 8, `yes`: 8 |
+| connectors | `apache`: 6, `haproxy`: 6 |
+| variants | `no-crs/no-mrts`: 6, `with-crs/no-mrts`: 6 |
+| case_ids | `parser_xml_partial_body_future_target`: 4, `xml_deep_nesting_future_target`: 4, `xml_request_body_malformed_connector_gap`: 4 |
+| rule_ids | `4610`: 4, `4712`: 4, `4408`: 4 |
+| targets | `XML`: 12 |
+| operators | `@contains root`: 4, `@contains deepnode`: 4, `@contains broken`: 4 |
+| content_types | `application/xml`: 12 |
+| body_lengths | `9`: 4, `50`: 4, `21`: 4 |
+| body_hashes | `a1cbdf58569b7f77dd47ef83641e48fe830098618b019034b88563050b12eb06`: 4, `9aab1567b5d32b5a5a60ad9f5f6f8f8cf485dbf9aa938905e71a0e88b009f011`: 4, `0c13b76b5721981c5ae77b5629399200d777a7e3b54e6c6d1dbbd43b0d5b75d6`: 4 |
+| request_body_seen | `unknown`: 6, `yes`: 6 |
 
 ## Multipart Processor Activation-Missing Subcluster
 
@@ -211,10 +211,10 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `c1f815e949464f1ba593aaee1b2c5651739506c91f657fd9bc60ce817c76c73d` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `41efc79014484776af0c67eddf07df4acafd939278445f2f0d95fda3a19e14b0` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `a563b592cfaa69eba42d56c8653fdf35dabd612afed049e7a44125eed2ee2975` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `23d490410f677c4d0c3705b1a2315860fbb6c1275c94a8c085bc4c23c3918ca8` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/connector-work-queue.generated.json` | `e270fa2d3f5496b6f5013accb531e9f467fb00871beb7a6c42ac32b45e757676` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `40bf2a3a4325fe9e0dba795d48c4153b1b633d936212a809adce08387261ed80` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/work-queues/phase-work-queue.generated.json` | `d0ee4bf5ca82cf279209d179703f7b15f244056edd31451b42c708b9e3083c13` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/next-fix-plan.generated.json` | `f264523d6bb83b4a3382d4871099d221aac496d36dc8697548b4bba10fd2e52a` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

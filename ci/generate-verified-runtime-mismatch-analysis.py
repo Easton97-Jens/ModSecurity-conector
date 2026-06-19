@@ -60,6 +60,13 @@ TRANSFORMATION_NATIVE_SEMANTICS_NOTE = (
     "Connector-free libmodsecurity C API oracle returns the same non-disruptive status as all "
     "Apache, NGINX, and HAProxy full-matrix variants for this transformation fixture."
 )
+XML_PARSER_SEMANTICS_CLASSIFICATION = "libmodsecurity_xml_parser_semantics"
+XML_PARSER_SEMANTICS_CASE = "xml_request_body_malformed_connector_gap"
+XML_PARSER_SEMANTICS_NOTE = (
+    "Malformed XML initializes the libmodsecurity XML parser and records a parse failure, but the "
+    "fixture rule targets the XML collection and no XML collection rule match or parser-error "
+    "intervention is produced. Apache, NGINX, and HAProxy match connector-free libmodsecurity."
+)
 TRANSFORMATION_NATIVE_SEMANTICS_CASES = {
     "unicode_whitespace_normalization_gap",
     "unicode_double_encoded_uri_runtime_difference",
@@ -1158,6 +1165,254 @@ def apply_native_transformation_semantics_classification(
     return mismatches, native_inputs
 
 
+def xml_parser_semantics_result_evidence(
+    row: dict[str, Any],
+    *,
+    connector_root: Path,
+    build_root: Path,
+    expected_status: str,
+    native_actual: str,
+) -> dict[str, Any] | None:
+    if row.get("case") != XML_PARSER_SEMANTICS_CASE:
+        return None
+    if row.get("connector") not in SEMICOLON_COLLECTION_CONNECTORS:
+        return None
+    if row.get("variant") not in SEMICOLON_COLLECTION_VARIANTS:
+        return None
+    if row.get("category") != "body-processors":
+        return None
+    if row.get("status") != "fail" or row.get("expected") != expected_status or row.get("actual") != native_actual:
+        return None
+    if row.get("full_matrix_refresh_needed") is not False:
+        return None
+    result_path = resolve_evidence_file(str(row.get("evidence_file") or ""), connector_root=connector_root, build_root=build_root)
+    result = read_json(result_path)
+    if result.get("live_executed") is not True:
+        return None
+    if status_string(result.get("expected_status")) != expected_status:
+        return None
+    if status_string(result.get("actual_status", result.get("observed_status"))) != native_actual:
+        return None
+    if str(result.get("observed_transport_result") or "") not in {"", "http_status"}:
+        return None
+
+    evidence: dict[str, Any] = {
+        "result": rel(result_path, build_root),
+        "expected": expected_status,
+        "actual": native_actual,
+        "live_executed": "true",
+        "full_matrix_refresh_needed": "false",
+        "observed_transport_result": str(result.get("observed_transport_result") or "http_status"),
+        "modsecurity_processed": str(result.get("modsecurity_processed", "n/a")).lower(),
+        "request_body_seen": str(result.get("request_body_seen", "n/a")).lower(),
+    }
+    if row["connector"] == "haproxy":
+        if result.get("modsecurity_processed") is not True or result.get("request_body_seen") is not True:
+            return None
+        decision_log_path = result_decision_log_path(result_path, result)
+        entries = read_jsonl(decision_log_path)
+        if len(entries) != 1:
+            return None
+        decision = entries[0]
+        if decision.get("live_executed") is not True or decision.get("modsecurity_processed") is not True:
+            return None
+        if decision.get("request_body_seen") is not True:
+            return None
+        if decision.get("decision") != "pass" or decision.get("disruptive") is not False:
+            return None
+        if str(decision.get("matched_variable") or "") or str(decision.get("matched_value_snippet") or ""):
+            return None
+        evidence["decision_log"] = rel(decision_log_path, build_root)
+        evidence["decision"] = "pass"
+        evidence["rule_id"] = str(decision.get("rule_id") or "0")
+        evidence["matched_variable"] = str(decision.get("matched_variable") or "")
+        evidence["matched_value_snippet"] = str(decision.get("matched_value_snippet") or "")
+    return evidence
+
+
+def valid_xml_parser_semantics_evidence(
+    native_case_run: dict[str, Any],
+    candidates: dict[tuple[str, str], dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+) -> dict[str, Any] | None:
+    if str(native_case_run.get("case") or "") != XML_PARSER_SEMANTICS_CASE:
+        return None
+    if str(native_case_run.get("status") or "") != "fail":
+        return None
+    if str(native_case_run.get("decision") or "") != "DOCUMENT":
+        return None
+    if str(native_case_run.get("classification_hint") or "") != "likely_framework_expected_behavior_gap_or_libmodsecurity_semantics":
+        return None
+    if native_case_run.get("native_match") is not False:
+        return None
+    if native_case_run.get("full_matrix_refresh_needed") is not False:
+        return None
+    input_hash = str(native_case_run.get("input_hash") or "")
+    if not input_hash:
+        return None
+
+    expected_status = status_string(native_case_run.get("expected_status"))
+    native_actual = status_string(native_case_run.get("native_actual"))
+    if expected_status != "403" or native_actual != "200":
+        return None
+
+    case_path = Path(str(native_case_run.get("case_path") or ""))
+    try:
+        case_text = case_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if "ctl:requestBodyProcessor=XML" not in case_text or "SecRule XML" not in case_text:
+        return None
+
+    log_evidence = native_case_run.get("log_evidence")
+    if not isinstance(log_evidence, dict):
+        return None
+    if log_evidence.get("rule_ids") not in ([], None):
+        return None
+    if log_evidence.get("matched_data") not in ([], None):
+        return None
+
+    logs_dir = Path(str(native_case_run.get("logs_dir") or ""))
+    debug_log = logs_dir / "debug.log"
+    try:
+        debug_text = debug_log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    required_debug_markers = [
+        "XML: Initialising parser.",
+        "XML: Parsing complete (well_formed 0).",
+        "XML: Failed to parse document.",
+        "(Rule: 4408) Executing operator",
+        "Rule returned 0.",
+    ]
+    if any(marker not in debug_text for marker in required_debug_markers):
+        return None
+
+    expected_matrix = {
+        (connector, variant)
+        for connector in SEMICOLON_COLLECTION_CONNECTORS
+        for variant in SEMICOLON_COLLECTION_VARIANTS
+    }
+    comparisons = native_case_run.get("connector_comparison")
+    if not isinstance(comparisons, list):
+        return None
+    comparison_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in comparisons:
+        if not isinstance(item, dict):
+            return None
+        key = (str(item.get("connector") or ""), str(item.get("variant") or ""))
+        comparison_by_key[key] = item
+    if set(comparison_by_key) != expected_matrix or set(candidates) != expected_matrix:
+        return None
+
+    row_evidence: dict[str, dict[str, Any]] = {}
+    comparison_evidence: dict[str, dict[str, Any]] = {}
+    for key, item in comparison_by_key.items():
+        if item.get("same") is not True:
+            return None
+        if status_string(item.get("native_actual")) != native_actual:
+            return None
+        if status_string(item.get("connector_actual")) != native_actual:
+            return None
+        if str(item.get("meaning") or "") != "same_as_native":
+            return None
+        if item.get("full_matrix_refresh_needed") is not False:
+            return None
+        row = candidates[key]
+        evidence = xml_parser_semantics_result_evidence(
+            row,
+            connector_root=connector_root,
+            build_root=build_root,
+            expected_status=expected_status,
+            native_actual=native_actual,
+        )
+        if evidence is None:
+            return None
+        evidence_key = f"{key[0]}:{key[1]}"
+        row_evidence[evidence_key] = evidence
+        comparison_evidence[evidence_key] = {
+            "connector_actual": status_string(item.get("connector_actual")),
+            "native_actual": status_string(item.get("native_actual")),
+            "same": True,
+            "meaning": str(item.get("meaning") or ""),
+        }
+
+    return {
+        "expected": expected_status,
+        "native_actual": native_actual,
+        "input_hash": input_hash,
+        "request_sha256": str(native_case_run.get("request_sha256") or ""),
+        "rules_sha256": str(native_case_run.get("rules_sha256") or ""),
+        "libmodsecurity": str(native_case_run.get("libmodsecurity") or ""),
+        "native_result_path": str(native_case_run.get("native_result_path") or ""),
+        "native_case_path": str(case_path),
+        "run_dir": str(native_case_run.get("run_dir") or ""),
+        "debug_log": str(debug_log),
+        "xml_processor_control_present": True,
+        "parser_debug_markers": required_debug_markers,
+        "row_evidence": row_evidence,
+        "connector_comparison": comparison_evidence,
+    }
+
+
+def apply_xml_parser_semantics_classification(
+    mismatches: list[dict[str, Any]],
+    *,
+    connector_root: Path,
+    build_root: Path,
+    verified_run_root: Path,
+) -> tuple[list[dict[str, Any]], list[Path]]:
+    candidates = {
+        (str(row["connector"]), str(row["variant"])): row
+        for row in mismatches
+        if row.get("case") == XML_PARSER_SEMANTICS_CASE
+        and row.get("connector") in SEMICOLON_COLLECTION_CONNECTORS
+        and row.get("variant") in SEMICOLON_COLLECTION_VARIANTS
+    }
+    latest = latest_native_case_run(verified_run_root, XML_PARSER_SEMANTICS_CASE)
+    if latest is None:
+        return mismatches, []
+    native_case_run, native_path = latest
+    evidence = valid_xml_parser_semantics_evidence(
+        native_case_run,
+        candidates,
+        connector_root=connector_root,
+        build_root=build_root,
+    )
+    if evidence is None:
+        return mismatches, []
+
+    for key, row in candidates.items():
+        evidence_key = f"{key[0]}:{key[1]}"
+        row["classification"] = XML_PARSER_SEMANTICS_CLASSIFICATION
+        row["technical_cause"] = XML_PARSER_SEMANTICS_NOTE
+        row["code_fix_needed"] = False
+        row["test_expectation_wrong"] = False
+        row["document_only"] = True
+        row["classification_note"] = XML_PARSER_SEMANTICS_NOTE
+        row["classification_evidence"] = {
+            "note": XML_PARSER_SEMANTICS_NOTE,
+            "native_case_run": str(native_path),
+            "native_case_path": evidence["native_case_path"],
+            "native_run_dir": evidence["run_dir"],
+            "native_result_path": evidence["native_result_path"],
+            "debug_log": evidence["debug_log"],
+            "expected": evidence["expected"],
+            "native_actual": evidence["native_actual"],
+            "input_hash": evidence["input_hash"],
+            "request_sha256": evidence["request_sha256"],
+            "rules_sha256": evidence["rules_sha256"],
+            "libmodsecurity": evidence["libmodsecurity"],
+            "xml_processor_control_present": evidence["xml_processor_control_present"],
+            "parser_debug_markers": evidence["parser_debug_markers"],
+            "row_evidence": evidence["row_evidence"][evidence_key],
+            "connector_comparison": evidence["connector_comparison"][evidence_key],
+        }
+    return mismatches, [native_path]
+
+
 def row_from_case(
     *,
     case: dict[str, Any],
@@ -1634,6 +1889,13 @@ def main() -> int:
         build_root=build_root,
         verified_run_root=verified_run_root,
     )
+    mismatches, xml_semantics_inputs = apply_xml_parser_semantics_classification(
+        mismatches,
+        connector_root=connector_root,
+        build_root=build_root,
+        verified_run_root=verified_run_root,
+    )
+    native_semantics_inputs.extend(xml_semantics_inputs)
 
     by_connector = Counter(row["connector"] for row in mismatches)
     by_classification = Counter(row["classification"] for row in mismatches)

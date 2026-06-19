@@ -1,22 +1,22 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T16:37:01Z`
+> Generated at: `2026-06-18T18:06:02Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
+> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
 > Input status: `complete`
 
 # Generated Phase Coverage
 
 | phase | case_count | top_variables | status_distribution |
 |---|---:|---|---|
-| 1 | 36 | REQUEST_URI(7), REQUEST_HEADERS_NAMES(5), ARGS:a(4), REQUEST_COOKIES_NAMES(4), ARGS:param1(2) | active:2, imported:34 |
-| 2 | 74 | ARGS:q(18), REQUEST_BODY(9), ARGS_NAMES(6), ARGS:test(6), XML(4) | active:5, imported:69 |
+| 1 | 38 | REQUEST_URI(7), REQUEST_HEADERS_NAMES(5), ARGS:a(4), REQUEST_COOKIES_NAMES(4), ARGS:param1(2) | active:2, imported:36 |
+| 2 | 74 | ARGS:q(18), REQUEST_BODY(9), ARGS_NAMES(6), ARGS:test(6), MULTIPART_FILENAME(4) | active:5, imported:69 |
 | 3 | 12 | RESPONSE_HEADERS:Set-Cookie(4), RESPONSE_HEADERS:Location(2), RESPONSE_HEADERS:Last-Modified(1), RESPONSE_HEADERS:Content-Type(1), RESPONSE_HEADERS:X-Missing(1) | active:1, imported:11 |
 | 4 | 20 | RESPONSE_BODY(20) | imported:20 |
 

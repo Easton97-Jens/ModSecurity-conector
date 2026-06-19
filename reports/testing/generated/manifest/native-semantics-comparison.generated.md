@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T17:47:53Z`
+> Generated at: `2026-06-19T06:43:34Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/run-native-case-comparison.py`
 > Make target: `generate-native-semantics-comparison`
 > Owner: `manifest`
 > Severity: `important`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
+> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
 > Input status: `complete`
 
 # Native Semantics Comparison
@@ -25,13 +25,13 @@
 
 ## Native Comparisons
 
-| Case | Native Actual | Connector Actuals | Native Match | Decision | Classification Hint |
-| --- | --- | --- | --- | --- | --- |
-| unicode_whitespace_normalization_gap | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics |
-| unicode_double_encoded_uri_runtime_difference | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics |
-| xml_namespace_edge_connector_gap | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics |
-| xml_request_body_malformed_connector_gap | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics |
-| v2_transformation_url_decode_invalid_sequence_mapped_candidate | 403 | apache:no-crs/no-mrts=http_status, apache:no-crs/with-mrts=http_status, apache:with-crs/no-mrts=http_status, apache:with-crs/with-mrts=http_status, haproxy:no-crs/no-mrts=http_status, haproxy:no-crs/with-mrts=http_status, haproxy:with-crs/no-mrts=http_status, haproxy:with-crs/with-mrts=http_status, nginx:no-crs/no-mrts=http_status, nginx:no-crs/with-mrts=http_status, nginx:with-crs/no-mrts=http_status, nginx:with-crs/with-mrts=http_status | yes | REFRESH | full_matrix_refresh_needed |
+| Case | Native Actual | Connector Actuals | Native Match | Decision | Classification Hint | Full-Matrix Refresh Needed |
+| --- | --- | --- | --- | --- | --- | --- |
+| unicode_whitespace_normalization_gap | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics | no |
+| unicode_double_encoded_uri_runtime_difference | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics | no |
+| xml_namespace_edge_connector_gap | 403 | apache:no-crs/with-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/with-mrts=200 | yes | DEFER | common_harness_or_input_issue_possible | no |
+| xml_request_body_malformed_connector_gap | 200 | apache:no-crs/no-mrts=200, apache:no-crs/with-mrts=200, apache:with-crs/no-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/no-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/no-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/no-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/no-mrts=200, nginx:with-crs/with-mrts=200 | no | DOCUMENT | likely_framework_expected_behavior_gap_or_libmodsecurity_semantics | no |
+| v2_transformation_url_decode_invalid_sequence_mapped_candidate | 403 | apache:no-crs/with-mrts=200, apache:with-crs/with-mrts=200, haproxy:no-crs/with-mrts=200, haproxy:with-crs/with-mrts=200, nginx:no-crs/with-mrts=200, nginx:with-crs/with-mrts=200 | yes | DEFER | common_harness_or_input_issue_possible | no |
 
 ## Reclassified
 
@@ -48,7 +48,8 @@ _No rows available. Reason: this pass added native comparison tooling only._
 
 | Case | Reason |
 | --- | --- |
-| _No rows available. Reason: no data._ | _No rows available. Reason: no data._ |
+| xml_namespace_edge_connector_gap | common_harness_or_input_issue_possible |
+| v2_transformation_url_decode_invalid_sequence_mapped_candidate | common_harness_or_input_issue_possible |
 
 ## Notes
 
@@ -60,17 +61,17 @@ _No rows available. Reason: this pass added native comparison tooling only._
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `ci/run-native-case-comparison.py` | `88f122170fc7625f250d12ccd8590353b4a5e08fbea8b4751c03ae61cb8134ce` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `ci/run-native-case-comparison.py` | `c62686d446b5b50102d78a03509fb6883b7a084d975684fb5e1b809473c726de` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `ci/native_modsecurity_oracle.c` | `57bcb4e66611f597b623599680807795296193e156d4bd91c694422f9eb0f9db` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json` | `6934388824f6a335f3ffb3e8282b0c0ec98d28b3e466b9bce7266e9db3b5fcd4` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml` | `d712ede8bab7f74851255571299327a0e166e562798e4d5ac64d3a122b45a61d` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172131Z-unicode_whitespace_normalization_gap/native-case-run.json` | `9167164893422a4ebf6587db8d70a96a61f169b49766a2abca2279126459a8d3` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `modules/ModSecurity-test-Framework/tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml` | `889068df10e66f52e5f5cbce49d5640be4f55e33ac09bbd21a469826e65a74ec` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | `97a35281bbe37a2d08df5962b766ed71be05dd4dcb0673d275a0596d16650820` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | `37652618368231240de64e7c80bcd405056ccf79ecc3a57fdc6180e2b8f4b438` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_namespace_edge_connector_gap/native-case-run.json` | `f39d89ef54667786d28c009ee065e295effb85ba8fc5314ccd28962932991d27` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | `3a77f805aa8989e85f9ba512172e0cc13d8eec062874bacef1bb3ed73aeebd4f` | `2026-06-16T19-12-00Z-614c8049` | present |
-| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_request_body_malformed_connector_gap/native-case-run.json` | `07ea67bcf7252f1ad9d1f1695be57baf415501d0e115a74a8121a937b8a8437c` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | `b0f83be8f28c6c12030822e625605bac6c53c99e685eb191350159ad852494cf` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T175942Z-xml_namespace_edge_connector_gap/native-case-run.json` | `9f2741cfa08f9cf813e123da398c973ec1dae1e76a83a8da755aee5ae08fdb92` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | `7bf2dacc4c5b4de76ccbd33b01fecf0dc598930dd4289497500e40be5816ce88` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | `38964013ce0ab0541e763b0472694e0123e70d8c55e609fb961c290064cee1a5` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml` | `66a559e2c72e40e78dfc04723dfa823f495dbad75789d1e8becc81892be426df` | `2026-06-16T19-12-00Z-614c8049` | present |
 | Declared input | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/native-case-run.json` | `a7dae3db2178486d2f0d91702be394aaaa60390a6b3df0654119aac198cdd942` | `2026-06-16T19-12-00Z-614c8049` | present |
 
@@ -86,8 +87,8 @@ _No rows available. Reason: this pass added native comparison tooling only._
 | `modules/ModSecurity-test-Framework/tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml` | present | input file available |
 | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-unicode_double_encoded_uri_runtime_difference/native-case-run.json` | present | input file available |
 | `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_namespace_edge_connector_gap/native-case-run.json` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T175942Z-xml_namespace_edge_connector_gap/native-case-run.json` | present | input file available |
 | `modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | present | input file available |
-| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T172142Z-xml_request_body_malformed_connector_gap/native-case-run.json` | present | input file available |
+| `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260619T063228Z-xml_request_body_malformed_connector_gap/native-case-run.json` | present | input file available |
 | `modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml` | present | input file available |
 | `/var/tmp/ModSecurity-conector-verified/native-case-runs/20260618T174441Z-v2_transformation_url_decode_invalid_sequence_mapped_candidate/native-case-run.json` | present | input file available |

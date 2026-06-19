@@ -29,7 +29,7 @@
       "risk": "low"
     }
   ],
-  "generated_at": "2026-06-18T17:47:47Z",
+  "generated_at": "2026-06-19T06:43:27Z",
   "groups": [],
   "inputs": {
     "full_matrix_job_completeness": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
@@ -41,11 +41,11 @@
     "verified_runtime_mismatch_analysis": "/root/git/ModSecurity-conector/reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json"
   },
   "job": {
-    "duration_seconds": 3439,
-    "ended_at": "2026-06-18T15:24:15Z",
+    "duration_seconds": 3437,
+    "ended_at": "2026-06-18T21:21:38Z",
     "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json",
     "return_code": 2,
-    "started_at": "2026-06-18T14:26:56Z",
+    "started_at": "2026-06-18T20:24:21Z",
     "status": "completed_with_mismatches"
   },
   "job_id": "nginx:with-crs:with-mrts",
@@ -53,14 +53,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
+    "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
     "data_kind": "analysis",
     "data_origin": "runtime",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
-    "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+    "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
     "framework_working_tree_dirty": "dirty",
-    "generated_at": "2026-06-18T17:47:47Z",
+    "generated_at": "2026-06-19T06:43:27Z",
     "generated_by": "ci/generate-nginx-mrts-http500-cluster-analysis.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -68,48 +68,48 @@
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/job.json",
-        "sha256": "2fc84a6cd9a4167d2e21a1027e9db66a167a7a239ae8e7a5e9e960710123a13f",
-        "source_hash": "2fc84a6cd9a4167d2e21a1027e9db66a167a7a239ae8e7a5e9e960710123a13f",
+        "sha256": "79d08ce77343c7ae1e3443bf38fb44e5341b1fa0586ca5ed9cbd69b5de8271bd",
+        "source_hash": "79d08ce77343c7ae1e3443bf38fb44e5341b1fa0586ca5ed9cbd69b5de8271bd",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/run.log",
-        "sha256": "f4ed58499c55cb4dc826c0b5357487887c5011acfed9b0ca2d97c52440d95cff",
-        "source_hash": "f4ed58499c55cb4dc826c0b5357487887c5011acfed9b0ca2d97c52440d95cff",
+        "sha256": "79114cad6b8c729beaae429b29d4caa467f5ce686a7cd78d7ba9d1dbd7a7c140",
+        "source_hash": "79114cad6b8c729beaae429b29d4caa467f5ce686a7cd78d7ba9d1dbd7a7c140",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-summary.json",
-        "sha256": "26784a8ca26bfd9cc9d089218c56c315b5ffe5886db7554e0434d7aa7a4a52f3",
-        "source_hash": "26784a8ca26bfd9cc9d089218c56c315b5ffe5886db7554e0434d7aa7a4a52f3",
+        "sha256": "ebf9c0111b63f4ccb349e5c4ec1960702ec9e9c5ac53ab70153f60616341aa3d",
+        "source_hash": "ebf9c0111b63f4ccb349e5c4ec1960702ec9e9c5ac53ab70153f60616341aa3d",
         "status": "present"
       },
       {
         "notes": "input file available",
         "path": "/var/tmp/ModSecurity-conector-verified/build/full-matrix/with-crs/with-mrts/nginx/results/force-all/nginx-results.jsonl",
-        "sha256": "fb879b5e327bc08626ca315cf8427d784c7532335b57a7f9ada714fcdcb8bcf7",
-        "source_hash": "fb879b5e327bc08626ca315cf8427d784c7532335b57a7f9ada714fcdcb8bcf7",
+        "sha256": "8d05493d1747a79de336faf3347245881ef226b7f9587038d945ff048c9b2a5a",
+        "source_hash": "8d05493d1747a79de336faf3347245881ef226b7f9587038d945ff048c9b2a5a",
         "status": "present"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.json",
-        "sha256": "0df0accb88ed8f025ce283acc22ab0f792b49b29a74bdbc71b71edf35e764e4f",
-        "source_hash": "0df0accb88ed8f025ce283acc22ab0f792b49b29a74bdbc71b71edf35e764e4f",
+        "sha256": "3f11d1fce15cdfa561cc96ef730cbd1b5604528e8f8a7fa8b2e7209629377e3b",
+        "source_hash": "3f11d1fce15cdfa561cc96ef730cbd1b5604528e8f8a7fa8b2e7209629377e3b",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
       {
-        "connector_sha": "f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5",
-        "framework_sha": "2334d31b942fd79770c7381b02fcaf031cccc4d2",
+        "connector_sha": "02d952fa8a986ef519c671973809d7634998e961",
+        "framework_sha": "62c5dce8733d77138999bf6054fd4b1ec1712d40",
         "notes": "input file available",
         "path": "reports/testing/generated/manifest/verified-runtime-mismatch-analysis.generated.json",
-        "sha256": "06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49",
-        "source_hash": "06ccc48b304f836f75d06b5343edae8e966492cdc91bb13e3cfef4f62159bc49",
+        "sha256": "6934388824f6a335f3ffb3e8282b0c0ec98d28b3e466b9bce7266e9db3b5fcd4",
+        "source_hash": "6934388824f6a335f3ffb3e8282b0c0ec98d28b3e466b9bce7266e9db3b5fcd4",
         "status": "present",
         "verified_run_id": "2026-06-16T19-12-00Z-614c8049"
       },
@@ -160,16 +160,14 @@
   },
   "summary": {
     "actual_status_counts": {
-      "200": 523,
-      "None": 1
+      "200": 524
     },
     "expected_status_counts": {},
     "http500_failures": 0,
     "permission_denied_cases": 0,
     "rewrite_cycle_cases": 0,
     "status_counts": {
-      "fail": 117,
-      "not_executable": 1,
+      "fail": 118,
       "pass": 406
     },
     "total_rows": 524

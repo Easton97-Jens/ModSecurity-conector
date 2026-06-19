@@ -1,19 +1,19 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-18T17:48:09Z`
+> Generated at: `2026-06-19T06:43:50Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-remaining-failure-analysis.py`
 > Make target: `generate-remaining-failure-analysis`
 > Owner: `connector`
 > Severity: `important`
-> Connector SHA: `f0e5bfc01bff0f25ff02c2b1e910edd00e2fd6a5`
-> Framework SHA: `2334d31b942fd79770c7381b02fcaf031cccc4d2`
+> Connector SHA: `02d952fa8a986ef519c671973809d7634998e961`
+> Framework SHA: `62c5dce8733d77138999bf6054fd4b1ec1712d40`
 > Input status: `complete`
 
 # Next Fix Plan
 
-Generated at: `2026-06-18T17:48:09Z`
+Generated at: `2026-06-19T06:43:50Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.
 
@@ -47,15 +47,13 @@ Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan tar
 | transformation_semantics | 12 | apache, nginx, haproxy | largest semantic cluster; likely needs native/libmodsecurity comparison before any fix | deeper semantic evidence, not harness routing | high | targeted transformation cases, native comparison where available |
 
 ## P4
-| Cluster | Count | Connector | Why | Likely change | Risk | Tests |
-|---|---|---|---|---|---|---|
-| rule_chain_semantics and small single-connector leftovers | 1 | mostly nginx for connector-only leftovers | small connector-only leftovers after report-only and not-next groups are excluded | focused per-case triage only when runtime-fixable evidence remains | low to medium | targeted single-case smokes |
+- None.
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `c6f4d1b8b1a8d18cb1753acdbc8b9d6bc7ea584830515868306dce80b371aa9b` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/generated/canonical/remaining-failure-analysis.generated.json` | `c4ee09871777f6a6729cb46a73c21b823194e5035db6a78a793c3b048a0d7dc7` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

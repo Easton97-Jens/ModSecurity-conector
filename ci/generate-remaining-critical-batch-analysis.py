@@ -37,6 +37,8 @@ NON_CRITICAL_CLASSIFICATIONS = {
     "with_mrts_detection_only_overlay",
     "libmodsecurity_collection_semantics",
     "libmodsecurity_collection_name_case_semantics",
+    "libmodsecurity_transformation_semantics",
+    "libmodsecurity_xml_parser_semantics",
     "nolog_expected_no_audit",
 }
 DUPLICATE_HEADER_CASE = "duplicate_header_case_normalization_gap"
@@ -67,6 +69,8 @@ CURRENT_TARGETED_ROOT = Path(
 VERIFIED_RUN_ROOT = Path(os.environ.get("VERIFIED_RUN_ROOT", "/var/tmp/ModSecurity-conector-verified"))
 YAML_FIX_FILES = {
     "modules/ModSecurity-test-Framework/tests/cases/body/json/json_empty_body_future_compatibility.yaml",
+    "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
+    "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
     "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml",
     "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_empty_future_target.yaml",
     "modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
@@ -215,8 +219,38 @@ def latest_case_run_status(case: str, connector: str) -> dict[str, Any] | None:
         item["rule_id"] = item.get("rule_id") or rule_evidence.get("rule_id")
         item["matched_data"] = item.get("matched_data") or rule_evidence.get("matched_data")
         item["matched_variable"] = item.get("matched_variable") or rule_evidence.get("matched_variable")
+    case_definition = case_run.get("case_definition")
+    rules = ""
+    if isinstance(case_definition, dict):
+        rules = str(case_definition.get("rules") or "")
+        case_path = Path(str(case_definition.get("path") or ""))
+        if not rules and case_path.is_file():
+            try:
+                rules = case_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                rules = ""
+    xml_processor = "ctl:requestBodyProcessor=XML" in rules
+    xml_target = "XML:/*" in rules or "SecRule XML" in rules
+    if case.startswith("xml_"):
+        item["xml_processor_evidence"] = (
+            "ctl:requestBodyProcessor=XML" if xml_processor else "xml_processor_control_missing"
+        )
+        item["xml_target_evidence"] = "XML collection target present" if xml_target else "-"
+    else:
+        item["xml_processor_evidence"] = "-"
+        item["xml_target_evidence"] = "-"
     item["runtime_classification"] = runtime_reached_status(item)
     return item
+
+
+def latest_native_case_run(case: str) -> dict[str, Any] | None:
+    runs_root = VERIFIED_RUN_ROOT / "native-case-runs"
+    if not runs_root.is_dir():
+        return None
+    candidates = sorted(runs_root.glob(f"*-{case}/native-case-run.json"))
+    if not candidates:
+        return None
+    return read_json(candidates[-1])
 
 
 def critical_ranking(mismatches: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -285,7 +319,11 @@ def targeted_repros() -> list[dict[str, Any]]:
     for case in sorted(CURRENT_ANALYSIS_CASES):
         for connector in ("apache", "nginx", "haproxy"):
             item = None
-            if case == "v2_transformation_url_decode_invalid_sequence_mapped_candidate":
+            if case in {
+                "xml_namespace_edge_connector_gap",
+                "xml_request_body_malformed_connector_gap",
+                "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+            }:
                 item = latest_case_run_status(case, connector)
             if item is None:
                 result_file = CURRENT_TARGETED_ROOT / "results" / f"{case}-{connector}-result.json"
@@ -303,9 +341,15 @@ def targeted_repros() -> list[dict[str, Any]]:
             )
             if case == "v2_transformation_url_decode_invalid_sequence_mapped_candidate" and item.get("case_run"):
                 item["log_file"] = str(Path(str(item["case_run"])).parent / "logs")
+            if case.startswith("xml_") and item.get("case_run"):
+                item["log_file"] = str(Path(str(item["case_run"])).parent / "logs")
             if connector == "haproxy":
                 item["decision_log"] = str(CURRENT_TARGETED_ROOT / "results" / f"{case}-haproxy-decision.jsonl")
-                if case == "v2_transformation_url_decode_invalid_sequence_mapped_candidate" and item.get("case_run"):
+                if case in {
+                    "xml_namespace_edge_connector_gap",
+                    "xml_request_body_malformed_connector_gap",
+                    "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
+                } and item.get("case_run"):
                     item["decision_log"] = str(Path(str(item["case_run"])).parent / "logs")
             output.append(item)
     return output
@@ -314,6 +358,53 @@ def targeted_repros() -> list[dict[str, Any]]:
 def native_comparison_status() -> list[dict[str, Any]]:
     rows = []
     for case in sorted(CURRENT_ANALYSIS_CASES):
+        native = latest_native_case_run(case)
+        if native:
+            native_actual = native.get("native_actual")
+            expected = native.get("expected_status")
+            connector_repros = [latest_case_run_status(case, connector) for connector in ("apache", "nginx", "haproxy")]
+            connector_statuses = ", ".join(
+                f"{connector}:{item.get('actual', '-') if item else '-'}"
+                for connector, item in zip(("apache", "nginx", "haproxy"), connector_repros)
+            )
+            if case == "xml_namespace_edge_connector_gap":
+                all_targeted_match = all(
+                    item and item.get("runtime_classification") == "runtime_reached_actual_match"
+                    for item in connector_repros
+                )
+                status = "full_matrix_refresh_needed" if all_targeted_match else "fixture_experiment_targeted_only"
+                rows.append(
+                    {
+                        "case": case,
+                        "status": status,
+                        "evidence": (
+                            f"native_comparison_complete: native actual={native_actual}, expected={expected}; "
+                            f"targeted connectors={connector_statuses}; XML processor control present and XML:/* target matches."
+                        ),
+                    }
+                )
+                continue
+            if case == "xml_request_body_malformed_connector_gap":
+                rows.append(
+                    {
+                        "case": case,
+                        "status": "native_comparison_complete",
+                        "evidence": (
+                            f"runtime_reached_actual_mismatch: native actual={native_actual}, expected={expected}; "
+                            f"targeted connectors={connector_statuses}; XML processor control present, but no native "
+                            "rule match/parser-error evidence, so malformed XML parser semantics remain deferred."
+                        ),
+                    }
+                )
+                continue
+            rows.append(
+                {
+                    "case": case,
+                    "status": "native_comparison_complete",
+                    "evidence": f"native actual={native_actual}, expected={expected}; targeted connectors={connector_statuses}.",
+                }
+            )
+            continue
         if case == "v2_transformation_url_decode_invalid_sequence_mapped_candidate":
             latest = [latest_case_run_status(case, connector) for connector in ("apache", "nginx", "haproxy")]
             if all(item and item.get("runtime_classification") == "runtime_reached_actual_match" for item in latest):
@@ -362,34 +453,75 @@ def build_payload(connector_root: Path) -> tuple[dict[str, Any], list[Path]]:
         len(invalid_repros) == 3
         and all(item.get("runtime_classification") == "runtime_reached_actual_match" for item in invalid_repros)
     )
+    namespace_repros = [
+        item
+        for item in repros
+        if item.get("case") == "xml_namespace_edge_connector_gap"
+    ]
+    namespace_fixed_targeted = (
+        len(namespace_repros) == 3
+        and all(item.get("runtime_classification") == "runtime_reached_actual_match" for item in namespace_repros)
+    )
+    malformed_repros = [
+        item
+        for item in repros
+        if item.get("case") == "xml_request_body_malformed_connector_gap"
+    ]
+    malformed_runtime_mismatch = (
+        len(malformed_repros) == 3
+        and all(item.get("runtime_classification") == "runtime_reached_actual_mismatch" for item in malformed_repros)
+    )
+    malformed_reflection = case_reflection(mismatches, {"xml_request_body_malformed_connector_gap"})
+    malformed_reclassified = (
+        malformed_reflection.get("official_critical_rows") == 0
+        and malformed_reflection.get("classifications", {}).get("libmodsecurity_xml_parser_semantics") == 12
+    )
     decisions = [
         {
             "cluster": "connector_capability_gap / body-processors / xml_namespace_edge_connector_gap",
-            "decision": "DOCUMENT",
+            "decision": "FIX_INPUT_REFRESH_REQUIRED" if namespace_fixed_targeted else "DOCUMENT",
             "rows": 12,
             "new_classification": "-",
-            "native_comparison": "native_comparison_missing",
+            "native_comparison": "full_matrix_refresh_needed" if namespace_fixed_targeted else "fixture_experiment_targeted_only",
             "official_after": case_reflection(mismatches, {"xml_namespace_edge_connector_gap"}),
-            "full_matrix_refresh_needed": False,
+            "full_matrix_refresh_needed": namespace_fixed_targeted and not matrix_refresh_status["fresh"],
             "evidence": (
-                "Targeted Apache, NGINX, and HAProxy no-crs/no-mrts repros all return 200 instead of 403 "
-                "with no rule match. HAProxy records modsecurity_processed=true and request_body_seen=true. "
-                "The generated rule file contains only SecRule XML and no XML request-body processor "
-                "activation, so the best current finding is a test/input fixture gap, not a connector-only bug."
+                "Fixture evidence showed no explicit XML request-body processor control and a non-matching XML "
+                "collection rule. The YAML now enables ctl:requestBodyProcessor=XML and uses the established "
+                "XML:/* target against the namespaced body. Targeted Apache, NGINX, and HAProxy no-crs/no-mrts "
+                "repros now return HTTP 403, and native libmodsecurity also returns 403 with rule 4711. Official "
+                "Full-Matrix rows remain stale until the affected jobs are rerun."
+                if namespace_fixed_targeted
+                else (
+                    "The XML namespace fixture still has only targeted evidence and no fresh Full-Matrix run. "
+                    "Do not reclassify official rows until connector and native evidence are complete."
+                )
             ),
         },
         {
             "cluster": "expected_status_mismatch / body-processors / xml_request_body_malformed_connector_gap",
-            "decision": "DEFER",
+            "decision": "RECLASSIFY" if malformed_reclassified else "DEFER",
             "rows": 12,
-            "new_classification": "-",
-            "native_comparison": "native_comparison_missing",
-            "full_matrix_refresh_needed": False,
-            "official_after": case_reflection(mismatches, {"xml_request_body_malformed_connector_gap"}),
+            "new_classification": "libmodsecurity_xml_parser_semantics" if malformed_reclassified else "-",
+            "native_comparison": "native_comparison_complete" if malformed_runtime_mismatch else "native_comparison_missing",
+            "full_matrix_refresh_needed": not matrix_refresh_status["fresh"],
+            "official_after": malformed_reflection,
             "evidence": (
-                "Targeted repros all return 200 instead of 403 with no rule match. The generated rule file "
-                "also lacks explicit XML processor activation. Because the body is malformed XML, native "
-                "libmodsecurity parser semantics are needed before tightening the fixture or reclassifying."
+                "The YAML explicitly enables ctl:requestBodyProcessor=XML and targets the XML collection. "
+                "Targeted Apache, NGINX, and HAProxy return HTTP 200 with no rule match; native "
+                "libmodsecurity also returns 200. Native debug evidence shows XML parser initialization, "
+                "well_formed 0, and Failed to parse document, followed by rule 4408 returning 0 against "
+                "the XML collection. The official Full-Matrix rows are fresh and all connector variants "
+                "match native, so this case is reclassified as libmodsecurity XML parser semantics rather "
+                "than a connector gap."
+                if malformed_reclassified
+                else (
+                    "The YAML now explicitly enables ctl:requestBodyProcessor=XML, but targeted Apache, NGINX, "
+                    "and HAProxy still return HTTP 200 with no rule match. Native libmodsecurity also returns "
+                    "200 with no intervention for the malformed body. Because there is no parser-error variable "
+                    "or native parser-error control in this fixture, the case remains deferred as malformed XML "
+                    "parser semantics/fixture expectation work, not a connector-only gap."
+                )
             ),
         },
         {
@@ -517,6 +649,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
             item.get("actual") or "-",
             item.get("rule_id") or "-",
             item.get("matched_data") or "-",
+            item.get("xml_processor_evidence") or "-",
             item["evidence_file"],
         ]
         for item in payload["targeted_repros"]
@@ -563,6 +696,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
                     "Actual",
                     "Rule",
                     "Matched Data",
+                    "XML Processor Evidence",
                     "Evidence",
                 ],
                 repro_rows,
