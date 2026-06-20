@@ -80,9 +80,37 @@ without FFI.
 
 ## Connector Capability Boundaries
 
-The productive connectors share the contract in
-`docs/architecture/connector-contract.md`. The current evidence-scoped
-capability boundaries are:
+The productive connectors share the evidence and lifecycle contract in
+`docs/architecture/connector-contract.md`. This model intentionally summarizes
+capability status instead of duplicating the contract. The terms below are used
+consistently:
+
+| Term | Meaning |
+| --- | --- |
+| `supported` | Covered by current verified connector evidence for the documented cases. |
+| `bounded` | Works only inside an explicitly documented limit, such as HAProxy SPOE frame/body limits. |
+| `evidence-scoped` | Valid only for cases and variants represented by verified inputs or generated reports. |
+| `not-promoted` | Evidence may exist, but the capability must not be advertised as generally supported or counted as a verified variable. |
+| `diagnostic-only` | Useful troubleshooting evidence, such as `missing_result`, that must never count as runtime PASS. |
+
+| Capability | Apache | NGINX | HAProxy | Evidence Basis |
+| --- | --- | --- | --- | --- |
+| Request blocking | supported / evidence-scoped | supported / evidence-scoped | supported / evidence-scoped | Live connector runtime cases and full-matrix evidence. |
+| Request body | supported / evidence-scoped | supported / evidence-scoped | bounded / evidence-scoped | Verified URL-encoded/body cases; HAProxy bounded by request buffering and SPOE framing. |
+| XML body processor | evidence-scoped | evidence-scoped | bounded / evidence-scoped | Body-processor cases and generated body-processor analysis. |
+| JSON body processor | evidence-scoped | evidence-scoped | bounded / evidence-scoped | Request-body cases and runtime matrix evidence. |
+| Multipart | evidence-scoped | evidence-scoped | bounded / evidence-scoped | Multipart/files cases; HAProxy limited to proven request-body transport size/framing. |
+| Response body match | not-promoted except focused evidence | supported for phase-4 match evidence | bounded / evidence-scoped | Focused phase-4/response-body evidence and audit/decision artifacts. |
+| Response body enforcement | not-promoted | not-promoted for late disruptive phase-4 hard blocking | bounded strict-abort only / not-promoted generally | `nginx_phase4_response_body_enforcement_gap` and bounded HAProxy phase-4 evidence. |
+| Audit log | evidence-scoped; less structured in some cases | evidence-scoped with rule/audit messages | evidence-scoped paired with decisions | Audit artifacts copied by runtime/verified-case jobs. |
+| CRS | evidence-scoped | evidence-scoped | evidence-scoped | With-CRS matrix variants. |
+| MRTS | evidence-scoped | evidence-scoped | evidence-scoped | With-MRTS matrix variants and MRTS native/focused evidence. |
+| DetectionOnly overlay | classified boundary | classified boundary | classified boundary | `with_mrts_detection_only_overlay`; not a connector bug when DetectionOnly is applied. |
+| `verified-case` | complete only with real runtime `result.json`; otherwise diagnostic-only | complete only with real runtime `result.json`; otherwise diagnostic-only | complete only with real runtime `result.json`; otherwise diagnostic-only | `case-run.json`, `case-run.md`, copied logs, and runtime `result.json`. |
+| Full matrix | official counts only from complete fresh jobs | official counts only from complete fresh jobs | official counts only from complete fresh jobs | Full-matrix manifests, per-job `job.json`, copied logs, and generated reports. |
+| Native oracle relevance | explanatory only | explanatory only | explanatory only | Native evidence can explain libmodsecurity semantics but cannot replace connector matrix evidence. |
+
+Known boundaries remain:
 
 - NGINX can produce phase-4 response-body rule-match and audit evidence, but
   late disruptive response-body enforcement can still return HTTP 200. This is
@@ -96,5 +124,6 @@ capability boundaries are:
 - Apache remains the reference-near control connector for many cases, but some
   harness logs expose less structured rule-match details than NGINX/HAProxy.
 
-These notes document known evidence boundaries only. They do not change YAML
-expectations, generated PASS/FAIL values, or connector request processing.
+These notes document evidence boundaries only. They do not change YAML
+expectations, generated PASS/FAIL values, report classifications, or connector
+request processing.

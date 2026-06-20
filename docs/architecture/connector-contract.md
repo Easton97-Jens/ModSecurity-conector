@@ -3,11 +3,40 @@
 Status: evidence-scoped contract for the productive Apache, NGINX, and HAProxy
 connectors.
 
-This contract describes the artifact and evidence shape that a connector must
-provide to participate in `verified-case` and the full runtime matrix. It does
-not promote new behavior and it must not be used to edit expected statuses or
-PASS/FAIL values. Capability claims are valid only when backed by live runtime
-evidence or generated reports that were produced from verified inputs.
+## Purpose
+
+The connector contract defines one vocabulary for productive connectors without
+changing runtime behavior, YAML expectations, generated PASS/FAIL values, or
+report classifications. It exists to:
+
+- describe uniform minimum requirements for `connectors/apache`,
+  `connectors/nginx`, and `connectors/haproxy`;
+- provide a reusable acceptance baseline for future connectors;
+- define the evidence that must exist before a connector can be considered
+  `verified-case` or full-matrix ready;
+- keep runtime behavior, harness evidence, native oracle evidence, and generated
+  report classification separate; and
+- prevent local diagnostic artifacts from being counted as official runtime
+  evidence.
+
+Capability claims are valid only when backed by live connector evidence or by a
+generated report produced from verified inputs. This document may describe known
+boundaries, but it must not be used to hide failing checks, alter expected
+statuses, or mark incomplete evidence as PASS.
+
+## Connector Lifecycle
+
+| State | Minimum requirements | Required artifacts | Allowed reports | Claims not allowed yet |
+| --- | --- | --- | --- | --- |
+| `skeleton` | Repository path exists with ownership/provenance notes and a planned integration model. | `README.md`, `ORIGIN.md` or equivalent provenance notes, preliminary docs. | Design notes only. | Buildability, runtime execution, request blocking, full-matrix readiness. |
+| `buildable` | Connector source or integration glue builds reproducibly outside the checkout or in an approved build root. | Build target, source metadata, build logs under the runtime/build root. | Build/cache reports if generated from real inputs. | Runtime-startable, verified-case-ready, production-verified. |
+| `runtime-startable` | Local server/runtime can start and serve a readiness endpoint without claiming ModSecurity enforcement. | Runtime config, startup logs, access/error or equivalent operational logs. | Runtime readiness notes. | Request blocking, request-body processing, CRS/MRTS support. |
+| `verified-case-ready` | `make verified-case CONNECTOR=<name> ...` writes the standard case envelope and either a real runtime result or a diagnostic classification. | `case-run.json`, `case-run.md`, `result.json`, copied logs under `VERIFIED_RUN_ROOT`. | Targeted diagnostic or targeted runtime evidence. | Official matrix counts unless the corresponding full-matrix job is refreshed. |
+| `full-matrix-ready` | Full-matrix jobs complete with fresh inputs, complete job metadata, copied logs, no timeout-as-success, and generated reports pass layout/governance checks. | Full-matrix job directories, per-case result JSON, `job.json`, logs, manifest-backed reports. | Full-matrix reports generated from verified inputs. | Production verification beyond the tested matrix surface. |
+| `production-verified` | Connector has sustained full-matrix evidence plus documented operational boundaries, failure modes, and release readiness. | Full evidence set plus production validation notes. | Release/production readiness reports. | Unlimited capability claims outside documented evidence. |
+
+A connector can move forward only with evidence. A connector can move backward
+if evidence becomes stale, missing, blocked, or superseded by targeted findings.
 
 ## Existing Connector Status
 
@@ -28,72 +57,200 @@ evidence or generated reports that were produced from verified inputs.
 | `verified-case` integration | Must emit `case-run.json`, `case-run.md`, `result.json`, copied logs, and official mismatch context when available. | Same. | Same, plus `decision.jsonl` when emitted by SPOP runtime. | Missing framework/runtime components may produce diagnostic evidence but not complete runtime evidence. |
 | Full-matrix integration | Full-matrix-ready when connector jobs have fresh result JSON, copied logs, no critical mismatches, and merge-readiness remains PASS. | Same. | Same, with structured SPOP decisions included. | Full-matrix refresh is required only after behavior/evidence producer changes. |
 
-## Required Connector Artifacts
+## Required Directory Layout
 
-A productive connector must keep the following repository shape:
+The target contract for a productive connector is:
 
-- `connectors/<name>/src/` for adapter-owned or adapter-integrating source.
-- `connectors/<name>/harness/` for connector-local runtime entrypoints and
-  README notes.
-- `connectors/<name>/docs/` for build, validation, architecture, and capability
-  boundaries.
-- `connectors/<name>/metadata.c` and `metadata.h` for connector metadata.
-- `connectors/<name>/ORIGIN.md` and source-map/license records for imported or
-  adapted source provenance.
+```text
+connectors/<name>/
+  README.md
+  config/      # static connector/server module config when applicable
+  scripts/     # connector-owned helper scripts when needed
+  harness/     # smoke and verified runtime entrypoints
+  logs/        # documentation/examples only; runtime logs stay outside checkout
+  examples/    # minimal example configs and deployment snippets
+  docs/        # architecture, build, validation, and capability notes
+  src/         # connector source or integration glue
+```
 
-Runtime evidence is written outside the checkout, normally below
-`/var/tmp/ModSecurity-conector-verified`, and versioned generated reports under
-`reports/testing/generated/` are refreshed only through generators.
+The current repository intentionally does not force all existing connectors into
+that shape:
 
-## Required Case Evidence
+| Connector | Current shape | Difference from target | Roadmap note |
+| --- | --- | --- | --- |
+| Apache | `src/`, `harness/`, `docs/`, build metadata, provenance files. | No connector-local `config/`, `scripts/`, `logs/`, or `examples/` directory. | Add README links or examples only when needed; do not move working Autotools/build files without targeted tests. |
+| NGINX | `src/`, `harness/`, `docs/`, `config`, provenance files. | Has NGINX module `config` file rather than a `config/` directory; no connector-local `scripts/`, `logs/`, or `examples/` directory. | Keep NGINX-native module metadata in place; document examples before restructuring. |
+| HAProxy | `src/`, `harness/`, `docs/`, `poc/`, connector `Makefile`, provenance files. | No top-level `config/`, `scripts/`, `logs/`, or `examples/` directory; SPOE examples live under `poc/`. | Preserve SPOE/SPOP history; consolidate examples only after evidence-preserving cleanup. |
 
-Each `verified-case` run should provide:
+Do not blindly move files to satisfy the target shape. Any layout cleanup must be
+a separate low-risk task with `make lint`, `make quick-check`, and affected
+connector smoke evidence.
+
+## Required Runtime Artifacts
+
+A real connector runtime run must provide the following artifacts when the
+runtime reaches the connector path:
 
 | Artifact | Requirement |
 | --- | --- |
-| `case-run.json` | Run envelope with connector, case, CRS/MRTS variant, command, duration, copied artifacts, official mismatch context, and `full_matrix_refresh_needed`. |
-| `case-run.md` | Human-readable summary with request metadata, evidence links, rule evidence, log excerpt, and next-step commands. |
-| `result.json` | Machine-readable outcome with `status`, `expected_status`, `actual_status`, and a clear `reason` or connector-specific evidence fields. |
-| Logs | Connector runtime logs sufficient to explain the observed status: access/error/audit for Apache and NGINX; HAProxy/SPOP/backend/audit logs for HAProxy. |
-| Decision stream | Use `decision.jsonl` or an equivalent structured artifact when the connector has a decision transport separate from HTTP status. HAProxy uses this as primary evidence. |
+| `result.json` | Machine-readable outcome with `status`, `expected_status`, `actual_status`, and a clear reason or connector-specific decision fields. |
+| Access log | HTTP request/response trace when the server exposes one. |
+| Error log | Server or runtime errors that explain startup, request handling, and ModSecurity messages. |
+| Audit log | Required when supported/configured by the connector and test variant. Absence must be explicit when a case asserts no audit log. |
+| Decision stream | Required when a connector has a structured decision transport separate from HTTP status. |
+| `case-run.json` | Verified-case envelope with connector, case, CRS/MRTS variant, command, duration, copied artifacts, official mismatch context, and `full_matrix_refresh_needed`. |
+| `case-run.md` | Human-readable run summary with request metadata, evidence paths, rule evidence, log excerpts, and next-step commands. |
+| Copied logs | Relevant logs copied under `VERIFIED_RUN_ROOT` so reports do not depend on ephemeral process directories. |
 
-`result.json` must never be hand-edited to force PASS/FAIL. If the harness
-cannot produce a runtime result, it may write `status: missing_result` with a
-reason, but that is diagnostic evidence rather than a passing runtime case.
+Connector-specific additions:
 
-## Decision Evidence Model
+| Connector | Additional required or expected evidence |
+| --- | --- |
+| Apache | Apache error log, access log when available, audit log when configured, and a documented limitation that some rule-match details are less structured than HAProxy/NGINX. |
+| NGINX | NGINX error log, access log when available, ModSecurity audit evidence, and phase-4 response-body match notes for response-body cases. |
+| HAProxy | `decision.jsonl`, HAProxy logs, SPOP/SPOA logs, backend logs, `decision=pass|deny`, `intervention_status`, and `rule_id`. |
 
-The normalized decision model is:
+`result.json` must never be hand-edited to force PASS/FAIL. If a harness cannot
+produce a runtime result, it may write `status: missing_result`, but that run is
+`diagnostic_only` and cannot count as a runtime smoke PASS.
+
+## Normalized Decision Model
 
 | Field | Meaning |
 | --- | --- |
-| `expected_status` | YAML expected HTTP status for the selected case and variant. |
+| `expected_status` | Expected HTTP status from the selected YAML case and variant. |
 | `actual_status` | HTTP status observed through the live connector path. |
-| `status` | Harness outcome such as `pass`, `fail`, `blocked`, or `missing_result`. |
-| `rule_id` | Matched rule identifier when known; for HAProxy `rule_id=0` means no rule match. |
-| `decision` | Connector decision label, for example HAProxy `pass` or `deny`. |
-| `intervention_status` | ModSecurity disruptive intervention status when available. |
-| `classification` | Generated report classification for known boundaries; not a replacement for raw evidence. |
+| `status` | Normalized outcome: `PASS`, `FAIL`, `BLOCKED`, `MISSING_RESULT`, or the connector-local equivalent before normalization. |
+| `rule_id` | Matched ModSecurity rule when known; for HAProxy, `rule_id=0` means no rule match. |
+| `decision` | Connector decision such as `pass`, `deny`, or `unknown`. |
+| `intervention_status` | HTTP status requested by a ModSecurity disruptive intervention, when available. |
+| `classification` | Report classification for known boundaries; it explains evidence but does not replace raw artifacts. |
+| `critical` | Whether the classified outcome blocks merge readiness. |
+| `evidence_scope` | `full-matrix`, `targeted`, `native`, `diagnostic`, `stale`, or `refresh-needed`. |
 
-## Capability Boundaries
+## Evidence Scope Rules
 
-| Boundary | Classification | Contract |
+| Evidence type | Can change official counts? | Rules |
 | --- | --- | --- |
-| NGINX late phase-4 response-body enforcement | `nginx_phase4_response_body_enforcement_gap` | Phase-4 response-body rule matches and audit/rule evidence can exist, but late disruptive enforcement may still return HTTP 200. Do not promote this as hard blocking without targeted evidence. |
-| MRTS DetectionOnly overlay | `with_mrts_detection_only_overlay` | `with-mrts` can set `ctl:ruleEngine=DetectionOnly`; disruptive actions are intentionally non-blocking in those variants. |
-| HAProxy no-match decision records | Decision evidence, not a mismatch | In `decision.jsonl`, `rule_id=0` means no rule match. `decision=pass`/`deny` and `intervention_status` are central to interpretation. |
-| Apache rule-detail shape | Capability note | Apache is the reference-near control connector for many cases, but some harness logs expose less structured rule-match detail than NGINX/HAProxy. |
+| Full-matrix evidence | Yes | Only complete full-matrix jobs with fresh inputs may update official runtime counts, critical mismatch totals, and merge-readiness dashboards. |
+| Targeted evidence | No, not by itself | Targeted runs can prove a fix or boundary before/after, but official reports become green only after affected matrix jobs are refreshed. |
+| Native evidence | No | Native oracle runs can explain libmodsecurity semantics but do not replace connector matrix evidence. |
+| Diagnostic-only evidence | No | `missing_result`, missing runtime components, startup blockers, or copied command logs are useful diagnostics but must never count as runtime PASS. |
+| Stale evidence | No | Evidence from old inputs, old component caches, or superseded manifests cannot be used for current readiness claims. |
+| Refresh-needed evidence | No until refreshed | `full_matrix_refresh_needed=true` requires real reruns and must return to `false` before the evidence is considered current. |
 
-## Full-Matrix Readiness
+Only full-matrix evidence may change official runtime numbers. Diagnostic-only
+verified-case output must be labelled with a classification such as
+`diagnostic_only_missing_runtime_components` when local components are absent.
 
-A connector is full-matrix-ready when all of the following are true:
+## Capability Boundary Model
 
-1. The framework can discover and materialize the selected YAML cases without
-   connector-local duplication of rule/request/expected-status data.
-2. Runtime jobs write per-case `result.json` files and copy logs/audit/decision
-   evidence into stable artifact directories.
-3. Generated reports are refreshed by `make refresh-connector-reports` or the
-   relevant generator targets, not by manual edits.
-4. Critical mismatch count remains zero and merge-readiness remains PASS.
-5. New behavior changes have targeted before/after evidence and affected
-   full-matrix jobs are rerun with `--force` or the documented equivalent.
+### Apache
+
+- Apache is the reference-near control connector for many request and
+  request-body cases.
+- Request blocking and request-body behavior are evidence-scoped, not assumed
+  from source layout alone.
+- Audit log evidence can be present, but some harness logs contain less
+  structured rule-match detail than HAProxy `decision.jsonl` or NGINX
+  audit/error messages.
+- Apache is not automatically a perfect oracle for every libmodsecurity
+  semantic; native evidence and cross-connector matrix evidence remain separate.
+
+### NGINX
+
+- Request blocking works for the cases covered by verified evidence.
+- Request-body behavior works for the checked URL-encoded, JSON, XML, and
+  multipart cases.
+- Phase-4 response-body rule-match evidence is possible.
+- Late disruptive phase-4 response-body enforcement can leave the client-visible
+  HTTP status at `200` even when audit/rule evidence exists.
+- Classification: `nginx_phase4_response_body_enforcement_gap`.
+- This boundary is non-critical while it is evidence-based, documented, and not
+  misreported as hard response-body blocking.
+
+### HAProxy
+
+- HAProxy uses an SPOA/SPOP-based connector model.
+- `decision.jsonl` is the primary structured decision evidence.
+- `rule_id=0` means no ModSecurity rule match.
+- `decision=pass` means no connector block was applied.
+- `decision=deny` together with `intervention_status` shows disruptive blocking.
+- Request-body support is bounded by request buffering and SPOE frame limits.
+- Response-body support is bounded and must not be blanket-promoted.
+
+### MRTS
+
+- `with-mrts` can set `ctl:ruleEngine=DetectionOnly`.
+- Disruptive actions are intentionally non-blocking under that overlay.
+- Classification: `with_mrts_detection_only_overlay`.
+- This is not a connector bug when the evidence shows DetectionOnly was applied.
+
+## Full-Matrix Readiness Criteria
+
+A connector is full-matrix-ready only when all criteria are met:
+
+1. Runtime components are startable from approved runtime/build roots.
+2. `verified-case` writes at least diagnostic artifacts and writes real runtime
+   `result.json` for complete smoke claims.
+3. Full-matrix job artifacts are complete for the connector/CRS/MRTS variant.
+4. `job.json` is present and complete.
+5. Timeout, interrupted, or missing-result jobs are not counted as fresh
+   completion.
+6. Logs and decision/audit evidence are copied under `VERIFIED_RUN_ROOT`.
+7. Reports are generated from real current inputs, not hand-patched files.
+8. `make check-generated-report-layout` remains PASS.
+9. Critical mismatch count and merge-readiness status are read from generated
+   evidence, never manually edited.
+
+## New Connector Acceptance Criteria
+
+Minimum before a new connector is admitted to the full matrix:
+
+| Requirement | Acceptance rule |
+| --- | --- |
+| Build target exists | A documented build target can produce the connector or integration artifact. |
+| Runtime start target exists | A documented target starts the runtime from approved paths. |
+| `verified-case` works | The target writes `case-run.json`, `case-run.md`, copied logs, and `result.json`. |
+| Request blocking smoke passes | A simple disruptive request case produces the expected runtime block. |
+| Request-body smoke evaluated | At least one request-body case is run and classified. |
+| Logs copied | Access/error/audit/decision logs are copied or explicitly classified unavailable. |
+| Capability notes documented | Boundaries and non-promoted areas are documented before report promotion. |
+
+Not allowed before real full-matrix evidence:
+
+- `production_verified`
+- `full_matrix_ready`
+- `merge_ready`
+- `critical_free`
+
+## Future Generated Report
+
+A generated connector capability summary would be useful only when complete
+verified runtime inputs are available. The future report should be generator
+backed and derive from current manifests/reports, not hand-written tables:
+
+```text
+reports/testing/generated/manifest/connector-capability-summary.generated.md
+reports/testing/generated/manifest/connector-capability-summary.generated.json
+```
+
+Target columns:
+
+| Connector | Request Blocking | Request Body | Response Body Match | Response Body Enforcement | Audit Log | CRS | MRTS |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+
+Do not add or commit this report if it would create blocked generated reports or
+if complete verified runtime inputs are unavailable.
+
+## Low-Risk Hardening Roadmap
+
+1. Add connector README links to this contract and the capability model.
+2. Add a generator-backed connector capability summary after a clean verified
+   runtime input set is available.
+3. Improve copied-log labels in `case-run.md` without changing request
+   processing.
+4. Evaluate new connector candidates separately, using this lifecycle before any
+   full-matrix promotion.
+5. Avoid existing connector refactors while the verified evidence baseline is
+   PASS unless a targeted before/after evidence plan exists.
