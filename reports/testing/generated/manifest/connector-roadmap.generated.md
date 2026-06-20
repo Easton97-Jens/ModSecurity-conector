@@ -1,111 +1,217 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T17:36:41Z`
-> Verified run id: `2026-06-19T17-36-41Z-983ce2a2`
+> Generated at: `2026-06-19T20:07:55Z`
+> Verified run id: `2026-06-19T20-07-55Z-98389075`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-connector-roadmap.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `informational`
-> Connector SHA: `983ce2a2918c3a3c649cd84364b6dcfdc9e53506`
+> Connector SHA: `98389075a778eeaa861eac0e8e052f5b746af3c2`
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
 # Connector Roadmap
 
-Roadmap-only generated report. It does not create runtime PASS/FAIL values and does not add full-matrix rows for unimplemented connectors.
+## Roadmap Scope
+
+This report is `roadmap_only`. It evaluates repository structure, existing skeletons, technical feasibility, and first proof steps.
+It does not replace runtime evidence, does not generate full-matrix results, does not fabricate PASS/FAIL values, and must not influence Merge Readiness.
+
+| Field | Value |
+|---|---|
+| report_scope | roadmap_only |
+| evaluates | repository structure, existing skeletons, technical feasibility, first proof steps, and evidence gates |
+| does_not_replace | runtime evidence, verified-case result.json evidence, or full-matrix evidence |
+| full_matrix_results_created | False |
+| runtime_pass_fail_values_created | False |
+| merge_readiness_impact | none |
 
 ## Connector Status Matrix
 
-| Connector | Directory | Status | Build Target | Verified Case | Full Matrix | Notes |
+| Connector | Directory | Current Status | Why | Next Step | Runtime Evidence? | Full-Matrix? |
 |---|---|---|---|---|---|---|
-| apache | yes | production_verified | yes | yes | yes | production verified runtime connector; framework runtime and full-matrix evidence present |
-| nginx | yes | production_verified | yes | yes | yes | production verified runtime connector; OpenResty is initially covered as an nginx runtime variant |
-| haproxy | yes | production_verified | yes | yes | yes | production verified runtime connector; SPOE-sidecar integration path is documented |
-| envoy | yes | partial_skeleton | yes | no | no | partial bridge starter only; no runtime-verified Envoy adapter; most realistic proof path is ext_proc or ext_authz sidecar before considering native/WASM work; request/response body coverage depends on Envoy buffering/streaming mode limits |
-| lighttpd | yes | partial_skeleton | yes | no | no | partial bridge starter only; no native lighttpd module, FastCGI, or SCGI bridge; blocking is plausible only after a selected hook/proxy architecture is proven |
-| traefik | yes | partial_skeleton | yes | no | no | partial decision-service starter only; no Go plugin/middleware or runtime harness; direct libmodsecurity embedding is not proven; reverse-proxy/decision-service harness is lower-risk |
-| litespeed | no | planned | no | no | no | planned candidate; no repository directory yet; OpenLiteSpeed/LiteSpeed ModSecurity compatibility needs license/download/automation proof before implementation |
-| openresty | no | covered_by_existing_connector | no | no | no | covered_by_nginx; do not create a separate connector at this stage |
+| apache | yes | production_verified | Existing production connector with verified runtime and full-matrix coverage. | Keep in verified runtime/full-matrix maintenance. | yes | yes |
+| nginx | yes | production_verified | Existing production connector with verified runtime and full-matrix coverage; OpenResty is NGINX-based. | Keep production coverage and optionally add OpenResty compatibility smoke under nginx later. | yes | yes |
+| haproxy | yes | production_verified | Existing production connector with verified runtime and full-matrix coverage; SPOE path is documented. | Keep production coverage and capability notes current. | yes | yes |
+| envoy | yes | partial_skeleton | Repository has an Envoy bridge starter and harness entrypoint, but no runtime-verified Envoy integration yet. | Define and run a targeted ext_proc/ext_authz runtime smoke proof; do not start full matrix. | targeted proof required | no |
+| lighttpd | yes | partial_skeleton | Repository has a lighttpd bridge starter, but no native module/FastCGI/SCGI runtime integration. | Write a request-blocking feasibility note and select native-module versus sidecar/proxy architecture. | targeted proof required | no |
+| traefik | yes | partial_skeleton | Repository has a decision-service starter, but no Traefik Go plugin/middleware or runtime harness. | Prototype forwardAuth/decision-service feasibility before any Go plugin implementation. | targeted proof required | no |
+| litespeed | no | planned | No repository directory exists; LiteSpeed/OpenLiteSpeed is only a candidate until install/licensing proof exists. | Run OpenLiteSpeed install/start proof with one CRS/request-blocking smoke if automation allows it. | no | no |
+| openresty | no | covered_by_existing_connector | OpenResty is based on the NGINX runtime stack and should not fork connector ownership now. | Treat as nginx runtime variant or compatibility smoke only; no separate reports or full matrix. | no | no |
 
 ## Connector Candidate Ranking
 
 | Rank | Connector | Difficulty | Risk | Expected Value | Recommendation |
-|---:|---|---|---|---|---|
-| 1 | envoy | high | medium-high | high | Next proof: ext_proc/ext_authz sidecar runtime smoke with request blocking and explicit body-mode evidence. |
-| 2 | litespeed | medium | high | medium-high | Run installation/licensing proof for OpenLiteSpeed first; do not implement until automation is proven. |
-| 3 | traefik | medium-high | high | medium | Prototype a decision-service/forwardAuth harness before any Go plugin work. |
+|---|---|---|---|---|---|
+| 1 | envoy | high | medium-high | high | Next proof: targeted ext_proc/ext_authz runtime smoke with request blocking and explicit non-goals. |
+| 2 | litespeed | medium | high | medium-high | Run OpenLiteSpeed installation/licensing proof before adding a connector directory. |
+| 3 | traefik | medium-high | high | medium | Prototype forwardAuth/decision-service feasibility before any Go plugin work. |
 | 4 | lighttpd | high | high | medium | Perform hook/proxy architecture spike before implementation. |
+
+## Connector Lifecycle
+
+| Stage | Meaning | Required Evidence | Not Allowed Claims |
+|---|---|---|---|
+| planned | Candidate is tracked but no connector directory or selected runtime architecture is required yet. | Roadmap entry, rationale, risks, and first proof definition. | No runtime support, no blocking support, no CRS support, no verified-case readiness. |
+| skeleton | Connector directory or starter exists with README/metadata/build notes, but no real runtime proof. | Repo-owned scaffold, origin notes, build or self-test starter, and explicit non-runtime disclaimer. | No production readiness, no verified runtime result, no full-matrix eligibility. |
+| buildable | Starter or adapter component compiles from clean checkout with documented command. | Build command, artifact path outside checkout, source map, and passing syntax/lint checks. | No traffic handling or ModSecurity semantics unless runtime logs prove them. |
+| runtime-startable | Server/proxy and any sidecar can start locally with minimal configuration. | Start/stop or run script, minimal config, process logs, port allocation, and cleanup behavior. | No verified blocking or CRS coverage without a case result and logs. |
+| verified-case-ready | A targeted real runtime case can produce result.json and logs under verified runtime root. | result.json, case-run JSON/Markdown, access/error logs or equivalent, decision/audit evidence where applicable. | No full-matrix readiness, no broad phase coverage, no production_verified status. |
+| full-matrix-candidate | Full-matrix jobs are technically schedulable for the connector, but may still fail or be incomplete. | Matrix job definitions, runtime result producer, report integration, known limitation notes, and governance/lint pass. | No PASS/Merge Readiness claims until generated full-matrix evidence supports them. |
+| production-verified | Connector passed the complete verified evidence pipeline and is included in production status. | Verified runtime evidence, full matrix, governance, lint, quick-check, report layout, and merge-readiness PASS. | Do not claim if any required generated evidence is blocked, stale, or missing. |
+| covered-by-existing-connector | Runtime is intentionally covered as a variant of an existing connector rather than a separate connector. | Decision record that names owning connector and allowed future compatibility-smoke path. | No separate full matrix, generated reports, or production connector identity. |
+| blocked | Implementation cannot proceed until an external, licensing, architecture, or evidence blocker is resolved. | Blocker description, owner/next proof, and what evidence would unblock it. | No forward status promotion until the blocker is removed and evidenced. |
+
+## New Connector Acceptance Criteria
+
+| Requirement | Required for Skeleton | Required for Verified-Case | Required for Full-Matrix |
+|---|---|---|---|
+| connectors/<name>/README.md | yes | yes | yes |
+| build/start/stop or run script | build starter allowed | yes | yes |
+| minimal config | recommended | yes | yes |
+| verified-case support | no | yes | yes |
+| result.json | no | yes | yes |
+| access/error logs or equivalent | no | yes | yes |
+| audit evidence if supported | document support | yes if supported | yes if supported |
+| decision evidence if applicable | document support | yes | yes |
+| capability notes | yes | yes | yes |
+| request blocking smoke | no | yes | yes |
+| request body smoke or documented not-supported reason | no | yes | yes |
+| clean report-governance/lint/quick-check | yes | yes | yes |
+
+## Envoy Architecture Options
+
+| Option | Description | Pros | Cons | Proof Difficulty | Recommendation |
+|---|---|---|---|---|---|
+| ext_proc sidecar | Envoy External Processing gRPC service that can inspect configured request/response processing points. | Best fit for staged request/body/response experiments; external process can own ModSecurity lifecycle and evidence logs. | Requires protobuf/gRPC service and careful body processing-mode limits; response-body intervention semantics need proof. | medium-high | primary proof path together with a minimal request-blocking case |
+| ext_authz service | Envoy authorization service that returns allow/deny before routing to upstream. | Simple request blocking proof; easy to reason about 403 decisions and logs. | Primarily authorization-oriented; request body/response body coverage is limited and not a full ModSecurity phase mapping. | medium | acceptable first smoke if ext_proc is too heavy; pair with clear body/response non-goals |
+| WASM filter | Proxy-Wasm HTTP filter embedded in Envoy filter chain. | Native filter-chain placement and possible phase visibility. | Higher toolchain complexity; embedding libmodsecurity or a robust bridge is risky; evidence and debugging are harder. | high | defer until sidecar proof confirms required semantics |
+| Lua filter | Envoy Lua HTTP filter that calls or models an external decision service. | Fast prototype for header/path decisions. | Not a strong long-term ModSecurity integration; body and response handling are constrained. | medium | use only as fallback feasibility spike, not preferred connector path |
+| reverse-proxy chain with existing connector | Envoy fronts an existing verified connector such as nginx or apache. | Fast compatibility smoke and infrastructure proof. | Does not prove an Envoy connector; ModSecurity decision belongs to downstream connector. | low-medium | allowed only as infrastructure smoke, not as Envoy connector evidence |
+| external ModSecurity decision service | Standalone service owns ModSecurity transaction evaluation; Envoy calls it through ext_proc/ext_authz or another control point. | Clear separation of Envoy harness and ModSecurity lifecycle; reusable for Traefik/lighttpd sidecar studies. | Protocol mapping and body buffering still must be proven; not a connector by itself. | medium-high | use as shared service behind ext_proc/ext_authz proof |
+
+### Envoy Option Capability Checks
+
+| Option | Request Blocking | Request Body | Response Body | Intervention Status | Evidence | CI Testability | Risk |
+|---|---|---|---|---|---|---|---|
+| ext_proc sidecar | yes, if the processor returns a denied/modified response before upstream forwarding | possible, subject to Envoy processing mode and buffering settings | possible in concept, but not claimed until explicitly evidenced | map ModSecurity disruptive intervention to Envoy processor response/denied status | Envoy logs, processor logs, decision log, result.json, case-run files | good after pinned Envoy binary/container and deterministic ports | medium-high |
+| ext_authz service | yes | limited/config-dependent; do not claim broad request-body support in first proof | no practical response-body claim for first proof | map deny decision to ext_authz denied response status 403 | Envoy logs, authz service logs, decision log, result.json, case-run files | good | medium |
+| WASM filter | possible but not proven | possible but SDK/runtime constrained | possible but high risk | filter must translate decisions into local responses/stream actions | Envoy logs plus WASM module logs; more complex CI artifacts | moderate to poor for first proof | high |
+| Lua filter | yes for simple cases | limited | not a first-proof claim | Lua script returns local 403 or delegates to sidecar | Envoy logs, Lua log messages, sidecar logs if used | good for a smoke, weak for connector semantics | medium-high |
+| reverse-proxy chain with existing connector | yes, but by the existing connector rather than Envoy | covered by existing connector only | covered by existing connector only | downstream connector returns status; Envoy only forwards it | Envoy forwarding logs plus existing connector logs | good | low for smoke, high if misrepresented |
+| external ModSecurity decision service | yes through caller integration | depends on caller body delivery | depends on caller response delivery | service returns intervention_status and decision fields consumed by Envoy adapter layer | service decision log, ModSecurity audit/decision log, Envoy logs, result.json | good if implemented as deterministic local process | medium |
+
+## Recommended Envoy Proof
+
+| Field | Value |
+|---|---|
+| name | Minimal Envoy ext_proc/ext_authz runtime smoke |
+| scope | targeted proof only; not a full connector and not a full-matrix producer |
+| runtime_root | $VERIFIED_RUN_ROOT/envoy-smoke/ |
+| goals | Envoy starts locally with a deterministic minimal config.<br>A simple upstream responds through Envoy.<br>A ModSecurity-like decision service or sidecar can emit a deny decision.<br>A case such as action_deny_phase1 or envoy_request_blocking_smoke returns HTTP 403.<br>Logs and decision evidence are written under the verified runtime root.<br>No full-matrix integration is added for this proof. |
+| artifacts | connectors/envoy/README.md<br>connectors/envoy/config/envoy.yaml<br>connectors/envoy/harness/<br>connectors/envoy/scripts/run-smoke.sh<br>connectors/envoy/examples/ |
+| evidence | result.json<br>envoy access log<br>envoy error log<br>decision-service log<br>modsecurity decision log, if present<br>case-run.md<br>case-run.json |
+
+### Envoy Minimal Result Schema
+
+```json
+{
+  "connector": "envoy",
+  "case": "envoy_request_blocking_smoke",
+  "expected_status": 403,
+  "actual_status": 403,
+  "status": "pass",
+  "decision": "deny",
+  "intervention_status": 403,
+  "evidence_scope": "targeted",
+  "full_matrix_ready": false
+}
+```
+
+### Envoy Non-Goals
+
+- No CRS support in first proof.
+- No MRTS support in first proof.
+- No full matrix.
+- No response-body support claim.
+- No production_verified claim.
+- No merge-readiness impact.
+
+## LiteSpeed / OpenLiteSpeed Candidate
+
+| Field | Value |
+|---|---|
+| candidate | LiteSpeed / OpenLiteSpeed |
+| status | planned |
+| edition_note | OpenLiteSpeed is likely more CI-friendly; LiteSpeed Enterprise may add license/download automation risk. |
+| install_path | Prefer package/container proof if license and automation permit it. |
+| modsecurity_crs_support | Must be proven with the selected edition; do not assume libmodsecurity-v3 connector parity. |
+| first_proof | OpenLiteSpeed install/start proof plus one CRS/request-blocking smoke, if automation and licensing allow it. |
+| main_risk | License/download automation, edition differences, ModSecurity-engine compatibility, package availability, and CI reproducibility. |
+| evidence_required | install log, start log, minimal config, request/response transcript, result.json, access/error/audit logs if available. |
+| not_allowed_claims | No production status, no full matrix, no CRS compatibility claim, and no phase coverage claim before evidence exists. |
+
+## Lighttpd and Traefik Feasibility
+
+| Connector | Current State | Blocker | First Proof Step | Risk |
+|---|---|---|---|---|
+| lighttpd | partial_skeleton | No selected native ModSecurity integration, FastCGI/SCGI bridge, or runtime harness. | Request-blocking feasibility proof that selects native module versus proxy/sidecar architecture. | high |
+| traefik | partial_skeleton | No Go plugin/middleware, no forwardAuth runtime harness, and no libmodsecurity lifecycle proof. | forwardAuth/decision-service returns 403 for a known malicious request with logs and result.json. | high |
 
 ## OpenResty Decision
 
 | Field | Value |
 |---|---|
-| Decision | covered_by_nginx |
-| Separate connector | no |
-| Reason | NGINX-based runtime |
+| decision | covered_by_nginx |
+| separate_connector | no |
+| future_option | nginx runtime variant / compatibility smoke |
+| reason | NGINX-based stack |
+| full_matrix | no separate full matrix |
+| reports | no separate generated reports |
 
-## LiteSpeed Candidate
+## New Connector Work Items
 
-| Field | Value |
-|---|---|
-| Candidate | LiteSpeed / OpenLiteSpeed |
-| Status | planned |
-| Key risks | license/download automation, edition differences, ModSecurity-engine compatibility, CI installability |
-| Next proof step | OpenLiteSpeed package/container install proof with one CRS blocking fixture and captured evidence |
+| Priority | Work Item | Connector | Output | Acceptance Criteria |
+|---|---|---|---|---|
+| 1 | Envoy architecture proof spec | envoy | documented ext_proc/ext_authz choice and non-goals | Roadmap and onboarding docs name protocol, evidence, and blocked claims. |
+| 2 | Envoy minimal smoke harness skeleton | envoy | envoy.yaml, run-smoke.sh, upstream/decision-service launcher plan | Can start Envoy and upstream locally without full-matrix integration. |
+| 3 | Envoy result/evidence schema | envoy | targeted result.json and case-run schema | Schema includes connector, case, expected/actual status, decision, intervention_status, evidence_scope, and full_matrix_ready=false. |
+| 4 | LiteSpeed install feasibility proof | litespeed | OpenLiteSpeed install/start feasibility notes | Documents license/download path, automation risk, and one request-blocking proof fixture. |
+| 5 | OpenResty compatibility-smoke decision | openresty | nginx-owned compatibility-smoke decision | No separate connector, no separate full matrix, no separate generated reports. |
+| 6 | Lighttpd feasibility note | lighttpd | native-module versus sidecar/proxy feasibility note | Identifies first request-blocking hook and evidence that would prove it. |
+| 7 | Traefik forwardAuth feasibility note | traefik | decision-service/forwardAuth proof note | Known malicious request returns 403 with decision logs in targeted proof. |
 
-## Technical Feasibility
+## Claims Not Allowed Before Full-Matrix Evidence
 
-### envoy
-
-| Field | Assessment |
-|---|---|
-| integration | realistic via ext_proc gRPC sidecar or ext_authz decision service; WASM/Lua are possible but not currently represented in the repo |
-| blocking | realistic for request blocking with ext_authz/ext_proc; response-body disruptive semantics require explicit filter-mode proof |
-| phases | request headers/body and response headers/body are conceptually mappable through Envoy HTTP filters, subject to configured processing modes |
-| limits | body coverage is governed by Envoy buffering/streaming settings and partial-body behavior; must be evidenced per case |
-
-### lighttpd
-
-| Field | Assessment |
-|---|---|
-| integration | no native ModSecurity adapter is present; needs either a native module study or proxy/sidecar bridge |
-| blocking | realistic only after the chosen hook can stop forwarding before upstream commit |
-| phases | request headers/body are more likely first; response phases need separate hook proof |
-| limits | unknown until module/proxy architecture and buffering behavior are selected |
-
-### traefik
-
-| Field | Assessment |
-|---|---|
-| integration | plugin/middleware or forwardAuth-style decision service are the likely paths; direct libmodsecurity integration is not proven |
-| blocking | request blocking is realistic through middleware/decision service; response-body blocking is higher risk |
-| phases | request header/body first; response phases require Go middleware/harness evidence |
-| limits | depends on plugin/middleware body buffering and Yaegi/Go runtime constraints |
-
-### litespeed
-
-| Field | Assessment |
-|---|---|
-| integration | OpenLiteSpeed and LiteSpeed Enterprise advertise ModSecurity-compatible rule support, but this repo has no connector or harness |
-| blocking | plausible if the server's own ModSecurity engine can be driven in CI with CRS fixtures |
-| phases | must be mapped empirically from server logs/results rather than assumed equivalent to libmodsecurity v3 connectors |
-| limits | license, package availability, edition differences, and non-libmodsecurity engine compatibility are the main risks |
+- production_verified status
+- merge-readiness contribution
+- full-matrix PASS/FAIL counts
+- CRS support across variants
+- MRTS support
+- response-body blocking support
+- phase coverage parity with apache/nginx/haproxy
+- runtime capability claims without result.json and logs
 
 ## Recommended Next Connector
 
-envoy
+| Field | Value |
+|---|---|
+| Connector | envoy |
+| First proof | Minimal Envoy ext_proc/ext_authz runtime smoke |
+| Why | Repository has an Envoy bridge starter and harness entrypoint, but no runtime-verified Envoy integration yet. |
+| Non-goals | No CRS support in first proof.<br>No MRTS support in first proof.<br>No full matrix.<br>No response-body support claim.<br>No production_verified claim.<br>No merge-readiness impact. |
 
 ## Data Sources
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors` | `1627bb92c5756d6f37fe7f678a30211b2ad2a694b3bf2c269f32f6d7523a44cd` | `2026-06-19T17-36-41Z-983ce2a2` | present |
-| Declared input | `Makefile` | `22368c84b5502b69ed3ea9c6ecaac7e3f82bb6a3ea661a78c0f8bee7f6015d20` | `2026-06-19T17-36-41Z-983ce2a2` | present |
-| Declared input | `ci` | `f1e134e757036b53da0197a46cdc0db2298a63bb23af16cc1e6ea24561dcf085` | `2026-06-19T17-36-41Z-983ce2a2` | present |
-| Declared input | `config` | `ae2f671756d889c00872b67962e0112910de7a0a00bb8cf6ebe9d490723cccbb` | `2026-06-19T17-36-41Z-983ce2a2` | present |
-| Declared input | `docs` | `7c0eab4174dcf7c2a752a9a8481ad3bc69a6757917ff9a52b0375acff7b892ee` | `2026-06-19T17-36-41Z-983ce2a2` | present |
-| Declared input | `reports/testing/generated` | `890788099601d1d6f311a8ae95e0f3f8d55ccfa4732eaffbb53ddd1213786a04` | `2026-06-19T17-36-41Z-983ce2a2` | present |
+| Declared input | `connectors` | `1627bb92c5756d6f37fe7f678a30211b2ad2a694b3bf2c269f32f6d7523a44cd` | `2026-06-19T20-07-55Z-98389075` | present |
+| Declared input | `Makefile` | `22368c84b5502b69ed3ea9c6ecaac7e3f82bb6a3ea661a78c0f8bee7f6015d20` | `2026-06-19T20-07-55Z-98389075` | present |
+| Declared input | `ci` | `677da5d3ec0c92b7d38b842299fb85cd04d17629701d58db3e2b88b6c59cf621` | `2026-06-19T20-07-55Z-98389075` | present |
+| Declared input | `config` | `ae2f671756d889c00872b67962e0112910de7a0a00bb8cf6ebe9d490723cccbb` | `2026-06-19T20-07-55Z-98389075` | present |
+| Declared input | `docs` | `6d25031a97030e81256ec3ccac4342c915357a3ae671c15a9cc132caf42556ea` | `2026-06-19T20-07-55Z-98389075` | present |
+| Declared input | `reports/testing/generated` | `d5bb10806d8ea10e825c96f878d152fbfa21dbbf50a4d50ead13907343ca78be` | `2026-06-19T20-07-55Z-98389075` | present |
 
 ## Data Availability / Missing Information
 

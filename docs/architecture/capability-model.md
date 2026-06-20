@@ -77,3 +77,13 @@ the runtime harness independent of compiled adapter code.
 `common/src/capabilities.c` provides C-first descriptor helpers for future
 connector code. The active Python/Shell runners mirror the same metadata names
 without FFI.
+
+## New Connector Capability Claims
+
+Future connectors must follow the lifecycle and evidence rules in
+[new connector onboarding](new-connector-onboarding.md) before adding capability
+claims. A skeleton or roadmap-only connector may describe intended capabilities,
+but those descriptions are not verified variables, runtime support, CRS support,
+or Full-Matrix coverage. Capability support begins only when a targeted runtime
+case produces `result.json` plus logs/evidence, and production capability status
+requires Full-Matrix evidence.
