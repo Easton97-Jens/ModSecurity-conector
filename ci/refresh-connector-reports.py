@@ -286,6 +286,7 @@ BODY_PROCESSOR_OUTPUTS = generated_report_outputs(["body_processor_analysis"])
 RULE_CHAIN_OUTPUTS = generated_report_outputs(["rule_chain_semantics_analysis"])
 FINAL_CONSISTENCY_OUTPUTS = generated_report_outputs(["final_consistency_audit"])
 REMAINING_OUTPUTS = generated_report_outputs(["remaining_failure_analysis", "next_fix_plan"])
+CONNECTOR_ROADMAP_OUTPUTS = generated_report_outputs(["connector_roadmap"])
 
 
 def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, native_root: Path, python: str) -> list[ReportSpec]:
@@ -320,6 +321,26 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
     if os.environ.get("MATRIX_ROOT"):
         full_matrix_log_root = Path(str(os.environ["MATRIX_ROOT"]))
     return [
+        ReportSpec(
+            name="connector_roadmap",
+            owner="manifest",
+            generator="ci/generate-connector-roadmap.py",
+            make_target="refresh-connector-reports",
+            inputs=("connectors", "Makefile", "ci", "config", "docs", "reports/testing/generated"),
+            outputs=CONNECTOR_ROADMAP_OUTPUTS,
+            command=(
+                python,
+                "ci/generate-connector-roadmap.py",
+                "--connector-root",
+                str(connector_root),
+                "--framework-root",
+                str(framework_root),
+                "--output-dir",
+                str(report_dir / "manifest"),
+            ),
+            requires_runtime=False,
+            requires_full_matrix=False,
+        ),
         ReportSpec(
             name="connector_coverage_reports",
             owner="connector",
