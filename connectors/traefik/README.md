@@ -89,8 +89,27 @@ and transaction concepts come from `common/include/msconnector/`. Runtime smoke
 evidence is written through `common/scripts/write_smoke_result.py`, so Traefik
 does not maintain its own JSON result writer.
 
-`make smoke-traefik` currently exits 77 and writes BLOCKED evidence because the
-Traefik binary/configuration and libmodsecurity-backed forwardAuth decision
-service are not available. Evidence is written to
+`make smoke-traefik` sources the framework common smoke wrapper, which sources
+`modules/ModSecurity-test-Framework/ci/common.sh`. Runtime dependencies are not
+installed globally and the harness does not assume `traefik` exists in the
+global `PATH`.
+
+Traefik binary lookup uses:
+
+1. `TRAEFIK_BIN`;
+2. local common.sh-managed paths such as `$CONNECTOR_COMPONENT_CACHE`,
+   `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, and
+   `$VERIFIED_RUN_ROOT`;
+3. Exit 77 with BLOCKED evidence if no local binary is found.
+
+Example:
+
+```sh
+TRAEFIK_BIN=/path/to/local/traefik make smoke-traefik
+```
+
+Current missing-binary evidence uses
+`skipped_reason="traefik runtime dependency not available in local common.sh-managed paths"`
+and `missing_dependencies=["traefik"]`. Evidence is written to
 `$VERIFIED_RUN_ROOT/traefik-smoke/`; if `VERIFIED_RUN_ROOT` is not set, the
 fallback is `$BUILD_ROOT/results/traefik-smoke/`.

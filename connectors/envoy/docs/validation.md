@@ -81,7 +81,18 @@ Current expected result:
 - Runtime verified: `false`
 - Evidence root: `$VERIFIED_RUN_ROOT/envoy-smoke/`, falling back to
   `$BUILD_ROOT/results/envoy-smoke/`
-- Missing dependencies: Envoy binary, ext_authz runtime configuration, and a
-  libmodsecurity-backed Envoy adapter
+- Binary environment variable: `ENVOY_BIN`
+- Local search paths: `$CONNECTOR_COMPONENT_CACHE`, `$VERIFIED_COMPONENT_CACHE`,
+  `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, `$VERIFIED_RUN_ROOT`, and
+  `$SOURCE_ROOT`, all provided by `common.sh`
+- Missing dependencies when no local binary is found: `["envoy"]`
+- skipped_reason when no local binary is found:
+  `envoy runtime dependency not available in local common.sh-managed paths`
 - Claims still forbidden: `runtime_verified=true`, `production_ready=true`,
   `full_matrix_ready=true`, `crs_complete=true`
+
+No global installation is attempted. To run against a prepared local binary:
+
+```sh
+ENVOY_BIN=/path/to/local/envoy make smoke-envoy
+```

@@ -56,6 +56,12 @@ These helpers may write common smoke artifacts such as `result.json`,
 server-specific terms or depend on Envoy, Traefik, lighttpd, Apache, HAProxy, or
 Nginx SDKs.
 
+Runtime dependency discovery belongs to the test-framework shell helpers that
+source `modules/ModSecurity-test-Framework/ci/common.sh`. Connector smokes must
+use common.sh-managed paths or explicit environment variables such as
+`ENVOY_BIN`, `TRAEFIK_BIN`, and `LIGHTTPD_BIN`. They must not install runtime
+components globally or silently fall back to system `PATH`.
+
 ## libmodsecurity v3 alignment
 
 The phase names mirror the public v3 transaction sequence:

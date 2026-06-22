@@ -77,7 +77,20 @@ Current expected result:
 - Runtime verified: `false`
 - Evidence root: `$VERIFIED_RUN_ROOT/lighttpd-smoke/`, falling back to
   `$BUILD_ROOT/results/lighttpd-smoke/`
+- Binary environment variable: `LIGHTTPD_BIN`
+- Local search paths: `$CONNECTOR_COMPONENT_CACHE`, `$VERIFIED_COMPONENT_CACHE`,
+  `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, `$VERIFIED_RUN_ROOT`, and
+  `$SOURCE_ROOT`, all provided by `common.sh`
+- skipped_reason while the integration path is open:
+  `lighttpd integration mode not selected`
+- Missing dependencies when no local binary is found: `["lighttpd"]`
 - Architecture decision: compare native module, FastCGI/SCGI, sidecar/proxy,
   and mod_magnet/Lua before selecting the runtime path
 - Claims still forbidden: `runtime_verified=true`, `production_ready=true`,
   `full_matrix_ready=true`, `crs_complete=true`
+
+No global installation is attempted. To run against a prepared local binary:
+
+```sh
+LIGHTTPD_BIN=/path/to/local/lighttpd make smoke-lighttpd
+```

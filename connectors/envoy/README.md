@@ -64,8 +64,27 @@ and transaction concepts come from `common/include/msconnector/`. Runtime smoke
 evidence is written through `common/scripts/write_smoke_result.py`, so Envoy does
 not maintain its own JSON result writer.
 
-`make smoke-envoy` currently exits 77 and writes BLOCKED evidence because the
-Envoy binary/configuration and libmodsecurity-backed ext_authz adapter are not
-available. Evidence is written to `$VERIFIED_RUN_ROOT/envoy-smoke/`; if
-`VERIFIED_RUN_ROOT` is not set, the fallback is
-`$BUILD_ROOT/results/envoy-smoke/`.
+`make smoke-envoy` sources the framework common smoke wrapper, which sources
+`modules/ModSecurity-test-Framework/ci/common.sh`. Runtime dependencies are not
+installed globally and the harness does not assume `envoy` exists in the global
+`PATH`.
+
+Envoy binary lookup uses:
+
+1. `ENVOY_BIN`;
+2. local common.sh-managed paths such as `$CONNECTOR_COMPONENT_CACHE`,
+   `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, and
+   `$VERIFIED_RUN_ROOT`;
+3. Exit 77 with BLOCKED evidence if no local binary is found.
+
+Example:
+
+```sh
+ENVOY_BIN=/path/to/local/envoy make smoke-envoy
+```
+
+Current missing-binary evidence uses
+`skipped_reason="envoy runtime dependency not available in local common.sh-managed paths"`
+and `missing_dependencies=["envoy"]`. Evidence is written to
+`$VERIFIED_RUN_ROOT/envoy-smoke/`; if `VERIFIED_RUN_ROOT` is not set, the
+fallback is `$BUILD_ROOT/results/envoy-smoke/`.

@@ -31,6 +31,8 @@ The parallel runtime-smoke entrypoints share result/evidence writing through:
 
 - `common/scripts/write_smoke_result.py`
 - `common/scripts/run_blocked_runtime_smoke.sh`
+- `modules/ModSecurity-test-Framework/ci/common.sh`
+- `modules/ModSecurity-test-Framework/ci/connector-smoke-common.sh`
 
 These helpers centralize:
 
@@ -42,11 +44,43 @@ These helpers centralize:
 - Exit-77 BLOCKED result semantics;
 - the `msconnector_decision` status/intervention/reason shape used by open C
   adapters;
+- local runtime binary lookup without global `PATH` fallback;
 - compatibility summary files under `$RESULTS_DIR`.
 
 No connector-specific runtime terms are encoded in the common helpers. Each
 connector passes its own connector name, integration mode, skipped reason,
 missing dependency description, and architecture decision text.
+
+## Runtime Dependency Policy
+
+Runtime dependencies are never installed globally by connector smokes. The
+smokes must not run `apt install`, `apt-get install`, `yum install`,
+`dnf install`, `apk add`, `brew install`, `go install`, or `npm install -g`, and
+they must not write runtime artifacts under `/usr/local`, `/usr/bin`, or `/opt`.
+
+`modules/ModSecurity-test-Framework/ci/common.sh` is the source of truth for
+runtime, build, log, cache, source, and component-cache paths. The open
+connector smoke wrappers source `connector-smoke-common.sh`, which sources
+`common.sh` and provides the connector-neutral lookup helpers.
+
+Dependency lookup order:
+
+1. explicit binary environment variable, such as `ENVOY_BIN`, `TRAEFIK_BIN`, or
+   `LIGHTTPD_BIN`;
+2. local common.sh-managed caches and runtime roots:
+   `$CONNECTOR_COMPONENT_CACHE`, `$VERIFIED_COMPONENT_CACHE`,
+   `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, `$VERIFIED_RUN_ROOT`, and
+   `$SOURCE_ROOT`;
+3. connector/project-defined local dependency directories under those roots;
+4. Exit 77 with BLOCKED evidence if no local binary is found.
+
+Examples:
+
+```sh
+ENVOY_BIN=/path/to/local/envoy make smoke-envoy
+TRAEFIK_BIN=/path/to/local/traefik make smoke-traefik
+LIGHTTPD_BIN=/path/to/local/lighttpd make smoke-lighttpd
+```
 
 ## Connector-Specific Logic
 
@@ -114,11 +148,12 @@ rather than reporting success.
 
 Current blockers:
 
-- Envoy: Envoy binary, ext_authz runtime configuration, and
-  libmodsecurity-backed Envoy adapter are unavailable.
-- Traefik: Traefik binary, forwardAuth runtime configuration, and
-  libmodsecurity-backed decision service are unavailable.
-- lighttpd: production integration path has not been selected and implemented.
+- Envoy: local `envoy` binary is not available through `ENVOY_BIN` or
+  common.sh-managed local paths.
+- Traefik: local `traefik` binary is not available through `TRAEFIK_BIN` or
+  common.sh-managed local paths.
+- lighttpd: production integration path has not been selected; when no local
+  binary is available, `missing_dependencies` includes `lighttpd`.
 
 ## Duplicate Avoidance
 

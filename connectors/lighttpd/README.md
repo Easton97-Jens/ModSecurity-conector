@@ -109,7 +109,28 @@ and transaction concepts come from `common/include/msconnector/`. Runtime smoke
 evidence is written through `common/scripts/write_smoke_result.py`, so lighttpd
 does not maintain its own JSON result writer.
 
-`make smoke-lighttpd` currently exits 77 and writes BLOCKED evidence because no
-production lighttpd integration path has been selected and implemented. Evidence
-is written to `$VERIFIED_RUN_ROOT/lighttpd-smoke/`; if `VERIFIED_RUN_ROOT` is
-not set, the fallback is `$BUILD_ROOT/results/lighttpd-smoke/`.
+`make smoke-lighttpd` sources the framework common smoke wrapper, which sources
+`modules/ModSecurity-test-Framework/ci/common.sh`. Runtime dependencies are not
+installed globally and the harness does not assume `lighttpd` exists in the
+global `PATH`.
+
+Lighttpd binary lookup uses:
+
+1. `LIGHTTPD_BIN`;
+2. local common.sh-managed paths such as `$CONNECTOR_COMPONENT_CACHE`,
+   `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, and
+   `$VERIFIED_RUN_ROOT`;
+3. Exit 77 with BLOCKED evidence if no local binary is found or if the
+   integration path is still open.
+
+Example:
+
+```sh
+LIGHTTPD_BIN=/path/to/local/lighttpd make smoke-lighttpd
+```
+
+Current evidence uses `skipped_reason="lighttpd integration mode not selected"`.
+When no local binary is found, `missing_dependencies` includes `lighttpd`.
+Evidence is written to `$VERIFIED_RUN_ROOT/lighttpd-smoke/`; if
+`VERIFIED_RUN_ROOT` is not set, the fallback is
+`$BUILD_ROOT/results/lighttpd-smoke/`.
