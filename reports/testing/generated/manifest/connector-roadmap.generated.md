@@ -1,13 +1,13 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-19T20:07:55Z`
-> Verified run id: `2026-06-19T20-07-55Z-98389075`
+> Generated at: `2026-06-22T07:41:47Z`
+> Verified run id: `2026-06-22T07-41-47Z-f6bc1ebe`
 > Data source policy: `verified-inputs-only`
 > Generator: `ci/generate-connector-roadmap.py`
 > Make target: `refresh-connector-reports`
 > Owner: `manifest`
 > Severity: `informational`
-> Connector SHA: `98389075a778eeaa861eac0e8e052f5b746af3c2`
+> Connector SHA: `f6bc1ebeb7cd85d71ac2b758a8a2ff21c2a64e62`
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
@@ -49,6 +49,15 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | 3 | traefik | medium-high | high | medium | Prototype forwardAuth/decision-service feasibility before any Go plugin work. |
 | 4 | lighttpd | high | high | medium | Perform hook/proxy architecture spike before implementation. |
 
+## Why Envoy Is Recommended Next
+
+| Reason | Detail | Evidence Boundary |
+|---|---|---|
+| Existing repository foothold | The repo already contains an Envoy connector directory, bridge starter, metadata, and smoke entrypoint, so the next step can be a focused proof instead of an unbounded scaffold. | Existing files prove only a skeleton; they do not prove runtime behavior. |
+| Clear request-control surfaces | Envoy has documented HTTP extension points such as ext_proc and ext_authz that can return an intervention-style deny before upstream routing. | The roadmap may recommend these surfaces, but support starts only after a targeted case writes result.json and logs. |
+| Reusable decision-service pattern | A small external decision service can also inform later Traefik forwardAuth and lighttpd sidecar feasibility work. | Reusable architecture is a planning advantage, not a Full-Matrix or CRS support claim. |
+| High value with bounded first proof | A single request-blocking smoke can answer whether Envoy can carry a ModSecurity-style deny decision without touching production connectors. | The first proof is targeted and must keep full_matrix_ready=false. |
+
 ## Connector Lifecycle
 
 | Stage | Meaning | Required Evidence | Not Allowed Claims |
@@ -62,6 +71,17 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | production-verified | Connector passed the complete verified evidence pipeline and is included in production status. | Verified runtime evidence, full matrix, governance, lint, quick-check, report layout, and merge-readiness PASS. | Do not claim if any required generated evidence is blocked, stale, or missing. |
 | covered-by-existing-connector | Runtime is intentionally covered as a variant of an existing connector rather than a separate connector. | Decision record that names owning connector and allowed future compatibility-smoke path. | No separate full matrix, generated reports, or production connector identity. |
 | blocked | Implementation cannot proceed until an external, licensing, architecture, or evidence blocker is resolved. | Blocker description, owner/next proof, and what evidence would unblock it. | No forward status promotion until the blocker is removed and evidenced. |
+
+## New Connector Work Phases
+
+| Phase | Name | Entry Condition | Work | Exit Evidence | Promotion Gate |
+|---|---|---|---|---|---|
+| 0 | Roadmap triage | Candidate appears in repository skeletons, backlog, or architecture discussion. | Record status, rationale, risks, first proof, and forbidden claims. | Roadmap-only generated report and optional architecture/onboarding docs. | No runtime promotion; this phase only authorizes a proof plan. |
+| 1 | Architecture proof specification | Candidate has enough technical surface to compare integration options. | Choose one minimal control point, name alternatives, define logs, result schema, and non-goals. | Documented proof spec with acceptance criteria and rollback/cleanup expectations. | A proof may be implemented, but no Full-Matrix job may be added yet. |
+| 2 | Targeted runtime smoke | Proof spec is accepted and can run without production connector changes. | Create minimal config, launcher, upstream, decision service, and one blocking smoke. | result.json, case-run files, access/error logs or equivalent, and decision/audit logs where applicable. | The smoke proves only the named case and must keep full_matrix_ready=false. |
+| 3 | Verified-case readiness | Targeted smoke is deterministic and uses verified runtime paths. | Wire the connector into the verified-case runner shape with documented capabilities and limitations. | A real verified-case run for one case, with rerun command and artifact locations. | May become a full-matrix candidate only after governance, lint, quick-check, and evidence layout pass. |
+| 4 | Full-Matrix candidacy | Verified-case evidence exists and missing capability claims are explicitly documented. | Add matrix job plumbing and generated-report integration without altering expected statuses. | Full-Matrix jobs are schedulable and report completeness can describe generated evidence honestly. | No PASS, readiness, or production claim until complete generated Full-Matrix evidence exists. |
+| 5 | Production verification | Full-Matrix evidence is complete and critical reports are generated from verified inputs. | Run the complete verified evidence pipeline and resolve mismatches through real fixes only. | Merge Readiness PASS, critical mismatches 0, governance/lint/quick-check/layout PASS. | Only now may the connector be described as production_verified. |
 
 ## New Connector Acceptance Criteria
 
@@ -79,6 +99,21 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | request blocking smoke | no | yes | yes |
 | request body smoke or documented not-supported reason | no | yes | yes |
 | clean report-governance/lint/quick-check | yes | yes | yes |
+
+## Future Files, Targets, and Reports
+
+| Item | Stage | Purpose | Evidence Rule |
+|---|---|---|---|
+| connectors/<name>/README.md | skeleton | Describe connector scope, current lifecycle stage, build/runtime commands, and explicit non-claims. | Required before any connector is listed as more than planned. |
+| connectors/<name>/ORIGIN.md and SOURCE_MAP.json | skeleton | Track source ownership, upstream references, and which files are repo-owned. | Must not imply runtime support. |
+| connectors/<name>/config/ or harness config | runtime-startable | Provide minimal deterministic proxy/server configuration for local smoke runs. | Config presence is not runtime evidence until a run writes logs and result.json. |
+| connectors/<name>/harness/ or scripts/run-smoke.sh | runtime-startable | Start, exercise, and clean up the minimal proof harness. | Must write artifacts under verified runtime roots, not inside the checkout. |
+| make smoke-<name> or equivalent launcher | runtime-startable | Expose a small local smoke for developers and CI feasibility. | A smoke target alone is not Full-Matrix integration. |
+| make verified-case CONNECTOR=<name> CASE=<case> | verified-case-ready | Run one real case through the verified-case evidence shape. | Requires result.json, logs, case-run files, and truthful expected/actual status. |
+| reports/testing/generated/runtime/<name>-runtime-results.generated.md | verified-case-ready | Summarize real runtime evidence once a generator consumes verified inputs. | Must be generated, never hand-edited, and must not be present for roadmap-only candidates. |
+| make verified-full-matrix-job CONNECTOR=<name> CRS=<variant> MRTS=<variant> | full-matrix-candidate | Run a schedulable connector/CRS/MRTS matrix job. | Schedulable is not PASS; report actual status only after real execution. |
+| reports/testing/generated/manifest/full-matrix-job-completeness.generated.* | full-matrix-candidate | Record which jobs exist, completed, failed, or are missing. | Do not fabricate job rows for connectors that are not integrated. |
+| reports/testing/generated/manifest/merge-readiness-dashboard.generated.* | production-verified | Expose final readiness only after critical generated evidence is complete. | Roadmap-only reports must not influence readiness. |
 
 ## Envoy Architecture Options
 
@@ -112,6 +147,17 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 | goals | Envoy starts locally with a deterministic minimal config.<br>A simple upstream responds through Envoy.<br>A ModSecurity-like decision service or sidecar can emit a deny decision.<br>A case such as action_deny_phase1 or envoy_request_blocking_smoke returns HTTP 403.<br>Logs and decision evidence are written under the verified runtime root.<br>No full-matrix integration is added for this proof. |
 | artifacts | connectors/envoy/README.md<br>connectors/envoy/config/envoy.yaml<br>connectors/envoy/harness/<br>connectors/envoy/scripts/run-smoke.sh<br>connectors/envoy/examples/ |
 | evidence | result.json<br>envoy access log<br>envoy error log<br>decision-service log<br>modsecurity decision log, if present<br>case-run.md<br>case-run.json |
+
+### Envoy Proof Exit Criteria
+
+| Criterion | Required Evidence | Failure Mode |
+|---|---|---|
+| Local startup | Envoy, upstream, and decision service start from a deterministic script and clean up ports/processes. | If startup is flaky, the proof remains skeleton/runtime-startable work only. |
+| Upstream pass-through | A benign request reaches the upstream through Envoy and logs the route. | If upstream pass-through fails, no ModSecurity-style decision claim is allowed. |
+| Request blocking | A known malicious smoke request returns HTTP 403 via the selected ext_proc/ext_authz path. | If only the upstream blocks, the result is an infrastructure smoke, not Envoy connector proof. |
+| Decision evidence | Decision-service log records deny, intervention_status=403, case id, and request correlation id. | If decision evidence is missing, the HTTP status is insufficient for verified-case readiness. |
+| Runtime evidence package | result.json, case-run.md, case-run.json, Envoy logs, and decision logs under $VERIFIED_RUN_ROOT/envoy-smoke/. | If artifacts live only in the checkout or are incomplete, do not promote the proof. |
+| Scope guard | result.json declares evidence_scope=targeted and full_matrix_ready=false. | Any Full-Matrix or production claim invalidates the first-proof boundary. |
 
 ### Envoy Minimal Result Schema
 
@@ -206,12 +252,12 @@ It does not replace runtime evidence, does not generate full-matrix results, doe
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `connectors` | `1627bb92c5756d6f37fe7f678a30211b2ad2a694b3bf2c269f32f6d7523a44cd` | `2026-06-19T20-07-55Z-98389075` | present |
-| Declared input | `Makefile` | `22368c84b5502b69ed3ea9c6ecaac7e3f82bb6a3ea661a78c0f8bee7f6015d20` | `2026-06-19T20-07-55Z-98389075` | present |
-| Declared input | `ci` | `677da5d3ec0c92b7d38b842299fb85cd04d17629701d58db3e2b88b6c59cf621` | `2026-06-19T20-07-55Z-98389075` | present |
-| Declared input | `config` | `ae2f671756d889c00872b67962e0112910de7a0a00bb8cf6ebe9d490723cccbb` | `2026-06-19T20-07-55Z-98389075` | present |
-| Declared input | `docs` | `6d25031a97030e81256ec3ccac4342c915357a3ae671c15a9cc132caf42556ea` | `2026-06-19T20-07-55Z-98389075` | present |
-| Declared input | `reports/testing/generated` | `d5bb10806d8ea10e825c96f878d152fbfa21dbbf50a4d50ead13907343ca78be` | `2026-06-19T20-07-55Z-98389075` | present |
+| Declared input | `connectors` | `1627bb92c5756d6f37fe7f678a30211b2ad2a694b3bf2c269f32f6d7523a44cd` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
+| Declared input | `Makefile` | `22368c84b5502b69ed3ea9c6ecaac7e3f82bb6a3ea661a78c0f8bee7f6015d20` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
+| Declared input | `ci` | `649d5a50a24701a870abb756d1a258253a57162c61a0f74591c365d0b3237ae9` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
+| Declared input | `config` | `ae2f671756d889c00872b67962e0112910de7a0a00bb8cf6ebe9d490723cccbb` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
+| Declared input | `docs` | `ccc2849a1070649ec1e2f1dac775eb0f6f2c61162318e475ace7fffe7547d52a` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
+| Declared input | `reports/testing/generated` | `c9e1781a97f4f82743dc0a6e5a09b22deb559d2b4e55404109d80f2eebfe8826` | `2026-06-22T07-41-47Z-f6bc1ebe` | present |
 
 ## Data Availability / Missing Information
 
