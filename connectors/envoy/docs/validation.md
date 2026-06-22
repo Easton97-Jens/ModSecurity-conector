@@ -1,10 +1,19 @@
 # Envoy Validation
 
-Status: bridge-starter
-Runtime status: not-verified
+Status: bridge-starter with conditional local runtime smoke
+Runtime status: verified only when a local common.sh-managed Envoy binary runs the HTTP smoke
 
-Envoy runtime validation has not been executed. The executable Envoy check
-currently available in this repository is a local bridge CLI self-test.
+Envoy runtime validation is conditional. Without a local binary from `ENVOY_BIN`
+or common.sh-managed caches, `make smoke-envoy` exits 77 with BLOCKED evidence.
+With a resolved local binary, the smoke runner starts a minimal upstream,
+minimal ext_authz decision service, and Envoy with a generated local config.
+
+Runtime component metadata is pinned centrally in `common.sh`:
+`ENVOY_VERSION=1.38.2`, `ENVOY_SOURCE_PAGE`, `ENVOY_INSTALL_DOCS_URL`,
+`ENVOY_DOWNLOAD_URL`, `ENVOY_SHA256_URL`, and `ENVOY_SHA256`. The expected
+local binary remains `$CONNECTOR_COMPONENT_CACHE/envoy/bin/envoy`. Downloads
+are disabled unless future explicit `ALLOW_RUNTIME_DOWNLOADS=1` logic verifies
+the pinned SHA256 and writes only to the local component cache.
 
 | Gate | Envoy status |
 | --- | --- |
@@ -14,7 +23,7 @@ currently available in this repository is a local bridge CLI self-test.
 | No-CRS | not run |
 | With-CRS | not run |
 | RESPONSE_BODY | not verified |
-| Negative/pass-through | local self-test allow branch only; no runtime evidence |
+| Negative/pass-through | proven only by local runtime smoke when allowed request returns 200 |
 | Audit/log | not verified |
 
 Envoy cannot be promoted beyond bridge-starter without repository-backed
@@ -54,14 +63,15 @@ The Envoy entries are connector-starter build/self-test evidence only:
 
 ## Runtime-Smoke Entry Point
 
-`make smoke-envoy` invokes the framework-owned Envoy runtime-smoke runner. The
-current result is BLOCKED. `connectors/envoy/harness/run_envoy_smoke.sh` exists
-as a connector-side runtime-smoke entrypoint, but it only writes blocked
-diagnostic evidence because no real Envoy server/config/runtime harness exists.
-Evidence is written under `/src/ModSecurity-conector-build/results/`.
+`make smoke-envoy` invokes the framework-owned Envoy runtime-smoke runner.
+`connectors/envoy/harness/run_envoy_smoke.sh` resolves `ENVOY_BIN` or local
+common.sh-managed cache artifacts through the shared helpers. If a local Envoy
+binary is found, the runner sends one allowed request and one blocked request
+through Envoy and records the observed HTTP statuses. If no local binary is
+found, it exits 77 with BLOCKED evidence.
 
 This entrypoint does not run the bridge starter self-test as runtime evidence.
-Runtime remains not verified and RESPONSE_BODY remains not verified.
+RESPONSE_BODY remains not verified.
 
 ## Common Result Schema
 
@@ -73,7 +83,7 @@ common schema fields `connector`, `integration_mode`, `runtime_verified`,
 `evidence_root`, `timestamp`, `skipped_reason`, `missing_dependencies`, and
 `claims_not_allowed`.
 
-Current expected result:
+Current expected result without a local binary:
 
 - Integration mode: `ext_authz`
 - Status: `BLOCKED`
@@ -88,11 +98,22 @@ Current expected result:
 - Missing dependencies when no local binary is found: `["envoy"]`
 - skipped_reason when no local binary is found:
   `envoy runtime dependency not available in local common.sh-managed paths`
-- Claims still forbidden: `runtime_verified=true`, `production_ready=true`,
-  `full_matrix_ready=true`, `crs_complete=true`
+- Claims still forbidden for BLOCKED evidence: `runtime_verified=true`,
+  `production_ready=true`, `full_matrix_ready=true`, `crs_complete=true`,
+  `response_body_verified=true`
+
+Expected PASS result with a local binary:
+
+- Runtime verified: `true`
+- Allowed request status: `200`
+- Blocked request status: `403`
+- Resolved runtime binary: local path from `ENVOY_BIN` or a common.sh-managed
+  lookup root
+- Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
+  `crs_complete=true`, `response_body_verified=true`
 
 No global installation is attempted. To run against a prepared local binary:
 
 ```sh
-ENVOY_BIN=/path/to/local/envoy make smoke-envoy
+ENVOY_BIN=/lokaler/pfad/envoy make smoke-envoy
 ```

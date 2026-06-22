@@ -48,6 +48,7 @@ Global gate definitions:
 - [x] harness command documented
 - [x] BLOCKED evidence path documented
 - [x] common smoke result writer used instead of connector-local JSON writer
+- [x] integration options evaluated; sidecar/proxy documented as recommended Phase 1 mode
 - [ ] production integration path selected
 - [ ] lighttpd binary/container/source-build documented
 - [ ] lighttpd config documented

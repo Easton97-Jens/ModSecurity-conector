@@ -34,7 +34,7 @@ request/response hooks, or implement runtime intervention handling.
 | Native lighttpd module | deferred/blocked | No selected lighttpd headers, SDK/source tree, or module build system is present in this repository. |
 | FastCGI bridge | deferred/blocked | No FastCGI protocol adapter or lighttpd FastCGI runtime configuration is present. |
 | SCGI bridge | deferred/blocked | No SCGI protocol adapter or lighttpd SCGI runtime configuration is present. |
-| External HTTP service / sidecar | starter selected | A local decision-service starter is possible without fake lighttpd or ModSecurity API claims. It does not process real traffic. |
+| External HTTP service / sidecar | recommended Phase 1 mode; not runtime-implemented | Lowest coupling to lighttpd internals and no dependency on native module ABI or FastCGI/SCGI protocol work. It still needs real lighttpd traffic before runtime success can be claimed. |
 | mod_magnet / Lua | spike only | Possible control-plane glue, but no selected Lua policy, request-body mapping, intervention semantics, or ModSecurity binding exists. |
 
 Repository evidence for future lighttpd options exists in
@@ -61,6 +61,31 @@ The bridge starter cannot:
 - load CRS;
 - prove No-CRS, With-CRS, RESPONSE_BODY, audit/log, or negative/pass-through
   behavior.
+
+## Recommended Phase 1 Mode
+
+The recommended Phase 1 runtime direction is sidecar/proxy. It keeps the first
+runtime boundary outside the lighttpd module ABI, avoids committing to
+FastCGI/SCGI protocol ownership before the adapter contract is mature, and can
+be validated with explicit HTTP allow/block evidence.
+
+That mode can prove:
+
+- a local common.sh-managed `lighttpd` binary can be resolved and started;
+- allowed requests can pass through the selected sidecar/proxy path to lighttpd;
+- blocked requests can return HTTP 403 before reaching the upstream path;
+- evidence can be written with the shared smoke-result schema.
+
+That mode cannot prove:
+
+- native lighttpd module hook correctness;
+- FastCGI/SCGI adapter semantics;
+- request-body or response-body mapping inside lighttpd;
+- CRS completeness, production readiness, or full matrix readiness.
+
+The current harness therefore keeps `runtime_verified=false` and
+`skipped_reason="lighttpd integration mode not selected"` until a real
+sidecar/proxy integration is implemented.
 
 ## Blockers Before Adapter Ownership
 

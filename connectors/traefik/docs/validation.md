@@ -1,12 +1,22 @@
 # Traefik Validation
 
-Status: decision-service-starter
-Runtime status: not-verified
+Status: decision-service-starter with conditional local runtime smoke
+Runtime status: verified only when a local common.sh-managed Traefik binary runs the HTTP smoke
 
-Traefik runtime validation has not been run. Global validation gates and status
-vocabulary are defined in
+Traefik runtime validation is conditional. Without a local binary from
+`TRAEFIK_BIN` or common.sh-managed caches, `make smoke-traefik` exits 77 with
+BLOCKED evidence. With a resolved local binary, the smoke runner starts a
+minimal upstream, minimal forwardAuth decision service, and Traefik with a
+generated local config. Global validation gates and status vocabulary are defined in
 `reports/template-verification-nginx-apache/connector-scaffold-decisions.md` and
 `connectors/_template/docs/coverage-decision-matrix.md`.
+
+Runtime component metadata is pinned centrally in `common.sh`:
+`TRAEFIK_VERSION=3.7.5`, `TRAEFIK_SOURCE_PAGE`, `TRAEFIK_INSTALL_DOCS_URL`,
+`TRAEFIK_DOWNLOAD_URL`, `TRAEFIK_SHA256_URL`, and `TRAEFIK_SHA256`. The expected
+local binary remains `$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik`.
+Downloads are disabled unless future explicit `ALLOW_RUNTIME_DOWNLOADS=1` logic
+verifies the pinned SHA256 and writes only to the local component cache.
 
 ## Current Traefik Evidence
 
@@ -16,7 +26,8 @@ vocabulary are defined in
 - No-CRS: not run.
 - With-CRS: not run.
 - RESPONSE_BODY: not verified.
-- Negative/pass-through: not verified.
+- Negative/pass-through: proven only by local runtime smoke when allowed request
+  returns 200.
 - Audit/log: not verified.
 
 Framework-owned paths and targets for future validation:
@@ -48,13 +59,14 @@ The Traefik entries are connector-starter build/self-test evidence only:
 ## Runtime-Smoke Entry Point
 
 `make smoke-traefik` invokes the framework-owned Traefik runtime-smoke runner.
-The current result is BLOCKED because
-`connectors/traefik/harness/run_traefik_smoke.sh` writes diagnostic evidence and
-no real Traefik server/config/runtime harness exists. Evidence is written under
-`/src/ModSecurity-conector-build/results/`.
+`connectors/traefik/harness/run_traefik_smoke.sh` resolves `TRAEFIK_BIN` or
+local common.sh-managed cache artifacts through the shared helpers. If a local
+Traefik binary is found, the runner sends one allowed request and one blocked
+request through Traefik and records the observed HTTP statuses. If no local
+binary is found, it exits 77 with BLOCKED evidence.
 
 This entrypoint does not run decision-service starter self-tests as runtime
-evidence. Runtime remains not verified and RESPONSE_BODY remains not verified.
+evidence. RESPONSE_BODY remains not verified.
 
 ## Common Result Schema
 
@@ -66,7 +78,7 @@ common schema fields `connector`, `integration_mode`, `runtime_verified`,
 `evidence_root`, `timestamp`, `skipped_reason`, `missing_dependencies`, and
 `claims_not_allowed`.
 
-Current expected result:
+Current expected result without a local binary:
 
 - Integration mode: `forwardAuth`
 - Status: `BLOCKED`
@@ -81,11 +93,22 @@ Current expected result:
 - Missing dependencies when no local binary is found: `["traefik"]`
 - skipped_reason when no local binary is found:
   `traefik runtime dependency not available in local common.sh-managed paths`
-- Claims still forbidden: `runtime_verified=true`, `production_ready=true`,
-  `full_matrix_ready=true`, `crs_complete=true`
+- Claims still forbidden for BLOCKED evidence: `runtime_verified=true`,
+  `production_ready=true`, `full_matrix_ready=true`, `crs_complete=true`,
+  `response_body_verified=true`
+
+Expected PASS result with a local binary:
+
+- Runtime verified: `true`
+- Allowed request status: `200`
+- Blocked request status: `403`
+- Resolved runtime binary: local path from `TRAEFIK_BIN` or a common.sh-managed
+  lookup root
+- Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
+  `crs_complete=true`, `response_body_verified=true`
 
 No global installation is attempted. To run against a prepared local binary:
 
 ```sh
-TRAEFIK_BIN=/path/to/local/traefik make smoke-traefik
+TRAEFIK_BIN=/lokaler/pfad/traefik make smoke-traefik
 ```

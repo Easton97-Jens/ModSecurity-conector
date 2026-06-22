@@ -19,10 +19,10 @@ DEFAULT_NOTE = (
     "but is not runtime smoke evidence."
 )
 DEFAULT_CLAIMS_NOT_ALLOWED = (
-    "runtime_verified=true",
     "production_ready=true",
     "full_matrix_ready=true",
     "crs_complete=true",
+    "response_body_verified=true",
 )
 COMMON_COMPONENTS = (
     "msconnector/request.h",
@@ -117,6 +117,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--log-dir", required=True)
     parser.add_argument("--harness-path", required=True)
     parser.add_argument("--skipped-reason", required=True)
+    parser.add_argument("--resolved-runtime-binary", default="")
+    parser.add_argument("--runtime-binary-env-var", default="")
+    parser.add_argument("--runtime-binary-name", default="")
+    parser.add_argument("--runtime-lookup-root", action="append", default=[])
     parser.add_argument("--note", default=DEFAULT_NOTE)
     parser.add_argument("--starter-checks-available", default="false")
     parser.add_argument("--missing-dependency", action="append", default=[])
@@ -149,9 +153,23 @@ def main() -> int:
     timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     runtime_status = runtime_status_for(status, runtime_verified)
     claims_not_allowed = args.claim_not_allowed or list(DEFAULT_CLAIMS_NOT_ALLOWED)
+    if not runtime_verified and "runtime_verified=true" not in claims_not_allowed:
+        claims_not_allowed.insert(0, "runtime_verified=true")
     missing_dependencies = args.missing_dependency
     allowed_request_status = optional_int(args.allowed_request_status)
     blocked_request_status = optional_int(args.blocked_request_status)
+    resolved_runtime_binary = args.resolved_runtime_binary or None
+    runtime_lookup_roots = []
+    for root in args.runtime_lookup_root:
+        if root and root not in runtime_lookup_roots:
+            runtime_lookup_roots.append(root)
+    runtime_inventory = {
+        "binary_env_var": args.runtime_binary_env_var or None,
+        "binary_name": args.runtime_binary_name or None,
+        "lookup_roots": runtime_lookup_roots,
+        "resolved_runtime_binary": resolved_runtime_binary,
+        "state": "resolved" if resolved_runtime_binary else "missing",
+    }
 
     result = {
         "allowed_request_status": allowed_request_status,
@@ -168,6 +186,8 @@ def main() -> int:
         "missing_dependencies": missing_dependencies,
         "production_ready": False,
         "response_body_verified": response_body_verified,
+        "resolved_runtime_binary": resolved_runtime_binary,
+        "runtime_inventory": runtime_inventory,
         "runtime_status": runtime_status,
         "runtime_verified": runtime_verified,
         "skipped_reason": args.skipped_reason,
@@ -214,9 +234,10 @@ def main() -> int:
         "tmp_root": args.tmp_root,
     }
 
+    runtime_text = "Runtime verified" if runtime_verified else "Runtime not verified"
     status_text = (
         f"{status} {connector}-runtime-smoke {args.skipped_reason}\n"
-        "Runtime not verified\n"
+        f"{runtime_text}\n"
         f"Evidence root: {evidence_root}\n"
         f"{args.note}\n"
     )

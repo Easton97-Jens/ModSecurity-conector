@@ -1,12 +1,16 @@
 # Envoy Connector
 
-Status: bridge-starter
-Runtime status: not-verified
+Status: bridge-starter with conditional local runtime smoke
+Runtime status: verified only when a local common.sh-managed Envoy binary runs the HTTP smoke
 
 This connector contains a repository-local sidecar/HTTP bridge starter. It can
 compile a small CLI that models request data, returns allow/block decisions, and
 uses connector-neutral `common/` request/intervention/status metadata. It does
-not contain a runtime-verified Envoy adapter implementation yet.
+not contain a production Envoy adapter implementation yet. When a local Envoy
+binary is provided through `ENVOY_BIN` or common.sh-managed caches, the
+runtime-smoke harness starts a minimal upstream, a minimal ext_authz decision
+service, and Envoy with a generated local config to prove an allowed request and
+a blocked HTTP 403 path.
 
 ## Global Contract
 
@@ -25,7 +29,7 @@ See:
 - Integration path: sidecar/HTTP bridge starter, because native Envoy SDK/API
   headers, proxy-wasm SDK, ext_proc protobuf/gRPC bindings, and an Envoy harness
   are not present in this repository
-- Harness: Envoy runtime harness missing; CLI self-test only
+- Harness: conditional local Envoy ext_authz smoke when a local binary is available
 - No-CRS runtime: not run
 - With-CRS runtime: not run
 - RESPONSE_BODY blocking: not verified
@@ -73,18 +77,43 @@ Envoy binary lookup uses:
 
 1. `ENVOY_BIN`;
 2. local common.sh-managed paths such as `$CONNECTOR_COMPONENT_CACHE`,
-   `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, and
-   `$VERIFIED_RUN_ROOT`;
+   `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`,
+   `$VERIFIED_RUN_ROOT`, and `$SOURCE_ROOT`;
 3. Exit 77 with BLOCKED evidence if no local binary is found.
 
 Example:
 
 ```sh
-ENVOY_BIN=/path/to/local/envoy make smoke-envoy
+ENVOY_BIN=/lokaler/pfad/envoy make smoke-envoy
 ```
+
+Local staging helper:
+
+```sh
+make prepare-envoy-runtime
+```
+
+The helper prepares `$CONNECTOR_COMPONENT_CACHE/envoy/bin` and reports
+`$CONNECTOR_COMPONENT_CACHE/envoy/bin/envoy` when present. If the binary is
+missing, it exits 77 without installing or downloading Envoy.
+
+Envoy source metadata is centralized in `common.sh`: `ENVOY_VERSION=1.38.2`,
+the official GitHub release page, the install docs URL, the Linux x86_64
+download URL, `ENVOY_SHA256_URL`, and the pinned SHA256. The
+machine-readable mirror is
+`modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
+Downloads are not executed by default; any future download path must require
+`ALLOW_RUNTIME_DOWNLOADS=1`, verify the pinned SHA256, and stage only under
+`$CONNECTOR_COMPONENT_CACHE/envoy`.
 
 Current missing-binary evidence uses
 `skipped_reason="envoy runtime dependency not available in local common.sh-managed paths"`
 and `missing_dependencies=["envoy"]`. Evidence is written to
 `$VERIFIED_RUN_ROOT/envoy-smoke/`; if `VERIFIED_RUN_ROOT` is not set, the
 fallback is `$BUILD_ROOT/results/envoy-smoke/`.
+
+If a local binary is resolved, `make smoke-envoy` can return PASS only after a
+real HTTP smoke observes an allowed request status of 200 and a blocked request
+status of 403 through Envoy. That PASS still does not claim production
+readiness, full matrix readiness, CRS completeness, or response-body
+verification.

@@ -118,19 +118,43 @@ Lighttpd binary lookup uses:
 
 1. `LIGHTTPD_BIN`;
 2. local common.sh-managed paths such as `$CONNECTOR_COMPONENT_CACHE`,
-   `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, and
-   `$VERIFIED_RUN_ROOT`;
+   `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`,
+   `$VERIFIED_RUN_ROOT`, and `$SOURCE_ROOT`;
 3. Exit 77 with BLOCKED evidence if no local binary is found or if the
    integration path is still open.
 
 Example:
 
 ```sh
-LIGHTTPD_BIN=/path/to/local/lighttpd make smoke-lighttpd
+LIGHTTPD_BIN=/lokaler/pfad/lighttpd make smoke-lighttpd
 ```
+
+Local staging helper:
+
+```sh
+make prepare-lighttpd-runtime
+```
+
+The helper prepares `$CONNECTOR_COMPONENT_CACHE/lighttpd/bin` and reports
+`$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd` when present. If the binary is
+missing, it exits 77 without installing or downloading lighttpd. The smoke stays
+BLOCKED until the lighttpd integration mode is implemented.
+
+lighttpd source metadata is centralized in `common.sh`: `LIGHTTPD_VERSION=1.4.84`,
+the official 1.4.x release index, the latest marker URL used only for pinning,
+the fixed tar.xz download URL, `LIGHTTPD_SHA256_URL`, and the pinned SHA256.
+The machine-readable mirror is
+`modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
+Downloads are not executed by default; any future download path must require
+`ALLOW_RUNTIME_DOWNLOADS=1`, verify the pinned SHA256, and stage only under
+`$CONNECTOR_COMPONENT_CACHE/lighttpd`.
 
 Current evidence uses `skipped_reason="lighttpd integration mode not selected"`.
 When no local binary is found, `missing_dependencies` includes `lighttpd`.
 Evidence is written to `$VERIFIED_RUN_ROOT/lighttpd-smoke/`; if
 `VERIFIED_RUN_ROOT` is not set, the fallback is
 `$BUILD_ROOT/results/lighttpd-smoke/`.
+
+The recommended Phase 1 integration mode is sidecar/proxy, but it is not yet
+implemented as runtime evidence. Until that path has real lighttpd traffic and a
+documented ModSecurity decision boundary, `runtime_verified` remains `false`.

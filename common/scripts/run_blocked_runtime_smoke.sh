@@ -29,7 +29,10 @@ export CONNECTOR_ROOT FRAMEWORK_ROOT HARNESS_PATH CONNECTOR_SMOKE_SCRIPT_DIR
     "$INTEGRATION_MODE" \
     "connector directory missing" \
     "$CONNECTOR_NAME" \
-    "$ARCHITECTURE_DECISION"
+    "$ARCHITECTURE_DECISION" \
+    "" \
+    "$BINARY_ENV_VAR" \
+    "$BINARY_NAME"
 
 runtime_binary=""
 runtime_missing_dependency=""
@@ -48,7 +51,10 @@ if [ "$INTEGRATION_MODE_SELECTED" != "1" ]; then
         "$INTEGRATION_MODE" \
         "$POST_LOOKUP_BLOCKED_REASON" \
         "$runtime_missing_dependency" \
-        "$ARCHITECTURE_DECISION"
+        "$ARCHITECTURE_DECISION" \
+        "$runtime_binary" \
+        "$BINARY_ENV_VAR" \
+        "$BINARY_NAME"
 fi
 
 if [ -z "$runtime_binary" ]; then
@@ -57,12 +63,79 @@ if [ -z "$runtime_binary" ]; then
         "$INTEGRATION_MODE" \
         "$MISSING_BINARY_REASON" \
         "$BINARY_NAME" \
-        "$ARCHITECTURE_DECISION"
+        "$ARCHITECTURE_DECISION" \
+        "" \
+        "$BINARY_ENV_VAR" \
+        "$BINARY_NAME"
 fi
+
+case "$CONNECTOR_NAME" in
+    envoy|traefik)
+        runner="$CONNECTOR_ROOT/common/scripts/run_local_runtime_smoke.py"
+        [ -f "$runner" ] || connector_skip_missing_dependency \
+            "$CONNECTOR_NAME" \
+            "$INTEGRATION_MODE" \
+            "local runtime smoke runner missing" \
+            "local runtime smoke runner" \
+            "$ARCHITECTURE_DECISION" \
+            "$runtime_binary" \
+            "$BINARY_ENV_VAR" \
+            "$BINARY_NAME"
+
+        evidence_root=$(resolve_evidence_root "$CONNECTOR_NAME")
+        log_dir=$(resolve_log_root "$CONNECTOR_NAME" "$evidence_root")
+        case "$CONNECTOR_NAME" in
+            envoy)
+                config_root="${ENVOY_CONFIG_ROOT:-$evidence_root/config}"
+                smoke_port="${ENVOY_SMOKE_PORT:-0}"
+                upstream_port="${ENVOY_UPSTREAM_PORT:-0}"
+                authz_port="${ENVOY_AUTHZ_PORT:-0}"
+                ;;
+            traefik)
+                config_root="${TRAEFIK_CONFIG_ROOT:-$evidence_root/config}"
+                smoke_port="${TRAEFIK_SMOKE_PORT:-0}"
+                upstream_port="${TRAEFIK_UPSTREAM_PORT:-0}"
+                authz_port="${TRAEFIK_AUTHZ_PORT:-0}"
+                ;;
+        esac
+        ensure_runtime_dirs "$evidence_root"
+        connector_smoke_require_runtime_path "$config_root" CONFIG_ROOT
+        connector_smoke_require_runtime_path "$log_dir" LOG_DIR
+        mkdir -p "$config_root" "$log_dir"
+        lookup_args=$(connector_smoke_runtime_lookup_roots_args "$CONNECTOR_NAME")
+
+        # shellcheck disable=SC2086
+        "$PYTHON_BIN" "$runner" \
+            --connector "$CONNECTOR_NAME" \
+            --integration-mode "$INTEGRATION_MODE" \
+            --resolved-runtime-binary "$runtime_binary" \
+            --runtime-binary-env-var "$BINARY_ENV_VAR" \
+            --runtime-binary-name "$BINARY_NAME" \
+            --evidence-root "$evidence_root" \
+            --results-dir "$RESULTS_DIR" \
+            --connector-root "$CONNECTOR_ROOT" \
+            --source-root "$SOURCE_ROOT" \
+            --build-root "$BUILD_ROOT" \
+            --tmp-root "$TMP_ROOT" \
+            --log-root "$LOG_ROOT" \
+            --log-dir "$log_dir" \
+            --config-root "$config_root" \
+            --listen-port "$smoke_port" \
+            --upstream-port "$upstream_port" \
+            --authz-port "$authz_port" \
+            --harness-path "$HARNESS_PATH" \
+            --architecture-decision "$ARCHITECTURE_DECISION" \
+            $lookup_args
+        exit $?
+        ;;
+esac
 
 connector_skip_missing_dependency \
     "$CONNECTOR_NAME" \
     "$INTEGRATION_MODE" \
     "$POST_LOOKUP_BLOCKED_REASON" \
     "$POST_LOOKUP_MISSING_DEPENDENCY" \
-    "$ARCHITECTURE_DECISION"
+    "$ARCHITECTURE_DECISION" \
+    "$runtime_binary" \
+    "$BINARY_ENV_VAR" \
+    "$BINARY_NAME"

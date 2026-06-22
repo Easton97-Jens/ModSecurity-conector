@@ -3,13 +3,16 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/../../.." && pwd)}"
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$CONNECTOR_ROOT/modules/ModSecurity-test-Framework}"
 HARNESS_PATH="$SCRIPT_DIR/$(basename "$0")"
 
-export CONNECTOR_ROOT HARNESS_PATH
+. "$FRAMEWORK_ROOT/ci/common.sh"
+
+export CONNECTOR_ROOT FRAMEWORK_ROOT HARNESS_PATH
 
 sh "$CONNECTOR_ROOT/common/scripts/run_blocked_runtime_smoke.sh" \
     envoy \
-    ext_authz \
+    "$ENVOY_INTEGRATION_MODE" \
     ENVOY_BIN \
     envoy \
     "envoy runtime dependency not available in local common.sh-managed paths" \
