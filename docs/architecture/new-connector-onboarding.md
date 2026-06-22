@@ -31,6 +31,20 @@ inputs.
 | covered-by-existing-connector | Runtime is intentionally handled as a variant of an existing connector. | Decision record naming owning connector and compatibility-smoke path. | Separate connector identity, separate generated reports, separate full matrix. |
 | blocked | External, licensing, architecture, or evidence issue prevents progress. | Blocker description and unblocking proof. | Status promotion before blocker resolution. |
 
+## Work Phases
+
+Every new connector moves through explicit phases. A phase may produce useful
+design output without authorizing a status promotion.
+
+| Phase | Name | Exit Evidence | Promotion Gate |
+| --- | --- | --- | --- |
+| 0 | Roadmap triage | Roadmap-only generated report and optional architecture notes. | No runtime promotion. |
+| 1 | Architecture proof specification | Selected control point, alternatives, logs, result schema, and non-goals. | A proof may be implemented, but no Full-Matrix job may be added yet. |
+| 2 | Targeted runtime smoke | Minimal config, launcher, upstream, decision service, result.json, and logs. | The proof covers only the named case and must keep `full_matrix_ready=false`. |
+| 3 | Verified-case readiness | One real verified-case run with rerun command and artifact locations. | May become Full-Matrix candidate only after governance, lint, quick-check, and layout pass. |
+| 4 | Full-Matrix candidacy | Matrix jobs are schedulable and generated reports describe actual completeness. | No PASS, readiness, or production claim until complete generated Full-Matrix evidence exists. |
+| 5 | Production verification | Complete verified evidence pipeline passes with Merge Readiness PASS. | Only now may the connector be called `production_verified`. |
+
 ## Acceptance Criteria
 
 A new connector may not move toward Full-Matrix until it can prove at least:
@@ -48,6 +62,24 @@ A new connector may not move toward Full-Matrix until it can prove at least:
 - request-body smoke or a documented not-supported reason
 - clean `make report-governance`, `make lint`, and `make quick-check`
 
+## Future Files, Targets, And Reports
+
+These are later deliverables for real connectors. Roadmap-only candidates must
+not add generated runtime reports or Full-Matrix rows.
+
+| Item | Stage | Evidence Rule |
+| --- | --- | --- |
+| `connectors/<name>/README.md` | skeleton | Required before a candidate is more than `planned`; must state non-claims. |
+| `connectors/<name>/ORIGIN.md` and `SOURCE_MAP.json` | skeleton | Track ownership and source mapping, but do not imply runtime support. |
+| `connectors/<name>/config/` or harness config | runtime-startable | Config is not evidence until a run writes logs and `result.json`. |
+| `connectors/<name>/harness/` or `scripts/run-smoke.sh` | runtime-startable | Must write runtime artifacts under verified runtime roots. |
+| `make smoke-<name>` or equivalent | runtime-startable | Local smoke only; not Full-Matrix integration. |
+| `make verified-case CONNECTOR=<name> CASE=<case>` | verified-case-ready | Requires real result, logs, case-run files, and truthful status. |
+| `reports/testing/generated/runtime/<name>-runtime-results.generated.md` | verified-case-ready | Generated only from verified inputs, never hand-edited. |
+| `make verified-full-matrix-job CONNECTOR=<name> CRS=<variant> MRTS=<variant>` | full-matrix-candidate | Schedulable is not PASS; report only real execution status. |
+| `reports/testing/generated/manifest/full-matrix-job-completeness.generated.*` | full-matrix-candidate | Do not fabricate job rows for non-integrated connectors. |
+| `reports/testing/generated/manifest/merge-readiness-dashboard.generated.*` | production-verified | Roadmap-only reports must not influence readiness. |
+
 ## Evidence Rules
 
 - Do not manually patch generated reports.
@@ -64,6 +96,26 @@ an Envoy starter and Envoy has realistic HTTP filter control points for a
 sidecar-based proof. The first step is not a full connector. It is a targeted
 runtime smoke that proves a minimal request-blocking path.
 
+The recommendation is bounded by evidence:
+
+- existing Envoy files prove a skeleton, not runtime support;
+- `ext_proc` and `ext_authz` are proof candidates, not verified support;
+- a reusable decision service is useful for later Traefik/lighttpd studies, but
+  it is not a connector by itself;
+- the first Envoy result must remain targeted and declare
+  `full_matrix_ready=false`.
+
+Architecture options to compare before implementation:
+
+| Option | First-Proof Use | Main Risk |
+| --- | --- | --- |
+| `ext_proc` sidecar | Preferred path for request/body/response processing experiments. | gRPC/protobuf complexity and body processing-mode limits. |
+| `ext_authz` service | Simpler request-blocking smoke if `ext_proc` is too heavy. | Limited request-body and no first-proof response-body claim. |
+| WASM filter | Future native filter-chain option. | High toolchain, debugging, and ModSecurity lifecycle complexity. |
+| Lua filter | Fallback feasibility spike for simple decisions. | Weak long-term connector semantics. |
+| reverse-proxy chain with existing connector | Infrastructure smoke only. | Blocking would belong to the downstream connector, not Envoy. |
+| external ModSecurity decision service | Shared service behind `ext_proc` or `ext_authz`. | Protocol/body mapping still must be proven. |
+
 Recommended proof:
 
 - Minimal Envoy `ext_proc` or `ext_authz` runtime smoke.
@@ -73,6 +125,17 @@ Recommended proof:
 - A smoke case such as `envoy_request_blocking_smoke` returns HTTP 403.
 - `result.json`, Envoy logs, decision-service logs, and case-run files are
   written under `$VERIFIED_RUN_ROOT/envoy-smoke/`.
+
+Exit criteria:
+
+| Criterion | Required Evidence |
+| --- | --- |
+| Local startup | Envoy, upstream, and decision service start from a deterministic script and clean up ports/processes. |
+| Upstream pass-through | A benign request reaches upstream through Envoy and logs the route. |
+| Request blocking | A known malicious request returns HTTP 403 through the selected Envoy extension path. |
+| Decision evidence | Decision log records deny, `intervention_status=403`, case id, and request correlation id. |
+| Runtime evidence package | `result.json`, `case-run.md`, `case-run.json`, Envoy logs, and decision logs under `$VERIFIED_RUN_ROOT/envoy-smoke/`. |
+| Scope guard | `result.json` declares `evidence_scope=targeted` and `full_matrix_ready=false`. |
 
 Envoy first-proof non-goals:
 
@@ -92,6 +155,25 @@ must be proven before any connector directory is added.
 
 First proof: OpenLiteSpeed install/start proof plus one CRS/request-blocking
 smoke, if automation and licensing allow it.
+
+| Field | Value |
+| --- | --- |
+| Candidate | LiteSpeed / OpenLiteSpeed |
+| Status | planned |
+| First proof | OpenLiteSpeed install/start proof plus one CRS/request-blocking smoke, if automation and licensing allow it. |
+| Main risks | License/download automation, edition differences, package availability, CI reproducibility, and ModSecurity/CRS compatibility. |
+| Evidence required | Install log, start log, minimal config, request transcript, `result.json`, and access/error/audit logs if available. |
+
+## Lighttpd And Traefik
+
+Lighttpd and Traefik remain `partial_skeleton` candidates. They should not move
+toward Full-Matrix until a targeted request-blocking proof establishes a viable
+runtime control point.
+
+| Connector | Current State | First Proof Step | Main Risk |
+| --- | --- | --- | --- |
+| lighttpd | partial_skeleton | Request-blocking feasibility proof that selects native module versus proxy/sidecar architecture. | Unclear native ModSecurity integration and likely sidecar/proxy need. |
+| traefik | partial_skeleton | forwardAuth/decision-service returns 403 for a known malicious request with logs and `result.json`. | Starting with a Go plugin too early could hide the simpler decision-service proof question. |
 
 ## OpenResty Decision
 

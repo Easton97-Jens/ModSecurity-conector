@@ -35,6 +35,7 @@ mkdir -p "$OUT_DIR"
     "$REPO_ROOT/common/src/intervention.c" \
     "$REPO_ROOT/common/src/origin.c" \
     "$REPO_ROOT/common/src/status.c" \
+    "$REPO_ROOT/common/src/transaction.c" \
     "$CONNECTOR_DIR/metadata.c" \
     "$CONNECTOR_DIR/src/lighttpd_bridge.c" \
     "$CONNECTOR_DIR/src/lighttpd_bridge_main.c" \

@@ -36,6 +36,7 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/origin.h"
 #include "msconnector/rule_load_stats.h"
 #include "msconnector/status.h"
+#include "msconnector/transaction.h"
 
 #include <assert.h>
 #include <string.h>
@@ -45,6 +46,7 @@ int main(void) {
     msconnector_capability_flags flags = MSCONNECTOR_CAPABILITY_NONE;
     msconnector_intervention intervention;
     msconnector_origin origin;
+    msconnector_decision decision;
     msconnector_rule_load_stats rule_stats = {1, 2, 3};
     msconnector_rule_load_stats added_stats = {4, 5, 6};
 
@@ -64,6 +66,15 @@ int main(void) {
     intervention = msconnector_intervention_none();
     assert(!msconnector_intervention_is_disruptive(&intervention));
     assert(intervention.status == 0);
+    decision = msconnector_decision_allow("allow", "allowed");
+    assert(decision.status == MSCONNECTOR_STATUS_OK);
+    assert(!msconnector_intervention_is_disruptive(&decision.intervention));
+    assert(strcmp(decision.rule_id, "allow") == 0);
+    assert(strcmp(decision.reason, "allowed") == 0);
+    decision = msconnector_decision_block(403, "block", "blocked");
+    assert(decision.status == MSCONNECTOR_STATUS_BLOCKED);
+    assert(msconnector_intervention_is_disruptive(&decision.intervention));
+    assert(decision.intervention.status == 403);
 
     origin = msconnector_origin_make(
         "apache",
@@ -116,6 +127,7 @@ EOF
     "$REPO_ROOT/common/src/intervention.c" \
     "$REPO_ROOT/common/src/origin.c" \
     "$REPO_ROOT/common/src/capabilities.c" \
+    "$REPO_ROOT/common/src/transaction.c" \
     "$SMOKE_C" \
     -o "$SMOKE_BIN"
 

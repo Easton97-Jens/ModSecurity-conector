@@ -7,6 +7,7 @@
 namespace msconnector {
 using Phase = msconnector_phase;
 using TransactionView = msconnector_transaction_view;
+using Decision = msconnector_decision;
 }
 
 #endif

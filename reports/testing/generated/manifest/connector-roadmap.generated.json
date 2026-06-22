@@ -343,8 +343,102 @@
       "risk": "medium"
     }
   ],
+  "envoy_proof_exit_criteria": [
+    {
+      "criterion": "Local startup",
+      "failure_mode": "If startup is flaky, the proof remains skeleton/runtime-startable work only.",
+      "required_evidence": "Envoy, upstream, and decision service start from a deterministic script and clean up ports/processes."
+    },
+    {
+      "criterion": "Upstream pass-through",
+      "failure_mode": "If upstream pass-through fails, no ModSecurity-style decision claim is allowed.",
+      "required_evidence": "A benign request reaches the upstream through Envoy and logs the route."
+    },
+    {
+      "criterion": "Request blocking",
+      "failure_mode": "If only the upstream blocks, the result is an infrastructure smoke, not Envoy connector proof.",
+      "required_evidence": "A known malicious smoke request returns HTTP 403 via the selected ext_proc/ext_authz path."
+    },
+    {
+      "criterion": "Decision evidence",
+      "failure_mode": "If decision evidence is missing, the HTTP status is insufficient for verified-case readiness.",
+      "required_evidence": "Decision-service log records deny, intervention_status=403, case id, and request correlation id."
+    },
+    {
+      "criterion": "Runtime evidence package",
+      "failure_mode": "If artifacts live only in the checkout or are incomplete, do not promote the proof.",
+      "required_evidence": "result.json, case-run.md, case-run.json, Envoy logs, and decision logs under $VERIFIED_RUN_ROOT/envoy-smoke/."
+    },
+    {
+      "criterion": "Scope guard",
+      "failure_mode": "Any Full-Matrix or production claim invalidates the first-proof boundary.",
+      "required_evidence": "result.json declares evidence_scope=targeted and full_matrix_ready=false."
+    }
+  ],
   "full_matrix_rows_added": false,
-  "generated_at": "2026-06-19T20:07:55Z",
+  "future_connector_deliverables": [
+    {
+      "evidence_rule": "Required before any connector is listed as more than planned.",
+      "item": "connectors/<name>/README.md",
+      "purpose": "Describe connector scope, current lifecycle stage, build/runtime commands, and explicit non-claims.",
+      "stage": "skeleton"
+    },
+    {
+      "evidence_rule": "Must not imply runtime support.",
+      "item": "connectors/<name>/ORIGIN.md and SOURCE_MAP.json",
+      "purpose": "Track source ownership, upstream references, and which files are repo-owned.",
+      "stage": "skeleton"
+    },
+    {
+      "evidence_rule": "Config presence is not runtime evidence until a run writes logs and result.json.",
+      "item": "connectors/<name>/config/ or harness config",
+      "purpose": "Provide minimal deterministic proxy/server configuration for local smoke runs.",
+      "stage": "runtime-startable"
+    },
+    {
+      "evidence_rule": "Must write artifacts under verified runtime roots, not inside the checkout.",
+      "item": "connectors/<name>/harness/ or scripts/run-smoke.sh",
+      "purpose": "Start, exercise, and clean up the minimal proof harness.",
+      "stage": "runtime-startable"
+    },
+    {
+      "evidence_rule": "A smoke target alone is not Full-Matrix integration.",
+      "item": "make smoke-<name> or equivalent launcher",
+      "purpose": "Expose a small local smoke for developers and CI feasibility.",
+      "stage": "runtime-startable"
+    },
+    {
+      "evidence_rule": "Requires result.json, logs, case-run files, and truthful expected/actual status.",
+      "item": "make verified-case CONNECTOR=<name> CASE=<case>",
+      "purpose": "Run one real case through the verified-case evidence shape.",
+      "stage": "verified-case-ready"
+    },
+    {
+      "evidence_rule": "Must be generated, never hand-edited, and must not be present for roadmap-only candidates.",
+      "item": "reports/testing/generated/runtime/<name>-runtime-results.generated.md",
+      "purpose": "Summarize real runtime evidence once a generator consumes verified inputs.",
+      "stage": "verified-case-ready"
+    },
+    {
+      "evidence_rule": "Schedulable is not PASS; report actual status only after real execution.",
+      "item": "make verified-full-matrix-job CONNECTOR=<name> CRS=<variant> MRTS=<variant>",
+      "purpose": "Run a schedulable connector/CRS/MRTS matrix job.",
+      "stage": "full-matrix-candidate"
+    },
+    {
+      "evidence_rule": "Do not fabricate job rows for connectors that are not integrated.",
+      "item": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.*",
+      "purpose": "Record which jobs exist, completed, failed, or are missing.",
+      "stage": "full-matrix-candidate"
+    },
+    {
+      "evidence_rule": "Roadmap-only reports must not influence readiness.",
+      "item": "reports/testing/generated/manifest/merge-readiness-dashboard.generated.*",
+      "purpose": "Expose final readiness only after critical generated evidence is complete.",
+      "stage": "production-verified"
+    }
+  ],
+  "generated_at": "2026-06-22T07:41:47Z",
   "lighttpd_traefik_feasibility": [
     {
       "blocker": "No selected native ModSecurity integration, FastCGI/SCGI bridge, or runtime harness.",
@@ -376,14 +470,14 @@
   "metadata": {
     "category": "manifest",
     "commit_policy": "versioned-generated",
-    "connector_sha": "98389075a778eeaa861eac0e8e052f5b746af3c2",
+    "connector_sha": "f6bc1ebeb7cd85d71ac2b758a8a2ff21c2a64e62",
     "data_kind": "roadmap_only",
     "data_origin": "repository",
     "data_source_policy": "verified-inputs-only",
     "empty_inputs": [],
     "framework_sha": "dc19582d89bd8ef50463c5a9c5a0271cc37bb958",
     "framework_working_tree_dirty": "clean",
-    "generated_at": "2026-06-19T20:07:55Z",
+    "generated_at": "2026-06-22T07:41:47Z",
     "generated_by": "ci/generate-connector-roadmap.py",
     "generated_notice": "Generated file - do not edit manually.",
     "input_status": "complete",
@@ -404,7 +498,7 @@
       {
         "notes": "input directory available",
         "path": "ci",
-        "source_hash": "677da5d3ec0c92b7d38b842299fb85cd04d17629701d58db3e2b88b6c59cf621",
+        "source_hash": "649d5a50a24701a870abb756d1a258253a57162c61a0f74591c365d0b3237ae9",
         "status": "present"
       },
       {
@@ -416,13 +510,13 @@
       {
         "notes": "input directory available",
         "path": "docs",
-        "source_hash": "6d25031a97030e81256ec3ccac4342c915357a3ae671c15a9cc132caf42556ea",
+        "source_hash": "ccc2849a1070649ec1e2f1dac775eb0f6f2c61162318e475ace7fffe7547d52a",
         "status": "present"
       },
       {
         "notes": "input directory available",
         "path": "reports/testing/generated",
-        "source_hash": "d5bb10806d8ea10e825c96f878d152fbfa21dbbf50a4d50ead13907343ca78be",
+        "source_hash": "c9e1781a97f4f82743dc0a6e5a09b22deb559d2b4e55404109d80f2eebfe8826",
         "status": "present"
       }
     ],
@@ -435,7 +529,7 @@
     "schema_version": 1,
     "severity": "informational",
     "unknown_inputs": [],
-    "verified_run_id": "2026-06-19T20-07-55Z-98389075",
+    "verified_run_id": "2026-06-22T07-41-47Z-f6bc1ebe",
     "working_tree_dirty": "dirty"
   },
   "new_connector_acceptance_criteria": [
@@ -511,6 +605,56 @@
       "yes",
       "yes"
     ]
+  ],
+  "new_connector_phases": [
+    {
+      "entry_condition": "Candidate appears in repository skeletons, backlog, or architecture discussion.",
+      "exit_evidence": "Roadmap-only generated report and optional architecture/onboarding docs.",
+      "name": "Roadmap triage",
+      "phase": "0",
+      "promotion_gate": "No runtime promotion; this phase only authorizes a proof plan.",
+      "work": "Record status, rationale, risks, first proof, and forbidden claims."
+    },
+    {
+      "entry_condition": "Candidate has enough technical surface to compare integration options.",
+      "exit_evidence": "Documented proof spec with acceptance criteria and rollback/cleanup expectations.",
+      "name": "Architecture proof specification",
+      "phase": "1",
+      "promotion_gate": "A proof may be implemented, but no Full-Matrix job may be added yet.",
+      "work": "Choose one minimal control point, name alternatives, define logs, result schema, and non-goals."
+    },
+    {
+      "entry_condition": "Proof spec is accepted and can run without production connector changes.",
+      "exit_evidence": "result.json, case-run files, access/error logs or equivalent, and decision/audit logs where applicable.",
+      "name": "Targeted runtime smoke",
+      "phase": "2",
+      "promotion_gate": "The smoke proves only the named case and must keep full_matrix_ready=false.",
+      "work": "Create minimal config, launcher, upstream, decision service, and one blocking smoke."
+    },
+    {
+      "entry_condition": "Targeted smoke is deterministic and uses verified runtime paths.",
+      "exit_evidence": "A real verified-case run for one case, with rerun command and artifact locations.",
+      "name": "Verified-case readiness",
+      "phase": "3",
+      "promotion_gate": "May become a full-matrix candidate only after governance, lint, quick-check, and evidence layout pass.",
+      "work": "Wire the connector into the verified-case runner shape with documented capabilities and limitations."
+    },
+    {
+      "entry_condition": "Verified-case evidence exists and missing capability claims are explicitly documented.",
+      "exit_evidence": "Full-Matrix jobs are schedulable and report completeness can describe generated evidence honestly.",
+      "name": "Full-Matrix candidacy",
+      "phase": "4",
+      "promotion_gate": "No PASS, readiness, or production claim until complete generated Full-Matrix evidence exists.",
+      "work": "Add matrix job plumbing and generated-report integration without altering expected statuses."
+    },
+    {
+      "entry_condition": "Full-Matrix evidence is complete and critical reports are generated from verified inputs.",
+      "exit_evidence": "Merge Readiness PASS, critical mismatches 0, governance/lint/quick-check/layout PASS.",
+      "name": "Production verification",
+      "phase": "5",
+      "promotion_gate": "Only now may the connector be described as production_verified.",
+      "work": "Run the complete verified evidence pipeline and resolve mismatches through real fixes only."
+    }
   ],
   "new_connector_work_items": [
     {
@@ -639,5 +783,27 @@
     "report_scope": "roadmap_only",
     "runtime_pass_fail_values_created": false
   },
-  "runtime_values_invented": false
+  "runtime_values_invented": false,
+  "why_envoy_next": [
+    {
+      "detail": "The repo already contains an Envoy connector directory, bridge starter, metadata, and smoke entrypoint, so the next step can be a focused proof instead of an unbounded scaffold.",
+      "evidence_boundary": "Existing files prove only a skeleton; they do not prove runtime behavior.",
+      "reason": "Existing repository foothold"
+    },
+    {
+      "detail": "Envoy has documented HTTP extension points such as ext_proc and ext_authz that can return an intervention-style deny before upstream routing.",
+      "evidence_boundary": "The roadmap may recommend these surfaces, but support starts only after a targeted case writes result.json and logs.",
+      "reason": "Clear request-control surfaces"
+    },
+    {
+      "detail": "A small external decision service can also inform later Traefik forwardAuth and lighttpd sidecar feasibility work.",
+      "evidence_boundary": "Reusable architecture is a planning advantage, not a Full-Matrix or CRS support claim.",
+      "reason": "Reusable decision-service pattern"
+    },
+    {
+      "detail": "A single request-blocking smoke can answer whether Envoy can carry a ModSecurity-style deny decision without touching production connectors.",
+      "evidence_boundary": "The first proof is targeted and must keep full_matrix_ready=false.",
+      "reason": "High value with bounded first proof"
+    }
+  ]
 }

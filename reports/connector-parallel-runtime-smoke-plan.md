@@ -1,0 +1,235 @@
+# Connector Parallel Runtime Smoke Plan
+
+Status: parallel phase started for Envoy, Traefik, and lighttpd.
+
+## Why Common msconnector Contracts Are Used
+
+`common/include/msconnector/` is the connector-neutral contract boundary for all
+open connectors. Envoy, Traefik, and lighttpd must translate their own runtime
+inputs into these shared shapes instead of creating connector-local copies of
+request, response, intervention, status, logging, capability, origin,
+transaction, or decision models.
+
+The shared contracts currently used or reserved for the open connectors are:
+
+| Area | Global component |
+| --- | --- |
+| Request mapping | `msconnector/request.h`, `msconnector/request.hpp` |
+| Response mapping | `msconnector/response.h`, `msconnector/response.hpp` |
+| Intervention/block decisions | `msconnector/intervention.h`, `msconnector/intervention.hpp` |
+| Status values | `msconnector/status.h`, `msconnector/status.hpp` |
+| Logging | `msconnector/logging.h`, `msconnector/logging.hpp` |
+| Options/directives | `msconnector/options.h`, `msconnector/directives.h` |
+| Capabilities | `msconnector/capabilities.h`, `msconnector/capabilities.hpp` |
+| Origin/metadata | `msconnector/origin.h`, `msconnector/origin.hpp` |
+| Transaction lifecycle and decision view | `msconnector/transaction.h`, `msconnector/transaction.hpp` |
+| Rule-load stats | `msconnector/rule_load_stats.h` |
+
+## Shared Logic
+
+The parallel runtime-smoke entrypoints share result/evidence writing through:
+
+- `common/scripts/write_smoke_result.py`
+- `common/scripts/run_blocked_runtime_smoke.sh`
+- `common/scripts/run_local_runtime_smoke.py`
+- `modules/ModSecurity-test-Framework/ci/common.sh`
+- `modules/ModSecurity-test-Framework/ci/connector-smoke-common.sh`
+
+These helpers centralize:
+
+- `result.json`, `summary.json`, `summary.txt`, and `results.jsonl` writing;
+- the common `runtime_verified=false` / `production_ready=false` /
+  `full_matrix_ready=false` / `crs_complete=false` claim defaults;
+- `claims_not_allowed`;
+- `missing_dependencies`;
+- Exit-77 BLOCKED result semantics when local dependencies are absent;
+- conditional local Envoy/Traefik HTTP smoke execution when local binaries are
+  resolved from common.sh-managed paths;
+- the `msconnector_decision` status/intervention/reason shape used by open C
+  adapters;
+- local runtime binary lookup without global `PATH` fallback;
+- compatibility summary files under `$RESULTS_DIR`.
+
+No connector-specific runtime terms are encoded in the common helpers. Each
+connector passes its own connector name, integration mode, skipped reason,
+missing dependency description, and architecture decision text.
+
+## Runtime Dependency Policy
+
+Runtime dependencies are never installed globally by connector smokes. The
+smokes must not run `apt install`, `apt-get install`, `yum install`,
+`dnf install`, `apk add`, `brew install`, `go install`, or `npm install -g`, and
+they must not write runtime artifacts under `/usr/local`, `/usr/bin`, or `/opt`.
+
+`modules/ModSecurity-test-Framework/ci/common.sh` is the source of truth for
+runtime, build, log, cache, source, and component-cache paths. The open
+connector smoke wrappers source `connector-smoke-common.sh`, which sources
+`common.sh` and provides the connector-neutral lookup helpers.
+
+`common.sh` defines the open-connector local runtime components:
+
+- Envoy: `ENVOY_COMPONENT_ROOT`, `ENVOY_RUNTIME_ROOT`, `ENVOY_CONFIG_ROOT`,
+  `ENVOY_LOG_ROOT`, `ENVOY_RESULT_ROOT`, `ENVOY_BIN`, `ENVOY_SMOKE_PORT`,
+  `ENVOY_UPSTREAM_PORT`, `ENVOY_AUTHZ_PORT`, and `ENVOY_INTEGRATION_MODE`.
+- Traefik: `TRAEFIK_COMPONENT_ROOT`, `TRAEFIK_RUNTIME_ROOT`,
+  `TRAEFIK_CONFIG_ROOT`, `TRAEFIK_LOG_ROOT`, `TRAEFIK_RESULT_ROOT`,
+  `TRAEFIK_BIN`, `TRAEFIK_SMOKE_PORT`, `TRAEFIK_UPSTREAM_PORT`,
+  `TRAEFIK_AUTHZ_PORT`, and `TRAEFIK_INTEGRATION_MODE`.
+- lighttpd: `LIGHTTPD_COMPONENT_ROOT`, `LIGHTTPD_RUNTIME_ROOT`,
+  `LIGHTTPD_CONFIG_ROOT`, `LIGHTTPD_LOG_ROOT`, `LIGHTTPD_RESULT_ROOT`,
+  `LIGHTTPD_BIN`, `LIGHTTPD_SMOKE_PORT`, `LIGHTTPD_UPSTREAM_PORT`,
+  `LIGHTTPD_AUTHZ_PORT`, and `LIGHTTPD_INTEGRATION_MODE`.
+
+The machine-readable source inventory for Envoy, Traefik, and lighttpd is
+`modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
+`common.sh` pins the current official component metadata:
+
+- Envoy `1.38.2`, from the official Envoy GitHub releases.
+- Traefik `3.7.5`, from the official Traefik GitHub releases.
+- lighttpd `1.4.84`, from the official lighttpd 1.4.x release index.
+
+The manifest mirrors the version, source page, download URL, SHA256 URL, and
+expected `$CONNECTOR_COMPONENT_CACHE/.../bin/...` path for each component.
+Download execution remains disabled by default and requires future explicit
+`ALLOW_RUNTIME_DOWNLOADS=1` logic with SHA256 verification.
+
+Passive inventory output is available through:
+
+```sh
+make runtime-components-inventory
+make runtime-components-sources
+```
+
+Dependency lookup order:
+
+1. explicit binary environment variable, such as `ENVOY_BIN`, `TRAEFIK_BIN`, or
+   `LIGHTTPD_BIN`;
+2. local common.sh-managed caches and runtime roots:
+   `$CONNECTOR_COMPONENT_CACHE`, `$VERIFIED_COMPONENT_CACHE`,
+   `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, `$VERIFIED_RUN_ROOT`, and
+   `$SOURCE_ROOT`;
+3. connector/project-defined local dependency directories under those roots;
+4. Exit 77 with BLOCKED evidence if no local binary is found.
+
+Local component staging targets are available for the open connectors:
+
+```sh
+make prepare-envoy-runtime
+make prepare-traefik-runtime
+make prepare-lighttpd-runtime
+```
+
+They create only local component directories under
+`$CONNECTOR_COMPONENT_CACHE/{envoy,traefik,lighttpd}/bin`, report an already
+staged local binary when present, and otherwise exit 77 while printing the
+source page, fixed version, download URL, SHA256 status, and expected binary
+path. They do not install global packages, do not write system paths, and do
+not download runtimes.
+
+Examples:
+
+```sh
+ENVOY_BIN=/lokaler/pfad/envoy make smoke-envoy
+TRAEFIK_BIN=/lokaler/pfad/traefik make smoke-traefik
+LIGHTTPD_BIN=/lokaler/pfad/lighttpd make smoke-lighttpd
+```
+
+## Connector-Specific Logic
+
+Envoy keeps only Envoy-specific ext_authz design, configuration, smoke harness
+entrypoint, and bridge-starter code. The Phase 1 runtime target is
+`integration_mode=ext_authz`. When a local Envoy binary is resolved, the smoke
+runner starts a minimal upstream, a minimal ext_authz decision service, and
+Envoy with generated local config, then requires HTTP 200 for an allowed request
+and HTTP 403 for a blocked request. `ext_proc` is deferred to a later phase.
+
+Traefik keeps only Traefik-specific forwardAuth design, configuration, smoke
+harness entrypoint, and local decision-service starter code. The Phase 1 runtime
+target is `integration_mode=forwardAuth`. When a local Traefik binary is
+resolved, the smoke runner starts a minimal upstream, a minimal forwardAuth
+decision service, and Traefik with generated local config, then requires HTTP
+200 for an allowed request and HTTP 403 for a blocked request. A Go plugin is
+out of scope for Phase 1.
+
+lighttpd keeps only lighttpd-specific architecture-spike documentation,
+configuration for the eventual path, smoke harness entrypoint, and bridge
+starter code. The Phase 1 mode is
+`integration_mode=architecture_spike_plus_runtime_smoke`. The spike must compare
+native module, FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua before selecting
+the runtime path. The recommended Phase 1 direction is sidecar/proxy, but the
+current lighttpd harness still exits 77 with
+`skipped_reason="lighttpd integration mode not selected"` until that integration
+exists.
+
+## Claims Still Forbidden
+
+Starter/self-test evidence and BLOCKED smoke evidence must not claim:
+
+- `runtime_verified=true`
+- `production_ready=true`
+- `full_matrix_ready=true`
+- `crs_complete=true`
+- `response_body_verified=true`
+
+Envoy and Traefik may set `runtime_verified=true` only when the local runtime
+smoke observes the real HTTP 200/403 statuses through the resolved local
+runtime. They still must not claim production readiness, full matrix readiness,
+CRS completeness, or response-body verification. The open connectors also must
+not generate full-matrix reports, production-readiness reports, or CRS-complete
+claims from starter/self-test evidence.
+
+## Parallel Runtime-Smoke Artifacts
+
+Each connector writes connector-specific artifacts:
+
+| Connector | Evidence root | Fallback |
+| --- | --- | --- |
+| Envoy | `$VERIFIED_RUN_ROOT/envoy-smoke/` | `$BUILD_ROOT/results/envoy-smoke/` |
+| Traefik | `$VERIFIED_RUN_ROOT/traefik-smoke/` | `$BUILD_ROOT/results/traefik-smoke/` |
+| lighttpd | `$VERIFIED_RUN_ROOT/lighttpd-smoke/` | `$BUILD_ROOT/results/lighttpd-smoke/` |
+
+Each `result.json` contains at least:
+
+- `connector`
+- `integration_mode`
+- `runtime_verified`
+- `full_matrix_ready`
+- `production_ready`
+- `crs_complete`
+- `response_body_verified`
+- `allowed_request_status`
+- `blocked_request_status`
+- `evidence_root`
+- `timestamp`
+- `skipped_reason`
+- `missing_dependencies`
+- `claims_not_allowed`
+
+## Current Expected Outcomes
+
+`make smoke-envoy`, `make smoke-traefik`, and `make smoke-lighttpd` are targeted
+runtime-smoke entrypoints. In environments without the selected local runtime
+binaries, they must exit 77 with BLOCKED evidence rather than reporting success.
+With local Envoy or Traefik binaries, success is allowed only after a real local
+HTTP smoke produces the expected 200/403 statuses.
+
+Current blockers:
+
+- Envoy: BLOCKED when local `envoy` binary is not available through `ENVOY_BIN`
+  or common.sh-managed local paths.
+- Traefik: BLOCKED when local `traefik` binary is not available through
+  `TRAEFIK_BIN` or common.sh-managed local paths.
+- lighttpd: production integration path has not been selected; when no local
+  binary is available, `missing_dependencies` includes `lighttpd`.
+
+## Duplicate Avoidance
+
+The previous connector-local inline JSON writers in the Envoy, Traefik, and
+lighttpd harnesses have been replaced by common helpers. The connector harnesses
+now provide adapter parameters only. The small connector-local decision result
+structs have also been replaced with aliases to `msconnector_decision`, leaving
+only connector-specific adapter function names. Request, response, status,
+intervention, capability, origin, logging, transaction, and decision contracts
+remain in `common/include/msconnector/`.
+
+Apache, HAProxy, and Nginx are not modified by this parallel phase.

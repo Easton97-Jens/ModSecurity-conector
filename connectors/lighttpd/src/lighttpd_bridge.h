@@ -5,16 +5,13 @@
 #include "msconnector/intervention.h"
 #include "msconnector/request.h"
 #include "msconnector/status.h"
+#include "msconnector/transaction.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct msconnector_lighttpd_bridge_decision {
-    enum msconnector_status status;
-    msconnector_intervention intervention;
-    const char *reason;
-} msconnector_lighttpd_bridge_decision;
+typedef msconnector_decision msconnector_lighttpd_bridge_decision;
 
 const char *msconnector_lighttpd_bridge_starter_kind(void);
 msconnector_capabilities msconnector_lighttpd_bridge_starter_capabilities(void);

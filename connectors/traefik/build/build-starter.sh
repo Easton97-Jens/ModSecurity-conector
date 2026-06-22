@@ -57,6 +57,7 @@ build_decision_service_starter() {
         "$REPO_ROOT/common/src/capabilities.c" \
         "$REPO_ROOT/common/src/intervention.c" \
         "$REPO_ROOT/common/src/status.c" \
+        "$REPO_ROOT/common/src/transaction.c" \
         "$REPO_ROOT/connectors/traefik/metadata.c" \
         "$REPO_ROOT/connectors/traefik/src/traefik_decision_service.c" \
         "$REPO_ROOT/connectors/traefik/src/traefik_decision_service_main.c" \

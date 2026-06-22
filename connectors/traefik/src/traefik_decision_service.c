@@ -47,26 +47,21 @@ msconnector_traefik_decision_result msconnector_traefik_decide_request(
     msconnector_traefik_decision_result result;
 
     if (request == 0) {
-        result.status = MSCONNECTOR_STATUS_ERROR;
-        result.intervention = msconnector_intervention_make(1, 500, 0, "missing request");
-        result.reason = "missing-request";
-        return result;
+        return msconnector_decision_make(
+            MSCONNECTOR_STATUS_ERROR,
+            msconnector_intervention_make(1, 500, 0, "missing request"),
+            0,
+            "missing-request");
     }
 
     if (string_equals(request->uri, "/__traefik_decision_service_block") || has_block_header(request)) {
-        result.status = MSCONNECTOR_STATUS_BLOCKED;
-        result.intervention = msconnector_intervention_make(
-            1,
+        return msconnector_decision_block(
             403,
-            0,
+            "traefik-local-starter-block-rule",
             "local decision-service starter block");
-        result.reason = "local-starter-block-rule";
-        return result;
     }
 
-    result.status = MSCONNECTOR_STATUS_OK;
-    result.intervention = msconnector_intervention_none();
-    result.reason = "local-starter-allow";
+    result = msconnector_decision_allow(0, "local-starter-allow");
     return result;
 }
 

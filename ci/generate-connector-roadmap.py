@@ -375,6 +375,176 @@ NOT_ALLOWED_BEFORE_FULL_MATRIX = [
     "runtime capability claims without result.json and logs",
 ]
 
+WHY_ENVOY_NEXT = [
+    {
+        "reason": "Existing repository foothold",
+        "detail": "The repo already contains an Envoy connector directory, bridge starter, metadata, and smoke entrypoint, so the next step can be a focused proof instead of an unbounded scaffold.",
+        "evidence_boundary": "Existing files prove only a skeleton; they do not prove runtime behavior.",
+    },
+    {
+        "reason": "Clear request-control surfaces",
+        "detail": "Envoy has documented HTTP extension points such as ext_proc and ext_authz that can return an intervention-style deny before upstream routing.",
+        "evidence_boundary": "The roadmap may recommend these surfaces, but support starts only after a targeted case writes result.json and logs.",
+    },
+    {
+        "reason": "Reusable decision-service pattern",
+        "detail": "A small external decision service can also inform later Traefik forwardAuth and lighttpd sidecar feasibility work.",
+        "evidence_boundary": "Reusable architecture is a planning advantage, not a Full-Matrix or CRS support claim.",
+    },
+    {
+        "reason": "High value with bounded first proof",
+        "detail": "A single request-blocking smoke can answer whether Envoy can carry a ModSecurity-style deny decision without touching production connectors.",
+        "evidence_boundary": "The first proof is targeted and must keep full_matrix_ready=false.",
+    },
+]
+
+NEW_CONNECTOR_PHASES = [
+    {
+        "phase": "0",
+        "name": "Roadmap triage",
+        "entry_condition": "Candidate appears in repository skeletons, backlog, or architecture discussion.",
+        "work": "Record status, rationale, risks, first proof, and forbidden claims.",
+        "exit_evidence": "Roadmap-only generated report and optional architecture/onboarding docs.",
+        "promotion_gate": "No runtime promotion; this phase only authorizes a proof plan.",
+    },
+    {
+        "phase": "1",
+        "name": "Architecture proof specification",
+        "entry_condition": "Candidate has enough technical surface to compare integration options.",
+        "work": "Choose one minimal control point, name alternatives, define logs, result schema, and non-goals.",
+        "exit_evidence": "Documented proof spec with acceptance criteria and rollback/cleanup expectations.",
+        "promotion_gate": "A proof may be implemented, but no Full-Matrix job may be added yet.",
+    },
+    {
+        "phase": "2",
+        "name": "Targeted runtime smoke",
+        "entry_condition": "Proof spec is accepted and can run without production connector changes.",
+        "work": "Create minimal config, launcher, upstream, decision service, and one blocking smoke.",
+        "exit_evidence": "result.json, case-run files, access/error logs or equivalent, and decision/audit logs where applicable.",
+        "promotion_gate": "The smoke proves only the named case and must keep full_matrix_ready=false.",
+    },
+    {
+        "phase": "3",
+        "name": "Verified-case readiness",
+        "entry_condition": "Targeted smoke is deterministic and uses verified runtime paths.",
+        "work": "Wire the connector into the verified-case runner shape with documented capabilities and limitations.",
+        "exit_evidence": "A real verified-case run for one case, with rerun command and artifact locations.",
+        "promotion_gate": "May become a full-matrix candidate only after governance, lint, quick-check, and evidence layout pass.",
+    },
+    {
+        "phase": "4",
+        "name": "Full-Matrix candidacy",
+        "entry_condition": "Verified-case evidence exists and missing capability claims are explicitly documented.",
+        "work": "Add matrix job plumbing and generated-report integration without altering expected statuses.",
+        "exit_evidence": "Full-Matrix jobs are schedulable and report completeness can describe generated evidence honestly.",
+        "promotion_gate": "No PASS, readiness, or production claim until complete generated Full-Matrix evidence exists.",
+    },
+    {
+        "phase": "5",
+        "name": "Production verification",
+        "entry_condition": "Full-Matrix evidence is complete and critical reports are generated from verified inputs.",
+        "work": "Run the complete verified evidence pipeline and resolve mismatches through real fixes only.",
+        "exit_evidence": "Merge Readiness PASS, critical mismatches 0, governance/lint/quick-check/layout PASS.",
+        "promotion_gate": "Only now may the connector be described as production_verified.",
+    },
+]
+
+ENVOY_PROOF_EXIT_CRITERIA = [
+    {
+        "criterion": "Local startup",
+        "required_evidence": "Envoy, upstream, and decision service start from a deterministic script and clean up ports/processes.",
+        "failure_mode": "If startup is flaky, the proof remains skeleton/runtime-startable work only.",
+    },
+    {
+        "criterion": "Upstream pass-through",
+        "required_evidence": "A benign request reaches the upstream through Envoy and logs the route.",
+        "failure_mode": "If upstream pass-through fails, no ModSecurity-style decision claim is allowed.",
+    },
+    {
+        "criterion": "Request blocking",
+        "required_evidence": "A known malicious smoke request returns HTTP 403 via the selected ext_proc/ext_authz path.",
+        "failure_mode": "If only the upstream blocks, the result is an infrastructure smoke, not Envoy connector proof.",
+    },
+    {
+        "criterion": "Decision evidence",
+        "required_evidence": "Decision-service log records deny, intervention_status=403, case id, and request correlation id.",
+        "failure_mode": "If decision evidence is missing, the HTTP status is insufficient for verified-case readiness.",
+    },
+    {
+        "criterion": "Runtime evidence package",
+        "required_evidence": "result.json, case-run.md, case-run.json, Envoy logs, and decision logs under $VERIFIED_RUN_ROOT/envoy-smoke/.",
+        "failure_mode": "If artifacts live only in the checkout or are incomplete, do not promote the proof.",
+    },
+    {
+        "criterion": "Scope guard",
+        "required_evidence": "result.json declares evidence_scope=targeted and full_matrix_ready=false.",
+        "failure_mode": "Any Full-Matrix or production claim invalidates the first-proof boundary.",
+    },
+]
+
+FUTURE_CONNECTOR_DELIVERABLES = [
+    {
+        "item": "connectors/<name>/README.md",
+        "stage": "skeleton",
+        "purpose": "Describe connector scope, current lifecycle stage, build/runtime commands, and explicit non-claims.",
+        "evidence_rule": "Required before any connector is listed as more than planned.",
+    },
+    {
+        "item": "connectors/<name>/ORIGIN.md and SOURCE_MAP.json",
+        "stage": "skeleton",
+        "purpose": "Track source ownership, upstream references, and which files are repo-owned.",
+        "evidence_rule": "Must not imply runtime support.",
+    },
+    {
+        "item": "connectors/<name>/config/ or harness config",
+        "stage": "runtime-startable",
+        "purpose": "Provide minimal deterministic proxy/server configuration for local smoke runs.",
+        "evidence_rule": "Config presence is not runtime evidence until a run writes logs and result.json.",
+    },
+    {
+        "item": "connectors/<name>/harness/ or scripts/run-smoke.sh",
+        "stage": "runtime-startable",
+        "purpose": "Start, exercise, and clean up the minimal proof harness.",
+        "evidence_rule": "Must write artifacts under verified runtime roots, not inside the checkout.",
+    },
+    {
+        "item": "make smoke-<name> or equivalent launcher",
+        "stage": "runtime-startable",
+        "purpose": "Expose a small local smoke for developers and CI feasibility.",
+        "evidence_rule": "A smoke target alone is not Full-Matrix integration.",
+    },
+    {
+        "item": "make verified-case CONNECTOR=<name> CASE=<case>",
+        "stage": "verified-case-ready",
+        "purpose": "Run one real case through the verified-case evidence shape.",
+        "evidence_rule": "Requires result.json, logs, case-run files, and truthful expected/actual status.",
+    },
+    {
+        "item": "reports/testing/generated/runtime/<name>-runtime-results.generated.md",
+        "stage": "verified-case-ready",
+        "purpose": "Summarize real runtime evidence once a generator consumes verified inputs.",
+        "evidence_rule": "Must be generated, never hand-edited, and must not be present for roadmap-only candidates.",
+    },
+    {
+        "item": "make verified-full-matrix-job CONNECTOR=<name> CRS=<variant> MRTS=<variant>",
+        "stage": "full-matrix-candidate",
+        "purpose": "Run a schedulable connector/CRS/MRTS matrix job.",
+        "evidence_rule": "Schedulable is not PASS; report actual status only after real execution.",
+    },
+    {
+        "item": "reports/testing/generated/manifest/full-matrix-job-completeness.generated.*",
+        "stage": "full-matrix-candidate",
+        "purpose": "Record which jobs exist, completed, failed, or are missing.",
+        "evidence_rule": "Do not fabricate job rows for connectors that are not integrated.",
+    },
+    {
+        "item": "reports/testing/generated/manifest/merge-readiness-dashboard.generated.*",
+        "stage": "production-verified",
+        "purpose": "Expose final readiness only after critical generated evidence is complete.",
+        "evidence_rule": "Roadmap-only reports must not influence readiness.",
+    },
+]
+
 
 def exists(root: Path, rel: str) -> bool:
     return (root / rel).exists()
@@ -510,15 +680,40 @@ def render_markdown(payload: dict[str, Any]) -> str:
         ["Rank", "Connector", "Difficulty", "Risk", "Expected Value", "Recommendation"],
         [[item["rank"], item["connector"], item["difficulty"], item["risk"], item["expected_value"], item["recommendation"]] for item in payload["connector_candidate_ranking"]],
     )
+    lines += ["", "## Why Envoy Is Recommended Next", ""]
+    lines += render_table(
+        ["Reason", "Detail", "Evidence Boundary"],
+        [[item["reason"], item["detail"], item["evidence_boundary"]] for item in payload["why_envoy_next"]],
+    )
     lines += ["", "## Connector Lifecycle", ""]
     lines += render_table(
         ["Stage", "Meaning", "Required Evidence", "Not Allowed Claims"],
         [[item["stage"], item["meaning"], item["required_evidence"], item["not_allowed_claims"]] for item in payload["connector_lifecycle"]],
     )
+    lines += ["", "## New Connector Work Phases", ""]
+    lines += render_table(
+        ["Phase", "Name", "Entry Condition", "Work", "Exit Evidence", "Promotion Gate"],
+        [
+            [
+                item["phase"],
+                item["name"],
+                item["entry_condition"],
+                item["work"],
+                item["exit_evidence"],
+                item["promotion_gate"],
+            ]
+            for item in payload["new_connector_phases"]
+        ],
+    )
     lines += ["", "## New Connector Acceptance Criteria", ""]
     lines += render_table(
         ["Requirement", "Required for Skeleton", "Required for Verified-Case", "Required for Full-Matrix"],
         payload["new_connector_acceptance_criteria"],
+    )
+    lines += ["", "## Future Files, Targets, and Reports", ""]
+    lines += render_table(
+        ["Item", "Stage", "Purpose", "Evidence Rule"],
+        [[item["item"], item["stage"], item["purpose"], item["evidence_rule"]] for item in payload["future_connector_deliverables"]],
     )
     lines += ["", "## Envoy Architecture Options", ""]
     lines += render_table(
@@ -545,6 +740,11 @@ def render_markdown(payload: dict[str, Any]) -> str:
             ["artifacts", "<br>".join(proof["artifacts"])],
             ["evidence", "<br>".join(proof["evidence"])],
         ],
+    )
+    lines += ["", "### Envoy Proof Exit Criteria", ""]
+    lines += render_table(
+        ["Criterion", "Required Evidence", "Failure Mode"],
+        [[item["criterion"], item["required_evidence"], item["failure_mode"]] for item in payload["envoy_proof_exit_criteria"]],
     )
     lines += ["", "### Envoy Minimal Result Schema", "", "```json"]
     lines += [
@@ -608,10 +808,14 @@ def build_payload(root: Path) -> dict[str, Any]:
         "merge_readiness_impact": "none",
         "connector_status_matrix": rows,
         "connector_candidate_ranking": candidate_ranking(),
+        "why_envoy_next": WHY_ENVOY_NEXT,
         "connector_lifecycle": LIFECYCLE,
+        "new_connector_phases": NEW_CONNECTOR_PHASES,
         "new_connector_acceptance_criteria": [list(item) for item in ACCEPTANCE_CRITERIA],
+        "future_connector_deliverables": FUTURE_CONNECTOR_DELIVERABLES,
         "envoy_architecture_options": ENVOY_OPTIONS,
         "recommended_envoy_proof": ENVOY_PROOF,
+        "envoy_proof_exit_criteria": ENVOY_PROOF_EXIT_CRITERIA,
         "litespeed_candidate": LITESPEED_CANDIDATE,
         "lighttpd_traefik_feasibility": OTHER_CONNECTOR_FEASIBILITY,
         "openresty_decision": OPENRESTY_DECISION,

@@ -37,21 +37,13 @@ static int request_has_bridge_block_header(const msconnector_request *request) {
 }
 
 static msconnector_envoy_bridge_decision allow_decision(void) {
-    msconnector_envoy_bridge_decision decision;
-    decision.status = MSCONNECTOR_STATUS_OK;
-    decision.intervention = msconnector_intervention_none();
-    decision.rule_id = "envoy-bridge-self-test-allow";
-    decision.reason = "no bridge self-test blocking signal";
-    return decision;
+    return msconnector_decision_allow(
+        "envoy-bridge-self-test-allow",
+        "no bridge self-test blocking signal");
 }
 
 static msconnector_envoy_bridge_decision block_decision(const char *rule_id, const char *reason) {
-    msconnector_envoy_bridge_decision decision;
-    decision.status = MSCONNECTOR_STATUS_BLOCKED;
-    decision.intervention = msconnector_intervention_make(1, 403, 0, reason);
-    decision.rule_id = rule_id;
-    decision.reason = reason;
-    return decision;
+    return msconnector_decision_block(403, rule_id, reason);
 }
 
 msconnector_envoy_bridge_decision msconnector_envoy_bridge_evaluate(

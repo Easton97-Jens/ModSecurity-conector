@@ -33,15 +33,18 @@ msconnector_lighttpd_bridge_decision msconnector_lighttpd_bridge_evaluate_probe(
     msconnector_lighttpd_bridge_decision decision;
 
     if (request == 0 || request->method == 0 || request->uri == 0) {
-        decision.status = MSCONNECTOR_STATUS_ERROR;
-        decision.intervention = msconnector_intervention_none();
-        decision.reason = "invalid local probe request";
-        return decision;
+        return msconnector_decision_make(
+            MSCONNECTOR_STATUS_ERROR,
+            msconnector_intervention_none(),
+            0,
+            "invalid local probe request");
     }
 
-    decision.status = MSCONNECTOR_STATUS_BLOCKED;
-    decision.intervention = msconnector_intervention_none();
-    decision.reason = "blocked: bridge starter has no lighttpd runtime hook, FastCGI/SCGI protocol adapter, or libmodsecurity integration";
+    decision = msconnector_decision_make(
+        MSCONNECTOR_STATUS_BLOCKED,
+        msconnector_intervention_none(),
+        0,
+        "blocked: bridge starter has no lighttpd runtime hook, FastCGI/SCGI protocol adapter, or libmodsecurity integration");
     return decision;
 }
 
