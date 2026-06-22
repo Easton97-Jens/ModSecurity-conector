@@ -11,6 +11,7 @@ Allowed here:
 - Helpers that operate only on `common/include/msconnector/*` types.
 - Pure parsing, normalization, or formatting code that does not include server or proxy headers.
 - Code that can be built without any connector-specific SDK.
+- Small neutral constructors for common status/intervention/decision values.
 
 Not allowed here:
 

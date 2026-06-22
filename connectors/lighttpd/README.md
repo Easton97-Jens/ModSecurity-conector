@@ -90,3 +90,26 @@ exist:
 No lighttpd runtime result is claimed by this bridge starter. No-CRS and
 With-CRS must be validated separately before promotion, and RESPONSE_BODY
 blocking remains not verified.
+
+## Parallel Runtime-Smoke Phase
+
+Phase 1 uses `integration_mode=architecture_spike_plus_runtime_smoke`. The
+selected production integration path is still open and must be chosen before any
+runtime success can be claimed.
+
+The lighttpd connector-specific surface is limited to:
+
+- evaluating native module, FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua
+  paths;
+- future lighttpd configuration for the chosen path;
+- lighttpd smoke harness entrypoint.
+
+Shared request, response, intervention, status, logging, capabilities, origin,
+and transaction concepts come from `common/include/msconnector/`. Runtime smoke
+evidence is written through `common/scripts/write_smoke_result.py`, so lighttpd
+does not maintain its own JSON result writer.
+
+`make smoke-lighttpd` currently exits 77 and writes BLOCKED evidence because no
+production lighttpd integration path has been selected and implemented. Evidence
+is written to `$VERIFIED_RUN_ROOT/lighttpd-smoke/`; if `VERIFIED_RUN_ROOT` is
+not set, the fallback is `$BUILD_ROOT/results/lighttpd-smoke/`.

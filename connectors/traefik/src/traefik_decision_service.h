@@ -4,16 +4,13 @@
 #include "msconnector/intervention.h"
 #include "msconnector/request.h"
 #include "msconnector/status.h"
+#include "msconnector/transaction.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct msconnector_traefik_decision_result {
-    enum msconnector_status status;
-    msconnector_intervention intervention;
-    const char *reason;
-} msconnector_traefik_decision_result;
+typedef msconnector_decision msconnector_traefik_decision_result;
 
 msconnector_traefik_decision_result msconnector_traefik_decide_request(
     const msconnector_request *request);

@@ -41,9 +41,14 @@ Global gate definitions:
 
 ## Phase 3: Harness
 
-- [ ] Traefik harness implemented
-- [ ] harness command documented
-- [ ] harness evidence path documented
+- [x] `make smoke-traefik` targeted runtime-smoke entrypoint implemented
+- [x] harness command documented
+- [x] BLOCKED evidence path documented
+- [x] common smoke result writer used instead of connector-local JSON writer
+- [ ] real Traefik forwardAuth runtime harness implemented
+- [ ] allowed request returns expected runtime status
+- [ ] blocked request returns HTTP 403 through forwardAuth
+- [ ] Go plugin remains excluded from Phase 1
 
 ## Phase 4: No-CRS Runtime
 

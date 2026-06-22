@@ -47,3 +47,25 @@ Framework-owned test references:
 
 No-CRS and With-CRS must be validated separately in the future. RESPONSE_BODY
 blocking is not verified for Envoy.
+
+## Parallel Runtime-Smoke Phase
+
+Phase 1 targets Envoy `ext_authz`. `ext_proc` remains documented as a later
+phase and is not implemented by this connector tree.
+
+The Envoy connector-specific surface is limited to:
+
+- ext_authz integration design and future Envoy configuration;
+- Envoy smoke harness entrypoint;
+- Envoy bridge-starter CLI/self-test code.
+
+Shared request, response, intervention, status, logging, capabilities, origin,
+and transaction concepts come from `common/include/msconnector/`. Runtime smoke
+evidence is written through `common/scripts/write_smoke_result.py`, so Envoy does
+not maintain its own JSON result writer.
+
+`make smoke-envoy` currently exits 77 and writes BLOCKED evidence because the
+Envoy binary/configuration and libmodsecurity-backed ext_authz adapter are not
+available. Evidence is written to `$VERIFIED_RUN_ROOT/envoy-smoke/`; if
+`VERIFIED_RUN_ROOT` is not set, the fallback is
+`$BUILD_ROOT/results/envoy-smoke/`.

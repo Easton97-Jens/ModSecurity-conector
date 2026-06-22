@@ -45,9 +45,13 @@ Global gate definitions:
 
 ## Phase 4: Envoy Harness
 
-- [ ] Envoy harness implemented
-- [ ] harness command documented
-- [ ] harness evidence path documented
+- [x] `make smoke-envoy` targeted runtime-smoke entrypoint implemented
+- [x] harness command documented
+- [x] BLOCKED evidence path documented
+- [x] common smoke result writer used instead of connector-local JSON writer
+- [ ] real Envoy ext_authz runtime harness implemented
+- [ ] allowed request returns expected runtime status
+- [ ] blocked request returns HTTP 403 through Envoy ext_authz
 
 ## Phase 5: No-CRS Runtime
 

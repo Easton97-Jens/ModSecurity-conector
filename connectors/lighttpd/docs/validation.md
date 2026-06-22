@@ -58,3 +58,26 @@ under `/src/ModSecurity-conector-build/results/`.
 
 This entrypoint does not run bridge-starter scripts as runtime evidence.
 Runtime remains not verified and RESPONSE_BODY remains not verified.
+
+## Common Result Schema
+
+`make smoke-lighttpd` now uses the shared smoke-result writer in
+`common/scripts/write_smoke_result.py`. The generated `result.json` contains the
+common schema fields `connector`, `integration_mode`, `runtime_verified`,
+`full_matrix_ready`, `production_ready`, `crs_complete`,
+`response_body_verified`, `allowed_request_status`, `blocked_request_status`,
+`evidence_root`, `timestamp`, `skipped_reason`, `missing_dependencies`, and
+`claims_not_allowed`.
+
+Current expected result:
+
+- Integration mode: `architecture_spike_plus_runtime_smoke`
+- Status: `BLOCKED`
+- Exit code: 77
+- Runtime verified: `false`
+- Evidence root: `$VERIFIED_RUN_ROOT/lighttpd-smoke/`, falling back to
+  `$BUILD_ROOT/results/lighttpd-smoke/`
+- Architecture decision: compare native module, FastCGI/SCGI, sidecar/proxy,
+  and mod_magnet/Lua before selecting the runtime path
+- Claims still forbidden: `runtime_verified=true`, `production_ready=true`,
+  `full_matrix_ready=true`, `crs_complete=true`

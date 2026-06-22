@@ -72,3 +72,25 @@ are implemented:
 
 No No-CRS, With-CRS, RESPONSE_BODY, negative/pass-through, audit/log, or Traefik
 runtime result is claimed for Traefik by this starter.
+
+## Parallel Runtime-Smoke Phase
+
+Phase 1 targets Traefik `forwardAuth`. A Go plugin is explicitly out of scope
+for this phase.
+
+The Traefik connector-specific surface is limited to:
+
+- forwardAuth integration design and future Traefik configuration;
+- Traefik smoke harness entrypoint;
+- local decision-service starter code.
+
+Shared request, response, intervention, status, logging, capabilities, origin,
+and transaction concepts come from `common/include/msconnector/`. Runtime smoke
+evidence is written through `common/scripts/write_smoke_result.py`, so Traefik
+does not maintain its own JSON result writer.
+
+`make smoke-traefik` currently exits 77 and writes BLOCKED evidence because the
+Traefik binary/configuration and libmodsecurity-backed forwardAuth decision
+service are not available. Evidence is written to
+`$VERIFIED_RUN_ROOT/traefik-smoke/`; if `VERIFIED_RUN_ROOT` is not set, the
+fallback is `$BUILD_ROOT/results/traefik-smoke/`.

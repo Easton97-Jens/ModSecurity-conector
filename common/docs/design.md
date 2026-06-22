@@ -39,6 +39,23 @@ Existing `request.h`, `response.h`, `transaction.h`, `logging.h`, and
 `capabilities.h` remain connector-neutral. `capabilities.h` is the canonical
 capability header; no duplicate `capability.h` is introduced.
 
+`transaction.h` also owns the small `msconnector_decision` shape used by open
+connector adapters to return neutral status, intervention, rule ID, and reason
+data without creating connector-local Result types.
+
+## Runtime-smoke evidence helpers
+
+Connector-neutral smoke result helpers live under `common/scripts/`, not the
+public C headers. They centralize Result/Evidence JSON writing for open
+connector harnesses while keeping the runtime ABI focused on request, response,
+intervention, status, logging, capabilities, origin, transaction, and decision
+data.
+
+These helpers may write common smoke artifacts such as `result.json`,
+`summary.json`, `summary.txt`, and `results.jsonl`. They must not include
+server-specific terms or depend on Envoy, Traefik, lighttpd, Apache, HAProxy, or
+Nginx SDKs.
+
 ## libmodsecurity v3 alignment
 
 The phase names mirror the public v3 transaction sequence:

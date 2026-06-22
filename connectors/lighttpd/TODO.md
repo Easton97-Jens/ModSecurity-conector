@@ -44,13 +44,17 @@ Global gate definitions:
 
 ## Phase 3: Harness
 
-- [ ] lighttpd harness implemented
-- [ ] harness command documented
-- [ ] harness evidence path documented
+- [x] `make smoke-lighttpd` targeted runtime-smoke entrypoint implemented
+- [x] harness command documented
+- [x] BLOCKED evidence path documented
+- [x] common smoke result writer used instead of connector-local JSON writer
+- [ ] production integration path selected
 - [ ] lighttpd binary/container/source-build documented
 - [ ] lighttpd config documented
 - [ ] ModSecurity integration point documented
-- [ ] result JSON documented
+- [x] result JSON documented through common smoke schema
+- [ ] allowed request returns expected runtime status
+- [ ] blocked request returns HTTP 403 through the selected path
 
 ## Phase 4: No-CRS Runtime
 
