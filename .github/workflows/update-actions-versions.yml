@@ -44,7 +44,7 @@ jobs:
       - name: Cleanup artifacts before upload
         if: always()
         continue-on-error: true
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           ARTIFACT_NAME: actions-update-report
         with:
