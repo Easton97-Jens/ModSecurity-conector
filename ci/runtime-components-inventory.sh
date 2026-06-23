@@ -18,7 +18,7 @@ sha_status() {
     fi
 }
 
-enabled_status() {
+can_download_with_opt_in() {
     version=$1
     download_url=$2
     sha256=$3
@@ -31,15 +31,6 @@ enabled_status() {
     fi
 }
 
-component_status() {
-    enabled=$1
-    if [ "$enabled" = "true" ]; then
-        printf '%s\n' source_pinned_download_opt_in_required
-    else
-        printf '%s\n' source_known_pin_missing
-    fi
-}
-
 resolved_binary() {
     binary=$1
     if [ -f "$binary" ] && [ -x "$binary" ]; then
@@ -49,31 +40,57 @@ resolved_binary() {
     fi
 }
 
-print_component() {
+binary_status() {
+    binary=$1
+    if [ -f "$binary" ] && [ -x "$binary" ]; then
+        printf '%s\n' binary_present
+    else
+        printf '%s\n' binary_missing
+    fi
+}
+
+source_staged_status() {
+    source_dir=$1
+    if [ -d "$source_dir" ]; then
+        printf '%s\n' true
+    else
+        printf '%s\n' false
+    fi
+}
+
+local_status_for_binary() {
+    binary=$1
+    can_download=$2
+    if [ -f "$binary" ] && [ -x "$binary" ]; then
+        printf '%s\n' ready
+    elif [ "$can_download" = "true" ]; then
+        printf '%s\n' missing_download_opt_in_available
+    else
+        printf '%s\n' blocked_source_pin_missing
+    fi
+}
+
+print_binary_component() {
     name=$1
     version=$2
-    source_page=$3
+    source_url=$3
     install_docs=$4
-    latest_marker=$5
-    download_url=$6
-    sha256=$7
-    sha256_url=$8
-    expected_binary=$9
-    integration_mode=${10:-}
+    download_url=$5
+    sha256=$6
+    sha256_url=$7
+    expected_binary=$8
+    integration_mode=$9
 
     sha_state=$(sha_status "$sha256")
-    enabled=$(enabled_status "$version" "$download_url" "$sha256")
-    status=$(component_status "$enabled")
+    can_download=$(can_download_with_opt_in "$version" "$download_url" "$sha256")
     resolved=$(resolved_binary "$expected_binary")
+    local_status=$(local_status_for_binary "$expected_binary" "$can_download")
 
     printf 'name=%s\n' "$name"
     printf 'version=%s\n' "$version"
-    printf 'source_page=%s\n' "$source_page"
+    printf 'source_url=%s\n' "$source_url"
     if [ -n "$install_docs" ]; then
         printf 'install_docs=%s\n' "$install_docs"
-    fi
-    if [ -n "$latest_marker" ]; then
-        printf 'latest_marker=%s\n' "$latest_marker"
     fi
     printf 'download_url=%s\n' "$download_url"
     printf 'sha256_status=%s\n' "$sha_state"
@@ -83,11 +100,54 @@ print_component() {
     if [ "$MODE" = "inventory" ]; then
         printf 'resolved_binary=%s\n' "$resolved"
     fi
-    printf 'enabled=%s\n' "$enabled"
-    printf 'status=%s\n' "$status"
-    if [ -n "$integration_mode" ]; then
-        printf 'integration_mode=%s\n' "$integration_mode"
+    printf 'can_download_with_opt_in=%s\n' "$can_download"
+    printf 'local_status=%s\n' "$local_status"
+    printf 'enabled=%s\n' "$can_download"
+    printf 'status=source_pinned_download_opt_in_required\n'
+    printf 'integration_mode=%s\n' "$integration_mode"
+    printf '\n'
+}
+
+print_lighttpd_component() {
+    source_dir="$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION"
+    sha_state=$(sha_status "$LIGHTTPD_SHA256")
+    can_download=$(can_download_with_opt_in "$LIGHTTPD_VERSION" "$LIGHTTPD_DOWNLOAD_URL" "$LIGHTTPD_SHA256")
+    source_staged=$(source_staged_status "$source_dir")
+    runtime_binary_status=$(binary_status "$LIGHTTPD_BIN")
+    resolved=$(resolved_binary "$LIGHTTPD_BIN")
+    if [ "$runtime_binary_status" = "binary_present" ]; then
+        local_status=ready
+    elif [ "$source_staged" = "true" ]; then
+        local_status=source_staged_build_required
+    elif [ "$can_download" = "true" ]; then
+        local_status=source_missing_download_opt_in_available
+    else
+        local_status=blocked_source_pin_missing
     fi
+
+    printf 'name=lighttpd\n'
+    printf 'version=%s\n' "$LIGHTTPD_VERSION"
+    printf 'source_url=%s\n' "$LIGHTTPD_SOURCE_URL"
+    printf 'release_index_url=%s\n' "$LIGHTTPD_RELEASE_INDEX_URL"
+    printf 'latest_url=%s\n' "$LIGHTTPD_LATEST_URL"
+    printf 'download_url=%s\n' "$LIGHTTPD_DOWNLOAD_URL"
+    printf 'sha256_status=%s\n' "$sha_state"
+    printf 'sha256=%s\n' "$LIGHTTPD_SHA256"
+    printf 'sha256_url=%s\n' "$LIGHTTPD_SHA256_URL"
+    printf 'expected_binary=%s\n' "$LIGHTTPD_BIN"
+    if [ "$MODE" = "inventory" ]; then
+        printf 'resolved_binary=%s\n' "$resolved"
+    fi
+    printf 'can_download_with_opt_in=%s\n' "$can_download"
+    printf 'source_staged=%s\n' "$source_staged"
+    printf 'source_dir=%s\n' "$source_dir"
+    printf 'runtime_binary_status=%s\n' "$runtime_binary_status"
+    printf 'integration_mode=%s\n' "$LIGHTTPD_INTEGRATION_MODE"
+    printf 'local_status=%s\n' "$local_status"
+    printf 'enabled=%s\n' "$can_download"
+    printf 'artifact_type=source_tarball\n'
+    printf 'runtime_binary_produced=false\n'
+    printf 'status=source_pinned_build_required\n'
     printf '\n'
 }
 
@@ -99,38 +159,26 @@ case "$MODE" in
         ;;
 esac
 
-print_component \
+print_binary_component \
     envoy \
     "$ENVOY_VERSION" \
-    "$ENVOY_SOURCE_PAGE" \
+    "$ENVOY_SOURCE_URL" \
     "$ENVOY_INSTALL_DOCS_URL" \
-    "" \
     "$ENVOY_DOWNLOAD_URL" \
     "$ENVOY_SHA256" \
     "$ENVOY_SHA256_URL" \
     "$ENVOY_BIN" \
     "$ENVOY_INTEGRATION_MODE"
 
-print_component \
+print_binary_component \
     traefik \
     "$TRAEFIK_VERSION" \
-    "$TRAEFIK_SOURCE_PAGE" \
+    "$TRAEFIK_SOURCE_URL" \
     "$TRAEFIK_INSTALL_DOCS_URL" \
-    "" \
     "$TRAEFIK_DOWNLOAD_URL" \
     "$TRAEFIK_SHA256" \
     "$TRAEFIK_SHA256_URL" \
     "$TRAEFIK_BIN" \
     "$TRAEFIK_INTEGRATION_MODE"
 
-print_component \
-    lighttpd \
-    "$LIGHTTPD_VERSION" \
-    "$LIGHTTPD_SOURCE_PAGE" \
-    "" \
-    "$LIGHTTPD_LATEST_MARKER_URL" \
-    "$LIGHTTPD_DOWNLOAD_URL" \
-    "$LIGHTTPD_SHA256" \
-    "$LIGHTTPD_SHA256_URL" \
-    "$LIGHTTPD_BIN" \
-    "$LIGHTTPD_INTEGRATION_MODE"
+print_lighttpd_component

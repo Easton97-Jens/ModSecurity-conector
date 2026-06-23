@@ -9,17 +9,22 @@ With a resolved local binary, the smoke runner starts a minimal upstream,
 minimal ext_authz decision service, and Envoy with a generated local config.
 
 Runtime component metadata is pinned centrally in `common.sh`:
-`ENVOY_VERSION=1.38.2`, `ENVOY_SOURCE_PAGE`, `ENVOY_INSTALL_DOCS_URL`,
+`ENVOY_VERSION=1.38.2`, `ENVOY_SOURCE_URL`, `ENVOY_INSTALL_DOCS_URL`,
 `ENVOY_DOWNLOAD_URL`, `ENVOY_SHA256_URL`, and `ENVOY_SHA256`. The expected
 local binary remains `$CONNECTOR_COMPONENT_CACHE/envoy/bin/envoy`. Downloads
-are disabled unless future explicit `ALLOW_RUNTIME_DOWNLOADS=1` logic verifies
-the pinned SHA256 and writes only to the local component cache.
+are disabled unless explicit `ALLOW_RUNTIME_DOWNLOADS=1` prepare execution
+verifies the pinned SHA256 and writes only to the local component cache:
+
+```sh
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime
+make smoke-envoy
+```
 
 | Gate | Envoy status |
 | --- | --- |
 | Build starter | available via `make -C connectors/envoy build-starter` |
 | Bridge self-test | available via `make -C connectors/envoy self-test` |
-| libmodsecurity bridge | blocked; headers/libs not found in `/src` paths checked |
+| libmodsecurity targeted smoke | conditional via `DECISION_BACKEND=libmodsecurity make smoke-envoy`; PASS only with local common.sh-managed headers/libs and rule-backed 403 |
 | No-CRS | not run |
 | With-CRS | not run |
 | RESPONSE_BODY | not verified |
@@ -73,6 +78,22 @@ found, it exits 77 with BLOCKED evidence.
 This entrypoint does not run the bridge starter self-test as runtime evidence.
 RESPONSE_BODY remains not verified.
 
+The optional targeted ModSecurity backend uses the same runtime entrypoint with
+an explicit backend selector:
+
+```sh
+DECISION_BACKEND=libmodsecurity make smoke-envoy
+make smoke-envoy-modsecurity
+```
+
+This mode loads `common/rules/modsecurity_targeted_smoke.conf` through a local
+libmodsecurity C-API evaluator. The allowed request must return 200 and the
+request with `X-Modsec-Smoke: block` must return 403 from rule `1000001`.
+`result.json` adds `decision_backend`, `modsecurity_backend_verified`,
+`modsecurity_rule_file`, `modsecurity_rule_id`, `modsecurity_rule_loaded`,
+`intervention_status`, and `decision_log_path`. Missing local libmodsecurity
+headers/libraries are reported as Exit 77/BLOCKED, not as failure or success.
+
 ## Common Result Schema
 
 `make smoke-envoy` now uses the shared smoke-result writer in
@@ -109,6 +130,19 @@ Expected PASS result with a local binary:
 - Blocked request status: `403`
 - Resolved runtime binary: local path from `ENVOY_BIN` or a common.sh-managed
   lookup root
+- Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
+  `crs_complete=true`, `response_body_verified=true`
+
+Expected targeted ModSecurity PASS result with local Envoy and local
+libmodsecurity:
+
+- Decision backend: `libmodsecurity`
+- ModSecurity backend verified: `true`
+- ModSecurity rule file: `common/rules/modsecurity_targeted_smoke.conf`
+- ModSecurity rule ID: `1000001`
+- ModSecurity rule loaded: `true`
+- Intervention status: `403`
+- Decision log path: `$ENVOY_LOG_ROOT/modsecurity-decision.log`
 - Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
   `crs_complete=true`, `response_body_verified=true`
 

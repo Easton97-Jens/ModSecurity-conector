@@ -137,17 +137,33 @@ make prepare-lighttpd-runtime
 
 The helper prepares `$CONNECTOR_COMPONENT_CACHE/lighttpd/bin` and reports
 `$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd` when present. If the binary is
-missing, it exits 77 without installing or downloading lighttpd. The smoke stays
-BLOCKED until the lighttpd integration mode is implemented.
+missing and `ALLOW_RUNTIME_DOWNLOADS=1` is not set, it exits 77 without
+installing or downloading lighttpd. With explicit opt-in, it downloads the
+pinned lighttpd source tarball, verifies `LIGHTTPD_SHA256`, and stages source
+under `$CONNECTOR_COMPONENT_CACHE/lighttpd/src/lighttpd-$LIGHTTPD_VERSION`.
+This does not create a runtime binary:
+
+```sh
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-lighttpd-runtime
+make smoke-lighttpd
+```
+
+The smoke stays BLOCKED until a local build and the lighttpd integration mode
+are implemented.
+
+There is no lighttpd `DECISION_BACKEND=libmodsecurity` targeted runtime smoke in
+this phase. Source staging plus a sidecar-style decision service is not reported
+as a successful lighttpd connector. Runtime success remains forbidden until a
+local lighttpd binary, selected integration mode, real lighttpd traffic, and
+documented ModSecurity decision boundary exist.
 
 lighttpd source metadata is centralized in `common.sh`: `LIGHTTPD_VERSION=1.4.84`,
-the official 1.4.x release index, the latest marker URL used only for pinning,
+the official 1.4.x release index, the latest URL used only for pinning,
 the fixed tar.xz download URL, `LIGHTTPD_SHA256_URL`, and the pinned SHA256.
 The machine-readable mirror is
 `modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
-Downloads are not executed by default; any future download path must require
-`ALLOW_RUNTIME_DOWNLOADS=1`, verify the pinned SHA256, and stage only under
-`$CONNECTOR_COMPONENT_CACHE/lighttpd`.
+Downloads are not executed by default and, when opted in, stage only source
+under `$CONNECTOR_COMPONENT_CACHE/lighttpd`.
 
 Current evidence uses `skipped_reason="lighttpd integration mode not selected"`.
 When no local binary is found, `missing_dependencies` includes `lighttpd`.

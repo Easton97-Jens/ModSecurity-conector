@@ -95,15 +95,41 @@ make prepare-envoy-runtime
 
 The helper prepares `$CONNECTOR_COMPONENT_CACHE/envoy/bin` and reports
 `$CONNECTOR_COMPONENT_CACHE/envoy/bin/envoy` when present. If the binary is
-missing, it exits 77 without installing or downloading Envoy.
+missing and `ALLOW_RUNTIME_DOWNLOADS=1` is not set, it exits 77 without
+installing or downloading Envoy. With explicit opt-in, it downloads the pinned
+direct Envoy binary, verifies `ENVOY_SHA256`, and stages it locally:
+
+```sh
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime
+make smoke-envoy
+```
+
+The default smoke proves the local Envoy runtime, generated ext_authz config,
+upstream, and simple decision-service 200/403 behavior. It is not a
+libmodsecurity compatibility claim.
+
+For the optional targeted libmodsecurity-backed smoke, keep the same local Envoy
+binary and select the libmodsecurity decision backend:
+
+```sh
+DECISION_BACKEND=libmodsecurity make smoke-envoy
+make smoke-envoy-modsecurity
+```
+
+This mode resolves local libmodsecurity headers/libraries from common.sh-managed
+component caches or explicit local `MODSECURITY_INCLUDE_DIR` /
+`MODSECURITY_LIB_DIR` overrides, loads
+`common/rules/modsecurity_targeted_smoke.conf`, and blocks
+`X-Modsec-Smoke: block` with rule `1000001`. Missing local libmodsecurity
+dependencies produce Exit 77/BLOCKED evidence with
+`decision_backend=libmodsecurity` and `modsecurity_backend_verified=false`.
 
 Envoy source metadata is centralized in `common.sh`: `ENVOY_VERSION=1.38.2`,
-the official GitHub release page, the install docs URL, the Linux x86_64
+the official GitHub release URL, the install docs URL, the Linux x86_64
 download URL, `ENVOY_SHA256_URL`, and the pinned SHA256. The
 machine-readable mirror is
 `modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
-Downloads are not executed by default; any future download path must require
-`ALLOW_RUNTIME_DOWNLOADS=1`, verify the pinned SHA256, and stage only under
+Downloads are not executed by default and, when opted in, stage only under
 `$CONNECTOR_COMPONENT_CACHE/envoy`.
 
 Current missing-binary evidence uses
@@ -116,4 +142,6 @@ If a local binary is resolved, `make smoke-envoy` can return PASS only after a
 real HTTP smoke observes an allowed request status of 200 and a blocked request
 status of 403 through Envoy. That PASS still does not claim production
 readiness, full matrix readiness, CRS completeness, or response-body
-verification.
+verification. `modsecurity_backend_verified=true` is claimed only by the
+targeted libmodsecurity smoke when the decision log shows libmodsecurity loaded
+the targeted rule and returned the 403 intervention.

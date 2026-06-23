@@ -78,18 +78,34 @@ directories, validate runtimes, download artifacts, or install dependencies.
 
 Local component staging is handled by explicit prepare scripts:
 `prepare-envoy-runtime.sh`, `prepare-traefik-runtime.sh`, and
-`prepare-lighttpd-runtime.sh`. These scripts create only local component
-directories such as `$CONNECTOR_COMPONENT_CACHE/envoy/bin`, report an existing
-local binary when present, and otherwise exit 77. They do not install globally
-or download runtime components.
+`prepare-lighttpd-runtime.sh`. Without `ALLOW_RUNTIME_DOWNLOADS=1`, these
+scripts report an existing local binary when present and otherwise exit 77
+without downloading. With explicit opt-in they download only the pinned
+component artifact, verify the `common.sh` SHA256 before staging, and write only
+under `$CONNECTOR_COMPONENT_CACHE`. Envoy stages a direct binary; Traefik
+extracts only the expected `traefik` binary from its tarball; lighttpd stages
+source only and remains runtime-blocked until a local build and integration mode
+exist.
+
+Envoy and Traefik also support an optional targeted libmodsecurity-backed smoke
+by setting `DECISION_BACKEND=libmodsecurity` or using the connector-specific
+Make shortcuts. This is a second evidence level on top of the simple
+decision-service smoke. The shared runner loads
+`common/rules/modsecurity_targeted_smoke.conf`, builds a local test evaluator
+against local common.sh-managed libmodsecurity headers and libraries, and sends
+`X-Modsec-Smoke: block` through the proxy auth path. Only this targeted mode may
+set `modsecurity_backend_verified=true`, and only when the decision log shows
+libmodsecurity loaded rule `1000001` and returned a 403 intervention. Missing
+local libmodsecurity headers/libraries produce Exit 77/BLOCKED evidence with
+`decision_backend=libmodsecurity` and `modsecurity_backend_verified=false`.
 
 Official source metadata for these open connector runtime components is tracked
 in `modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
-The fixed versions, official source pages, download URLs, and SHA256 values are
+The fixed versions, official source URLs, download URLs, and SHA256 values are
 defined in `common.sh`; the manifest mirrors them for machine-readable
-inventory. Downloads remain disabled by default and may only be added behind an
-explicit `ALLOW_RUNTIME_DOWNLOADS=1` path with SHA256 verification into
-`$CONNECTOR_COMPONENT_CACHE`.
+inventory. Downloads are disabled by default and are allowed only through
+explicit `ALLOW_RUNTIME_DOWNLOADS=1` prepare targets with SHA256 verification
+into `$CONNECTOR_COMPONENT_CACHE`.
 
 ## libmodsecurity v3 alignment
 

@@ -45,6 +45,9 @@ These helpers centralize:
 - Exit-77 BLOCKED result semantics when local dependencies are absent;
 - conditional local Envoy/Traefik HTTP smoke execution when local binaries are
   resolved from common.sh-managed paths;
+- optional targeted Envoy/Traefik libmodsecurity-backed smoke execution when
+  `DECISION_BACKEND=libmodsecurity` is selected and local libmodsecurity
+  headers/libraries are resolved from common.sh-managed paths;
 - the `msconnector_decision` status/intervention/reason shape used by open C
   adapters;
 - local runtime binary lookup without global `PATH` fallback;
@@ -88,10 +91,10 @@ The machine-readable source inventory for Envoy, Traefik, and lighttpd is
 - Traefik `3.7.5`, from the official Traefik GitHub releases.
 - lighttpd `1.4.84`, from the official lighttpd 1.4.x release index.
 
-The manifest mirrors the version, source page, download URL, SHA256 URL, and
+The manifest mirrors the version, source URL, download URL, SHA256 URL, and
 expected `$CONNECTOR_COMPONENT_CACHE/.../bin/...` path for each component.
-Download execution remains disabled by default and requires future explicit
-`ALLOW_RUNTIME_DOWNLOADS=1` logic with SHA256 verification.
+Download execution remains disabled by default and requires explicit
+`ALLOW_RUNTIME_DOWNLOADS=1` prepare execution with SHA256 verification.
 
 Passive inventory output is available through:
 
@@ -117,14 +120,18 @@ Local component staging targets are available for the open connectors:
 make prepare-envoy-runtime
 make prepare-traefik-runtime
 make prepare-lighttpd-runtime
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-lighttpd-runtime
 ```
 
-They create only local component directories under
-`$CONNECTOR_COMPONENT_CACHE/{envoy,traefik,lighttpd}/bin`, report an already
-staged local binary when present, and otherwise exit 77 while printing the
-source page, fixed version, download URL, SHA256 status, and expected binary
-path. They do not install global packages, do not write system paths, and do
-not download runtimes.
+Without opt-in, they report an already staged local binary when present and
+otherwise exit 77 while printing the source URL, fixed version, download URL,
+SHA256 status, and expected binary path. With opt-in, Envoy downloads and
+stages the direct binary, Traefik downloads the tarball and stages only the
+`traefik` binary after SHA256 verification, and lighttpd stages only verified
+source under `$CONNECTOR_COMPONENT_CACHE/lighttpd/src`. They do not install
+global packages, do not write system paths, and do not use global PATH fallback.
 
 Examples:
 
@@ -134,6 +141,28 @@ TRAEFIK_BIN=/lokaler/pfad/traefik make smoke-traefik
 LIGHTTPD_BIN=/lokaler/pfad/lighttpd make smoke-lighttpd
 ```
 
+Optional targeted libmodsecurity-backed smokes are available for Envoy and
+Traefik only. They use the same resolved proxy runtime binary, but switch the
+auth decision backend from the simple local decision service to a local
+libmodsecurity C-API evaluator that loads
+`common/rules/modsecurity_targeted_smoke.conf`:
+
+```sh
+DECISION_BACKEND=libmodsecurity make smoke-envoy
+DECISION_BACKEND=libmodsecurity make smoke-traefik
+make smoke-envoy-modsecurity
+make smoke-traefik-modsecurity
+```
+
+The targeted result adds `decision_backend`, `modsecurity_backend_verified`,
+`modsecurity_rule_file`, `modsecurity_rule_id`, `modsecurity_rule_loaded`,
+`intervention_status`, and `decision_log_path`. It may set
+`modsecurity_backend_verified=true` only when libmodsecurity loads rule
+`1000001` and returns the 403 intervention for `X-Modsec-Smoke: block`.
+Missing local libmodsecurity dependencies exit 77 with
+`decision_backend=libmodsecurity`, `modsecurity_backend_verified=false`, and
+`missing_dependencies=["libmodsecurity"]`.
+
 ## Connector-Specific Logic
 
 Envoy keeps only Envoy-specific ext_authz design, configuration, smoke harness
@@ -142,6 +171,8 @@ entrypoint, and bridge-starter code. The Phase 1 runtime target is
 runner starts a minimal upstream, a minimal ext_authz decision service, and
 Envoy with generated local config, then requires HTTP 200 for an allowed request
 and HTTP 403 for a blocked request. `ext_proc` is deferred to a later phase.
+With `DECISION_BACKEND=libmodsecurity`, the same ext_authz path uses the
+targeted libmodsecurity evaluator instead of the simple decision backend.
 
 Traefik keeps only Traefik-specific forwardAuth design, configuration, smoke
 harness entrypoint, and local decision-service starter code. The Phase 1 runtime
@@ -150,6 +181,8 @@ resolved, the smoke runner starts a minimal upstream, a minimal forwardAuth
 decision service, and Traefik with generated local config, then requires HTTP
 200 for an allowed request and HTTP 403 for a blocked request. A Go plugin is
 out of scope for Phase 1.
+With `DECISION_BACKEND=libmodsecurity`, the same forwardAuth path uses the
+targeted libmodsecurity evaluator instead of the simple decision backend.
 
 lighttpd keeps only lighttpd-specific architecture-spike documentation,
 configuration for the eventual path, smoke harness entrypoint, and bridge
@@ -177,6 +210,11 @@ runtime. They still must not claim production readiness, full matrix readiness,
 CRS completeness, or response-body verification. The open connectors also must
 not generate full-matrix reports, production-readiness reports, or CRS-complete
 claims from starter/self-test evidence.
+
+`modsecurity_backend_verified=true` is forbidden unless the targeted
+libmodsecurity smoke loaded rule `1000001` and produced the blocking
+intervention through libmodsecurity. The simple decision-service smoke never
+claims ModSecurity compatibility by itself.
 
 ## Parallel Runtime-Smoke Artifacts
 

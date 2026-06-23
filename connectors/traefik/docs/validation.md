@@ -12,11 +12,17 @@ generated local config. Global validation gates and status vocabulary are define
 `connectors/_template/docs/coverage-decision-matrix.md`.
 
 Runtime component metadata is pinned centrally in `common.sh`:
-`TRAEFIK_VERSION=3.7.5`, `TRAEFIK_SOURCE_PAGE`, `TRAEFIK_INSTALL_DOCS_URL`,
+`TRAEFIK_VERSION=3.7.5`, `TRAEFIK_SOURCE_URL`, `TRAEFIK_INSTALL_DOCS_URL`,
 `TRAEFIK_DOWNLOAD_URL`, `TRAEFIK_SHA256_URL`, and `TRAEFIK_SHA256`. The expected
 local binary remains `$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik`.
-Downloads are disabled unless future explicit `ALLOW_RUNTIME_DOWNLOADS=1` logic
-verifies the pinned SHA256 and writes only to the local component cache.
+Downloads are disabled unless explicit `ALLOW_RUNTIME_DOWNLOADS=1` prepare
+execution verifies the pinned SHA256, extracts only the `traefik` binary, and
+writes only to the local component cache:
+
+```sh
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
+make smoke-traefik
+```
 
 ## Current Traefik Evidence
 
@@ -68,6 +74,22 @@ binary is found, it exits 77 with BLOCKED evidence.
 This entrypoint does not run decision-service starter self-tests as runtime
 evidence. RESPONSE_BODY remains not verified.
 
+The optional targeted ModSecurity backend uses the same runtime entrypoint with
+an explicit backend selector:
+
+```sh
+DECISION_BACKEND=libmodsecurity make smoke-traefik
+make smoke-traefik-modsecurity
+```
+
+This mode loads `common/rules/modsecurity_targeted_smoke.conf` through a local
+libmodsecurity C-API evaluator. The allowed request must return 200 and the
+request with `X-Modsec-Smoke: block` must return 403 from rule `1000001`.
+`result.json` adds `decision_backend`, `modsecurity_backend_verified`,
+`modsecurity_rule_file`, `modsecurity_rule_id`, `modsecurity_rule_loaded`,
+`intervention_status`, and `decision_log_path`. Missing local libmodsecurity
+headers/libraries are reported as Exit 77/BLOCKED, not as failure or success.
+
 ## Common Result Schema
 
 `make smoke-traefik` now uses the shared smoke-result writer in
@@ -104,6 +126,19 @@ Expected PASS result with a local binary:
 - Blocked request status: `403`
 - Resolved runtime binary: local path from `TRAEFIK_BIN` or a common.sh-managed
   lookup root
+- Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
+  `crs_complete=true`, `response_body_verified=true`
+
+Expected targeted ModSecurity PASS result with local Traefik and local
+libmodsecurity:
+
+- Decision backend: `libmodsecurity`
+- ModSecurity backend verified: `true`
+- ModSecurity rule file: `common/rules/modsecurity_targeted_smoke.conf`
+- ModSecurity rule ID: `1000001`
+- ModSecurity rule loaded: `true`
+- Intervention status: `403`
+- Decision log path: `$TRAEFIK_LOG_ROOT/modsecurity-decision.log`
 - Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
   `crs_complete=true`, `response_body_verified=true`
 

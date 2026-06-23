@@ -107,6 +107,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--response-body-verified", default="false")
     parser.add_argument("--allowed-request-status")
     parser.add_argument("--blocked-request-status")
+    parser.add_argument("--decision-backend", default="simple")
+    parser.add_argument("--modsecurity-backend-verified", default="false")
+    parser.add_argument("--modsecurity-rule-file", default="")
+    parser.add_argument("--modsecurity-rule-id", default="")
+    parser.add_argument("--modsecurity-rule-loaded", default="false")
+    parser.add_argument("--intervention-status")
+    parser.add_argument("--audit-log-path", default="")
+    parser.add_argument("--decision-log-path", default="")
+    parser.add_argument("--modsecurity-include-dir", default="")
+    parser.add_argument("--modsecurity-lib-dir", default="")
+    parser.add_argument("--modsecurity-lib-file", default="")
+    parser.add_argument("--modsecurity-pkg-config-path", default="")
+    parser.add_argument("--modsecurity-prefix", default="")
+    parser.add_argument("--modsecurity-manifest", default="")
     parser.add_argument("--evidence-root", required=True)
     parser.add_argument("--results-dir", required=True)
     parser.add_argument("--connector-root", required=True)
@@ -155,9 +169,14 @@ def main() -> int:
     claims_not_allowed = args.claim_not_allowed or list(DEFAULT_CLAIMS_NOT_ALLOWED)
     if not runtime_verified and "runtime_verified=true" not in claims_not_allowed:
         claims_not_allowed.insert(0, "runtime_verified=true")
+    modsecurity_backend_verified = bool_text(args.modsecurity_backend_verified)
+    modsecurity_rule_loaded = bool_text(args.modsecurity_rule_loaded)
+    if not modsecurity_backend_verified and "modsecurity_backend_verified=true" not in claims_not_allowed:
+        claims_not_allowed.append("modsecurity_backend_verified=true")
     missing_dependencies = args.missing_dependency
     allowed_request_status = optional_int(args.allowed_request_status)
     blocked_request_status = optional_int(args.blocked_request_status)
+    intervention_status = optional_int(args.intervention_status)
     resolved_runtime_binary = args.resolved_runtime_binary or None
     runtime_lookup_roots = []
     for root in args.runtime_lookup_root:
@@ -179,11 +198,27 @@ def main() -> int:
         "common_msconnector_components": list(COMMON_COMPONENTS),
         "connector": connector,
         "crs_complete": False,
+        "decision_backend": args.decision_backend,
+        "decision_log_path": args.decision_log_path or None,
         "evidence_root": str(evidence_root),
         "exit_code": args.exit_code,
         "full_matrix_ready": False,
         "integration_mode": args.integration_mode,
+        "intervention_status": intervention_status,
         "missing_dependencies": missing_dependencies,
+        "modsecurity_backend_verified": modsecurity_backend_verified,
+        "modsecurity_dependency_inventory": {
+            "include_dir": args.modsecurity_include_dir or None,
+            "lib_dir": args.modsecurity_lib_dir or None,
+            "lib_file": args.modsecurity_lib_file or None,
+            "manifest": args.modsecurity_manifest or None,
+            "pkg_config_path": args.modsecurity_pkg_config_path or None,
+            "prefix": args.modsecurity_prefix or None,
+        },
+        "modsecurity_rule_file": args.modsecurity_rule_file or None,
+        "modsecurity_rule_id": args.modsecurity_rule_id or None,
+        "modsecurity_rule_loaded": modsecurity_rule_loaded,
+        "audit_log_path": args.audit_log_path or None,
         "production_ready": False,
         "response_body_verified": response_body_verified,
         "resolved_runtime_binary": resolved_runtime_binary,

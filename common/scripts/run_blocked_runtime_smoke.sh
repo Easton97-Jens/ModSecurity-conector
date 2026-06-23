@@ -69,6 +69,38 @@ if [ -z "$runtime_binary" ]; then
         "$BINARY_NAME"
 fi
 
+decision_backend_raw=$(connector_smoke_decision_backend_value "$CONNECTOR_NAME")
+if decision_backend=$(connector_smoke_normalize_decision_backend "$decision_backend_raw"); then
+    :
+else
+    connector_skip_missing_dependency \
+        "$CONNECTOR_NAME" \
+        "$INTEGRATION_MODE" \
+        "unsupported decision backend: $decision_backend_raw" \
+        "decision backend" \
+        "$ARCHITECTURE_DECISION" \
+        "$runtime_binary" \
+        "$BINARY_ENV_VAR" \
+        "$BINARY_NAME"
+fi
+
+modsecurity_rule_file="${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-$CONNECTOR_ROOT/common/rules/modsecurity_targeted_smoke.conf}"
+if [ "$decision_backend" = "libmodsecurity" ]; then
+    if connector_smoke_resolve_modsecurity_backend "$modsecurity_rule_file"; then
+        :
+    else
+        connector_skip_missing_dependency \
+            "$CONNECTOR_NAME" \
+            "$INTEGRATION_MODE" \
+            "${CONNECTOR_SMOKE_MODSECURITY_MISSING_REASON:-libmodsecurity runtime dependency not available in local common.sh-managed paths}" \
+            "${CONNECTOR_SMOKE_MODSECURITY_MISSING_DEPENDENCY:-libmodsecurity}" \
+            "$ARCHITECTURE_DECISION" \
+            "$runtime_binary" \
+            "$BINARY_ENV_VAR" \
+            "$BINARY_NAME"
+    fi
+fi
+
 case "$CONNECTOR_NAME" in
     envoy|traefik)
         runner="$CONNECTOR_ROOT/common/scripts/run_local_runtime_smoke.py"
@@ -125,6 +157,14 @@ case "$CONNECTOR_NAME" in
             --authz-port "$authz_port" \
             --harness-path "$HARNESS_PATH" \
             --architecture-decision "$ARCHITECTURE_DECISION" \
+            --decision-backend "$decision_backend" \
+            --modsecurity-rule-file "$modsecurity_rule_file" \
+            --modsecurity-include-dir "${MODSECURITY_INCLUDE_DIR:-}" \
+            --modsecurity-lib-dir "${MODSECURITY_LIB_DIR:-}" \
+            --modsecurity-lib-file "${MODSECURITY_LIB_FILE:-}" \
+            --modsecurity-pkg-config-path "${MODSECURITY_PKG_CONFIG_PATH:-}" \
+            --modsecurity-prefix "${MODSECURITY_PREFIX:-}" \
+            --modsecurity-manifest "${MODSECURITY_MANIFEST:-}" \
             $lookup_args
         exit $?
         ;;

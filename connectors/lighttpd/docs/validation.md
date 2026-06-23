@@ -7,14 +7,28 @@ The lighttpd metadata/probe and bridge starter can be compile-checked and
 self-tested locally, but lighttpd runtime validation has not been run.
 
 Runtime component metadata is pinned centrally in `common.sh`:
-`LIGHTTPD_VERSION=1.4.84`, `LIGHTTPD_SOURCE_PAGE`,
-`LIGHTTPD_LATEST_MARKER_URL`, `LIGHTTPD_DOWNLOAD_URL`,
+`LIGHTTPD_VERSION=1.4.84`, `LIGHTTPD_SOURCE_URL`, `LIGHTTPD_LATEST_URL`,
+`LIGHTTPD_DOWNLOAD_URL`,
 `LIGHTTPD_SHA256_URL`, and `LIGHTTPD_SHA256`. The expected local binary remains
 `$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd`. Downloads are disabled
-unless future explicit `ALLOW_RUNTIME_DOWNLOADS=1` logic verifies the pinned
-SHA256 and writes only to the local component cache. The pinned component does
-not change the current BLOCKED runtime status; the integration mode still must
-be implemented before runtime verification is possible.
+unless explicit `ALLOW_RUNTIME_DOWNLOADS=1` prepare execution verifies the
+pinned source tarball SHA256 and writes only source to the local component
+cache:
+
+```sh
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-lighttpd-runtime
+make smoke-lighttpd
+```
+
+Source staging is not runtime readiness. The pinned component does not change
+the current BLOCKED runtime status; a local build and integration mode still
+must be implemented before runtime verification is possible.
+
+The optional targeted libmodsecurity-backed smoke added for Envoy and Traefik is
+not enabled for lighttpd. `make smoke-lighttpd` must continue to exit
+77/BLOCKED until the local build and integration mode are implemented; no fake
+binary, fake sidecar success, CRS claim, production claim, or response-body
+claim is allowed.
 
 | Area | lighttpd status |
 | --- | --- |
