@@ -11,3 +11,4 @@ ModSecurity-conector-src/
 logs/
 tmp/
 *.load
+actions-update-report.md

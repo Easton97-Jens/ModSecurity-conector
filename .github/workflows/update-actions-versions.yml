@@ -1,0 +1,223 @@
+name: update-actions-versions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '42 5 * * 1'
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  update-actions-versions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UPDATE_BRANCH: automation/update-github-actions-versions
+      SUBMODULE_PATH: modules/ModSecurity-test-Framework
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.13'
+
+      - name: Update GitHub Actions versions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SUBMODULE_UPDATE_TOKEN: ${{ secrets.SUBMODULE_UPDATE_TOKEN }}
+        run: |
+          python3 scripts/update-github-actions-versions.py --write --report actions-update-report.md
+
+      - name: Write report summary
+        if: always()
+        run: |
+          if [ -f actions-update-report.md ]; then
+            cat actions-update-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Cleanup artifacts before upload
+        if: always()
+        continue-on-error: true
+        uses: actions/github-script@v8
+        env:
+          ARTIFACT_NAME: actions-update-report
+        with:
+          script: |
+            const GLOBAL_KEEP_LIMIT = 20;
+            const PRE_UPLOAD_KEEP_LIMIT = Math.max(GLOBAL_KEEP_LIMIT - 1, 0);
+            const { owner, repo } = context.repo;
+            const targetName = process.env.ARTIFACT_NAME || 'artifact';
+            const targetGroup = artifactGroupName(targetName);
+
+            function artifactGroupName(name) {
+              return name
+                .replace(/-\d{8,}$/u, '')
+                .replace(/-\d{6,}-\d+$/u, '')
+                .replace(/-run-\d+$/u, '')
+                .replace(/-attempt-\d+$/u, '');
+            }
+
+            function compareArtifactsNewestFirst(left, right) {
+              const createdDiff = Date.parse(right.created_at) - Date.parse(left.created_at);
+              if (createdDiff !== 0) {
+                return createdDiff;
+              }
+              return right.id - left.id;
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+
+            const groups = new Map();
+            for (const artifact of artifacts) {
+              const group = artifactGroupName(artifact.name);
+              if (!groups.has(group)) {
+                groups.set(group, []);
+              }
+              groups.get(group).push(artifact);
+            }
+
+            const deleteById = new Map();
+            const retainedByGroup = [];
+
+            for (const [group, groupArtifacts] of groups) {
+              groupArtifacts.sort(compareArtifactsNewestFirst);
+              const [newest, ...older] = groupArtifacts;
+              if (group === targetGroup) {
+                for (const artifact of groupArtifacts) {
+                  deleteById.set(artifact.id, {
+                    artifact,
+                    group,
+                    reason: `same logical group as upcoming upload: ${targetGroup}`,
+                  });
+                }
+                continue;
+              }
+              if (newest) {
+                retainedByGroup.push(newest);
+              }
+              for (const artifact of older) {
+                deleteById.set(artifact.id, {
+                  artifact,
+                  group,
+                  reason: 'older artifact in logical group',
+                });
+              }
+            }
+
+            retainedByGroup.sort(compareArtifactsNewestFirst);
+
+            for (const artifact of retainedByGroup.slice(PRE_UPLOAD_KEEP_LIMIT)) {
+              deleteById.set(artifact.id, {
+                artifact,
+                group: artifactGroupName(artifact.name),
+                reason: `reserve one slot while keeping newest ${GLOBAL_KEEP_LIMIT} artifacts after upload`,
+              });
+            }
+
+            const deleteCandidates = Array.from(deleteById.values())
+              .sort((left, right) => compareArtifactsNewestFirst(left.artifact, right.artifact));
+
+            core.info(`Found ${artifacts.length} artifact(s); deleting ${deleteCandidates.length} before uploading ${targetName}.`);
+
+            for (const entry of deleteCandidates) {
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner,
+                  repo,
+                  artifact_id: entry.artifact.id,
+                });
+                core.info(`Deleted artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${entry.reason}`);
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                core.warning(`Could not delete artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${message}`);
+              }
+            }
+
+      - name: Upload actions update report
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: actions-update-report
+          path: actions-update-report.md
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Commit module updates
+        env:
+          GH_TOKEN: ${{ secrets.SUBMODULE_UPDATE_TOKEN }}
+          SUBMODULE_UPDATE_TOKEN: ${{ secrets.SUBMODULE_UPDATE_TOKEN }}
+        run: |
+          set -eu
+          if [ -z "${SUBMODULE_UPDATE_TOKEN:-}" ]; then
+            echo "SUBMODULE_UPDATE_TOKEN is not set; module updates are reported only."
+            exit 0
+          fi
+          if ! git -C "$SUBMODULE_PATH" diff --quiet -- .github/workflows .github/dependabot.yml README.md; then
+            module_url=$(git -C "$SUBMODULE_PATH" config --get remote.origin.url)
+            module_repo="${module_url#https://github.com/}"
+            module_repo="${module_repo%.git}"
+            git -C "$SUBMODULE_PATH" config user.name "github-actions[bot]"
+            git -C "$SUBMODULE_PATH" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git -C "$SUBMODULE_PATH" checkout -B "$UPDATE_BRANCH"
+            git -C "$SUBMODULE_PATH" add .github/workflows .github/dependabot.yml README.md
+            if git -C "$SUBMODULE_PATH" diff --cached --quiet; then
+              echo "No staged module updates."
+              exit 0
+            fi
+            git -C "$SUBMODULE_PATH" commit -m "Update GitHub Actions workflow versions"
+            git -C "$SUBMODULE_PATH" remote set-url origin "https://x-access-token:${SUBMODULE_UPDATE_TOKEN}@github.com/${module_repo}.git"
+            git -C "$SUBMODULE_PATH" push --force-with-lease origin "$UPDATE_BRANCH"
+            module_base=$(git -C "$SUBMODULE_PATH" remote show origin | sed -n 's/.*HEAD branch: //p' || true)
+            module_base="${module_base:-master}"
+            gh pr create \
+              --repo "$module_repo" \
+              --base "$module_base" \
+              --head "$UPDATE_BRANCH" \
+              --title "Update GitHub Actions workflow versions" \
+              --body-file actions-update-report.md \
+              || gh pr view "$UPDATE_BRANCH" --repo "$module_repo" >/dev/null
+          else
+            echo "No module workflow updates to commit."
+          fi
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- .github .gitignore README.md scripts tests "$SUBMODULE_PATH"; then
+            echo "No root repository updates to commit."
+            exit 0
+          fi
+          git checkout -B "$UPDATE_BRANCH"
+          git add .github .gitignore README.md scripts tests "$SUBMODULE_PATH"
+          if git diff --cached --quiet; then
+            echo "No staged root updates."
+            exit 0
+          fi
+          git commit -m "Update GitHub Actions workflow versions"
+          git push --force-with-lease origin "$UPDATE_BRANCH"
+          default_branch="${{ github.event.repository.default_branch }}"
+          if ! gh pr create \
+            --base "$default_branch" \
+            --head "$UPDATE_BRANCH" \
+            --title "Update GitHub Actions workflow versions" \
+            --body-file actions-update-report.md; then
+            pr_number=$(gh pr list --head "$UPDATE_BRANCH" --json number --jq '.[0].number')
+            if [ -n "$pr_number" ]; then
+              gh pr edit "$pr_number" --body-file actions-update-report.md
+            fi
+          fi

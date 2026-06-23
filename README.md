@@ -342,6 +342,20 @@ and at most the newest 20 artifacts overall. Uploading workflows clean their
 matching logical group before upload. Report and log artifacts are best-effort
 diagnostics with one-day retention.
 
+GitHub Actions workflow versions are maintained separately from build and test
+logic. Dependabot checks root GitHub Actions weekly. The
+[check-actions-versions](./.github/workflows/check-actions-versions.yml)
+workflow reports outdated `uses:` entries, while
+[update-actions-versions](./.github/workflows/update-actions-versions.yml)
+updates workflow action refs on `automation/update-github-actions-versions` and
+opens a pull request instead of pushing to the default branch. The updater scans
+both the root workflows and `modules/ModSecurity-test-Framework`; because the
+framework is a submodule, module workflow changes are reported unless
+`SUBMODULE_UPDATE_TOKEN` is available to create the separate module branch/PR
+and update the submodule pointer. SHA-pinned, local, Docker, and dynamic
+`uses:` entries are not changed automatically. Reports are written to the step
+summary and uploaded as a best-effort one-day artifact.
+
 ## Framework Module Integration
 
 Initialize the framework module before running framework-backed targets:
