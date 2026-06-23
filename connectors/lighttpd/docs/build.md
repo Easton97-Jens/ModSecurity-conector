@@ -1,11 +1,16 @@
 # lighttpd Build
 
-Status: bridge-starter
-Runtime status: not-verified
+Status: bridge-starter plus pinned local lighttpd build
+Runtime status: locally verifiable with a staged lighttpd binary
 
 A repository-owned decision-service bridge starter is implemented. It
 compile-checks local bridge-starter source against connector-neutral `common/`
 headers only.
+
+The upstream lighttpd runtime component is pinned in `common.sh` and can be
+staged locally from the verified source tarball. Source download requires
+`ALLOW_RUNTIME_DOWNLOADS=1`; the local build requires `ALLOW_RUNTIME_BUILDS=1`.
+Both steps write only under common.sh-managed runtime/component paths.
 
 ## Commands
 
@@ -14,6 +19,8 @@ make -C connectors/lighttpd build-starter
 make -C connectors/lighttpd self-test
 make -C connectors/lighttpd build-bridge-starter
 make -C connectors/lighttpd self-test-bridge
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-lighttpd-runtime
+ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 ```
 
 Equivalent scripts:
@@ -28,12 +35,20 @@ Default output paths:
 ```text
 $BUILD_ROOT/lighttpd-build-starter/
 $BUILD_ROOT/lighttpd-bridge-starter/
+$CONNECTOR_COMPONENT_CACHE/lighttpd/
 ```
 
 Expected bridge-starter artifacts:
 
 - `$BUILD_ROOT/lighttpd-bridge-starter/lighttpd-bridge-starter`
 - `$BUILD_ROOT/lighttpd-bridge-starter/self-test.txt`
+
+Expected local lighttpd runtime artifacts:
+
+- `$CONNECTOR_COMPONENT_CACHE/lighttpd/src/lighttpd-$LIGHTTPD_VERSION/`
+- `$CONNECTOR_COMPONENT_CACHE/lighttpd/build/lighttpd-$LIGHTTPD_VERSION/`
+- `$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd`
+- `$VERIFIED_LOG_ROOT/lighttpd-smoke/prepare-runtime/`
 
 ## What These Builds Prove
 
@@ -58,20 +73,22 @@ local self-tests with shared common helpers:
 
 ## What These Builds Do Not Prove
 
-The starters are not:
+The starters and pinned runtime build are not:
 
 - a lighttpd native module build;
 - a FastCGI protocol implementation;
 - an SCGI protocol implementation;
-- a real external service deployment;
 - a ModSecurity API integration build;
-- a runtime harness;
 - a No-CRS, With-CRS, or RESPONSE_BODY validation.
+
+The pinned runtime build proves only that the local lighttpd binary can be built
+and staged from the pinned source. Runtime behavior is proven separately by
+`make smoke-lighttpd`.
 
 ## Blocked Real Build Dependencies
 
-A real lighttpd adapter build is blocked until at least one selected production
-integration path has repository-backed dependencies:
+A real production lighttpd adapter build is still blocked until the selected
+production path has repository-backed hardening and broader validation:
 
 - lighttpd headers/SDK/source tree for a native module path, or documented
   bridge dependencies for a FastCGI/SCGI/external-service path;
@@ -80,8 +97,8 @@ integration path has repository-backed dependencies:
 - artifact path for the selected adapter or bridge;
 - build log path and reproducible command.
 
-No lighttpd-specific include path or library path is currently documented
-because no lighttpd build dependency has been selected or imported.
+The Phase 1 sidecar_proxy runtime smoke deliberately avoids native lighttpd
+module headers and FastCGI/SCGI library paths.
 
 ## Last Local Starter Checks
 

@@ -66,9 +66,10 @@ The lookup order is the explicit binary environment variable first, then local
 common.sh-managed roots such as `$CONNECTOR_COMPONENT_CACHE`,
 `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`,
 `$VERIFIED_RUN_ROOT`, and `$SOURCE_ROOT`. If a dependency is absent, the smoke
-must write BLOCKED evidence and exit 77. Envoy and Traefik may set
+must write BLOCKED evidence and exit 77. Envoy, Traefik, and lighttpd may set
 `runtime_verified=true` only after `common/scripts/run_local_runtime_smoke.py`
-proves real local HTTP 200/403 behavior through the resolved binary.
+proves real local HTTP 200/403 behavior through the resolved binary and the
+selected integration mode.
 
 `common.sh` also owns the open-connector component defaults: `ENVOY_*`,
 `TRAEFIK_*`, and `LIGHTTPD_*` component roots, runtime roots, config roots, log
@@ -84,13 +85,15 @@ without downloading. With explicit opt-in they download only the pinned
 component artifact, verify the `common.sh` SHA256 before staging, and write only
 under `$CONNECTOR_COMPONENT_CACHE`. Envoy stages a direct binary; Traefik
 extracts only the expected `traefik` binary from its tarball; lighttpd stages
-source only and remains runtime-blocked until a local build and integration mode
-exist.
+verified source and supports an explicit `ALLOW_RUNTIME_BUILDS=1` local build
+under `$CONNECTOR_COMPONENT_CACHE/lighttpd`. Lighttpd Phase 1 uses
+`integration_mode=sidecar_proxy`: the smoke starts a local lighttpd upstream and
+a local sidecar decision proxy before setting runtime evidence.
 
-Envoy and Traefik also support an optional targeted libmodsecurity-backed smoke
-by setting `DECISION_BACKEND=libmodsecurity` or using the connector-specific
-Make shortcuts. This is a second evidence level on top of the simple
-decision-service smoke. The shared runner loads
+Envoy, Traefik, and lighttpd also support an optional targeted
+libmodsecurity-backed smoke by setting `DECISION_BACKEND=libmodsecurity` or
+using the connector-specific Make shortcuts. This is a second evidence level on
+top of the simple decision-service smoke. The shared runner loads
 `common/rules/modsecurity_targeted_smoke.conf`, builds a local test evaluator
 against local common.sh-managed libmodsecurity headers and libraries, and sends
 `X-Modsec-Smoke: block` through the proxy auth path. Only this targeted mode may

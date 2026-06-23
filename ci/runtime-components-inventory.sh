@@ -58,6 +58,20 @@ source_staged_status() {
     fi
 }
 
+json_bool_field() {
+    json_file=$1
+    field=$2
+    if [ ! -f "$json_file" ]; then
+        printf '%s\n' false
+        return 0
+    fi
+    if grep -Eq "\"$field\"[[:space:]]*:[[:space:]]*true" "$json_file"; then
+        printf '%s\n' true
+    else
+        printf '%s\n' false
+    fi
+}
+
 local_status_for_binary() {
     binary=$1
     can_download=$2
@@ -110,19 +124,40 @@ print_binary_component() {
 
 print_lighttpd_component() {
     source_dir="$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION"
+    smoke_result="$LIGHTTPD_RESULT_ROOT/result.json"
+    missing_deps_log="$LIGHTTPD_LOG_ROOT/prepare-runtime/build-dependencies.missing"
     sha_state=$(sha_status "$LIGHTTPD_SHA256")
     can_download=$(can_download_with_opt_in "$LIGHTTPD_VERSION" "$LIGHTTPD_DOWNLOAD_URL" "$LIGHTTPD_SHA256")
     source_staged=$(source_staged_status "$source_dir")
     runtime_binary_status=$(binary_status "$LIGHTTPD_BIN")
-    resolved=$(resolved_binary "$LIGHTTPD_BIN")
+    runtime_binary_produced=false
     if [ "$runtime_binary_status" = "binary_present" ]; then
+        runtime_binary_produced=true
+    fi
+    runtime_smoke_verified=$(json_bool_field "$smoke_result" runtime_verified)
+    targeted_modsecurity_smoke_verified=$(json_bool_field "$smoke_result" modsecurity_backend_verified)
+    resolved=$(resolved_binary "$LIGHTTPD_BIN")
+    if [ "$targeted_modsecurity_smoke_verified" = "true" ]; then
+        local_status=targeted_modsecurity_smoke_verified
+        component_status=targeted_modsecurity_smoke_verified
+    elif [ "$runtime_smoke_verified" = "true" ]; then
+        local_status=runtime_smoke_verified
+        component_status=runtime_smoke_verified
+    elif [ "$runtime_binary_status" = "binary_present" ]; then
         local_status=ready
+        component_status=runtime_binary_staged
+    elif [ -f "$missing_deps_log" ]; then
+        local_status=build_blocked_missing_dependencies
+        component_status=build_blocked_missing_dependencies
     elif [ "$source_staged" = "true" ]; then
-        local_status=source_staged_build_required
+        local_status=source_staged_build_opt_in_required
+        component_status=source_staged_build_opt_in_required
     elif [ "$can_download" = "true" ]; then
         local_status=source_missing_download_opt_in_available
+        component_status=source_pinned_build_opt_in_required
     else
         local_status=blocked_source_pin_missing
+        component_status=blocked_source_pin_missing
     fi
 
     printf 'name=lighttpd\n'
@@ -139,15 +174,19 @@ print_lighttpd_component() {
         printf 'resolved_binary=%s\n' "$resolved"
     fi
     printf 'can_download_with_opt_in=%s\n' "$can_download"
+    printf 'build_supported=true\n'
+    printf 'build_requires_opt_in=true\n'
     printf 'source_staged=%s\n' "$source_staged"
     printf 'source_dir=%s\n' "$source_dir"
     printf 'runtime_binary_status=%s\n' "$runtime_binary_status"
+    printf 'runtime_binary_produced=%s\n' "$runtime_binary_produced"
     printf 'integration_mode=%s\n' "$LIGHTTPD_INTEGRATION_MODE"
+    printf 'runtime_smoke_verified=%s\n' "$runtime_smoke_verified"
+    printf 'targeted_modsecurity_smoke_verified=%s\n' "$targeted_modsecurity_smoke_verified"
     printf 'local_status=%s\n' "$local_status"
     printf 'enabled=%s\n' "$can_download"
     printf 'artifact_type=source_tarball\n'
-    printf 'runtime_binary_produced=false\n'
-    printf 'status=source_pinned_build_required\n'
+    printf 'status=%s\n' "$component_status"
     printf '\n'
 }
 

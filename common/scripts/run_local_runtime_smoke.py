@@ -683,6 +683,210 @@ def write_result(
     )
 
 
+def run_lighttpd_sidecar_smoke(
+    args: argparse.Namespace,
+    decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend,
+    decision_log_path: Path | None,
+) -> int:
+    binary = Path(args.resolved_runtime_binary)
+    work_dir = Path(args.config_root)
+    log_dir = Path(args.log_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    upstream_port = args.upstream_port or free_port()
+    listen_port = args.listen_port or free_port()
+    document_root = work_dir / "docroot"
+    upload_root = work_dir / "upload"
+    document_root.mkdir(parents=True, exist_ok=True)
+    upload_root.mkdir(parents=True, exist_ok=True)
+    (document_root / "index.txt").write_text("msconnector lighttpd upstream ok\n", encoding="utf-8")
+    (document_root / "allowed").write_text("msconnector lighttpd upstream allowed\n", encoding="utf-8")
+
+    lighttpd_log_path = log_dir / "lighttpd-error.log"
+    upstream_log_path = log_dir / "lighttpd-upstream.log"
+    request_transcript_path = log_dir / "request-transcript.jsonl"
+    stdout_path = log_dir / "lighttpd.stdout.log"
+    stderr_path = log_dir / "lighttpd.stderr.log"
+    config_path = work_dir / "lighttpd.conf"
+    pid_path = work_dir / "lighttpd.pid"
+    version_path = log_dir / "lighttpd-version.txt"
+    command_path = work_dir / "lighttpd-command.txt"
+
+    allowed_status: int | None = None
+    blocked_status: int | None = None
+    direct_status: int | None = None
+    lighttpd_binary_verified = False
+    lighttpd_http_verified = False
+    sidecar_proxy_verified = False
+    process: subprocess.Popen[object] | None = None
+    sidecar_server: http.server.ThreadingHTTPServer | None = None
+
+    try:
+        version_completed = subprocess.run(
+            [str(binary), "-v"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        version_output = (version_completed.stdout + version_completed.stderr).strip()
+        version_path.write_text(version_output + "\n", encoding="utf-8")
+        lighttpd_binary_verified = binary.is_file() and os.access(binary, os.X_OK)
+        if version_completed.returncode != 0:
+            raise RuntimeError(f"lighttpd -v failed with code {version_completed.returncode}: {version_output}")
+
+        config_path.write_text(
+            lighttpd_config(document_root, upload_root, lighttpd_log_path, pid_path, upstream_port),
+            encoding="utf-8",
+        )
+        command = [str(binary), "-D", "-f", str(config_path)]
+        command_path.write_text(" ".join(command) + "\n", encoding="utf-8")
+        upstream_log_path.write_text(
+            "\n".join(
+                [
+                    f"lighttpd_binary={binary}",
+                    f"lighttpd_config={config_path}",
+                    f"lighttpd_upstream_port={upstream_port}",
+                    f"sidecar_listen_port={listen_port}",
+                    f"decision_backend={args.decision_backend}",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+            process = subprocess.Popen(command, stdout=stdout, stderr=stderr)
+            direct_url = f"http://127.0.0.1:{upstream_port}/allowed"
+            wait_for_http_url(direct_url, time.monotonic() + 12, process=process, label="lighttpd")
+            direct_status = http_status(direct_url)
+            lighttpd_http_verified = direct_status == 200
+
+            sidecar_server = start_http_server(
+                make_sidecar_proxy_handler(decision_backend, upstream_port, request_transcript_path),
+                listen_port,
+            )
+            sidecar_url = f"http://127.0.0.1:{listen_port}/allowed"
+            wait_for_http_url(sidecar_url, time.monotonic() + 8, label="lighttpd sidecar proxy")
+            allowed_status = http_status(sidecar_url)
+            blocked_status = http_status(
+                f"http://127.0.0.1:{listen_port}/blocked",
+                {"X-Modsec-Smoke": "block"},
+            )
+
+        modsecurity_backend_verified = bool(
+            getattr(decision_backend, "modsecurity_backend_verified", False)
+        )
+        modsecurity_rule_loaded = bool(getattr(decision_backend, "modsecurity_rule_loaded", False))
+        intervention_status = getattr(decision_backend, "intervention_status", None)
+        backend_error = getattr(decision_backend, "last_error", None)
+        sidecar_proxy_verified = lighttpd_http_verified and allowed_status == 200 and blocked_status == 403
+        success = sidecar_proxy_verified
+        if args.decision_backend == "libmodsecurity":
+            success = success and modsecurity_backend_verified
+
+        with upstream_log_path.open("a", encoding="utf-8") as handle:
+            handle.write(f"direct_upstream_status={direct_status}\n")
+            handle.write(f"allowed_sidecar_status={allowed_status}\n")
+            handle.write(f"blocked_sidecar_status={blocked_status}\n")
+            handle.write(f"lighttpd_http_verified={str(lighttpd_http_verified).lower()}\n")
+            handle.write(f"sidecar_proxy_verified={str(sidecar_proxy_verified).lower()}\n")
+
+        if success:
+            write_result(
+                args,
+                "PASS",
+                0,
+                True,
+                allowed_status,
+                blocked_status,
+                "",
+                [],
+                modsecurity_backend_verified,
+                modsecurity_rule_loaded,
+                intervention_status,
+                str(decision_log_path) if decision_log_path is not None else "",
+                "",
+                lighttpd_binary_verified,
+                lighttpd_http_verified,
+                sidecar_proxy_verified,
+                str(lighttpd_log_path),
+                str(upstream_log_path),
+                str(request_transcript_path),
+            )
+            return 0
+
+        reason = "lighttpd sidecar_proxy smoke did not produce expected direct 200 and sidecar 200/403 statuses"
+        missing: list[str] = []
+        if args.decision_backend == "libmodsecurity" and not modsecurity_backend_verified:
+            reason = "lighttpd libmodsecurity targeted smoke did not verify a rule-backed 403 intervention"
+            missing = ["libmodsecurity"] if backend_error else []
+        if backend_error:
+            reason = f"{reason}: {backend_error}"
+        write_result(
+            args,
+            "BLOCKED",
+            77,
+            False,
+            allowed_status,
+            blocked_status,
+            reason,
+            missing,
+            modsecurity_backend_verified,
+            modsecurity_rule_loaded,
+            intervention_status,
+            str(decision_log_path) if decision_log_path is not None else "",
+            "",
+            lighttpd_binary_verified,
+            lighttpd_http_verified,
+            sidecar_proxy_verified,
+            str(lighttpd_log_path),
+            str(upstream_log_path),
+            str(request_transcript_path),
+        )
+        return 77
+    except Exception as exc:  # noqa: BLE001 - runtime startup failures become blocked evidence.
+        modsecurity_backend_verified = bool(
+            getattr(decision_backend, "modsecurity_backend_verified", False)
+        )
+        modsecurity_rule_loaded = bool(getattr(decision_backend, "modsecurity_rule_loaded", False))
+        intervention_status = getattr(decision_backend, "intervention_status", None)
+        write_result(
+            args,
+            "BLOCKED",
+            77,
+            False,
+            allowed_status,
+            blocked_status,
+            f"lighttpd sidecar_proxy smoke could not be completed: {exc}",
+            [args.runtime_binary_name],
+            modsecurity_backend_verified,
+            modsecurity_rule_loaded,
+            intervention_status,
+            str(decision_log_path) if decision_log_path is not None else "",
+            "",
+            lighttpd_binary_verified,
+            lighttpd_http_verified,
+            sidecar_proxy_verified,
+            str(lighttpd_log_path),
+            str(upstream_log_path),
+            str(request_transcript_path),
+        )
+        return 77
+    finally:
+        if sidecar_server is not None:
+            sidecar_server.shutdown()
+            sidecar_server.server_close()
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
 def run_smoke(args: argparse.Namespace) -> int:
     binary = Path(args.resolved_runtime_binary)
     work_dir = Path(args.config_root)
@@ -718,6 +922,9 @@ def run_smoke(args: argparse.Namespace) -> int:
             str(decision_log_path) if decision_log_path is not None else "",
         )
         return 77
+
+    if args.connector == "lighttpd":
+        return run_lighttpd_sidecar_smoke(args, decision_backend, decision_log_path)
 
     upstream_port = args.upstream_port or free_port()
     auth_port = args.authz_port or free_port()
@@ -840,7 +1047,7 @@ def run_smoke(args: argparse.Namespace) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--connector", required=True, choices=["envoy", "traefik"])
+    parser.add_argument("--connector", required=True, choices=["envoy", "traefik", "lighttpd"])
     parser.add_argument("--integration-mode", required=True)
     parser.add_argument("--resolved-runtime-binary", required=True)
     parser.add_argument("--runtime-binary-env-var", required=True)

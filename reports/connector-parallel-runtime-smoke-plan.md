@@ -1,6 +1,7 @@
 # Connector Parallel Runtime Smoke Plan
 
-Status: parallel phase started for Envoy, Traefik, and lighttpd.
+Status: parallel phase started for Envoy, Traefik, and lighttpd; lighttpd
+Phase 1 now selects `sidecar_proxy`.
 
 ## Why Common msconnector Contracts Are Used
 
@@ -43,9 +44,9 @@ These helpers centralize:
 - `claims_not_allowed`;
 - `missing_dependencies`;
 - Exit-77 BLOCKED result semantics when local dependencies are absent;
-- conditional local Envoy/Traefik HTTP smoke execution when local binaries are
+- conditional local Envoy/Traefik/lighttpd HTTP smoke execution when local binaries are
   resolved from common.sh-managed paths;
-- optional targeted Envoy/Traefik libmodsecurity-backed smoke execution when
+- optional targeted Envoy/Traefik/lighttpd libmodsecurity-backed smoke execution when
   `DECISION_BACKEND=libmodsecurity` is selected and local libmodsecurity
   headers/libraries are resolved from common.sh-managed paths;
 - the `msconnector_decision` status/intervention/reason shape used by open C
@@ -120,18 +121,23 @@ Local component staging targets are available for the open connectors:
 make prepare-envoy-runtime
 make prepare-traefik-runtime
 make prepare-lighttpd-runtime
+make prepare-lighttpd-runtime-build
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-lighttpd-runtime
+ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 ```
 
 Without opt-in, they report an already staged local binary when present and
 otherwise exit 77 while printing the source URL, fixed version, download URL,
 SHA256 status, and expected binary path. With opt-in, Envoy downloads and
 stages the direct binary, Traefik downloads the tarball and stages only the
-`traefik` binary after SHA256 verification, and lighttpd stages only verified
-source under `$CONNECTOR_COMPONENT_CACHE/lighttpd/src`. They do not install
-global packages, do not write system paths, and do not use global PATH fallback.
+`traefik` binary after SHA256 verification, and lighttpd stages verified source
+under `$CONNECTOR_COMPONENT_CACHE/lighttpd/src`. With explicit
+`ALLOW_RUNTIME_BUILDS=1`, lighttpd configures, builds, and installs the pinned
+source under `$CONNECTOR_COMPONENT_CACHE/lighttpd`, with the expected binary at
+`$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd`. They do not install global
+packages, do not write system paths, and do not use global PATH fallback.
 
 Examples:
 
@@ -141,17 +147,19 @@ TRAEFIK_BIN=/lokaler/pfad/traefik make smoke-traefik
 LIGHTTPD_BIN=/lokaler/pfad/lighttpd make smoke-lighttpd
 ```
 
-Optional targeted libmodsecurity-backed smokes are available for Envoy and
-Traefik only. They use the same resolved proxy runtime binary, but switch the
-auth decision backend from the simple local decision service to a local
+Optional targeted libmodsecurity-backed smokes are available for Envoy, Traefik,
+and lighttpd. They use the same resolved proxy runtime binary, but switch the
+auth/sidecar decision backend from the simple local decision service to a local
 libmodsecurity C-API evaluator that loads
 `common/rules/modsecurity_targeted_smoke.conf`:
 
 ```sh
 DECISION_BACKEND=libmodsecurity make smoke-envoy
 DECISION_BACKEND=libmodsecurity make smoke-traefik
+DECISION_BACKEND=libmodsecurity make smoke-lighttpd
 make smoke-envoy-modsecurity
 make smoke-traefik-modsecurity
+make smoke-lighttpd-modsecurity
 ```
 
 The targeted result adds `decision_backend`, `modsecurity_backend_verified`,
@@ -184,15 +192,13 @@ out of scope for Phase 1.
 With `DECISION_BACKEND=libmodsecurity`, the same forwardAuth path uses the
 targeted libmodsecurity evaluator instead of the simple decision backend.
 
-lighttpd keeps only lighttpd-specific architecture-spike documentation,
-configuration for the eventual path, smoke harness entrypoint, and bridge
-starter code. The Phase 1 mode is
-`integration_mode=architecture_spike_plus_runtime_smoke`. The spike must compare
-native module, FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua before selecting
-the runtime path. The recommended Phase 1 direction is sidecar/proxy, but the
-current lighttpd harness still exits 77 with
-`skipped_reason="lighttpd integration mode not selected"` until that integration
-exists.
+lighttpd keeps lighttpd-specific sidecar/proxy documentation, generated local
+configuration, smoke harness entrypoint, and bridge starter code. The Phase 1
+mode is `integration_mode=sidecar_proxy`. Native module, FastCGI/SCGI, and
+mod_magnet/Lua remain deferred. When a local lighttpd binary is resolved, the
+smoke runner starts lighttpd as the local upstream and a sidecar decision proxy
+as the selected decision boundary, then requires HTTP 200 for an allowed request
+and HTTP 403 for `X-Modsec-Smoke: block`.
 
 ## Claims Still Forbidden
 
@@ -204,12 +210,13 @@ Starter/self-test evidence and BLOCKED smoke evidence must not claim:
 - `crs_complete=true`
 - `response_body_verified=true`
 
-Envoy and Traefik may set `runtime_verified=true` only when the local runtime
-smoke observes the real HTTP 200/403 statuses through the resolved local
-runtime. They still must not claim production readiness, full matrix readiness,
-CRS completeness, or response-body verification. The open connectors also must
-not generate full-matrix reports, production-readiness reports, or CRS-complete
-claims from starter/self-test evidence.
+Envoy, Traefik, and lighttpd may set `runtime_verified=true` only when the local
+runtime smoke observes the real HTTP 200/403 statuses through the resolved local
+runtime and selected integration mode. They still must not claim production
+readiness, full matrix readiness, CRS completeness, or response-body
+verification. The open connectors also must not generate full-matrix reports,
+production-readiness reports, or CRS-complete claims from starter/self-test
+evidence.
 
 `modsecurity_backend_verified=true` is forbidden unless the targeted
 libmodsecurity smoke loaded rule `1000001` and produced the blocking
@@ -257,8 +264,10 @@ Current blockers:
   or common.sh-managed local paths.
 - Traefik: BLOCKED when local `traefik` binary is not available through
   `TRAEFIK_BIN` or common.sh-managed local paths.
-- lighttpd: production integration path has not been selected; when no local
-  binary is available, `missing_dependencies` includes `lighttpd`.
+- lighttpd: BLOCKED when local `lighttpd` binary is not available through
+  `LIGHTTPD_BIN` or common.sh-managed local paths, or when the pinned source
+  build cannot run locally. Source download and local build both require
+  explicit opt-in.
 
 ## Duplicate Avoidance
 

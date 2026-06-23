@@ -1,7 +1,7 @@
 # lighttpd Validation
 
-Status: bridge-starter
-Runtime status: not-verified
+Status: bridge-starter plus sidecar_proxy runtime-smoke path
+Runtime status: locally verifiable with a staged lighttpd binary
 
 The lighttpd metadata/probe and bridge starter can be compile-checked and
 self-tested locally, but lighttpd runtime validation has not been run.
@@ -12,23 +12,33 @@ Runtime component metadata is pinned centrally in `common.sh`:
 `LIGHTTPD_SHA256_URL`, and `LIGHTTPD_SHA256`. The expected local binary remains
 `$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd`. Downloads are disabled
 unless explicit `ALLOW_RUNTIME_DOWNLOADS=1` prepare execution verifies the
-pinned source tarball SHA256 and writes only source to the local component
-cache:
+pinned source tarball SHA256 and writes source to the local component cache.
+The local build is also opt-in and writes only under
+`$CONNECTOR_COMPONENT_CACHE/lighttpd`:
 
 ```sh
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-lighttpd-runtime
+ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 make smoke-lighttpd
 ```
 
-Source staging is not runtime readiness. The pinned component does not change
-the current BLOCKED runtime status; a local build and integration mode still
-must be implemented before runtime verification is possible.
+Source staging is not runtime readiness. A local lighttpd binary must be
+available through `LIGHTTPD_BIN` or the common.sh-managed component cache before
+runtime verification is possible. The Phase 1 integration mode is
+`sidecar_proxy`: the smoke starts real local lighttpd, verifies direct upstream
+HTTP 200, then sends allowed and blocked requests through the sidecar proxy.
 
-The optional targeted libmodsecurity-backed smoke added for Envoy and Traefik is
-not enabled for lighttpd. `make smoke-lighttpd` must continue to exit
-77/BLOCKED until the local build and integration mode are implemented; no fake
-binary, fake sidecar success, CRS claim, production claim, or response-body
-claim is allowed.
+The optional targeted libmodsecurity-backed smoke is enabled for lighttpd:
+
+```sh
+DECISION_BACKEND=libmodsecurity make smoke-lighttpd
+make smoke-lighttpd-modsecurity
+```
+
+This mode requires local common.sh-managed libmodsecurity headers and libraries.
+It may set `modsecurity_backend_verified=true` only when rule `1000001` returns
+a 403 intervention for `X-Modsec-Smoke: block`. No fake binary, fake sidecar
+success, CRS claim, production claim, or response-body claim is allowed.
 
 | Area | lighttpd status |
 | --- | --- |
@@ -38,7 +48,7 @@ claim is allowed.
 | Native lighttpd module build | blocked |
 | FastCGI implementation | blocked |
 | SCGI implementation | blocked |
-| Runtime harness | blocked entrypoint only |
+| Runtime harness | sidecar_proxy smoke available with local binary |
 | No-CRS | not run |
 | With-CRS | not run |
 | RESPONSE_BODY | not verified |
@@ -75,10 +85,12 @@ The lighttpd entries are connector-starter build/self-test evidence only:
 ## Runtime-Smoke Entry Point
 
 `make smoke-lighttpd` invokes the framework-owned lighttpd runtime-smoke runner.
-The current result is BLOCKED because
-`connectors/lighttpd/harness/run_lighttpd_smoke.sh` writes diagnostic evidence
-and no real lighttpd server/config/runtime harness exists. Evidence is written
-under `/src/ModSecurity-conector-build/results/`.
+When no local `lighttpd` binary is resolved, the result is BLOCKED with
+`missing_dependencies=["lighttpd"]`. When a local binary is resolved, the runner
+generates a minimal lighttpd config, starts lighttpd as the upstream server,
+starts the local sidecar decision proxy, and requires HTTP 200 for an allowed
+request plus HTTP 403 for `X-Modsec-Smoke: block`. Evidence is written under the
+common.sh-managed lighttpd smoke root.
 
 This entrypoint does not run bridge-starter scripts as runtime evidence.
 Runtime remains not verified and RESPONSE_BODY remains not verified.
@@ -93,9 +105,9 @@ common schema fields `connector`, `integration_mode`, `runtime_verified`,
 `evidence_root`, `timestamp`, `skipped_reason`, `missing_dependencies`, and
 `claims_not_allowed`.
 
-Current expected result:
+Current expected result without a local binary:
 
-- Integration mode: `architecture_spike_plus_runtime_smoke`
+- Integration mode: `sidecar_proxy`
 - Status: `BLOCKED`
 - Exit code: 77
 - Runtime verified: `false`
@@ -105,14 +117,26 @@ Current expected result:
 - Local search paths: `$CONNECTOR_COMPONENT_CACHE`, `$VERIFIED_COMPONENT_CACHE`,
   `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`, `$VERIFIED_RUN_ROOT`, and
   `$SOURCE_ROOT`, all provided by `common.sh`
-- skipped_reason while the integration path is open:
-  `lighttpd integration mode not selected`
 - Missing dependencies when no local binary is found: `["lighttpd"]`
-- Architecture decision: compare native module, FastCGI/SCGI, sidecar/proxy,
-  and mod_magnet/Lua before selecting the runtime path
-- Recommended Phase 1 mode: sidecar/proxy, not yet runtime-implemented
-- Claims still forbidden: `runtime_verified=true`, `production_ready=true`,
-  `full_matrix_ready=true`, `crs_complete=true`, `response_body_verified=true`
+- Architecture decision: Phase 1 selects sidecar_proxy after comparing native
+  module, FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua
+- Claims still forbidden from Lighttpd Phase 1 evidence:
+  `production_ready=true`, `full_matrix_ready=true`, `crs_complete=true`,
+  `response_body_verified=true`
+
+Current expected result with a local binary and successful simple sidecar smoke:
+
+- Integration mode: `sidecar_proxy`
+- Status: `PASS`
+- Exit code: 0
+- Runtime verified: `true`
+- `lighttpd_binary_verified=true`
+- `lighttpd_http_verified=true`
+- `sidecar_proxy_verified=true`
+- Allowed request status: `200`
+- Blocked request status: `403`
+- `production_ready=false`, `full_matrix_ready=false`, `crs_complete=false`,
+  and `response_body_verified=false`
 
 No global installation is attempted. To run against a prepared local binary:
 

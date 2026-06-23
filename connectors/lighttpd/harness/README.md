@@ -1,11 +1,11 @@
 # lighttpd Harness
 
-Status: contract plus blocked runtime-smoke entrypoint
-Runtime status: blocked / not-verified
+Status: sidecar_proxy runtime-smoke entrypoint
+Runtime status: locally verifiable with a staged lighttpd binary
 
 `run_lighttpd_smoke.sh` exists as the connector-side entrypoint for the
-framework runtime-smoke runner. It currently writes BLOCKED evidence and exits
-77 because no real lighttpd server/config/runtime harness is implemented.
+framework runtime-smoke runner. It resolves only local/common.sh-managed
+`lighttpd` binaries, then delegates to the shared local runtime runner.
 
 The local starters are not a runtime harness:
 
@@ -15,7 +15,7 @@ The local starters are not a runtime harness:
 
 The bridge starter does not start lighttpd, load a module, implement
 FastCGI/SCGI, send real HTTP traffic through lighttpd, collect logs, or write
-framework summary JSON.
+framework summary JSON. The runtime smoke is separate from the bridge starter.
 
 Framework runtime-smoke entrypoint:
 
@@ -23,22 +23,28 @@ Framework runtime-smoke entrypoint:
 make smoke-lighttpd
 ```
 
-The current `run_lighttpd_smoke.sh` entrypoint writes BLOCKED evidence under
-`/src/ModSecurity-conector-build/results/` and reports runtime not verified. It
-does not run bridge-starter scripts as runtime evidence.
+With no local binary, the entrypoint writes BLOCKED evidence and reports runtime
+not verified. With a staged binary, it starts local lighttpd as the upstream and
+a local sidecar decision proxy. The expected runtime statuses are 200 for an
+allowed request and 403 for `X-Modsec-Smoke: block`.
 
-A future harness must provide and document:
+The harness provides:
 
 - lighttpd binary, container, or source-build path;
 - lighttpd config file;
-- selected module/FastCGI/SCGI/bridge config;
-- bridge endpoint if a service/sidecar path is selected;
-- selected ModSecurity integration point;
-- No-CRS and With-CRS split;
-- generated runtime state under `$BUILD_ROOT`;
+- selected sidecar_proxy decision boundary;
+- optional targeted libmodsecurity decision backend;
+- generated runtime state under `$BUILD_ROOT` / `$VERIFIED_RUN_ROOT`;
 - result JSON path;
+- server, connector, decision, and transcript log evidence.
+
+Still required before production-style claims:
+
+- No-CRS and With-CRS split;
 - PASS/FAIL/BLOCKED counts;
-- server, connector, audit, and access log evidence.
+- audit log evidence;
+- response-body evidence;
+- sidecar hardening and lifecycle documentation.
 
 Executable tests must remain framework-owned and use shared framework paths such
 as `modules/ModSecurity-test-Framework/tests/cases/` and

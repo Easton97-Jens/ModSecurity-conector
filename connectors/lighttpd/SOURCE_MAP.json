@@ -1,12 +1,13 @@
 {
   "connector": "lighttpd",
-  "status": "bridge-starter",
-  "runtime_status": "not-verified",
+  "status": "bridge-starter-plus-sidecar-runtime-smoke",
+  "runtime_status": "sidecar_proxy-local-smoke",
   "upstream": {
-    "selected": false,
-    "repository": "not selected",
-    "version": "not selected",
-    "commit": "not selected",
+    "selected": true,
+    "repository": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
+    "version": "1.4.84",
+    "commit": "release tarball",
+    "download_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.84.tar.xz",
     "imported_source_files": []
   },
   "repo_owned_files": [
@@ -45,6 +46,10 @@
     {
       "path": "connectors/lighttpd/Makefile",
       "role": "local starter build/self-test targets"
+    },
+    {
+      "path": "connectors/lighttpd/harness/run_lighttpd_smoke.sh",
+      "role": "connector entrypoint for framework-owned sidecar_proxy runtime smoke"
     }
   ],
   "shared_dependencies": [
@@ -59,12 +64,11 @@
     "common/src/status.c"
   ],
   "blocked_runtime_dependencies": [
-    "selected production lighttpd integration path",
-    "lighttpd headers or SDK/source tree for a native module path",
-    "FastCGI or SCGI protocol adapter if a bridge path is selected",
-    "lighttpd binary/container/runtime configuration",
-    "ModSecurity-to-lighttpd hook or bridge mapping",
-    "real libmodsecurity API integration and rule loading",
-    "framework-owned lighttpd runtime harness"
+    "production hardening for the sidecar_proxy runtime path",
+    "No-CRS and With-CRS runtime matrix evidence",
+    "response-body buffering and blocking evidence",
+    "audit log evidence",
+    "native-module lighttpd headers or SDK/source tree if a native module path is selected later",
+    "FastCGI or SCGI protocol adapter if a bridge path is selected later"
   ]
 }

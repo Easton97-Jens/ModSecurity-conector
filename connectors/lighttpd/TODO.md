@@ -1,7 +1,7 @@
 # lighttpd Connector TODO
 
-Status: bridge-starter
-Runtime status: not-verified
+Status: bridge-starter plus sidecar_proxy runtime-smoke path
+Runtime status: locally verifiable with a staged lighttpd binary
 
 Global gate definitions:
 
@@ -23,8 +23,8 @@ Global gate definitions:
 - [x] `ORIGIN.md` added for the current repo-owned build-starter
 - [x] `SOURCE_MAP.json` added for the current repo-owned build-starter
 - [x] `metadata.c` / `metadata.h` added for bridge-starter status
-- [ ] upstream lighttpd source selected and documented
-- [ ] upstream lighttpd license documented if source is imported
+- [x] upstream lighttpd source selected and documented for local runtime build
+- [ ] upstream lighttpd license documented if source is imported into repo source
 
 ## Phase 2: Build
 
@@ -34,8 +34,10 @@ Global gate definitions:
 - [x] bridge-starter command documented
 - [x] bridge-starter self-test documented
 - [x] connector-neutral include paths documented
-- [ ] lighttpd include paths documented
-- [ ] lighttpd library paths documented
+- [x] pinned lighttpd source build documented
+- [x] expected local lighttpd binary path documented
+- [ ] native-module lighttpd include paths documented
+- [ ] native-module lighttpd library paths documented
 - [x] build-starter artifact path documented
 - [x] bridge-starter artifact path documented
 - [x] starter logs documented
@@ -49,13 +51,15 @@ Global gate definitions:
 - [x] BLOCKED evidence path documented
 - [x] common smoke result writer used instead of connector-local JSON writer
 - [x] integration options evaluated; sidecar/proxy documented as recommended Phase 1 mode
-- [ ] production integration path selected
-- [ ] lighttpd binary/container/source-build documented
-- [ ] lighttpd config documented
-- [ ] ModSecurity integration point documented
+- [x] Phase 1 integration path selected: `sidecar_proxy`
+- [x] lighttpd binary/source-build documented
+- [x] generated lighttpd config documented
+- [x] sidecar decision boundary documented
+- [x] targeted libmodsecurity smoke command documented
 - [x] result JSON documented through common smoke schema
-- [ ] allowed request returns expected runtime status
-- [ ] blocked request returns HTTP 403 through the selected path
+- [x] allowed request returns expected runtime status when local binary is available
+- [x] blocked request returns HTTP 403 through the selected path when local binary is available
+- [ ] production hardening for sidecar_proxy documented
 
 ## Phase 4: No-CRS Runtime
 

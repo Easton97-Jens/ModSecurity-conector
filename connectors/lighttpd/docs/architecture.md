@@ -1,8 +1,8 @@
 # lighttpd Architecture
 
-Status: bridge-starter
-Runtime status: not-verified
-Integration path: decision-service bridge starter; runtime integration deferred
+Status: bridge-starter plus sidecar_proxy runtime-smoke path
+Runtime status: locally verifiable with a staged lighttpd binary
+Integration path: sidecar_proxy for Phase 1; native module and FastCGI/SCGI deferred
 
 The repository now contains a concrete lighttpd decision-service bridge starter.
 It is a local CLI/self-test integration point only, not a production lighttpd
@@ -22,10 +22,12 @@ Implemented lighttpd-specific code is limited to:
 - standalone compile scripts in `connectors/lighttpd/build/`;
 - local `Makefile` targets for build/self-test starter checks.
 
-This scope uses connector-neutral `common/` origin, status, intervention, and
-capability helpers. It does not include lighttpd headers, call lighttpd APIs,
-call ModSecurity APIs, implement FastCGI/SCGI protocol handling, map real
-request/response hooks, or implement runtime intervention handling.
+This starter scope uses connector-neutral `common/` origin, status,
+intervention, and capability helpers. It does not include lighttpd headers, call
+lighttpd APIs, call ModSecurity APIs, implement FastCGI/SCGI protocol handling,
+map native request/response hooks, or implement native-module intervention
+handling. The separate Phase 1 runtime smoke uses lighttpd as a local HTTP
+upstream behind a sidecar decision proxy.
 
 ## Integration Path Decision
 
@@ -34,7 +36,7 @@ request/response hooks, or implement runtime intervention handling.
 | Native lighttpd module | deferred/blocked | No selected lighttpd headers, SDK/source tree, or module build system is present in this repository. |
 | FastCGI bridge | deferred/blocked | No FastCGI protocol adapter or lighttpd FastCGI runtime configuration is present. |
 | SCGI bridge | deferred/blocked | No SCGI protocol adapter or lighttpd SCGI runtime configuration is present. |
-| External HTTP service / sidecar | recommended Phase 1 mode; not runtime-implemented | Lowest coupling to lighttpd internals and no dependency on native module ABI or FastCGI/SCGI protocol work. It still needs real lighttpd traffic before runtime success can be claimed. |
+| External HTTP service / sidecar | selected Phase 1 mode | Lowest coupling to lighttpd internals and no dependency on native module ABI or FastCGI/SCGI protocol work. Runtime success requires real local lighttpd 200 and sidecar 200/403 evidence. |
 | mod_magnet / Lua | spike only | Possible control-plane glue, but no selected Lua policy, request-body mapping, intervention semantics, or ModSecurity binding exists. |
 
 Repository evidence for future lighttpd options exists in
@@ -62,9 +64,9 @@ The bridge starter cannot:
 - prove No-CRS, With-CRS, RESPONSE_BODY, audit/log, or negative/pass-through
   behavior.
 
-## Recommended Phase 1 Mode
+## Selected Phase 1 Mode
 
-The recommended Phase 1 runtime direction is sidecar/proxy. It keeps the first
+The selected Phase 1 runtime direction is sidecar/proxy. It keeps the first
 runtime boundary outside the lighttpd module ABI, avoids committing to
 FastCGI/SCGI protocol ownership before the adapter contract is mature, and can
 be validated with explicit HTTP allow/block evidence.
@@ -83,15 +85,19 @@ That mode cannot prove:
 - request-body or response-body mapping inside lighttpd;
 - CRS completeness, production readiness, or full matrix readiness.
 
-The current harness therefore keeps `runtime_verified=false` and
-`skipped_reason="lighttpd integration mode not selected"` until a real
-sidecar/proxy integration is implemented.
+The current harness may set `runtime_verified=true` only when a resolved local
+lighttpd binary starts, direct lighttpd HTTP returns 200, the sidecar forwards an
+allowed request with 200, and `X-Modsec-Smoke: block` returns 403. It also writes
+`lighttpd_binary_verified`, `lighttpd_http_verified`,
+`sidecar_proxy_verified`, `lighttpd_log_path`, `upstream_log_path`, and
+`request_transcript_path` in the common result JSON.
 
 ## Blockers Before Adapter Ownership
 
 A real lighttpd adapter needs, at minimum:
 
-- a selected production integration path;
+- production hardening for the selected sidecar_proxy path or a later selected
+  native/FastCGI/SCGI path;
 - lighttpd headers/SDK/source or documented bridge protocol/runtime
   dependencies;
 - hook or bridge mapping for request headers, request body, response headers,
@@ -107,9 +113,9 @@ adapter-owned or runtime-smoke-verified.
 ## Parallel Phase Target
 
 The runtime-smoke target for the open-connector parallel phase is
-`integration_mode=architecture_spike_plus_runtime_smoke`. The architecture spike
-must compare native module, FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua
-before selecting the production path.
+`integration_mode=sidecar_proxy`. The architecture spike compared native module,
+FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua; Phase 1 selects sidecar/proxy
+while leaving the other paths deferred.
 
 Shared data contracts remain in `common/include/msconnector/`:
 
