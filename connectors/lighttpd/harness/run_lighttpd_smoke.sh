@@ -16,7 +16,7 @@ sh "$CONNECTOR_ROOT/common/scripts/run_blocked_runtime_smoke.sh" \
     LIGHTTPD_BIN \
     lighttpd \
     "lighttpd runtime dependency not available in local common.sh-managed paths" \
-    "lighttpd integration mode not selected" \
-    "lighttpd integration mode" \
-    "Architecture spike compares native module, FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua before selecting the runtime path." \
-    0
+    "lighttpd sidecar_proxy runtime smoke is not available" \
+    "lighttpd sidecar_proxy integration" \
+    "Phase 1 selects sidecar_proxy after comparing native module, FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua. Native module, FastCGI/SCGI, and mod_magnet/Lua remain deferred." \
+    1

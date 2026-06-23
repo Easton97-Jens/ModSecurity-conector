@@ -66,9 +66,10 @@ The lookup order is the explicit binary environment variable first, then local
 common.sh-managed roots such as `$CONNECTOR_COMPONENT_CACHE`,
 `$VERIFIED_COMPONENT_CACHE`, `$VERIFIED_BUILD_ROOT`, `$BUILD_ROOT`,
 `$VERIFIED_RUN_ROOT`, and `$SOURCE_ROOT`. If a dependency is absent, the smoke
-must write BLOCKED evidence and exit 77. Envoy and Traefik may set
+must write BLOCKED evidence and exit 77. Envoy, Traefik, and lighttpd may set
 `runtime_verified=true` only after `common/scripts/run_local_runtime_smoke.py`
-proves real local HTTP 200/403 behavior through the resolved binary.
+proves real local HTTP 200/403 behavior through the resolved binary and the
+selected integration mode.
 
 `common.sh` also owns the open-connector component defaults: `ENVOY_*`,
 `TRAEFIK_*`, and `LIGHTTPD_*` component roots, runtime roots, config roots, log
@@ -78,18 +79,76 @@ directories, validate runtimes, download artifacts, or install dependencies.
 
 Local component staging is handled by explicit prepare scripts:
 `prepare-envoy-runtime.sh`, `prepare-traefik-runtime.sh`, and
-`prepare-lighttpd-runtime.sh`. These scripts create only local component
-directories such as `$CONNECTOR_COMPONENT_CACHE/envoy/bin`, report an existing
-local binary when present, and otherwise exit 77. They do not install globally
-or download runtime components.
+`prepare-lighttpd-runtime.sh`. Without `ALLOW_RUNTIME_DOWNLOADS=1`, these
+scripts report an existing local binary when present and otherwise exit 77
+without downloading. With explicit opt-in they download only the pinned
+component artifact, verify the `common.sh` SHA256 before staging, and write only
+under `$CONNECTOR_COMPONENT_CACHE`. Envoy stages a direct binary; Traefik
+extracts only the expected `traefik` binary from its tarball; lighttpd stages
+verified source and supports an explicit `ALLOW_RUNTIME_BUILDS=1` local build
+under `$CONNECTOR_COMPONENT_CACHE/lighttpd`. Lighttpd Phase 1 uses
+`integration_mode=sidecar_proxy`: the smoke starts a local lighttpd upstream and
+a local sidecar decision proxy before setting runtime evidence.
+
+Envoy, Traefik, and lighttpd also support an optional targeted
+libmodsecurity-backed smoke by setting `DECISION_BACKEND=libmodsecurity` or
+using the connector-specific Make shortcuts. This is a second evidence level on
+top of the simple decision-service smoke. The shared runner loads
+`common/rules/modsecurity_targeted_smoke.conf`, builds a local test evaluator
+against local common.sh-managed libmodsecurity headers and libraries, and sends
+`X-Modsec-Smoke: block` through the proxy auth path. Only this targeted mode may
+set `modsecurity_backend_verified=true`, and only when the decision log shows
+libmodsecurity loaded rule `1000001` and returned a 403 intervention. Missing
+local libmodsecurity headers/libraries produce Exit 77/BLOCKED evidence with
+`decision_backend=libmodsecurity` and `modsecurity_backend_verified=false`.
+The resolver is shared in `connector-smoke-common.sh`; it accepts only explicit
+local overrides or local common.sh-managed runtime/component roots, including
+previous verified roots such as `/tmp/ModSecurity-conector-verified` and
+`/var/tmp/ModSecurity-conector-verified`, and rejects system/PATH fallbacks for
+libmodsecurity.
+
+The same open-connector runner also supports minimal and secondary CRS smokes
+with `DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs` or the
+connector-specific CRS Make targets.
+CRS source-of-truth remains in `common.sh`: `CRS_REPO_URL`, `CRS_GIT_REF`,
+`CRS_SOURCE_DIR`, and `CRS_RUNTIME_DIR`. The runner may resolve an already
+staged CRS checkout only from common.sh-managed verified roots such as
+`/tmp/ModSecurity-conector-verified` or
+`/var/tmp/ModSecurity-conector-verified`; it does not download CRS, install CRS
+globally, or search system paths. The generated smoke config is written under
+the connector runtime/result root as `crs-smoke/` for the minimal case and
+`crs-secondary-smoke/` for the secondary case.
+
+The minimal CRS smoke reuses the existing `crs_sqli_anomaly_block` payload,
+`/?id=1%20UNION%20SELECT%20password%20FROM%20users`. A PASS requires an
+allowed request with HTTP 200, a CRS-backed blocked request with HTTP 403, and
+an observed CRS rule ID/message from libmodsecurity intervention evidence. Only
+that evidence may set `crs_minimal_smoke_verified=true`. It must not set
+`crs_complete=true`, `production_ready=true`, `full_matrix_ready=true`, or
+`response_body_verified=true`. CRS runs write `crs-result.json` and
+`crs-decision.log`; targeted libmodsecurity runs keep `targeted-result.json`
+and `modsecurity-decision.log`.
+
+The secondary CRS smoke reuses the same CRS resolver and runner, selected with
+`CRS_SMOKE_CASE=secondary` or the `smoke-envoy-crs-secondary`,
+`smoke-traefik-crs-secondary`, `smoke-lighttpd-crs-secondary`, and
+`smoke-open-connectors-crs-secondary` Make targets. It sends
+`/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E` and must extract the observed CRS
+rule ID/message from libmodsecurity audit/intervention evidence. A successful
+secondary run may set `crs_secondary_smoke_verified=true` and writes
+`crs-secondary-result.json`, `crs-secondary-decision.log`, and
+`crs-secondary-audit.log`. If CRS, libmodsecurity, and the runtime are present
+but the secondary probe is not blocked, the result is FAIL. Missing CRS,
+missing libmodsecurity, or missing runtime dependencies remain Exit 77/BLOCKED
+evidence.
 
 Official source metadata for these open connector runtime components is tracked
 in `modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.
-The fixed versions, official source pages, download URLs, and SHA256 values are
+The fixed versions, official source URLs, download URLs, and SHA256 values are
 defined in `common.sh`; the manifest mirrors them for machine-readable
-inventory. Downloads remain disabled by default and may only be added behind an
-explicit `ALLOW_RUNTIME_DOWNLOADS=1` path with SHA256 verification into
-`$CONNECTOR_COMPONENT_CACHE`.
+inventory. Downloads are disabled by default and are allowed only through
+explicit `ALLOW_RUNTIME_DOWNLOADS=1` prepare targets with SHA256 verification
+into `$CONNECTOR_COMPONENT_CACHE`.
 
 ## libmodsecurity v3 alignment
 

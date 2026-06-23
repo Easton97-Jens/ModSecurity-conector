@@ -1,0 +1,35 @@
+name: check-actions-versions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  check-actions-versions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.13'
+
+      - name: Check GitHub Actions versions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/check-github-actions-versions.py --report actions-update-report.md
+
+      - name: Write report summary
+        if: always()
+        run: |
+          if [ -f actions-update-report.md ]; then
+            cat actions-update-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi

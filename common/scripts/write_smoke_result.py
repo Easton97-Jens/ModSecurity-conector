@@ -107,6 +107,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--response-body-verified", default="false")
     parser.add_argument("--allowed-request-status")
     parser.add_argument("--blocked-request-status")
+    parser.add_argument("--decision-backend", default="simple")
+    parser.add_argument("--modsecurity-ruleset", default="")
+    parser.add_argument("--modsecurity-backend-verified", default="false")
+    parser.add_argument("--modsecurity-rule-file", default="")
+    parser.add_argument("--modsecurity-rule-id", default="")
+    parser.add_argument("--modsecurity-rule-loaded", default="false")
+    parser.add_argument("--intervention-status")
+    parser.add_argument("--audit-log-path", default="")
+    parser.add_argument("--decision-log-path", default="")
+    parser.add_argument("--lighttpd-binary-verified", default="false")
+    parser.add_argument("--lighttpd-http-verified", default="false")
+    parser.add_argument("--sidecar-proxy-verified", default="false")
+    parser.add_argument("--lighttpd-log-path", default="")
+    parser.add_argument("--upstream-log-path", default="")
+    parser.add_argument("--request-transcript-path", default="")
+    parser.add_argument("--modsecurity-include-dir", default="")
+    parser.add_argument("--modsecurity-lib-dir", default="")
+    parser.add_argument("--modsecurity-lib-file", default="")
+    parser.add_argument("--modsecurity-pkg-config-path", default="")
+    parser.add_argument("--modsecurity-prefix", default="")
+    parser.add_argument("--modsecurity-manifest", default="")
     parser.add_argument("--evidence-root", required=True)
     parser.add_argument("--results-dir", required=True)
     parser.add_argument("--connector-root", required=True)
@@ -126,6 +147,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--missing-dependency", action="append", default=[])
     parser.add_argument("--claim-not-allowed", action="append", default=[])
     parser.add_argument("--architecture-decision", default="")
+    parser.add_argument("--crs-repo-url", default="")
+    parser.add_argument("--crs-git-ref", default="")
+    parser.add_argument("--crs-source-dir", default="")
+    parser.add_argument("--crs-runtime-dir", default="")
+    parser.add_argument("--crs-version", default="")
+    parser.add_argument("--crs-smoke-case", default="")
+    parser.add_argument("--crs-minimal-smoke-verified", default="false")
+    parser.add_argument("--crs-secondary-smoke-verified", default="false")
+    parser.add_argument("--crs-rule-id", default="")
+    parser.add_argument("--crs-rule-message", default="")
     return parser
 
 
@@ -155,9 +186,23 @@ def main() -> int:
     claims_not_allowed = args.claim_not_allowed or list(DEFAULT_CLAIMS_NOT_ALLOWED)
     if not runtime_verified and "runtime_verified=true" not in claims_not_allowed:
         claims_not_allowed.insert(0, "runtime_verified=true")
+    modsecurity_backend_verified = bool_text(args.modsecurity_backend_verified)
+    modsecurity_rule_loaded = bool_text(args.modsecurity_rule_loaded)
+    crs_minimal_smoke_verified = bool_text(args.crs_minimal_smoke_verified)
+    crs_secondary_smoke_verified = bool_text(args.crs_secondary_smoke_verified)
+    lighttpd_binary_verified = bool_text(args.lighttpd_binary_verified)
+    lighttpd_http_verified = bool_text(args.lighttpd_http_verified)
+    sidecar_proxy_verified = bool_text(args.sidecar_proxy_verified)
+    if not modsecurity_backend_verified and "modsecurity_backend_verified=true" not in claims_not_allowed:
+        claims_not_allowed.append("modsecurity_backend_verified=true")
+    if not crs_minimal_smoke_verified and "crs_minimal_smoke_verified=true" not in claims_not_allowed:
+        claims_not_allowed.append("crs_minimal_smoke_verified=true")
+    if not crs_secondary_smoke_verified and "crs_secondary_smoke_verified=true" not in claims_not_allowed:
+        claims_not_allowed.append("crs_secondary_smoke_verified=true")
     missing_dependencies = args.missing_dependency
     allowed_request_status = optional_int(args.allowed_request_status)
     blocked_request_status = optional_int(args.blocked_request_status)
+    intervention_status = optional_int(args.intervention_status)
     resolved_runtime_binary = args.resolved_runtime_binary or None
     runtime_lookup_roots = []
     for root in args.runtime_lookup_root:
@@ -179,20 +224,53 @@ def main() -> int:
         "common_msconnector_components": list(COMMON_COMPONENTS),
         "connector": connector,
         "crs_complete": False,
+        "crs_git_ref": args.crs_git_ref or None,
+        "crs_minimal_smoke_verified": crs_minimal_smoke_verified,
+        "crs_repo_url": args.crs_repo_url or None,
+        "crs_rule_id": args.crs_rule_id or None,
+        "crs_rule_message": args.crs_rule_message or None,
+        "crs_runtime_dir": args.crs_runtime_dir or None,
+        "crs_secondary_smoke_verified": crs_secondary_smoke_verified,
+        "crs_smoke_case": args.crs_smoke_case or None,
+        "crs_source_dir": args.crs_source_dir or None,
+        "crs_version": args.crs_version or None,
+        "decision_backend": args.decision_backend,
+        "decision_log_path": args.decision_log_path or None,
         "evidence_root": str(evidence_root),
         "exit_code": args.exit_code,
         "full_matrix_ready": False,
         "integration_mode": args.integration_mode,
+        "intervention_status": intervention_status,
+        "lighttpd_binary_verified": lighttpd_binary_verified,
+        "lighttpd_http_verified": lighttpd_http_verified,
+        "lighttpd_log_path": args.lighttpd_log_path or None,
         "missing_dependencies": missing_dependencies,
+        "modsecurity_backend_verified": modsecurity_backend_verified,
+        "modsecurity_dependency_inventory": {
+            "include_dir": args.modsecurity_include_dir or None,
+            "lib_dir": args.modsecurity_lib_dir or None,
+            "lib_file": args.modsecurity_lib_file or None,
+            "manifest": args.modsecurity_manifest or None,
+            "pkg_config_path": args.modsecurity_pkg_config_path or None,
+            "prefix": args.modsecurity_prefix or None,
+        },
+        "modsecurity_rule_file": args.modsecurity_rule_file or None,
+        "modsecurity_rule_id": args.modsecurity_rule_id or None,
+        "modsecurity_rule_loaded": modsecurity_rule_loaded,
+        "modsecurity_ruleset": args.modsecurity_ruleset or None,
+        "audit_log_path": args.audit_log_path or None,
         "production_ready": False,
         "response_body_verified": response_body_verified,
         "resolved_runtime_binary": resolved_runtime_binary,
+        "request_transcript_path": args.request_transcript_path or None,
         "runtime_inventory": runtime_inventory,
         "runtime_status": runtime_status,
         "runtime_verified": runtime_verified,
+        "sidecar_proxy_verified": sidecar_proxy_verified,
         "skipped_reason": args.skipped_reason,
         "status": status,
         "timestamp": timestamp,
+        "upstream_log_path": args.upstream_log_path or None,
     }
 
     record = {
@@ -219,6 +297,8 @@ def main() -> int:
         "harness_path": args.harness_path,
         "installs_global_artifacts": False,
         "integration_mode": args.integration_mode,
+        "lighttpd_binary_verified": lighttpd_binary_verified,
+        "lighttpd_http_verified": lighttpd_http_verified,
         "log_dir": args.log_dir,
         "log_root": args.log_root,
         "note": args.note,
@@ -228,6 +308,7 @@ def main() -> int:
         "results_dir": str(results_dir),
         "runtime_status": runtime_status,
         "runtime_verified": runtime_verified,
+        "sidecar_proxy_verified": sidecar_proxy_verified,
         "source_root": args.source_root,
         "starter_checks_available": starter_checks_available,
         "status": status,
@@ -245,6 +326,14 @@ def main() -> int:
     evidence_root.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
     write_json(evidence_root / "result.json", result)
+    if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
+        write_json(evidence_root / "crs-secondary-result.json", result)
+    elif args.modsecurity_ruleset == "crs":
+        write_json(evidence_root / "crs-result.json", result)
+    elif args.modsecurity_ruleset == "targeted" and args.decision_backend == "libmodsecurity":
+        write_json(evidence_root / "targeted-result.json", result)
+    elif args.decision_backend == "simple":
+        write_json(evidence_root / "runtime-result.json", result)
     write_jsonl(evidence_root / "results.jsonl", record)
     write_json(evidence_root / "summary.json", summary)
     write_text(evidence_root / "summary.txt", status_text)
