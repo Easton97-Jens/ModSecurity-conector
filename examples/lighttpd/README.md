@@ -1,5 +1,15 @@
 # Lighttpd sidecar_proxy Example
 
+## Table of Contents
+
+- [Status](#status)
+- [Needed Components](#needed-components)
+- [Config Files](#config-files)
+- [Start / Reload Notes](#start-reload-notes)
+- [Logs](#logs)
+- [Non-Claims](#non-claims)
+- [Related Compile Doc](#related-compile-doc)
+
 ## Status
 
 Example only. This does not prove production readiness. The current repository path is `sidecar_proxy` / Phase 1. There is no native Lighttpd ModSecurity connector in this repository.

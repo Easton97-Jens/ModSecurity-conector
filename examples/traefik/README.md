@@ -1,5 +1,15 @@
 # Traefik forwardAuth Example
 
+## Table of Contents
+
+- [Status](#status)
+- [Needed Components](#needed-components)
+- [Config Files](#config-files)
+- [Start / Reload Notes](#start-reload-notes)
+- [Logs](#logs)
+- [Non-Claims](#non-claims)
+- [Related Compile Doc](#related-compile-doc)
+
 ## Status
 
 Example only. This does not prove production readiness. The repository prepares a pinned Traefik release archive/binary and exercises a `forwardAuth` smoke path when required local runtime components exist. Traefik is not compiled from source by this repository.

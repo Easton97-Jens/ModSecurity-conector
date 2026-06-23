@@ -1,5 +1,20 @@
 # Apache ModSecurity Examples
 
+## Table of Contents
+
+- [Status](#status)
+- [Purpose](#purpose)
+- [Needed Components](#needed-components)
+- [Files](#files)
+- [Production Paths](#production-paths)
+- [Request-Only Mode](#request-only-mode)
+- [Phase 4 / RESPONSE_BODY Mode](#phase-4-response_body-mode)
+- [Variable And Placeholder Reference](#variable-and-placeholder-reference)
+- [Logging And Evidence](#logging-and-evidence)
+- [Security Notes](#security-notes)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
+
 ## Status
 
 Apache request-only and bounded Phase 4 examples. Production-style, but not proof of every Apache distribution package, MPM, or complete RESPONSE_BODY support.

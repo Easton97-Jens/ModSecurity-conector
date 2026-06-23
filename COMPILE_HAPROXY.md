@@ -1,8 +1,33 @@
 # Compile HAProxy
 
+## Inhaltsverzeichnis
+
+- [Purpose](#purpose)
+- [Current Connector Status](#current-connector-status)
+- [What This Builds / Prepares](#what-this-builds--prepares)
+- [What This Does Not Prove](#what-this-does-not-prove)
+- [Repository Layout](#repository-layout)
+- [Prerequisites](#prerequisites)
+- [Required Submodules](#required-submodules)
+- [Command Quickstart](#command-quickstart)
+- [Build / Prepare Variables](#build--prepare-variables)
+- [Testing Commands](#testing-commands)
+- [Production / Production-Style Integration](#production--production-style-integration)
+- [Production / Production-Style Commands](#production--production-style-commands)
+- [End-to-End Flow](#end-to-end-flow-fetch-components--build-modsecurity--buildprepare-connector--run-integrated-smoke)
+- [Example Configs](#example-configs)
+- [Runtime Evidence Paths](#runtime-evidence-paths)
+- [Logs](#logs)
+- [Troubleshooting](#troubleshooting)
+- [Common Failures](#common-failures)
+- [Cleanup](#cleanup)
+- [Best Practices](#best-practices)
+- [Related Docs / Examples](#related-docs--examples)
+
+
 ## Purpose
 
-Document the repository-supported build or prepare path for Haproxy without adding unverified production claims. This guide is operator-facing and ties every build, runtime, and smoke statement to repository-owned Makefile targets, connector sources, harnesses, examples, or generated evidence.
+Document the repository-supported build or prepare path for Haproxy without adding unverified production claims. This guide is operator-facing and ties build, runtime, and smoke statements to repository-owned Makefile targets, connector sources, harnesses, examples, or generated evidence.
 
 ## Current Connector Status
 
@@ -14,7 +39,7 @@ a local HAProxy binary, `haproxy-modsecurity-spoa`, libmodsecurity binding/self-
 
 ## What This Does Not Prove
 
-This does not prove OS-wide installation, every HAProxy build option, full RESPONSE_BODY support, or production support for force-all FAIL rows. Generated markdown and smoke logs are evidence artifacts, not blanket support guarantees.
+It does not prove OS-wide installation, every HAProxy build option, full RESPONSE_BODY support, or production support for force-all FAIL rows. Generated markdown and smoke logs are evidence artifacts, not blanket support guarantees.
 
 ## Repository Layout
 
@@ -33,44 +58,116 @@ make setup-dev
 
 `FRAMEWORK_ROOT` defaults to `modules/ModSecurity-test-Framework`. If the submodule is absent, targets that require `check-framework` block before runtime work starts.
 
-## Rebuild / Refresh
+## Command Quickstart
 
-Use `REFRESH=1` only when intentionally recreating fetched/generated source or runtime state. Runtime roots default below `${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified`; override `VERIFIED_RUN_ROOT`, `BUILD_ROOT`, `SOURCE_ROOT`, `TMP_ROOT`, and `LOG_ROOT` when an operator needs isolated workspaces.
+Use this copy/paste baseline for local verification before connector-specific commands:
 
-## Generated Artifacts
+```sh
+git submodule update --init --recursive
+make setup-dev
+make doctor-quick
+make lint
+git diff --check
+```
 
-Do not hand-edit generated reports. Refresh them through repository targets such as `make refresh-connector-reports`, `make refresh-all-reports`, `make generate-test-matrix`, or `make check-test-matrix` when the change actually requires regenerated evidence.
+Use an isolated local run root when you do not want build/test artifacts under the default `/var/tmp/ModSecurity-conector-verified` tree:
 
-## Cleanup
+```sh
+export VERIFIED_RUN_ROOT=/tmp/modsecurity-conector-verified
+export BUILD_ROOT="$VERIFIED_RUN_ROOT/build"
+export SOURCE_ROOT="$VERIFIED_RUN_ROOT/src"
+export TMP_ROOT="$VERIFIED_RUN_ROOT/tmp"
+export LOG_ROOT="$VERIFIED_RUN_ROOT/logs"
+```
 
-The repository Makefile writes runtime/build state under `VERIFIED_RUN_ROOT` and related roots, not global install prefixes. Remove the chosen run root only after preserving any logs or JSON summaries needed for evidence.
+These are local build/test paths only. They are not global production install paths. Preserve logs, summary JSON, and any generated evidence you need before cleanup.
 
-## Best Practices
-
-- Keep build and runtime artifacts outside the git checkout.
-- Pin source/runtime versions through the existing framework variables; do not introduce undocumented versions in operator docs.
-- Treat force-all FAIL rows as evidence of boundaries, not production support.
-- Keep request-only operation as the conservative baseline unless a generated report proves a more specific behavior.
 
 ## Build / Prepare Variables
 
 `HAPROXY_VERSION`, `HAPROXY_SOURCE_URL`, `HAPROXY_SHA256`, `HAPROXY_RUNTIME_DIR`, `HAPROXY_BIN`, `BUILD_ROOT`, `SOURCE_ROOT`, `LOG_ROOT`, and `RESULTS_DIR` are exported by the Makefile or preparation scripts. Do not invent additional variables; check `Makefile`, `ci/prepare-runtime-components.py`, connector Makefiles, and harness scripts before documenting new ones.
 
-## Minimal Local Build
+## Testing Commands
+
+Common repository checks:
+
+```sh
+make quick-check
+make smoke-all
+make test-no-crs
+make test-with-crs
+make runtime-matrix
+make check-test-matrix
+```
+
+Expensive or long-running jobs:
+
+```sh
+make runtime-matrix-all-runtime
+make full-matrix-parallel-runtime
+```
+
+HAProxy-specific commands:
 
 ```sh
 make smoke-haproxy
+make test-haproxy-no-crs
+make test-haproxy-with-crs
+make runtime-matrix-haproxy
+FORCE_ALL_CASES=1 make runtime-matrix-haproxy
+CASE=phase1_header_block CRS=no-crs MRTS=no-mrts make verified-haproxy-case
+CASE=phase1_header_block CRS=with-crs MRTS=no-mrts make verified-haproxy-case
 ```
 
-The command is minimal for this repository's evidence path. It is not a global installation recipe.
+HAProxy local build/self-test commands:
 
-## Manual Build Flow
-
-Run `make prepare-runtime-components`, optionally `make -C connectors/haproxy build-spoa-runtime` for the SPOA runtime, then `make smoke-haproxy` or `connectors/haproxy/harness/run_haproxy_smoke.sh`.
+```sh
+make -C connectors/haproxy build-modsecurity-binding
+make -C connectors/haproxy build-spoa-runtime
+make -C connectors/haproxy self-test-modsecurity-binding
+make -C connectors/haproxy self-test-spoa-runtime
+```
 
 ## Production / Production-Style Integration
 
-A production-style HAProxy deployment needs HAProxy, a running `haproxy-modsecurity-spoa` process, libmodsecurity accessible to that process, SPOE config loaded by HAProxy, a SPOA agent config pointing at ModSecurity rules, and writable decision/audit/agent logs. End-to-end: HAProxy starts, the SPOE filter sends request metadata to the SPOP backend, the SPOA runtime calls libmodsecurity, the agent writes decision/audit evidence, and HAProxy allows, denies, redirects, or drops according to returned transaction variables. Response-header checks are a separate path; RESPONSE_BODY remains bounded runtime evidence only. Reload HAProxy after HAProxy/SPOE changes; restart the SPOA service after agent config, rules, binary, or library changes.
+A production-style HAProxy deployment needs HAProxy, a running `haproxy-modsecurity-spoa` process, libmodsecurity accessible to that process, SPOE config loaded by HAProxy, a SPOA agent config pointing at ModSecurity rules, and writable decision/audit/agent logs. End-to-end: HAProxy starts, the SPOE filter sends request metadata to the SPOP backend, the SPOA runtime calls libmodsecurity, the agent writes decision/audit evidence, and HAProxy allows, denies, redirects, or drops according to returned transaction variables. Response-header checks are a separate path; RESPONSE_BODY remains bounded runtime evidence only.
+
+## Production / Production-Style Commands
+
+Repository preparation/smoke commands:
+
+```sh
+make prepare-runtime-components
+make -C connectors/haproxy build-modsecurity-binding
+make -C connectors/haproxy build-spoa-runtime
+make -C connectors/haproxy self-test-modsecurity-binding
+make -C connectors/haproxy self-test-spoa-runtime
+make smoke-haproxy
+```
+
+Operator install example with placeholders:
+
+```sh
+sudo install -d -m 0755 /etc/haproxy /etc/modsecurity /var/log/haproxy-modsecurity
+sudo install -m 0755 <built-haproxy-modsecurity-spoa> /usr/local/sbin/haproxy-modsecurity-spoa
+sudo install -m 0644 examples/haproxy/spoe-modsecurity.conf /etc/haproxy/spoe-modsecurity.conf
+sudo install -m 0644 examples/haproxy/modsecurity-agent.conf /etc/haproxy/modsecurity-agent.conf
+sudo install -m 0644 examples/haproxy/haproxy-request-only.cfg /etc/haproxy/haproxy.cfg
+sudo haproxy -c -f /etc/haproxy/haproxy.cfg
+sudo systemctl reload haproxy
+sudo systemctl restart haproxy-modsecurity-spoa
+sudo tail -f /var/log/haproxy-modsecurity/decision.jsonl /var/log/haproxy-modsecurity/audit.log
+```
+
+No systemd unit is added by these docs; `haproxy-modsecurity-spoa` service management is operator-provided unless a deployment supplies one. `<built-haproxy-modsecurity-spoa>` must be replaced with the verified built binary path. RESPONSE_BODY remains bounded runtime evidence only.
+
+Expected outputs / evidence:
+
+- Summary JSON under `BUILD_ROOT` results.
+- `decision.jsonl`.
+- `audit.log`.
+- `spoa-agent.log` or agent diagnostic log when configured.
+- Generated HAProxy runtime report under `reports/testing/generated/`.
 
 ## End-to-End Flow: Fetch Components → Build ModSecurity → Build/Prepare Connector → Run Integrated Smoke
 
@@ -79,10 +176,6 @@ Fetch components with `make prepare-runtime-components`, build/prepare libmodsec
 ## Example Configs
 
 See [examples/haproxy/README.md](examples/haproxy/README.md). Example configs are production-style illustrations. They must be reviewed and adapted before use; open connector examples are explicitly not production-ready proof.
-
-## Test / Smoke Validation
-
-`make smoke-haproxy`, `make test-haproxy-no-crs`, `make test-haproxy-with-crs`, and `make verified-haproxy-case CASE=<case> CRS=<no-crs|with-crs> MRTS=<no-mrts|with-mrts>` are declared targets. Use CRS variants only when CRS is prepared by the existing framework flow.
 
 ## Runtime Evidence Paths
 
@@ -99,6 +192,17 @@ Check SPOP backend reachability, SPOE config syntax, frame/body limits, libmodse
 ## Common Failures
 
 SPOE backend unavailable, HAProxy config validation failure, agent cannot open rules/logs, or phase-4 expectations exceeding non-promoted evidence.
+
+## Cleanup
+
+The repository Makefile writes runtime/build state under `VERIFIED_RUN_ROOT` and related roots, not global install prefixes. Remove the chosen run root only after preserving logs and JSON summaries needed for evidence.
+
+## Best Practices
+
+- Keep build and runtime artifacts outside the git checkout.
+- Pin source/runtime versions through existing framework variables; do not introduce undocumented versions in operator docs.
+- Treat force-all FAIL rows as evidence of boundaries, not production support.
+- Keep request-only operation as the conservative baseline unless generated evidence proves a more specific behavior.
 
 ## Related Docs / Examples
 

@@ -1,5 +1,15 @@
 # Envoy ext_authz Example
 
+## Table of Contents
+
+- [Status](#status)
+- [Needed Components](#needed-components)
+- [Config Files](#config-files)
+- [Start / Reload Notes](#start-reload-notes)
+- [Logs](#logs)
+- [Non-Claims](#non-claims)
+- [Related Compile Doc](#related-compile-doc)
+
 ## Status
 
 Example only. This does not prove production readiness. The repository prepares a pinned Envoy runtime component and exercises an `ext_authz` smoke path when the required local runtime components exist. Envoy is not compiled from source by this repository.

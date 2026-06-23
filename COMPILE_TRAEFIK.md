@@ -1,8 +1,33 @@
 # Compile / Prepare Traefik
 
+## Inhaltsverzeichnis
+
+- [Purpose](#purpose)
+- [Current Connector Status](#current-connector-status)
+- [What This Builds / Prepares](#what-this-builds--prepares)
+- [What This Does Not Prove](#what-this-does-not-prove)
+- [Repository Layout](#repository-layout)
+- [Prerequisites](#prerequisites)
+- [Required Submodules](#required-submodules)
+- [Command Quickstart](#command-quickstart)
+- [Build / Prepare Variables](#build--prepare-variables)
+- [Testing Commands](#testing-commands)
+- [Production / Production-Style Integration](#production--production-style-integration)
+- [Production / Production-Style Commands](#production--production-style-commands)
+- [End-to-End Flow](#end-to-end-flow-fetch-components--build-modsecurity--buildprepare-connector--run-integrated-smoke)
+- [Example Configs](#example-configs)
+- [Runtime Evidence Paths](#runtime-evidence-paths)
+- [Logs](#logs)
+- [Troubleshooting](#troubleshooting)
+- [Common Failures](#common-failures)
+- [Cleanup](#cleanup)
+- [Best Practices](#best-practices)
+- [Related Docs / Examples](#related-docs--examples)
+
+
 ## Purpose
 
-Document the repository-supported build or prepare path for Traefik without adding unverified production claims. This guide is operator-facing and ties every build, runtime, and smoke statement to repository-owned Makefile targets, connector sources, harnesses, examples, or generated evidence.
+Document the repository-supported build or prepare path for Traefik without adding unverified production claims. This guide is operator-facing and ties build, runtime, and smoke statements to repository-owned Makefile targets, connector sources, harnesses, examples, or generated evidence.
 
 ## Current Connector Status
 
@@ -14,7 +39,7 @@ a pinned Traefik release archive staged/extracted into the component cache plus 
 
 ## What This Does Not Prove
 
-This does not prove production readiness, full CRS coverage, full matrix coverage, Go-plugin support, response-body support, or source compilation. Generated markdown and smoke logs are evidence artifacts, not blanket support guarantees.
+It does not prove production readiness, full CRS coverage, full matrix coverage, response-body support, or source compilation. Generated markdown and smoke logs are evidence artifacts, not blanket support guarantees.
 
 ## Repository Layout
 
@@ -33,73 +58,139 @@ make setup-dev
 
 `FRAMEWORK_ROOT` defaults to `modules/ModSecurity-test-Framework`. If the submodule is absent, targets that require `check-framework` block before runtime work starts.
 
-## Rebuild / Refresh
+## Command Quickstart
 
-Use `REFRESH=1` only when intentionally recreating fetched/generated source or runtime state. Runtime roots default below `${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified`; override `VERIFIED_RUN_ROOT`, `BUILD_ROOT`, `SOURCE_ROOT`, `TMP_ROOT`, and `LOG_ROOT` when an operator needs isolated workspaces.
+Use this copy/paste baseline for local verification before connector-specific commands:
 
-## Generated Artifacts
+```sh
+git submodule update --init --recursive
+make setup-dev
+make doctor-quick
+make lint
+git diff --check
+```
 
-Do not hand-edit generated reports. Refresh them through repository targets such as `make refresh-connector-reports`, `make refresh-all-reports`, `make generate-test-matrix`, or `make check-test-matrix` when the change actually requires regenerated evidence.
+Use an isolated local run root when you do not want build/test artifacts under the default `/var/tmp/ModSecurity-conector-verified` tree:
 
-## Cleanup
+```sh
+export VERIFIED_RUN_ROOT=/tmp/modsecurity-conector-verified
+export BUILD_ROOT="$VERIFIED_RUN_ROOT/build"
+export SOURCE_ROOT="$VERIFIED_RUN_ROOT/src"
+export TMP_ROOT="$VERIFIED_RUN_ROOT/tmp"
+export LOG_ROOT="$VERIFIED_RUN_ROOT/logs"
+```
 
-The repository Makefile writes runtime/build state under `VERIFIED_RUN_ROOT` and related roots, not global install prefixes. Remove the chosen run root only after preserving any logs or JSON summaries needed for evidence.
+These are local build/test paths only. They are not global production install paths. Preserve logs, summary JSON, and any generated evidence you need before cleanup.
 
-## Best Practices
-
-- Keep build and runtime artifacts outside the git checkout.
-- Pin source/runtime versions through the existing framework variables; do not introduce undocumented versions in operator docs.
-- Treat force-all FAIL rows as evidence of boundaries, not production support.
-- Keep request-only operation as the conservative baseline unless a generated report proves a more specific behavior.
 
 ## Build / Prepare Variables
 
 `TRAEFIK_BIN`, `TRAEFIK_DECISION_BACKEND`, `DECISION_BACKEND`, `CONNECTOR_COMPONENT_CACHE`, `SKIP_RUNTIME_COMPONENT_PREPARE`, `RUNTIME_COMPONENT_STRICT_VERIFY`, and `KEEP_RUNTIME_ARTIFACTS` are present in Makefile exports or harnesses. Version/checksum values are sourced from framework `common.sh` when present. Do not invent additional variables; check `Makefile`, `ci/prepare-runtime-components.py`, connector Makefiles, and harness scripts before documenting new ones.
 
-## Minimal Local Build
+## Testing Commands
+
+Common repository checks:
+
+```sh
+make quick-check
+make smoke-all
+make test-no-crs
+make test-with-crs
+make runtime-matrix
+make check-test-matrix
+```
+
+Expensive or long-running jobs:
+
+```sh
+make runtime-matrix-all-runtime
+make full-matrix-parallel-runtime
+```
+
+Traefik-specific commands:
 
 ```sh
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
 make smoke-traefik
+make smoke-traefik-modsecurity
+make smoke-traefik-crs
+make smoke-traefik-crs-secondary
 ```
 
-The command is minimal for this repository's evidence path. It is not a global installation recipe.
+Open connector batch tests:
 
-## Manual Build Flow
-
-Prepare the pinned release archive with `make prepare-traefik-runtime`; do not document a source build. Run `make smoke-traefik`, `make smoke-traefik-modsecurity`, or CRS variants only when local Traefik, libmodsecurity, and optional CRS inputs are staged.
+```sh
+make smoke-new-connectors
+make smoke-open-connectors-crs
+make smoke-open-connectors-crs-secondary
+```
 
 ## Production / Production-Style Integration
 
-This is production-style only, not production-ready. A comparable deployment would need the pinned Traefik binary, routers/services/middleware that attach `forwardAuth`, a reachable auth/decision service, libmodsecurity for the libmodsecurity backend, ModSecurity rules and optional CRS, and Traefik plus sidecar logs. Traefik forwards authorization requests to the auth service and applies the returned decision. Reload/restart depends on static/dynamic configuration boundaries and the operator process manager; a Go plugin is out of scope for this repository path.
+This is production-style only, not production-ready. A comparable deployment would need the pinned/staged runtime, the `forwardAuth` integration path, libmodsecurity for the libmodsecurity backend, ModSecurity rules and optional CRS, and runtime plus sidecar decision/audit logs. Do not treat smoke evidence as production readiness.
+
+## Production / Production-Style Commands
+
+Repository preparation/smoke commands:
+
+```sh
+ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
+make smoke-traefik
+make smoke-traefik-modsecurity
+make smoke-traefik-crs
+```
+
+Example config command with placeholder binary:
+
+```sh
+<traefik-bin> --configFile=examples/traefik/traefik-static.yaml
+```
+
+Traefik is not compiled from source by this repository. The repository does not implement a Go plugin. The forwardAuth decision service startup is operator-provided unless a real repo command exists.
+
+Expected outputs / evidence:
+
+- `result.json` when produced by the runtime harness.
+- `runtime-result.json` when produced by the runtime harness.
+- `targeted-result.json` when the targeted libmodsecurity smoke runs.
+- `crs-result.json` when the CRS smoke runs.
+- `crs-secondary-result.json` when the secondary CRS smoke runs.
+- Decision/audit logs when the selected backend supports them.
 
 ## End-to-End Flow: Fetch Components → Build ModSecurity → Build/Prepare Connector → Run Integrated Smoke
 
-Prepare the pinned runtime with `make prepare-traefik-runtime`, prepare libmodsecurity through `make prepare-runtime-components` when the libmodsecurity backend is used, prepare the forwardAuth decision service, then run `make smoke-traefik` or `make smoke-traefik-modsecurity`/`make smoke-traefik-crs`. If a dependency is unavailable, document the result as blocked or not verified instead of treating it as a pass.
+Run `ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime`, prepare libmodsecurity through `make prepare-runtime-components` when the libmodsecurity backend is used, prepare the `forwardAuth` path, then run `make smoke-traefik` or the libmodsecurity/CRS variants. If a dependency is unavailable, document the result as blocked or not verified instead of treating it as a pass.
 
 ## Example Configs
 
 See [examples/traefik/README.md](examples/traefik/README.md). Example configs are production-style illustrations. They must be reviewed and adapted before use; open connector examples are explicitly not production-ready proof.
 
-## Test / Smoke Validation
-
-Declared targets include `make smoke-traefik`, `make smoke-traefik-modsecurity`, `make smoke-traefik-crs`, and `make smoke-traefik-crs-secondary`. Use CRS variants only when CRS is prepared by the existing framework flow.
-
 ## Runtime Evidence Paths
 
-Traefik result/log/runtime roots from framework `common.sh` when available and generated reports under `reports/testing/generated/`.
+Runtime result/log roots from framework `common.sh` when available and generated reports under `reports/testing/generated/`.
 
 ## Logs
 
-Traefik access/runtime logs when configured plus decision/audit logs from the auth service. Preserve logs together with the exact command, connector, CRS variant, and MRTS variant.
+Runtime logs when configured plus sidecar or decision-service logs for the libmodsecurity path. Preserve logs together with the exact command, connector, CRS variant, and MRTS variant.
 
 ## Troubleshooting
 
-If the pinned binary, forwardAuth service, libmodsecurity, or CRS is absent, treat the run as blocked or runtime evidence only, not success.
+If the pinned runtime, integration service wiring, libmodsecurity, or CRS is absent, treat the run as blocked or runtime evidence only, not success.
 
 ## Common Failures
 
 Missing local common.sh-managed Traefik binary, missing forwardAuth service wiring, missing libmodsecurity backend, or assuming source compilation exists.
+
+## Cleanup
+
+The repository Makefile writes runtime/build state under `VERIFIED_RUN_ROOT` and related roots, not global install prefixes. Remove the chosen run root only after preserving logs and JSON summaries needed for evidence.
+
+## Best Practices
+
+- Keep build and runtime artifacts outside the git checkout.
+- Pin source/runtime versions through existing framework variables; do not introduce undocumented versions in operator docs.
+- Treat force-all FAIL rows as evidence of boundaries, not production support.
+- Keep request-only operation as the conservative baseline unless generated evidence proves a more specific behavior.
 
 ## Related Docs / Examples
 

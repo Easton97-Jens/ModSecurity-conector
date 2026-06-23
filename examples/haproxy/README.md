@@ -1,5 +1,22 @@
 # HAProxy ModSecurity Examples
 
+## Table of Contents
+
+- [Status](#status)
+- [Purpose](#purpose)
+- [Needed Components](#needed-components)
+- [Files](#files)
+- [Production Paths](#production-paths)
+- [Request Phases 1/2](#request-phases-12)
+- [Phase 3 Response Headers](#phase-3-response-headers)
+- [Phase 4 / RESPONSE_BODY Strict-Abort](#phase-4-response_body-strict-abort)
+- [Variable And Placeholder Reference](#variable-and-placeholder-reference)
+- [Runtime Evidence](#runtime-evidence)
+- [Reload And Restart](#reload-and-restart)
+- [Limitations](#limitations)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
+
 ## Status
 
 HAProxy SPOE/SPOP production-style examples for `haproxy-modsecurity-spoa`. They do not promote RESPONSE_BODY or force-all FAIL rows as production support.
