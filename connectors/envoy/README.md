@@ -124,6 +124,43 @@ component caches or explicit local `MODSECURITY_INCLUDE_DIR` /
 dependencies produce Exit 77/BLOCKED evidence with
 `decision_backend=libmodsecurity` and `modsecurity_backend_verified=false`.
 
+The minimal CRS smoke uses the same local Envoy runtime and libmodsecurity
+backend, but switches the ruleset to CRS:
+
+```sh
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-envoy
+make smoke-envoy-crs
+make smoke-envoy-crs-secondary
+```
+
+The CRS source-of-truth remains `common.sh` (`CRS_REPO_URL`, `CRS_GIT_REF`,
+`CRS_SOURCE_DIR`, and `CRS_RUNTIME_DIR`). The smoke writes a connector-local
+CRS config under `$ENVOY_RESULT_ROOT/crs-smoke`, sends a normal allowed request
+and the existing minimal SQLi CRS probe
+`/?id=1%20UNION%20SELECT%20password%20FROM%20users`, and requires CRS-backed
+HTTP 403 evidence. Successful CRS evidence may set only
+`crs_minimal_smoke_verified=true`; it still keeps `crs_complete=false`,
+`production_ready=false`, `full_matrix_ready=false`, and
+`response_body_verified=false`. CRS evidence is also copied to
+`$ENVOY_RESULT_ROOT/crs-result.json` with logs in `$ENVOY_LOG_ROOT/crs-decision.log`.
+
+The secondary CRS smoke reuses that same CRS resolver and runtime path with
+`CRS_SMOKE_CASE=secondary`. It sends
+`/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E`, writes
+`$ENVOY_RESULT_ROOT/crs-secondary-result.json`, and records
+`$ENVOY_LOG_ROOT/crs-secondary-decision.log` plus
+`$ENVOY_LOG_ROOT/crs-secondary-audit.log`. A PASS may set only
+`crs_secondary_smoke_verified=true` after extracting the actual CRS rule
+ID/message from evidence. If CRS, libmodsecurity, and Envoy are present but the
+secondary probe is not blocked, the result is FAIL, not PASS or BLOCKED.
+
+All open connector CRS smokes can be run with:
+
+```sh
+make smoke-open-connectors-crs
+make smoke-open-connectors-crs-secondary
+```
+
 Envoy source metadata is centralized in `common.sh`: `ENVOY_VERSION=1.38.2`,
 the official GitHub release URL, the install docs URL, the Linux x86_64
 download URL, `ENVOY_SHA256_URL`, and the pinned SHA256. The

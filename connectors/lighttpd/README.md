@@ -147,6 +147,7 @@ With explicit build opt-in, it configures, builds, and installs only under
 `$CONNECTOR_COMPONENT_CACHE/lighttpd`:
 
 ```sh
+ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-lighttpd-runtime
 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 make smoke-lighttpd
@@ -162,6 +163,54 @@ make smoke-lighttpd-modsecurity
 That mode may set `modsecurity_backend_verified=true` only when local
 common.sh-managed libmodsecurity headers/libraries are available and rule
 `1000001` returns a 403 intervention for `X-Modsec-Smoke: block`.
+When it passes, the Lighttpd result records `decision_backend=libmodsecurity`,
+`modsecurity_rule_loaded=true`, `modsecurity_rule_id=1000001`,
+`allowed_request_status=200`, `blocked_request_status=403`, and
+`modsecurity_backend_verified=true`.
+
+The minimal CRS smoke keeps Lighttpd in Phase 1 `sidecar_proxy` mode and uses
+the same local libmodsecurity backend with CRS selected:
+
+```sh
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-lighttpd
+make smoke-lighttpd-crs
+make smoke-lighttpd-crs-secondary
+```
+
+The CRS source-of-truth remains `common.sh` (`CRS_REPO_URL`, `CRS_GIT_REF`,
+`CRS_SOURCE_DIR`, and `CRS_RUNTIME_DIR`). The smoke writes a connector-local
+CRS config under `$LIGHTTPD_RESULT_ROOT/crs-smoke`, sends a normal allowed
+request and the existing minimal SQLi CRS probe
+`/?id=1%20UNION%20SELECT%20password%20FROM%20users`, and requires CRS-backed
+HTTP 403 evidence. Successful CRS evidence may set only
+`crs_minimal_smoke_verified=true`; it still keeps `crs_complete=false`,
+`production_ready=false`, `full_matrix_ready=false`, and
+`response_body_verified=false`. CRS evidence is also copied to
+`$LIGHTTPD_RESULT_ROOT/crs-result.json` with logs in
+`$LIGHTTPD_LOG_ROOT/crs-decision.log` and
+`$LIGHTTPD_LOG_ROOT/crs-request-transcript.jsonl`.
+
+The secondary CRS smoke reuses the same Phase 1 `sidecar_proxy` CRS resolver
+and runtime path with `CRS_SMOKE_CASE=secondary`. It sends
+`/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E`, writes
+`$LIGHTTPD_RESULT_ROOT/crs-secondary-result.json`, and records
+`$LIGHTTPD_LOG_ROOT/crs-secondary-decision.log`,
+`$LIGHTTPD_LOG_ROOT/crs-secondary-audit.log`, and
+`$LIGHTTPD_LOG_ROOT/crs-secondary-request-transcript.jsonl`. A PASS may set
+only `crs_secondary_smoke_verified=true` after extracting the actual CRS rule
+ID/message from evidence. If CRS, libmodsecurity, and Lighttpd are present but
+the secondary probe is not blocked, the result is FAIL, not PASS or BLOCKED.
+
+All open connector CRS smokes can be run with:
+
+```sh
+make smoke-open-connectors-crs
+make smoke-open-connectors-crs-secondary
+```
+
+This remains a sidecar/proxy proof. It is not a native lighttpd ModSecurity
+module, not CRS-complete, not production-ready, and not response-body
+verification.
 
 lighttpd source metadata is centralized in `common.sh`: `LIGHTTPD_VERSION=1.4.84`,
 the official 1.4.x release index, the latest URL used only for pinning,

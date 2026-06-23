@@ -101,6 +101,46 @@ set `modsecurity_backend_verified=true`, and only when the decision log shows
 libmodsecurity loaded rule `1000001` and returned a 403 intervention. Missing
 local libmodsecurity headers/libraries produce Exit 77/BLOCKED evidence with
 `decision_backend=libmodsecurity` and `modsecurity_backend_verified=false`.
+The resolver is shared in `connector-smoke-common.sh`; it accepts only explicit
+local overrides or local common.sh-managed runtime/component roots, including
+previous verified roots such as `/tmp/ModSecurity-conector-verified` and
+`/var/tmp/ModSecurity-conector-verified`, and rejects system/PATH fallbacks for
+libmodsecurity.
+
+The same open-connector runner also supports minimal and secondary CRS smokes
+with `DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs` or the
+connector-specific CRS Make targets.
+CRS source-of-truth remains in `common.sh`: `CRS_REPO_URL`, `CRS_GIT_REF`,
+`CRS_SOURCE_DIR`, and `CRS_RUNTIME_DIR`. The runner may resolve an already
+staged CRS checkout only from common.sh-managed verified roots such as
+`/tmp/ModSecurity-conector-verified` or
+`/var/tmp/ModSecurity-conector-verified`; it does not download CRS, install CRS
+globally, or search system paths. The generated smoke config is written under
+the connector runtime/result root as `crs-smoke/` for the minimal case and
+`crs-secondary-smoke/` for the secondary case.
+
+The minimal CRS smoke reuses the existing `crs_sqli_anomaly_block` payload,
+`/?id=1%20UNION%20SELECT%20password%20FROM%20users`. A PASS requires an
+allowed request with HTTP 200, a CRS-backed blocked request with HTTP 403, and
+an observed CRS rule ID/message from libmodsecurity intervention evidence. Only
+that evidence may set `crs_minimal_smoke_verified=true`. It must not set
+`crs_complete=true`, `production_ready=true`, `full_matrix_ready=true`, or
+`response_body_verified=true`. CRS runs write `crs-result.json` and
+`crs-decision.log`; targeted libmodsecurity runs keep `targeted-result.json`
+and `modsecurity-decision.log`.
+
+The secondary CRS smoke reuses the same CRS resolver and runner, selected with
+`CRS_SMOKE_CASE=secondary` or the `smoke-envoy-crs-secondary`,
+`smoke-traefik-crs-secondary`, `smoke-lighttpd-crs-secondary`, and
+`smoke-open-connectors-crs-secondary` Make targets. It sends
+`/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E` and must extract the observed CRS
+rule ID/message from libmodsecurity audit/intervention evidence. A successful
+secondary run may set `crs_secondary_smoke_verified=true` and writes
+`crs-secondary-result.json`, `crs-secondary-decision.log`, and
+`crs-secondary-audit.log`. If CRS, libmodsecurity, and the runtime are present
+but the secondary probe is not blocked, the result is FAIL. Missing CRS,
+missing libmodsecurity, or missing runtime dependencies remain Exit 77/BLOCKED
+evidence.
 
 Official source metadata for these open connector runtime components is tracked
 in `modules/ModSecurity-test-Framework/ci/runtime-components.manifest.json`.

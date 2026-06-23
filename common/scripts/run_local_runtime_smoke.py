@@ -9,6 +9,7 @@ import http.client
 import http.server
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -16,11 +17,158 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
 
 BLOCK_VALUES = {"1", "true", "block", "yes", "on"}
+CRS_SMOKE_CASES = {
+    "minimal": {
+        "blocked_path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users",
+        "description": "existing CRS SQLi anomaly probe",
+    },
+    "secondary": {
+        "blocked_path": "/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E",
+        "description": "secondary CRS XSS query probe",
+    },
+}
+
+
+class SmokeBlocked(RuntimeError):
+    def __init__(self, reason: str, missing_dependencies: list[str]) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.missing_dependencies = missing_dependencies
+
+
+def namespace_value(args: argparse.Namespace, name: str, default: str = "") -> str:
+    value = getattr(args, name, default)
+    return "" if value is None else str(value)
+
+
+def normalize_ruleset(value: str) -> str:
+    normalized = (value or "targeted").strip().lower()
+    if normalized in {"", "targeted", "modsecurity-targeted"}:
+        return "targeted"
+    if normalized in {"crs", "owasp-crs", "coreruleset"}:
+        return "crs"
+    raise SmokeBlocked(f"unsupported ModSecurity ruleset: {value}", ["modsecurity ruleset"])
+
+
+def normalize_crs_smoke_case(value: str) -> str:
+    normalized = (value or "minimal").strip().lower()
+    if normalized in CRS_SMOKE_CASES:
+        return normalized
+    raise SmokeBlocked(f"unsupported CRS smoke case: {value}", ["crs smoke case"])
+
+
+def crs_blocked_path(args: argparse.Namespace) -> str:
+    return str(CRS_SMOKE_CASES[args.crs_smoke_case]["blocked_path"])
+
+
+def is_crs_block_probe(path: str, smoke_case: str) -> bool:
+    decoded = urllib.parse.unquote(path).lower()
+    if smoke_case == "minimal":
+        return "union" in decoded and "select" in decoded
+    if smoke_case == "secondary":
+        return "<script>" in decoded and "alert(" in decoded
+    return False
+
+
+def crs_probe_uri(headers: http.client.HTTPMessage, path: str) -> str:
+    for header_name in ("x-forwarded-uri", "x-envoy-original-path", "x-original-uri"):
+        value = headers.get(header_name)
+        if value:
+            return value
+    return path
+
+
+def crs_version_from_source(source_dir: Path, configured_ref: str) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(source_dir), "describe", "--tags", "--always", "--dirty"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        if completed.returncode == 0 and completed.stdout.strip():
+            return completed.stdout.strip()
+    except OSError:
+        pass
+    changes = source_dir / "CHANGES.md"
+    if changes.is_file():
+        match = re.search(r"^## Version ([^ \n]+)", changes.read_text(encoding="utf-8", errors="replace"), re.M)
+        if match:
+            return match.group(1)
+    return configured_ref
+
+
+def bracket_value_text(text: str, key: str) -> str:
+    match = re.search(rf'\[{re.escape(key)} "([^"]*)"\]', text)
+    return match.group(1) if match else ""
+
+
+def crs_detection_from_audit_log(audit_log_path: Path, fallback_rule_id: str, fallback_message: str) -> tuple[str, str]:
+    if not audit_log_path.is_file():
+        return fallback_rule_id, fallback_message
+    try:
+        text = audit_log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return fallback_rule_id, fallback_message
+    observed: list[tuple[str, str]] = []
+    for line in text.splitlines():
+        if "ModSecurity:" not in line:
+            continue
+        rule_id = bracket_value_text(line, "id")
+        message = bracket_value_text(line, "msg")
+        if rule_id:
+            observed.append((rule_id, message))
+    for rule_id, message in observed:
+        if not rule_id.startswith("949"):
+            return rule_id, message
+    if observed:
+        return observed[-1]
+    return fallback_rule_id, fallback_message
+
+
+def crs_source_candidate_roots(args: argparse.Namespace) -> list[Path]:
+    roots: list[Path] = []
+
+    def add(path: Path) -> None:
+        if path.is_absolute() and str(path) not in {str(existing) for existing in roots}:
+            roots.append(path)
+
+    if args.crs_source_dir:
+        add(Path(args.crs_source_dir))
+    for root_text in args.runtime_lookup_root:
+        if not root_text:
+            continue
+        root = Path(root_text)
+        add(root / "src/coreruleset")
+        add(root / "coreruleset")
+        add(root / "sources/coreruleset")
+        add(root / "component-cache/sources/coreruleset")
+    for base_text in (os.environ.get("RUNNER_TEMP", ""), os.environ.get("TMPDIR", ""), "/tmp", "/var/tmp"):
+        if not base_text:
+            continue
+        verified = Path(base_text) / "ModSecurity-conector-verified"
+        add(verified / "src/coreruleset")
+        add(verified / "component-cache/sources/coreruleset")
+    return roots
+
+
+def resolve_crs_source_dir(args: argparse.Namespace) -> Path:
+    for candidate in crs_source_candidate_roots(args):
+        if (
+            candidate.is_dir()
+            and (candidate / "crs-setup.conf.example").is_file()
+            and (candidate / "rules").is_dir()
+        ):
+            return candidate
+    configured = Path(args.crs_source_dir)
+    raise SmokeBlocked(f"missing CRS_SOURCE_DIR: {configured}; run make fetch-crs", ["crs"])
 
 
 def free_port() -> int:
@@ -72,16 +220,29 @@ class SimpleDecisionBackend:
 class ModSecurityDecisionBackend:
     decision_backend = "libmodsecurity"
 
-    def __init__(self, helper: Path, rule_file: Path, decision_log_path: Path, env: dict[str, str]) -> None:
+    def __init__(
+        self,
+        helper: Path,
+        rule_file: Path,
+        decision_log_path: Path,
+        env: dict[str, str],
+        ruleset: str,
+        crs_smoke_case: str,
+    ) -> None:
         self.helper = helper
         self.rule_file = rule_file
         self.decision_log_path = decision_log_path
         self.env = env
+        self.ruleset = ruleset
+        self.crs_smoke_case = crs_smoke_case
         self.modsecurity_backend_verified = False
         self.modsecurity_rule_loaded = False
         self.intervention_status: int | None = None
         self.last_error: str | None = None
         self.blocked_decision: dict[str, object] | None = None
+        self.allowed_decision: dict[str, object] | None = None
+        self.crs_rule_id = ""
+        self.crs_rule_message = ""
 
     def _evaluate(self, header_value: str, path: str) -> dict[str, object]:
         command = [
@@ -90,6 +251,8 @@ class ModSecurityDecisionBackend:
             str(self.rule_file),
             "--decision-log",
             str(self.decision_log_path),
+            "--ruleset",
+            self.ruleset,
             "--uri",
             path,
         ]
@@ -115,12 +278,41 @@ class ModSecurityDecisionBackend:
         return payload
 
     def decide(self, headers: http.client.HTTPMessage, path: str) -> dict[str, object]:
-        header_value = headers.get("x-modsec-smoke", "")
-        payload = self._evaluate(header_value, path)
+        if self.ruleset == "crs":
+            header_value = ""
+            evaluation_path = crs_probe_uri(headers, path)
+        else:
+            header_value = headers.get("x-modsec-smoke", "")
+            evaluation_path = path
+        payload = self._evaluate(header_value, evaluation_path)
         self.modsecurity_rule_loaded = bool(payload.get("modsecurity_rule_loaded"))
         disruptive = bool(payload.get("intervention_disruptive"))
         status = int(payload.get("intervention_status") or (403 if disruptive else 200))
         self.intervention_status = status
+        if self.ruleset == "crs":
+            is_block_probe = is_crs_block_probe(evaluation_path, self.crs_smoke_case)
+            if is_block_probe:
+                self.blocked_decision = payload
+                self.crs_rule_id = str(payload.get("crs_rule_id") or payload.get("modsecurity_rule_id") or "")
+                self.crs_rule_message = str(payload.get("crs_rule_message") or "")
+                self.modsecurity_backend_verified = (
+                    self.modsecurity_rule_loaded
+                    and disruptive
+                    and status == 403
+                    and bool(self.crs_rule_id)
+                    and self.crs_rule_id != "1000001"
+                )
+            else:
+                self.allowed_decision = payload
+            body = (
+                b"blocked by libmodsecurity CRS smoke rule\n"
+                if disruptive
+                else b"allowed by libmodsecurity CRS smoke rule\n"
+            )
+            return {
+                "body": body,
+                "status": status if disruptive else 200,
+            }
         if header_value == "block":
             self.blocked_decision = payload
             self.modsecurity_backend_verified = (
@@ -294,10 +486,18 @@ def wait_for_http_url(
 def local_library_env(base_env: dict[str, str], lib_dir: Path, runtime_lookup_roots: list[str]) -> dict[str, str]:
     env = dict(base_env)
     paths = [str(lib_dir)]
+    for candidate in (
+        lib_dir.parent.parent.parent / "expat/lib",
+        lib_dir.parent.parent.parent / "pcre2/lib",
+        lib_dir.parent.parent.parent / "yajl/lib",
+    ):
+        if candidate.is_dir():
+            paths.append(str(candidate))
     for root_text in runtime_lookup_roots:
         root = Path(root_text)
         for candidate in (
             root / "prefix/expat/lib",
+            root / "component-cache/prefix/expat/lib",
             root / "expat/lib",
         ):
             if candidate.is_dir():
@@ -309,32 +509,107 @@ def local_library_env(base_env: dict[str, str], lib_dir: Path, runtime_lookup_ro
     return env
 
 
+def prepare_crs_smoke_config(args: argparse.Namespace, log_dir: Path) -> tuple[Path, Path, str]:
+    source_dir = resolve_crs_source_dir(args)
+    args.effective_crs_source_dir = str(source_dir)
+    setup_template = source_dir / "crs-setup.conf.example"
+    rules_dir = source_dir / "rules"
+    if not setup_template.is_file():
+        raise SmokeBlocked(f"missing CRS setup template: {setup_template}", ["crs"])
+    if not rules_dir.is_dir():
+        raise SmokeBlocked(f"missing CRS rules directory: {rules_dir}", ["crs"])
+    rule_files = sorted(rules_dir.glob("*.conf"))
+    if not rule_files:
+        raise SmokeBlocked(f"missing CRS rule files: {rules_dir}/*.conf", ["crs"])
+
+    smoke_label = "crs-smoke" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke"
+    runtime_dir = Path(args.evidence_root) / smoke_label
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    crs_setup = runtime_dir / "crs-setup.conf"
+    shutil.copyfile(setup_template, crs_setup)
+
+    audit_log_name = "crs-audit.log" if args.crs_smoke_case == "minimal" else "crs-secondary-audit.log"
+    audit_log_path = log_dir / audit_log_name
+    if audit_log_path.exists():
+        audit_log_path.unlink()
+    args.effective_audit_log_path = str(audit_log_path)
+    if args.crs_smoke_case == "minimal":
+        rule_file_name = "modsecurity-crs-smoke.conf"
+    else:
+        rule_file_name = "modsecurity-crs-secondary-smoke.conf"
+    rule_file = runtime_dir / rule_file_name
+    lines = [
+        f"# Generated by run_local_runtime_smoke.py for the {args.crs_smoke_case} CRS smoke.",
+        "SecRuleEngine On",
+        "SecRequestBodyAccess On",
+        "SecResponseBodyAccess Off",
+        "SecAuditEngine RelevantOnly",
+        "SecAuditLogType Serial",
+        f'SecAuditLog "{audit_log_path}"',
+        f'Include "{crs_setup}"',
+    ]
+    plugins_dir = source_dir / "plugins"
+    if plugins_dir.is_dir():
+        lines.extend(
+            [
+                f'Include "{plugins_dir}/*-config.conf"',
+                f'Include "{plugins_dir}/*-before.conf"',
+            ]
+        )
+    lines.append(f'Include "{rules_dir}/*.conf"')
+    if plugins_dir.is_dir():
+        lines.append(f'Include "{plugins_dir}/*-after.conf"')
+    rule_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    version = crs_version_from_source(source_dir, args.crs_git_ref)
+    payload_name = "crs-smoke-payload.txt" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke-payload.txt"
+    (log_dir / payload_name).write_text(
+        "\n".join(
+            [
+                "allowed_path=/allowed",
+                f"blocked_path={crs_blocked_path(args)}",
+                f"crs_smoke_case={args.crs_smoke_case}",
+                f"crs_smoke_description={CRS_SMOKE_CASES[args.crs_smoke_case]['description']}",
+                f"crs_source_dir={source_dir}",
+                f"crs_runtime_dir={runtime_dir}",
+                f"crs_git_ref={args.crs_git_ref}",
+                f"crs_version={version}",
+                f"audit_log_path={audit_log_path}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return rule_file, runtime_dir, version
+
+
 def build_modsecurity_evaluator(args: argparse.Namespace, log_dir: Path) -> tuple[Path, dict[str, str]]:
     include_dir = Path(args.modsecurity_include_dir) if args.modsecurity_include_dir else None
     lib_dir = Path(args.modsecurity_lib_dir) if args.modsecurity_lib_dir else None
     lib_file = Path(args.modsecurity_lib_file) if args.modsecurity_lib_file else None
-    rule_file = Path(args.modsecurity_rule_file) if args.modsecurity_rule_file else None
+    rule_file_text = namespace_value(args, "effective_modsecurity_rule_file", args.modsecurity_rule_file)
+    rule_file = Path(rule_file_text) if rule_file_text else None
     if include_dir is None or lib_dir is None or lib_file is None or rule_file is None:
-        raise RuntimeError("local libmodsecurity include dir, lib dir, lib file, and targeted rule file are required")
+        raise RuntimeError("local libmodsecurity include dir, lib dir, lib file, and rule file are required")
     for path, label in (
         (include_dir / "modsecurity/modsecurity.h", "modsecurity.h"),
         (include_dir / "modsecurity/rules_set.h", "rules_set.h"),
         (include_dir / "modsecurity/transaction.h", "transaction.h"),
         (lib_file, "libmodsecurity shared library"),
-        (rule_file, "targeted smoke rule"),
+        (rule_file, "ModSecurity smoke rule"),
     ):
         if not path.exists():
             raise RuntimeError(f"missing {label}: {path}")
 
     cxx = os.environ.get("CXX") or shutil.which("c++") or shutil.which("g++")
     if not cxx:
-        raise RuntimeError("missing C++ compiler for targeted libmodsecurity smoke evaluator")
+        raise RuntimeError("missing C++ compiler for libmodsecurity smoke evaluator")
 
     source = Path(args.connector_root) / "common/scripts/modsecurity_targeted_eval.cc"
     if not source.is_file():
-        raise RuntimeError(f"modsecurity targeted evaluator source missing: {source}")
+        raise RuntimeError(f"modsecurity evaluator source missing: {source}")
 
-    build_dir = Path(args.tmp_root) / f"{args.connector}-modsecurity-targeted-smoke"
+    build_dir = Path(args.tmp_root) / f"{args.connector}-modsecurity-{args.modsecurity_ruleset}-smoke"
     build_dir.mkdir(parents=True, exist_ok=True)
     output = build_dir / "modsecurity_targeted_eval"
     command = [
@@ -356,7 +631,7 @@ def build_modsecurity_evaluator(args: argparse.Namespace, log_dir: Path) -> tupl
     (log_dir / "modsecurity-evaluator-build.stderr.log").write_text(completed.stderr, encoding="utf-8")
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
-        raise RuntimeError(f"could not build targeted libmodsecurity evaluator: {detail}")
+        raise RuntimeError(f"could not build libmodsecurity evaluator: {detail}")
     output.chmod(0o755)
     env = local_library_env(os.environ, lib_dir, args.runtime_lookup_root)
     return output, env
@@ -540,7 +815,18 @@ def writer_args(
     lighttpd_log_path: str = "",
     upstream_log_path: str = "",
     request_transcript_path: str = "",
+    crs_minimal_smoke_verified: bool = False,
+    crs_secondary_smoke_verified: bool = False,
+    crs_rule_id: str = "",
+    crs_rule_message: str = "",
 ) -> list[str]:
+    effective_rule_file = namespace_value(args, "effective_modsecurity_rule_file", args.modsecurity_rule_file)
+    effective_crs_runtime_dir = namespace_value(args, "effective_crs_runtime_dir", args.crs_runtime_dir)
+    effective_crs_source_dir = namespace_value(args, "effective_crs_source_dir", args.crs_source_dir)
+    crs_version = namespace_value(args, "effective_crs_version", "")
+    modsecurity_rule_id = ""
+    if args.decision_backend == "libmodsecurity":
+        modsecurity_rule_id = crs_rule_id if args.modsecurity_ruleset == "crs" else "1000001"
     command = [
         sys.executable,
         str(Path(args.connector_root) / "common/scripts/write_smoke_result.py"),
@@ -562,12 +848,16 @@ def writer_args(
         str(blocked) if blocked is not None else "not-run",
         "--decision-backend",
         args.decision_backend,
+        "--modsecurity-ruleset",
+        args.modsecurity_ruleset if args.decision_backend == "libmodsecurity" else "",
+        "--crs-smoke-case",
+        args.crs_smoke_case if args.modsecurity_ruleset == "crs" else "",
         "--modsecurity-backend-verified",
         "true" if modsecurity_backend_verified else "false",
         "--modsecurity-rule-file",
-        args.modsecurity_rule_file,
+        effective_rule_file,
         "--modsecurity-rule-id",
-        "1000001" if args.decision_backend == "libmodsecurity" else "",
+        modsecurity_rule_id,
         "--modsecurity-rule-loaded",
         "true" if modsecurity_rule_loaded else "false",
         "--intervention-status",
@@ -628,6 +918,24 @@ def writer_args(
         args.runtime_binary_name,
         "--architecture-decision",
         args.architecture_decision,
+        "--crs-repo-url",
+        args.crs_repo_url,
+        "--crs-git-ref",
+        args.crs_git_ref,
+        "--crs-source-dir",
+        effective_crs_source_dir,
+        "--crs-runtime-dir",
+        effective_crs_runtime_dir,
+        "--crs-version",
+        crs_version,
+        "--crs-minimal-smoke-verified",
+        "true" if crs_minimal_smoke_verified else "false",
+        "--crs-secondary-smoke-verified",
+        "true" if crs_secondary_smoke_verified else "false",
+        "--crs-rule-id",
+        crs_rule_id,
+        "--crs-rule-message",
+        crs_rule_message,
     ]
     for dependency in missing:
         command.extend(["--missing-dependency", dependency])
@@ -656,6 +964,10 @@ def write_result(
     lighttpd_log_path: str = "",
     upstream_log_path: str = "",
     request_transcript_path: str = "",
+    crs_minimal_smoke_verified: bool = False,
+    crs_secondary_smoke_verified: bool = False,
+    crs_rule_id: str = "",
+    crs_rule_message: str = "",
 ) -> None:
     subprocess.run(
         writer_args(
@@ -678,6 +990,10 @@ def write_result(
             lighttpd_log_path,
             upstream_log_path,
             request_transcript_path,
+            crs_minimal_smoke_verified,
+            crs_secondary_smoke_verified,
+            crs_rule_id,
+            crs_rule_message,
         ),
         check=True,
     )
@@ -704,8 +1020,17 @@ def run_lighttpd_sidecar_smoke(
     (document_root / "allowed").write_text("msconnector lighttpd upstream allowed\n", encoding="utf-8")
 
     lighttpd_log_path = log_dir / "lighttpd-error.log"
-    upstream_log_path = log_dir / "lighttpd-upstream.log"
-    request_transcript_path = log_dir / "request-transcript.jsonl"
+    if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
+        upstream_log_name = "crs-secondary-lighttpd-upstream.log"
+        transcript_name = "crs-secondary-request-transcript.jsonl"
+    elif args.modsecurity_ruleset == "crs":
+        upstream_log_name = "crs-lighttpd-upstream.log"
+        transcript_name = "crs-request-transcript.jsonl"
+    else:
+        upstream_log_name = "lighttpd-upstream.log"
+        transcript_name = "request-transcript.jsonl"
+    upstream_log_path = log_dir / upstream_log_name
+    request_transcript_path = log_dir / transcript_name
     stdout_path = log_dir / "lighttpd.stdout.log"
     stderr_path = log_dir / "lighttpd.stderr.log"
     config_path = work_dir / "lighttpd.conf"
@@ -723,6 +1048,12 @@ def run_lighttpd_sidecar_smoke(
     sidecar_server: http.server.ThreadingHTTPServer | None = None
 
     try:
+        for stale_path in (lighttpd_log_path, upstream_log_path, request_transcript_path):
+            if stale_path.exists():
+                stale_path.unlink()
+        if decision_log_path is not None and decision_log_path.exists():
+            decision_log_path.unlink()
+
         version_completed = subprocess.run(
             [str(binary), "-v"],
             check=False,
@@ -770,9 +1101,11 @@ def run_lighttpd_sidecar_smoke(
             sidecar_url = f"http://127.0.0.1:{listen_port}/allowed"
             wait_for_http_url(sidecar_url, time.monotonic() + 8, label="lighttpd sidecar proxy")
             allowed_status = http_status(sidecar_url)
+            blocked_path = crs_blocked_path(args) if args.modsecurity_ruleset == "crs" else "/blocked"
+            blocked_headers = {} if args.modsecurity_ruleset == "crs" else {"X-Modsec-Smoke": "block"}
             blocked_status = http_status(
-                f"http://127.0.0.1:{listen_port}/blocked",
-                {"X-Modsec-Smoke": "block"},
+                f"http://127.0.0.1:{listen_port}{blocked_path}",
+                blocked_headers,
             )
 
         modsecurity_backend_verified = bool(
@@ -782,8 +1115,26 @@ def run_lighttpd_sidecar_smoke(
         intervention_status = getattr(decision_backend, "intervention_status", None)
         backend_error = getattr(decision_backend, "last_error", None)
         sidecar_proxy_verified = lighttpd_http_verified and allowed_status == 200 and blocked_status == 403
+        crs_rule_id = str(getattr(decision_backend, "crs_rule_id", ""))
+        crs_rule_message = str(getattr(decision_backend, "crs_rule_message", ""))
+        if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
+            crs_rule_id, crs_rule_message = crs_detection_from_audit_log(
+                Path(namespace_value(args, "effective_audit_log_path", "")),
+                crs_rule_id,
+                crs_rule_message,
+            )
+        crs_case_verified = (
+            args.modsecurity_ruleset == "crs"
+            and sidecar_proxy_verified
+            and modsecurity_backend_verified
+            and bool(crs_rule_id)
+        )
+        crs_minimal_smoke_verified = crs_case_verified and args.crs_smoke_case == "minimal"
+        crs_secondary_smoke_verified = crs_case_verified and args.crs_smoke_case == "secondary"
         success = sidecar_proxy_verified
-        if args.decision_backend == "libmodsecurity":
+        if args.decision_backend == "libmodsecurity" and args.modsecurity_ruleset == "crs":
+            success = success and crs_case_verified
+        elif args.decision_backend == "libmodsecurity":
             success = success and modsecurity_backend_verified
 
         with upstream_log_path.open("a", encoding="utf-8") as handle:
@@ -807,28 +1158,49 @@ def run_lighttpd_sidecar_smoke(
                 modsecurity_rule_loaded,
                 intervention_status,
                 str(decision_log_path) if decision_log_path is not None else "",
-                "",
+                namespace_value(args, "effective_audit_log_path", ""),
                 lighttpd_binary_verified,
                 lighttpd_http_verified,
                 sidecar_proxy_verified,
                 str(lighttpd_log_path),
                 str(upstream_log_path),
                 str(request_transcript_path),
+                crs_minimal_smoke_verified,
+                crs_secondary_smoke_verified,
+                crs_rule_id,
+                crs_rule_message,
             )
             return 0
 
         reason = "lighttpd sidecar_proxy smoke did not produce expected direct 200 and sidecar 200/403 statuses"
         missing: list[str] = []
         if args.decision_backend == "libmodsecurity" and not modsecurity_backend_verified:
-            reason = "lighttpd libmodsecurity targeted smoke did not verify a rule-backed 403 intervention"
+            if args.modsecurity_ruleset == "crs":
+                reason = "lighttpd libmodsecurity CRS smoke did not verify a CRS-backed 403 intervention"
+            else:
+                reason = "lighttpd libmodsecurity targeted smoke did not verify a rule-backed 403 intervention"
             missing = ["libmodsecurity"] if backend_error else []
         if backend_error:
             reason = f"{reason}: {backend_error}"
+        status = "BLOCKED"
+        exit_code = 77
+        runtime_verified = False
+        if (
+            args.decision_backend == "libmodsecurity"
+            and args.modsecurity_ruleset == "crs"
+            and allowed_status == 200
+            and backend_error is None
+        ):
+            status = "FAIL"
+            exit_code = 1
+            runtime_verified = True
+            reason = f"lighttpd CRS smoke case {args.crs_smoke_case} did not produce CRS-backed HTTP 403 evidence"
+            missing = []
         write_result(
             args,
-            "BLOCKED",
-            77,
-            False,
+            status,
+            exit_code,
+            runtime_verified,
             allowed_status,
             blocked_status,
             reason,
@@ -837,15 +1209,19 @@ def run_lighttpd_sidecar_smoke(
             modsecurity_rule_loaded,
             intervention_status,
             str(decision_log_path) if decision_log_path is not None else "",
-            "",
+            namespace_value(args, "effective_audit_log_path", ""),
             lighttpd_binary_verified,
             lighttpd_http_verified,
             sidecar_proxy_verified,
             str(lighttpd_log_path),
             str(upstream_log_path),
             str(request_transcript_path),
+            crs_minimal_smoke_verified,
+            crs_secondary_smoke_verified,
+            crs_rule_id,
+            crs_rule_message,
         )
-        return 77
+        return exit_code
     except Exception as exc:  # noqa: BLE001 - runtime startup failures become blocked evidence.
         modsecurity_backend_verified = bool(
             getattr(decision_backend, "modsecurity_backend_verified", False)
@@ -888,25 +1264,81 @@ def run_lighttpd_sidecar_smoke(
 
 
 def run_smoke(args: argparse.Namespace) -> int:
+    try:
+        args.modsecurity_ruleset = normalize_ruleset(args.modsecurity_ruleset)
+        args.crs_smoke_case = normalize_crs_smoke_case(args.crs_smoke_case)
+    except SmokeBlocked as exc:
+        write_result(
+            args,
+            "BLOCKED",
+            77,
+            False,
+            None,
+            None,
+            exc.reason,
+            exc.missing_dependencies,
+        )
+        return 77
+    if args.modsecurity_ruleset == "crs":
+        config_suffix = "crs-smoke" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke"
+        args.config_root = str(Path(args.config_root) / config_suffix)
     binary = Path(args.resolved_runtime_binary)
     work_dir = Path(args.config_root)
     log_dir = Path(args.log_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
-    decision_log_path = log_dir / "modsecurity-decision.log" if args.decision_backend == "libmodsecurity" else None
+    if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
+        decision_log_name = "crs-secondary-decision.log"
+    elif args.modsecurity_ruleset == "crs":
+        decision_log_name = "crs-decision.log"
+    else:
+        decision_log_name = "modsecurity-decision.log"
+    decision_log_path = log_dir / decision_log_name if args.decision_backend == "libmodsecurity" else None
+    if args.connector != "lighttpd" and decision_log_path is not None and decision_log_path.exists():
+        decision_log_path.unlink()
 
     try:
+        if args.modsecurity_ruleset == "crs" and args.decision_backend != "libmodsecurity":
+            raise SmokeBlocked("CRS smoke requires DECISION_BACKEND=libmodsecurity", ["libmodsecurity"])
         if args.decision_backend == "libmodsecurity":
+            if args.modsecurity_ruleset == "crs":
+                rule_file, crs_runtime_dir, crs_version = prepare_crs_smoke_config(args, log_dir)
+                args.effective_modsecurity_rule_file = str(rule_file)
+                args.effective_crs_runtime_dir = str(crs_runtime_dir)
+                args.effective_crs_version = crs_version
+            else:
+                args.effective_modsecurity_rule_file = args.modsecurity_rule_file
+                args.effective_crs_runtime_dir = args.crs_runtime_dir
+                args.effective_crs_version = ""
             helper, helper_env = build_modsecurity_evaluator(args, log_dir)
             decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend = ModSecurityDecisionBackend(
                 helper,
-                Path(args.modsecurity_rule_file),
+                Path(args.effective_modsecurity_rule_file),
                 decision_log_path if decision_log_path is not None else log_dir / "modsecurity-decision.log",
                 helper_env,
+                args.modsecurity_ruleset,
+                args.crs_smoke_case,
             )
         else:
             decision_backend = SimpleDecisionBackend()
+    except SmokeBlocked as exc:
+        write_result(
+            args,
+            "BLOCKED",
+            77,
+            False,
+            None,
+            None,
+            exc.reason,
+            exc.missing_dependencies,
+            False,
+            False,
+            None,
+            str(decision_log_path) if decision_log_path is not None else "",
+        )
+        return 77
     except Exception as exc:  # noqa: BLE001 - dependency/build gaps become blocked evidence.
+        missing_dependency = "crs" if args.modsecurity_ruleset == "crs" and "CRS" in str(exc) else "libmodsecurity"
         write_result(
             args,
             "BLOCKED",
@@ -915,7 +1347,7 @@ def run_smoke(args: argparse.Namespace) -> int:
             None,
             None,
             f"{args.connector} libmodsecurity decision backend could not be prepared: {exc}",
-            ["libmodsecurity"],
+            [missing_dependency],
             False,
             False,
             None,
@@ -946,13 +1378,17 @@ def run_smoke(args: argparse.Namespace) -> int:
             process = subprocess.Popen(command, stdout=stdout, stderr=stderr)
             wait_for_proxy(f"http://127.0.0.1:{listen_port}/allowed", process, time.monotonic() + 12)
             allowed_status = http_status(f"http://127.0.0.1:{listen_port}/allowed")
-            blocked_headers = (
-                {"X-Modsec-Smoke": "block"}
-                if args.decision_backend == "libmodsecurity"
-                else {"X-Msconnector-Block": "1"}
-            )
+            if args.decision_backend == "libmodsecurity" and args.modsecurity_ruleset == "crs":
+                blocked_headers = {}
+                blocked_path = crs_blocked_path(args)
+            elif args.decision_backend == "libmodsecurity":
+                blocked_headers = {"X-Modsec-Smoke": "block"}
+                blocked_path = "/blocked"
+            else:
+                blocked_headers = {"X-Msconnector-Block": "1"}
+                blocked_path = "/blocked"
             blocked_status = http_status(
-                f"http://127.0.0.1:{listen_port}/blocked",
+                f"http://127.0.0.1:{listen_port}{blocked_path}",
                 blocked_headers,
             )
 
@@ -962,8 +1398,27 @@ def run_smoke(args: argparse.Namespace) -> int:
         modsecurity_rule_loaded = bool(getattr(decision_backend, "modsecurity_rule_loaded", False))
         intervention_status = getattr(decision_backend, "intervention_status", None)
         backend_error = getattr(decision_backend, "last_error", None)
+        crs_rule_id = str(getattr(decision_backend, "crs_rule_id", ""))
+        crs_rule_message = str(getattr(decision_backend, "crs_rule_message", ""))
+        if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
+            crs_rule_id, crs_rule_message = crs_detection_from_audit_log(
+                Path(namespace_value(args, "effective_audit_log_path", "")),
+                crs_rule_id,
+                crs_rule_message,
+            )
+        crs_case_verified = (
+            args.modsecurity_ruleset == "crs"
+            and allowed_status == 200
+            and blocked_status == 403
+            and modsecurity_backend_verified
+            and bool(crs_rule_id)
+        )
+        crs_minimal_smoke_verified = crs_case_verified and args.crs_smoke_case == "minimal"
+        crs_secondary_smoke_verified = crs_case_verified and args.crs_smoke_case == "secondary"
         success = allowed_status == 200 and blocked_status == 403
-        if args.decision_backend == "libmodsecurity":
+        if args.decision_backend == "libmodsecurity" and args.modsecurity_ruleset == "crs":
+            success = success and crs_case_verified
+        elif args.decision_backend == "libmodsecurity":
             success = success and modsecurity_backend_verified
 
         if success:
@@ -980,24 +1435,55 @@ def run_smoke(args: argparse.Namespace) -> int:
                 modsecurity_rule_loaded,
                 intervention_status,
                 str(decision_log_path) if decision_log_path is not None else "",
+                namespace_value(args, "effective_audit_log_path", ""),
+                False,
+                False,
+                False,
+                "",
+                "",
+                "",
+                crs_minimal_smoke_verified,
+                crs_secondary_smoke_verified,
+                crs_rule_id,
+                crs_rule_message,
             )
             return 0
 
         reason = f"{args.connector} local runtime smoke did not produce expected 200/403 statuses"
         missing: list[str] = []
         if args.decision_backend == "libmodsecurity" and not modsecurity_backend_verified:
-            reason = (
-                f"{args.connector} libmodsecurity targeted smoke did not verify "
-                "a rule-backed 403 intervention"
-            )
+            if args.modsecurity_ruleset == "crs":
+                reason = f"{args.connector} libmodsecurity CRS smoke did not verify a CRS-backed 403 intervention"
+            else:
+                reason = (
+                    f"{args.connector} libmodsecurity targeted smoke did not verify "
+                    "a rule-backed 403 intervention"
+                )
             missing = ["libmodsecurity"] if backend_error else []
         if backend_error:
             reason = f"{reason}: {backend_error}"
+        status = "BLOCKED"
+        exit_code = 77
+        runtime_verified = False
+        if (
+            args.decision_backend == "libmodsecurity"
+            and args.modsecurity_ruleset == "crs"
+            and allowed_status == 200
+            and backend_error is None
+        ):
+            status = "FAIL"
+            exit_code = 1
+            runtime_verified = True
+            reason = (
+                f"{args.connector} CRS smoke case {args.crs_smoke_case} "
+                "did not produce CRS-backed HTTP 403 evidence"
+            )
+            missing = []
         write_result(
             args,
-            "BLOCKED",
-            77,
-            False,
+            status,
+            exit_code,
+            runtime_verified,
             allowed_status,
             blocked_status,
             reason,
@@ -1006,8 +1492,19 @@ def run_smoke(args: argparse.Namespace) -> int:
             modsecurity_rule_loaded,
             intervention_status,
             str(decision_log_path) if decision_log_path is not None else "",
+            namespace_value(args, "effective_audit_log_path", ""),
+            False,
+            False,
+            False,
+            "",
+            "",
+            "",
+            crs_minimal_smoke_verified,
+            crs_secondary_smoke_verified,
+            crs_rule_id,
+            crs_rule_message,
         )
-        return 77
+        return exit_code
     except Exception as exc:  # noqa: BLE001 - all runtime startup failures become blocked evidence.
         modsecurity_backend_verified = bool(
             getattr(decision_backend, "modsecurity_backend_verified", False)
@@ -1068,6 +1565,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--harness-path", required=True)
     parser.add_argument("--architecture-decision", default="")
     parser.add_argument("--decision-backend", choices=["simple", "libmodsecurity"], default="simple")
+    parser.add_argument("--modsecurity-ruleset", default=os.environ.get("MODSECURITY_RULESET", "targeted"))
+    parser.add_argument("--crs-smoke-case", default=os.environ.get("CRS_SMOKE_CASE", "minimal"))
     parser.add_argument("--modsecurity-rule-file", default="")
     parser.add_argument("--modsecurity-include-dir", default="")
     parser.add_argument("--modsecurity-lib-dir", default="")
@@ -1075,6 +1574,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--modsecurity-pkg-config-path", default="")
     parser.add_argument("--modsecurity-prefix", default="")
     parser.add_argument("--modsecurity-manifest", default="")
+    parser.add_argument("--crs-repo-url", default=os.environ.get("CRS_REPO_URL", ""))
+    parser.add_argument("--crs-git-ref", default=os.environ.get("CRS_GIT_REF", ""))
+    parser.add_argument("--crs-source-dir", default=os.environ.get("CRS_SOURCE_DIR", ""))
+    parser.add_argument("--crs-runtime-dir", default=os.environ.get("CRS_RUNTIME_DIR", ""))
     return parser.parse_args()
 
 

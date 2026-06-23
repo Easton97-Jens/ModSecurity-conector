@@ -29,8 +29,11 @@ make smoke-traefik
 - Metadata build starter: PASS for metadata compile smoke.
 - Decision-service starter build: PASS for local compile smoke.
 - Decision-service self-test: PASS for in-memory allow/block decisions.
-- No-CRS: not run.
-- With-CRS: not run.
+- Minimal CRS smoke: conditional via `make smoke-traefik-crs`; PASS only with
+  local CRS and CRS-backed 403 evidence.
+- Secondary CRS smoke: conditional via `make smoke-traefik-crs-secondary`; PASS
+  only with local CRS and secondary CRS-backed 403 evidence.
+- CRS complete: not claimed.
 - RESPONSE_BODY: not verified.
 - Negative/pass-through: proven only by local runtime smoke when allowed request
   returns 200.
@@ -90,6 +93,33 @@ request with `X-Modsec-Smoke: block` must return 403 from rule `1000001`.
 `intervention_status`, and `decision_log_path`. Missing local libmodsecurity
 headers/libraries are reported as Exit 77/BLOCKED, not as failure or success.
 
+The minimal CRS smoke uses the same runtime entrypoint with CRS selected:
+
+```sh
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-traefik
+make smoke-traefik-crs
+make smoke-traefik-crs-secondary
+make smoke-open-connectors-crs
+make smoke-open-connectors-crs-secondary
+```
+
+This mode loads CRS from common.sh-managed local paths, writes the generated
+CRS smoke config under `$TRAEFIK_RESULT_ROOT/crs-smoke`, and records
+CRS-specific evidence in `$TRAEFIK_RESULT_ROOT/crs-result.json` and
+`$TRAEFIK_LOG_ROOT/crs-decision.log`. The allowed request must return 200. The
+blocked request uses `/?id=1%20UNION%20SELECT%20password%20FROM%20users` and
+must return 403 from CRS, not from rule `1000001`.
+
+The secondary CRS smoke uses the same runner with `CRS_SMOKE_CASE=secondary`.
+It writes generated config under `$TRAEFIK_RESULT_ROOT/crs-secondary-smoke`,
+records `$TRAEFIK_RESULT_ROOT/crs-secondary-result.json`,
+`$TRAEFIK_LOG_ROOT/crs-secondary-decision.log`, and
+`$TRAEFIK_LOG_ROOT/crs-secondary-audit.log`, and sends
+`/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E`. A PASS requires HTTP 200 for the
+allowed request, HTTP 403 for the secondary probe, and an actual CRS rule
+ID/message extracted from evidence. If CRS, libmodsecurity, and Traefik are
+available but the secondary probe is not blocked, the result is FAIL.
+
 ## Common Result Schema
 
 `make smoke-traefik` now uses the shared smoke-result writer in
@@ -140,6 +170,34 @@ libmodsecurity:
 - Intervention status: `403`
 - Decision log path: `$TRAEFIK_LOG_ROOT/modsecurity-decision.log`
 - Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
+  `crs_complete=true`, `response_body_verified=true`
+
+Expected minimal CRS PASS result with local Traefik, local libmodsecurity, and
+local CRS:
+
+- Decision backend: `libmodsecurity`
+- Ruleset: `crs`
+- CRS version/ref: from common.sh-managed CRS source, for example `v4.26.0`
+- CRS runtime dir: `$TRAEFIK_RESULT_ROOT/crs-smoke`
+- Allowed request status: `200`
+- Blocked request status: `403`
+- Observed CRS rule ID/message: from libmodsecurity intervention evidence
+- `crs_minimal_smoke_verified=true`
+- Still forbidden: `production_ready=true`, `full_matrix_ready=true`,
+  `crs_complete=true`, `response_body_verified=true`
+
+Expected secondary CRS PASS result with local Traefik, local libmodsecurity,
+and local CRS:
+
+- Decision backend: `libmodsecurity`
+- Ruleset: `crs`
+- CRS smoke case: `secondary`
+- CRS runtime dir: `$TRAEFIK_RESULT_ROOT/crs-secondary-smoke`
+- Allowed request status: `200`
+- Blocked request status: `403`
+- Observed CRS rule ID/message: extracted from audit/intervention evidence
+- `crs_secondary_smoke_verified=true`
+- Still forbidden: `production_ready=true`, `full_matrix_ready=true`,
   `crs_complete=true`, `response_body_verified=true`
 
 No global installation is attempted. To run against a prepared local binary:

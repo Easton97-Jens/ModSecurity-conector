@@ -108,6 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allowed-request-status")
     parser.add_argument("--blocked-request-status")
     parser.add_argument("--decision-backend", default="simple")
+    parser.add_argument("--modsecurity-ruleset", default="")
     parser.add_argument("--modsecurity-backend-verified", default="false")
     parser.add_argument("--modsecurity-rule-file", default="")
     parser.add_argument("--modsecurity-rule-id", default="")
@@ -146,6 +147,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--missing-dependency", action="append", default=[])
     parser.add_argument("--claim-not-allowed", action="append", default=[])
     parser.add_argument("--architecture-decision", default="")
+    parser.add_argument("--crs-repo-url", default="")
+    parser.add_argument("--crs-git-ref", default="")
+    parser.add_argument("--crs-source-dir", default="")
+    parser.add_argument("--crs-runtime-dir", default="")
+    parser.add_argument("--crs-version", default="")
+    parser.add_argument("--crs-smoke-case", default="")
+    parser.add_argument("--crs-minimal-smoke-verified", default="false")
+    parser.add_argument("--crs-secondary-smoke-verified", default="false")
+    parser.add_argument("--crs-rule-id", default="")
+    parser.add_argument("--crs-rule-message", default="")
     return parser
 
 
@@ -177,11 +188,17 @@ def main() -> int:
         claims_not_allowed.insert(0, "runtime_verified=true")
     modsecurity_backend_verified = bool_text(args.modsecurity_backend_verified)
     modsecurity_rule_loaded = bool_text(args.modsecurity_rule_loaded)
+    crs_minimal_smoke_verified = bool_text(args.crs_minimal_smoke_verified)
+    crs_secondary_smoke_verified = bool_text(args.crs_secondary_smoke_verified)
     lighttpd_binary_verified = bool_text(args.lighttpd_binary_verified)
     lighttpd_http_verified = bool_text(args.lighttpd_http_verified)
     sidecar_proxy_verified = bool_text(args.sidecar_proxy_verified)
     if not modsecurity_backend_verified and "modsecurity_backend_verified=true" not in claims_not_allowed:
         claims_not_allowed.append("modsecurity_backend_verified=true")
+    if not crs_minimal_smoke_verified and "crs_minimal_smoke_verified=true" not in claims_not_allowed:
+        claims_not_allowed.append("crs_minimal_smoke_verified=true")
+    if not crs_secondary_smoke_verified and "crs_secondary_smoke_verified=true" not in claims_not_allowed:
+        claims_not_allowed.append("crs_secondary_smoke_verified=true")
     missing_dependencies = args.missing_dependency
     allowed_request_status = optional_int(args.allowed_request_status)
     blocked_request_status = optional_int(args.blocked_request_status)
@@ -207,6 +224,16 @@ def main() -> int:
         "common_msconnector_components": list(COMMON_COMPONENTS),
         "connector": connector,
         "crs_complete": False,
+        "crs_git_ref": args.crs_git_ref or None,
+        "crs_minimal_smoke_verified": crs_minimal_smoke_verified,
+        "crs_repo_url": args.crs_repo_url or None,
+        "crs_rule_id": args.crs_rule_id or None,
+        "crs_rule_message": args.crs_rule_message or None,
+        "crs_runtime_dir": args.crs_runtime_dir or None,
+        "crs_secondary_smoke_verified": crs_secondary_smoke_verified,
+        "crs_smoke_case": args.crs_smoke_case or None,
+        "crs_source_dir": args.crs_source_dir or None,
+        "crs_version": args.crs_version or None,
         "decision_backend": args.decision_backend,
         "decision_log_path": args.decision_log_path or None,
         "evidence_root": str(evidence_root),
@@ -230,6 +257,7 @@ def main() -> int:
         "modsecurity_rule_file": args.modsecurity_rule_file or None,
         "modsecurity_rule_id": args.modsecurity_rule_id or None,
         "modsecurity_rule_loaded": modsecurity_rule_loaded,
+        "modsecurity_ruleset": args.modsecurity_ruleset or None,
         "audit_log_path": args.audit_log_path or None,
         "production_ready": False,
         "response_body_verified": response_body_verified,
@@ -298,6 +326,14 @@ def main() -> int:
     evidence_root.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
     write_json(evidence_root / "result.json", result)
+    if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
+        write_json(evidence_root / "crs-secondary-result.json", result)
+    elif args.modsecurity_ruleset == "crs":
+        write_json(evidence_root / "crs-result.json", result)
+    elif args.modsecurity_ruleset == "targeted" and args.decision_backend == "libmodsecurity":
+        write_json(evidence_root / "targeted-result.json", result)
+    elif args.decision_backend == "simple":
+        write_json(evidence_root / "runtime-result.json", result)
     write_jsonl(evidence_root / "results.jsonl", record)
     write_json(evidence_root / "summary.json", summary)
     write_text(evidence_root / "summary.txt", status_text)

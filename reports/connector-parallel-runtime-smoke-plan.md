@@ -49,6 +49,9 @@ These helpers centralize:
 - optional targeted Envoy/Traefik/lighttpd libmodsecurity-backed smoke execution when
   `DECISION_BACKEND=libmodsecurity` is selected and local libmodsecurity
   headers/libraries are resolved from common.sh-managed paths;
+- optional minimal and secondary CRS smoke execution for Envoy, Traefik, and lighttpd when
+  `DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs` is selected and
+  local CRS plus local libmodsecurity are resolved from common.sh-managed paths;
 - the `msconnector_decision` status/intervention/reason shape used by open C
   adapters;
 - local runtime binary lookup without global `PATH` fallback;
@@ -170,6 +173,59 @@ The targeted result adds `decision_backend`, `modsecurity_backend_verified`,
 Missing local libmodsecurity dependencies exit 77 with
 `decision_backend=libmodsecurity`, `modsecurity_backend_verified=false`, and
 `missing_dependencies=["libmodsecurity"]`.
+The shared resolver lives in
+`modules/ModSecurity-test-Framework/ci/connector-smoke-common.sh` and searches
+only explicit local overrides plus common.sh-managed component, build, run, tmp,
+log, and source roots. It can reuse local verified component caches under
+`/tmp/ModSecurity-conector-verified` or `/var/tmp/ModSecurity-conector-verified`
+without falling back to global libmodsecurity or global `pkg-config`.
+
+Minimal CRS smokes are available for the same three open connectors:
+
+```sh
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-envoy
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-traefik
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-lighttpd
+make smoke-envoy-crs
+make smoke-traefik-crs
+make smoke-lighttpd-crs
+make smoke-open-connectors-crs
+```
+
+The CRS source-of-truth stays in `common.sh`: `CRS_REPO_URL`, `CRS_GIT_REF`,
+`CRS_SOURCE_DIR`, and `CRS_RUNTIME_DIR`. The runner creates only
+connector-local smoke configuration under `$<CONNECTOR>_RESULT_ROOT/crs-smoke`.
+It reuses the existing minimal SQLi CRS payload
+`/?id=1%20UNION%20SELECT%20password%20FROM%20users`; the blocked request must
+return HTTP 403 from CRS intervention evidence, not from targeted rule
+`1000001`. Successful CRS smoke writes `crs-result.json` and
+`crs-decision.log`, and may set only `crs_minimal_smoke_verified=true`.
+`crs_complete`, production readiness, full-matrix readiness, and response-body
+verification remain false.
+
+The secondary CRS smoke uses the same local CRS/libmodsecurity/runtime path and
+only switches the CRS smoke case:
+
+```sh
+MODSECURITY_RULESET=crs CRS_SMOKE_CASE=secondary make smoke-envoy
+MODSECURITY_RULESET=crs CRS_SMOKE_CASE=secondary make smoke-traefik
+MODSECURITY_RULESET=crs CRS_SMOKE_CASE=secondary make smoke-lighttpd
+make smoke-envoy-crs-secondary
+make smoke-traefik-crs-secondary
+make smoke-lighttpd-crs-secondary
+make smoke-open-connectors-crs-secondary
+```
+
+The secondary probe is
+`/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E`; it must not use the targeted rule
+`1000001` or the minimal SQLi probe. Successful secondary evidence writes
+`crs-secondary-result.json`, `crs-secondary-decision.log`, and
+`crs-secondary-audit.log`, extracts the actual CRS rule ID/message from the
+evidence, and may set only `crs_secondary_smoke_verified=true`. If CRS,
+libmodsecurity, and the runtime are present but the secondary probe is not
+blocked, the result is FAIL (`secondary_crs_probe_not_blocked` in inventory),
+not PASS and not BLOCKED. Missing CRS, libmodsecurity, or runtime dependencies
+remain Exit 77/BLOCKED.
 
 ## Connector-Specific Logic
 
@@ -180,7 +236,9 @@ runner starts a minimal upstream, a minimal ext_authz decision service, and
 Envoy with generated local config, then requires HTTP 200 for an allowed request
 and HTTP 403 for a blocked request. `ext_proc` is deferred to a later phase.
 With `DECISION_BACKEND=libmodsecurity`, the same ext_authz path uses the
-targeted libmodsecurity evaluator instead of the simple decision backend.
+targeted libmodsecurity evaluator instead of the simple decision backend. With
+`MODSECURITY_RULESET=crs`, it uses the same ext_authz path for the minimal and
+secondary CRS smokes and records CRS evidence separately.
 
 Traefik keeps only Traefik-specific forwardAuth design, configuration, smoke
 harness entrypoint, and local decision-service starter code. The Phase 1 runtime
@@ -190,7 +248,9 @@ decision service, and Traefik with generated local config, then requires HTTP
 200 for an allowed request and HTTP 403 for a blocked request. A Go plugin is
 out of scope for Phase 1.
 With `DECISION_BACKEND=libmodsecurity`, the same forwardAuth path uses the
-targeted libmodsecurity evaluator instead of the simple decision backend.
+targeted libmodsecurity evaluator instead of the simple decision backend. With
+`MODSECURITY_RULESET=crs`, it uses the same forwardAuth path for the minimal
+and secondary CRS smokes and records CRS evidence separately.
 
 lighttpd keeps lighttpd-specific sidecar/proxy documentation, generated local
 configuration, smoke harness entrypoint, and bridge starter code. The Phase 1
@@ -198,7 +258,12 @@ mode is `integration_mode=sidecar_proxy`. Native module, FastCGI/SCGI, and
 mod_magnet/Lua remain deferred. When a local lighttpd binary is resolved, the
 smoke runner starts lighttpd as the local upstream and a sidecar decision proxy
 as the selected decision boundary, then requires HTTP 200 for an allowed request
-and HTTP 403 for `X-Modsec-Smoke: block`.
+and HTTP 403 for `X-Modsec-Smoke: block`. With `DECISION_BACKEND=libmodsecurity`,
+the same sidecar path uses the targeted libmodsecurity evaluator and may set
+`modsecurity_backend_verified=true` only after rule `1000001` produces the 403
+intervention. With `MODSECURITY_RULESET=crs`, the same sidecar_proxy path runs
+the minimal and secondary CRS smokes and records CRS evidence separately. This
+remains Phase 1 sidecar_proxy evidence, not a native lighttpd module claim.
 
 ## Claims Still Forbidden
 
@@ -208,6 +273,8 @@ Starter/self-test evidence and BLOCKED smoke evidence must not claim:
 - `production_ready=true`
 - `full_matrix_ready=true`
 - `crs_complete=true`
+- `crs_minimal_smoke_verified=true` without CRS-backed 200/403 evidence
+- `crs_secondary_smoke_verified=true` without secondary CRS-backed 200/403 evidence
 - `response_body_verified=true`
 
 Envoy, Traefik, and lighttpd may set `runtime_verified=true` only when the local
@@ -222,6 +289,15 @@ evidence.
 libmodsecurity smoke loaded rule `1000001` and produced the blocking
 intervention through libmodsecurity. The simple decision-service smoke never
 claims ModSecurity compatibility by itself.
+
+`crs_minimal_smoke_verified=true` is forbidden unless the CRS smoke loaded CRS
+from local common.sh-managed paths and observed a CRS-backed HTTP 403 with a
+CRS rule ID/message. Even then, `crs_complete=true` remains forbidden.
+
+`crs_secondary_smoke_verified=true` is forbidden unless the secondary CRS smoke
+loaded CRS from local common.sh-managed paths, sent the secondary XSS probe, and
+observed a CRS-backed HTTP 403 with an extracted CRS rule ID/message. Even
+then, `crs_complete=true` remains forbidden.
 
 ## Parallel Runtime-Smoke Artifacts
 
@@ -249,6 +325,8 @@ Each `result.json` contains at least:
 - `skipped_reason`
 - `missing_dependencies`
 - `claims_not_allowed`
+- `crs_secondary_smoke_verified`
+- `crs_smoke_case`
 
 ## Current Expected Outcomes
 

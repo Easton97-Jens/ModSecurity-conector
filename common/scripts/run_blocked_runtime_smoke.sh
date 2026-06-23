@@ -164,6 +164,8 @@ case "$CONNECTOR_NAME" in
             --harness-path "$HARNESS_PATH" \
             --architecture-decision "$ARCHITECTURE_DECISION" \
             --decision-backend "$decision_backend" \
+            --modsecurity-ruleset "${MODSECURITY_RULESET:-targeted}" \
+            --crs-smoke-case "${CRS_SMOKE_CASE:-minimal}" \
             --modsecurity-rule-file "$modsecurity_rule_file" \
             --modsecurity-include-dir "${MODSECURITY_INCLUDE_DIR:-}" \
             --modsecurity-lib-dir "${MODSECURITY_LIB_DIR:-}" \
@@ -171,6 +173,10 @@ case "$CONNECTOR_NAME" in
             --modsecurity-pkg-config-path "${MODSECURITY_PKG_CONFIG_PATH:-}" \
             --modsecurity-prefix "${MODSECURITY_PREFIX:-}" \
             --modsecurity-manifest "${MODSECURITY_MANIFEST:-}" \
+            --crs-repo-url "${CRS_REPO_URL:-}" \
+            --crs-git-ref "${CRS_GIT_REF:-}" \
+            --crs-source-dir "${CRS_SOURCE_DIR:-}" \
+            --crs-runtime-dir "${CRS_RUNTIME_DIR:-}" \
             $lookup_args
         exit $?
         ;;

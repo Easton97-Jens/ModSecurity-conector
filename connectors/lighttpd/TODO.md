@@ -56,6 +56,7 @@ Global gate definitions:
 - [x] generated lighttpd config documented
 - [x] sidecar decision boundary documented
 - [x] targeted libmodsecurity smoke command documented
+- [x] targeted libmodsecurity smoke PASS documented
 - [x] result JSON documented through common smoke schema
 - [x] allowed request returns expected runtime status when local binary is available
 - [x] blocked request returns HTTP 403 through the selected path when local binary is available
@@ -83,6 +84,6 @@ Global gate definitions:
 
 - [ ] eligible for `adapter-owned`
 - [x] eligible for `bridge-starter`
-- [ ] eligible for `runtime-smoke-verified`
+- [x] eligible for `runtime-smoke-verified`
 - [ ] eligible for `crs-verified`
 - [ ] eligible for more than `partial`

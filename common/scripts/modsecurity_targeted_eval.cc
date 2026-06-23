@@ -11,7 +11,7 @@
 
 namespace {
 
-constexpr const char *kRuleId = "1000001";
+constexpr const char *kTargetedRuleId = "1000001";
 
 std::string json_escape(const std::string &value) {
     std::string out;
@@ -68,7 +68,8 @@ std::map<std::string, std::string> parse_args(int argc, char **argv) {
         std::string key = argv[i];
         if (key.rfind("--", 0) != 0 || i + 1 >= argc) {
             std::cerr << "usage: " << argv[0]
-                      << " --rule-file <path> --decision-log <path> [--header-value <value>] [--uri <uri>]\n";
+                      << " --rule-file <path> --decision-log <path>"
+                      << " [--ruleset targeted|crs] [--header-value <value>] [--uri <uri>]\n";
             std::exit(2);
         }
         args[key.substr(2)] = argv[++i];
@@ -76,23 +77,45 @@ std::map<std::string, std::string> parse_args(int argc, char **argv) {
     return args;
 }
 
+std::string bracket_value(const std::string &log, const std::string &key) {
+    const std::string marker = "[" + key + " \"";
+    const std::size_t start = log.find(marker);
+    if (start == std::string::npos) {
+        return "";
+    }
+    const std::size_t value_start = start + marker.size();
+    const std::size_t end = log.find("\"]", value_start);
+    if (end == std::string::npos || end <= value_start) {
+        return "";
+    }
+    return log.substr(value_start, end - value_start);
+}
+
 void append_decision_log(
     const std::string &path,
+    const std::string &ruleset,
     const std::string &whoami,
     const std::string &rule_file,
     const std::string &header_value,
     bool rule_loaded,
     bool disruptive,
     int intervention_status,
-    const std::string &intervention_log) {
+    const std::string &intervention_log,
+    const std::string &rule_id,
+    const std::string &rule_message) {
     if (path.empty()) {
         return;
     }
     std::ofstream out(path, std::ios::app);
     out << "decision_backend=libmodsecurity\n";
+    out << "modsecurity_ruleset=" << ruleset << "\n";
     out << "libmodsecurity=" << whoami << "\n";
     out << "rule_file=" << rule_file << "\n";
-    out << "rule_id=" << kRuleId << "\n";
+    out << "rule_id=" << rule_id << "\n";
+    if (ruleset == "crs") {
+        out << "crs_rule_id=" << rule_id << "\n";
+        out << "crs_rule_message=" << rule_message << "\n";
+    }
     out << "rule_loaded=" << (rule_loaded ? "true" : "false") << "\n";
     out << "request_header_x_modsec_smoke=" << header_value << "\n";
     out << "intervention_disruptive=" << (disruptive ? "true" : "false") << "\n";
@@ -117,11 +140,15 @@ int main(int argc, char **argv) {
     const auto args = parse_args(argc, argv);
     const std::string rule_file = args.count("rule-file") ? args.at("rule-file") : "";
     const std::string decision_log = args.count("decision-log") ? args.at("decision-log") : "";
+    const std::string ruleset = args.count("ruleset") ? args.at("ruleset") : "targeted";
     const std::string header_value = args.count("header-value") ? args.at("header-value") : "";
     const std::string uri = args.count("uri") ? args.at("uri") : "/targeted";
 
     if (rule_file.empty()) {
         return fail_json("missing --rule-file");
+    }
+    if (ruleset != "targeted" && ruleset != "crs") {
+        return fail_json("unsupported --ruleset: " + ruleset);
     }
 
     modsecurity::ModSecurity *modsec = modsecurity::msc_init();
@@ -179,29 +206,42 @@ int main(int argc, char **argv) {
 
     modsecurity::ModSecurityIntervention intervention;
     modsecurity::intervention::clean(&intervention);
-    const int intervention_rc = modsecurity::msc_intervention(tx, &intervention);
-    const bool disruptive = intervention.disruptive != 0 || intervention_rc != 0;
+    int intervention_rc = modsecurity::msc_intervention(tx, &intervention);
+    bool disruptive = intervention.disruptive != 0 || intervention_rc != 0;
+    if (!disruptive) {
+        modsecurity::msc_process_request_body(tx);
+        intervention_rc = modsecurity::msc_intervention(tx, &intervention);
+        disruptive = intervention.disruptive != 0 || intervention_rc != 0;
+    }
     const int intervention_status = disruptive ? intervention.status : 200;
     const std::string intervention_log = intervention.log == nullptr ? "" : intervention.log;
+    const std::string observed_rule_id = ruleset == "crs" ? bracket_value(intervention_log, "id") : kTargetedRuleId;
+    const std::string observed_rule_message = ruleset == "crs" ? bracket_value(intervention_log, "msg") : "";
 
     modsecurity::msc_process_logging(tx);
     append_decision_log(
         decision_log,
+        ruleset,
         whoami,
         rule_file,
         header_value,
         rule_loaded,
         disruptive,
         intervention_status,
-        intervention_log);
+        intervention_log,
+        observed_rule_id,
+        observed_rule_message);
 
     std::cout << "{";
     json_bool(std::cout, "ok", true);
     json_string(std::cout, "decision_backend", "libmodsecurity");
+    json_string(std::cout, "modsecurity_ruleset", ruleset);
     json_string(std::cout, "libmodsecurity", whoami);
     json_bool(std::cout, "modsecurity_rule_loaded", rule_loaded);
     json_string(std::cout, "modsecurity_rule_file", rule_file);
-    json_string(std::cout, "modsecurity_rule_id", kRuleId);
+    json_string(std::cout, "modsecurity_rule_id", observed_rule_id);
+    json_string(std::cout, "crs_rule_id", ruleset == "crs" ? observed_rule_id : "");
+    json_string(std::cout, "crs_rule_message", ruleset == "crs" ? observed_rule_message : "");
     json_bool(std::cout, "intervention_disruptive", disruptive);
     json_int(std::cout, "intervention_status", intervention_status);
     json_string(std::cout, "intervention_log", intervention_log, false);

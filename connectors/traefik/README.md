@@ -150,6 +150,44 @@ component caches or explicit local `MODSECURITY_INCLUDE_DIR` /
 dependencies produce Exit 77/BLOCKED evidence with
 `decision_backend=libmodsecurity` and `modsecurity_backend_verified=false`.
 
+The minimal CRS smoke uses the same local Traefik runtime and libmodsecurity
+backend, but switches the ruleset to CRS:
+
+```sh
+DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs make smoke-traefik
+make smoke-traefik-crs
+make smoke-traefik-crs-secondary
+```
+
+The CRS source-of-truth remains `common.sh` (`CRS_REPO_URL`, `CRS_GIT_REF`,
+`CRS_SOURCE_DIR`, and `CRS_RUNTIME_DIR`). The smoke writes a connector-local
+CRS config under `$TRAEFIK_RESULT_ROOT/crs-smoke`, sends a normal allowed
+request and the existing minimal SQLi CRS probe
+`/?id=1%20UNION%20SELECT%20password%20FROM%20users`, and requires CRS-backed
+HTTP 403 evidence. Successful CRS evidence may set only
+`crs_minimal_smoke_verified=true`; it still keeps `crs_complete=false`,
+`production_ready=false`, `full_matrix_ready=false`, and
+`response_body_verified=false`. CRS evidence is also copied to
+`$TRAEFIK_RESULT_ROOT/crs-result.json` with logs in
+`$TRAEFIK_LOG_ROOT/crs-decision.log`.
+
+The secondary CRS smoke reuses that same CRS resolver and runtime path with
+`CRS_SMOKE_CASE=secondary`. It sends
+`/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E`, writes
+`$TRAEFIK_RESULT_ROOT/crs-secondary-result.json`, and records
+`$TRAEFIK_LOG_ROOT/crs-secondary-decision.log` plus
+`$TRAEFIK_LOG_ROOT/crs-secondary-audit.log`. A PASS may set only
+`crs_secondary_smoke_verified=true` after extracting the actual CRS rule
+ID/message from evidence. If CRS, libmodsecurity, and Traefik are present but
+the secondary probe is not blocked, the result is FAIL, not PASS or BLOCKED.
+
+All open connector CRS smokes can be run with:
+
+```sh
+make smoke-open-connectors-crs
+make smoke-open-connectors-crs-secondary
+```
+
 Traefik source metadata is centralized in `common.sh`: `TRAEFIK_VERSION=3.7.5`,
 the official GitHub release URL, the install docs URL, the Linux amd64
 download URL, `TRAEFIK_SHA256_URL`, and the pinned SHA256. The

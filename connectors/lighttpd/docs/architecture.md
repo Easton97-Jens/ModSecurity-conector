@@ -92,6 +92,13 @@ allowed request with 200, and `X-Modsec-Smoke: block` returns 403. It also write
 `sidecar_proxy_verified`, `lighttpd_log_path`, `upstream_log_path`, and
 `request_transcript_path` in the common result JSON.
 
+With `DECISION_BACKEND=libmodsecurity`, the same sidecar path uses the shared
+targeted libmodsecurity evaluator. The evaluator is built from
+`common/scripts/modsecurity_targeted_eval.cc` against local common.sh-managed
+headers and libraries, loads `common/rules/modsecurity_targeted_smoke.conf`, and
+may set `modsecurity_backend_verified=true` only when rule `1000001` returns the
+403 intervention for `X-Modsec-Smoke: block`.
+
 ## Blockers Before Adapter Ownership
 
 A real lighttpd adapter needs, at minimum:
