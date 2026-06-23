@@ -333,11 +333,14 @@ generated docroot. See
 [Verified Run Environment](./docs/testing/verified-run-environment.md) for the
 runtime path contract, NGINX docroot preflight, and generated artifact rules.
 
-GitHub Actions artifacts are pruned by
-[cleanup-artifacts](./.github/workflows/cleanup-artifacts.yml) on manual
-dispatch and nightly schedule. Uploading workflows clean the matching logical
-artifact group before upload, keep at most the newest 20 repository artifacts,
-and use one-day retention for smoke logs and reports.
+GitHub Actions artifacts are pruned by the root
+[cleanup-artifacts](./.github/workflows/cleanup-artifacts.yml) workflow on
+manual dispatch and nightly schedule. The vendored framework module has the
+same cleanup workflow when it runs as its own GitHub repository. In both
+repositories, cleanup keeps only the newest artifact per logical artifact group
+and at most the newest 20 artifacts overall. Uploading workflows clean their
+matching logical group before upload. Report and log artifacts are best-effort
+diagnostics with one-day retention.
 
 ## Framework Module Integration
 
