@@ -1,3 +1,13 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python
 .venv/
 __pycache__/
 *.pyc
@@ -5,10 +15,25 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# JavaScript dependencies and caches
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+
+# Local test/build output
+.coverage
+coverage.xml
+htmlcov/
+/build/
+/dist/
+
 verified-runs/
 ModSecurity-conector-build/
 ModSecurity-conector-src/
 logs/
 tmp/
+*.log
 *.load
 actions-update-report.md
