@@ -102,7 +102,7 @@ if [ "$decision_backend" = "libmodsecurity" ]; then
 fi
 
 case "$CONNECTOR_NAME" in
-    envoy|traefik)
+    envoy|traefik|lighttpd)
         runner="$CONNECTOR_ROOT/common/scripts/run_local_runtime_smoke.py"
         [ -f "$runner" ] || connector_skip_missing_dependency \
             "$CONNECTOR_NAME" \
@@ -128,6 +128,12 @@ case "$CONNECTOR_NAME" in
                 smoke_port="${TRAEFIK_SMOKE_PORT:-0}"
                 upstream_port="${TRAEFIK_UPSTREAM_PORT:-0}"
                 authz_port="${TRAEFIK_AUTHZ_PORT:-0}"
+                ;;
+            lighttpd)
+                config_root="${LIGHTTPD_CONFIG_ROOT:-$evidence_root/config}"
+                smoke_port="${LIGHTTPD_SMOKE_PORT:-0}"
+                upstream_port="${LIGHTTPD_UPSTREAM_PORT:-0}"
+                authz_port="${LIGHTTPD_AUTHZ_PORT:-0}"
                 ;;
         esac
         ensure_runtime_dirs "$evidence_root"

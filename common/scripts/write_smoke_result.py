@@ -115,6 +115,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--intervention-status")
     parser.add_argument("--audit-log-path", default="")
     parser.add_argument("--decision-log-path", default="")
+    parser.add_argument("--lighttpd-binary-verified", default="false")
+    parser.add_argument("--lighttpd-http-verified", default="false")
+    parser.add_argument("--sidecar-proxy-verified", default="false")
+    parser.add_argument("--lighttpd-log-path", default="")
+    parser.add_argument("--upstream-log-path", default="")
+    parser.add_argument("--request-transcript-path", default="")
     parser.add_argument("--modsecurity-include-dir", default="")
     parser.add_argument("--modsecurity-lib-dir", default="")
     parser.add_argument("--modsecurity-lib-file", default="")
@@ -171,6 +177,9 @@ def main() -> int:
         claims_not_allowed.insert(0, "runtime_verified=true")
     modsecurity_backend_verified = bool_text(args.modsecurity_backend_verified)
     modsecurity_rule_loaded = bool_text(args.modsecurity_rule_loaded)
+    lighttpd_binary_verified = bool_text(args.lighttpd_binary_verified)
+    lighttpd_http_verified = bool_text(args.lighttpd_http_verified)
+    sidecar_proxy_verified = bool_text(args.sidecar_proxy_verified)
     if not modsecurity_backend_verified and "modsecurity_backend_verified=true" not in claims_not_allowed:
         claims_not_allowed.append("modsecurity_backend_verified=true")
     missing_dependencies = args.missing_dependency
@@ -205,6 +214,9 @@ def main() -> int:
         "full_matrix_ready": False,
         "integration_mode": args.integration_mode,
         "intervention_status": intervention_status,
+        "lighttpd_binary_verified": lighttpd_binary_verified,
+        "lighttpd_http_verified": lighttpd_http_verified,
+        "lighttpd_log_path": args.lighttpd_log_path or None,
         "missing_dependencies": missing_dependencies,
         "modsecurity_backend_verified": modsecurity_backend_verified,
         "modsecurity_dependency_inventory": {
@@ -222,12 +234,15 @@ def main() -> int:
         "production_ready": False,
         "response_body_verified": response_body_verified,
         "resolved_runtime_binary": resolved_runtime_binary,
+        "request_transcript_path": args.request_transcript_path or None,
         "runtime_inventory": runtime_inventory,
         "runtime_status": runtime_status,
         "runtime_verified": runtime_verified,
+        "sidecar_proxy_verified": sidecar_proxy_verified,
         "skipped_reason": args.skipped_reason,
         "status": status,
         "timestamp": timestamp,
+        "upstream_log_path": args.upstream_log_path or None,
     }
 
     record = {
@@ -254,6 +269,8 @@ def main() -> int:
         "harness_path": args.harness_path,
         "installs_global_artifacts": False,
         "integration_mode": args.integration_mode,
+        "lighttpd_binary_verified": lighttpd_binary_verified,
+        "lighttpd_http_verified": lighttpd_http_verified,
         "log_dir": args.log_dir,
         "log_root": args.log_root,
         "note": args.note,
@@ -263,6 +280,7 @@ def main() -> int:
         "results_dir": str(results_dir),
         "runtime_status": runtime_status,
         "runtime_verified": runtime_verified,
+        "sidecar_proxy_verified": sidecar_proxy_verified,
         "source_root": args.source_root,
         "starter_checks_available": starter_checks_available,
         "status": status,

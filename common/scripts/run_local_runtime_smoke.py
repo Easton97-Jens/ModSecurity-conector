@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run local Envoy/Traefik runtime smokes without global dependencies."""
+"""Run local Envoy/Traefik/lighttpd runtime smokes without global dependencies."""
 
 from __future__ import annotations
 
@@ -54,8 +54,11 @@ class SimpleDecisionBackend:
 
     def decide(self, headers: http.client.HTTPMessage, path: str) -> dict[str, object]:
         del path
-        value = headers.get("x-msconnector-block", "")
-        if value.lower() in BLOCK_VALUES:
+        values = (
+            headers.get("x-msconnector-block", ""),
+            headers.get("x-modsec-smoke", ""),
+        )
+        if any(value.lower() in BLOCK_VALUES for value in values):
             return {
                 "body": b"blocked by local msconnector decision service\n",
                 "status": 403,
@@ -162,6 +165,76 @@ def make_decision_handler(decision_backend: SimpleDecisionBackend | ModSecurityD
     return RuntimeDecisionHandler
 
 
+def append_jsonl(path: Path, record: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True))
+        handle.write("\n")
+
+
+def make_sidecar_proxy_handler(
+    decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend,
+    upstream_port: int,
+    transcript_path: Path,
+) -> type[QuietHandler]:
+    class LighttpdSidecarProxyHandler(QuietHandler):
+        def _answer(self) -> None:
+            decision_status = 500
+            upstream_status: int | None = None
+            forwarded = False
+            try:
+                decision = decision_backend.decide(self.headers, self.path)
+                decision_status = int(decision["status"])
+                if decision_status >= 400:
+                    body = decision["body"]
+                    status = decision_status
+                else:
+                    forwarded = True
+                    url = f"http://127.0.0.1:{upstream_port}{self.path}"
+                    forward_headers = {
+                        key: value
+                        for key, value in self.headers.items()
+                        if key.lower() not in {"connection", "host", "proxy-connection"}
+                    }
+                    request = urllib.request.Request(url, headers=forward_headers, method=self.command)
+                    try:
+                        with urllib.request.urlopen(request, timeout=2) as response:
+                            body = response.read()
+                            status = int(response.status)
+                    except urllib.error.HTTPError as exc:
+                        body = exc.read()
+                        status = int(exc.code)
+                    upstream_status = status
+            except Exception as exc:  # noqa: BLE001 - proxy errors become smoke evidence.
+                decision_backend.last_error = str(exc)
+                body = f"sidecar proxy error: {exc}\n".encode("utf-8")
+                status = 500
+
+            append_jsonl(
+                transcript_path,
+                {
+                    "decision_backend": decision_backend.decision_backend,
+                    "decision_status": decision_status,
+                    "forwarded_to_lighttpd": forwarded,
+                    "method": self.command,
+                    "path": self.path,
+                    "response_status": status,
+                    "upstream_status": upstream_status,
+                },
+            )
+            self.send_response(status)
+            self.send_header("content-type", "text/plain")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+
+        do_GET = _answer
+        do_HEAD = _answer
+
+    return LighttpdSidecarProxyHandler
+
+
 def start_http_server(handler: type[http.server.BaseHTTPRequestHandler], port: int) -> http.server.ThreadingHTTPServer:
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -194,6 +267,28 @@ def wait_for_proxy(url: str, process: subprocess.Popen[object], deadline: float,
             last_error = exc
         time.sleep(0.2)
     raise RuntimeError(f"proxy did not become ready: {last_error}")
+
+
+def wait_for_http_url(
+    url: str,
+    deadline: float,
+    expected_status: int = 200,
+    process: subprocess.Popen[object] | None = None,
+    label: str = "service",
+) -> None:
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            raise RuntimeError(f"{label} exited early with code {process.returncode}")
+        try:
+            status = http_status(url)
+            if status == expected_status:
+                return
+            last_error = RuntimeError(f"{label} returned {status}, expected {expected_status}")
+        except Exception as exc:  # noqa: BLE001 - startup probes may fail many ways.
+            last_error = exc
+        time.sleep(0.2)
+    raise RuntimeError(f"{label} did not become ready: {last_error}")
 
 
 def local_library_env(base_env: dict[str, str], lib_dir: Path, runtime_lookup_roots: list[str]) -> dict[str, str]:
@@ -371,6 +466,28 @@ def traefik_dynamic_config(upstream_port: int, auth_port: int) -> str:
 """
 
 
+def lighttpd_escape(value: Path | str) -> str:
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def lighttpd_config(
+    document_root: Path,
+    upload_root: Path,
+    error_log_path: Path,
+    pid_path: Path,
+    upstream_port: int,
+) -> str:
+    return f"""server.document-root = "{lighttpd_escape(document_root)}"
+server.bind = "127.0.0.1"
+server.port = {upstream_port}
+server.errorlog = "{lighttpd_escape(error_log_path)}"
+server.pid-file = "{lighttpd_escape(pid_path)}"
+server.upload-dirs = ( "{lighttpd_escape(upload_root)}" )
+index-file.names = ( "index.txt" )
+mimetype.assign = ( ".txt" => "text/plain" )
+"""
+
+
 def build_proxy_command(connector: str, binary: Path, work_dir: Path, listen_port: int, upstream_port: int, auth_port: int) -> list[str]:
     if connector == "envoy":
         admin_port = free_port()
@@ -417,6 +534,12 @@ def writer_args(
     intervention_status: int | None = None,
     decision_log_path: str = "",
     audit_log_path: str = "",
+    lighttpd_binary_verified: bool = False,
+    lighttpd_http_verified: bool = False,
+    sidecar_proxy_verified: bool = False,
+    lighttpd_log_path: str = "",
+    upstream_log_path: str = "",
+    request_transcript_path: str = "",
 ) -> list[str]:
     command = [
         sys.executable,
@@ -453,6 +576,18 @@ def writer_args(
         audit_log_path,
         "--decision-log-path",
         decision_log_path,
+        "--lighttpd-binary-verified",
+        "true" if lighttpd_binary_verified else "false",
+        "--lighttpd-http-verified",
+        "true" if lighttpd_http_verified else "false",
+        "--sidecar-proxy-verified",
+        "true" if sidecar_proxy_verified else "false",
+        "--lighttpd-log-path",
+        lighttpd_log_path,
+        "--upstream-log-path",
+        upstream_log_path,
+        "--request-transcript-path",
+        request_transcript_path,
         "--modsecurity-include-dir",
         args.modsecurity_include_dir,
         "--modsecurity-lib-dir",
@@ -515,6 +650,12 @@ def write_result(
     intervention_status: int | None = None,
     decision_log_path: str = "",
     audit_log_path: str = "",
+    lighttpd_binary_verified: bool = False,
+    lighttpd_http_verified: bool = False,
+    sidecar_proxy_verified: bool = False,
+    lighttpd_log_path: str = "",
+    upstream_log_path: str = "",
+    request_transcript_path: str = "",
 ) -> None:
     subprocess.run(
         writer_args(
@@ -531,6 +672,12 @@ def write_result(
             intervention_status,
             decision_log_path,
             audit_log_path,
+            lighttpd_binary_verified,
+            lighttpd_http_verified,
+            sidecar_proxy_verified,
+            lighttpd_log_path,
+            upstream_log_path,
+            request_transcript_path,
         ),
         check=True,
     )
