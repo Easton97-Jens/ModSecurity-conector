@@ -1,11 +1,19 @@
 # HAProxy ModSecurity Examples
 
+## Status
+
+HAProxy SPOE/SPOP production-style examples for `haproxy-modsecurity-spoa`. They do not promote RESPONSE_BODY or force-all FAIL rows as production support.
+
 ## Purpose
 
 These examples show the production SPOA path for HAProxy:
 `haproxy-modsecurity-spoa`, HAProxy + SPOE/SPOP + libmodsecurity, decision
 logging, audit-log plumbing, request phases 1/2, implemented phase 3 response
 headers, and bounded Phase 4 strict-abort evidence.
+
+## Needed Components
+
+HAProxy, `haproxy-modsecurity-spoa`, libmodsecurity v3, SPOE config, ModSecurity rules, optional CRS, and writable HAProxy/SPOA/ModSecurity log locations.
 
 ## Files
 
@@ -111,9 +119,15 @@ The root summaries are connector-neutral. Row-level HAProxy evidence stays in
 synthetic matrix writer; generated reports consume runtime summaries and
 snapshot data.
 
+## Non-Claims
+
+- These examples are not a blanket production-readiness certification.
+- They do not prove every package/version/layout.
+- Phase 4 / RESPONSE_BODY examples are bounded runtime evidence only, not promoted full support.
+
 ## Related Docs
 
-- `COMPILE_HAPROXY.md`
+- [COMPILE_HAPROXY.md](../../COMPILE_HAPROXY.md)
 - `connectors/haproxy/docs/build.md`
 - `connectors/haproxy/docs/validation.md`
 - `reports/testing/haproxy-poc.md`

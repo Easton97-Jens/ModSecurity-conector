@@ -1,9 +1,17 @@
 # NGINX ModSecurity Examples
 
+## Status
+
+NGINX dynamic-module request-only and bounded strict-abort examples. Production-style, but not proof of every NGINX build, module ABI, or complete RESPONSE_BODY support.
+
 ## Purpose
 
 These examples show production-style NGINX configuration for request-only
 ModSecurity and bounded strict-abort Phase 4 / RESPONSE_BODY evidence.
+
+## Needed Components
+
+NGINX and `ngx_http_modsecurity_module.so` built for a compatible NGINX ABI, libmodsecurity v3, ModSecurity rules, optional CRS, and writable NGINX/ModSecurity log locations.
 
 ## Files
 
@@ -84,9 +92,15 @@ Keep request-only mode as the baseline, verify module ABI compatibility with
 the deployed NGINX binary, validate response-body behavior with compression
 disabled first, and preserve strict-abort evidence when testing outbound rules.
 
+## Non-Claims
+
+- These examples are not a blanket production-readiness certification.
+- They do not prove every package/version/layout.
+- Phase 4 / RESPONSE_BODY examples are bounded runtime evidence only, not promoted full support.
+
 ## Related Docs
 
-- `COMPILE_NGINX.md`
+- [COMPILE_NGINX.md](../../COMPILE_NGINX.md)
 - `connectors/nginx/docs/build.md`
 - `connectors/nginx/docs/validation.md`
 - `reports/testing/nginx-poc.md`

@@ -1,9 +1,17 @@
 # Apache ModSecurity Examples
 
+## Status
+
+Apache request-only and bounded Phase 4 examples. Production-style, but not proof of every Apache distribution package, MPM, or complete RESPONSE_BODY support.
+
 ## Purpose
 
 These examples show production-style Apache httpd configuration for
 request-only ModSecurity and bounded Phase 4 / RESPONSE_BODY evidence.
+
+## Needed Components
+
+Apache httpd/APXS and `mod_security3.so` built for the same Apache ABI, libmodsecurity v3, ModSecurity rules, optional CRS, and writable Apache/ModSecurity log locations.
 
 ## Files
 
@@ -88,9 +96,15 @@ Start with request-only mode, enable audit logging, validate CRS includes, and
 disable compression until the deployment proves whether the connector sees
 compressed or uncompressed response bytes.
 
+## Non-Claims
+
+- These examples are not a blanket production-readiness certification.
+- They do not prove every package/version/layout.
+- Phase 4 / RESPONSE_BODY examples are bounded runtime evidence only, not promoted full support.
+
 ## Related Docs
 
-- `COMPILE_APACHE.md`
+- [COMPILE_APACHE.md](../../COMPILE_APACHE.md)
 - `connectors/apache/docs/build.md`
 - `connectors/apache/docs/validation.md`
 - `reports/testing/apache-poc.md`
