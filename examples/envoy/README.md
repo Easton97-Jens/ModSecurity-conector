@@ -7,6 +7,7 @@
 - [Config Files](#config-files)
 - [Start / Reload Notes](#start-reload-notes)
 - [Logs](#logs)
+- [External Usage](#external-usage)
 - [Non-Claims](#non-claims)
 - [Related Compile Doc](#related-compile-doc)
 
@@ -32,6 +33,13 @@ Validate the config with the staged Envoy binary before running it. Restart or h
 ## Logs
 
 Use Envoy access/runtime logs plus authorization-service decision and audit logs. Paths in this directory are illustrative and should be replaced by deployment-local paths.
+
+
+## External Usage
+
+This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `Envoy ext_authz config`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+
+Service context: Envoy plus operator-provided auth service. After adapting the files, validate/restart Envoy and restart the operator-provided auth service. Inspect Envoy logs plus auth-service decision/audit logs.
 
 ## Non-Claims
 

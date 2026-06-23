@@ -12,6 +12,7 @@
 - [Variable And Placeholder Reference](#variable-and-placeholder-reference)
 - [Logging And Evidence](#logging-and-evidence)
 - [Security Notes](#security-notes)
+- [External Usage](#external-usage)
 - [Non-Claims](#non-claims)
 - [Related Docs](#related-docs)
 
@@ -106,6 +107,13 @@ logs remain under `/var/log/nginx`.
 Keep request-only mode as the baseline, verify module ABI compatibility with
 the deployed NGINX binary, validate response-body behavior with compression
 disabled first, and preserve strict-abort evidence when testing outbound rules.
+
+
+## External Usage
+
+This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `ngx_http_modsecurity_module.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+
+Service context: NGINX. After adapting the files, nginx -t and reload the NGINX service. Inspect NGINX error/access logs and ModSecurity audit logs.
 
 ## Non-Claims
 

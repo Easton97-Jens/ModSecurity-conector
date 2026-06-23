@@ -12,6 +12,7 @@
 - [Variable And Placeholder Reference](#variable-and-placeholder-reference)
 - [Logging And Evidence](#logging-and-evidence)
 - [Security Notes](#security-notes)
+- [External Usage](#external-usage)
 - [Non-Claims](#non-claims)
 - [Related Docs](#related-docs)
 
@@ -110,6 +111,13 @@ directory.
 Start with request-only mode, enable audit logging, validate CRS includes, and
 disable compression until the deployment proves whether the connector sees
 compressed or uncompressed response bytes.
+
+
+## External Usage
+
+This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `mod_security3.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+
+Service context: Apache/httpd. After adapting the files, apachectl configtest and reload the Apache service. Inspect Apache error/access logs and ModSecurity audit logs.
 
 ## Non-Claims
 

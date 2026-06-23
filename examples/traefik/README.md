@@ -7,6 +7,7 @@
 - [Config Files](#config-files)
 - [Start / Reload Notes](#start-reload-notes)
 - [Logs](#logs)
+- [External Usage](#external-usage)
 - [Non-Claims](#non-claims)
 - [Related Compile Doc](#related-compile-doc)
 
@@ -33,6 +34,13 @@ Static config changes require restarting Traefik. File-provider dynamic config m
 ## Logs
 
 Use Traefik logs/access logs plus authorization-service decision and audit logs. Paths here are illustrative.
+
+
+## External Usage
+
+This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `Traefik forwardAuth config`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+
+Service context: Traefik plus operator-provided decision service. After adapting the files, restart Traefik for static config and restart the operator-provided decision service. Inspect Traefik logs plus decision-service audit/decision logs.
 
 ## Non-Claims
 

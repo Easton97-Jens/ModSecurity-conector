@@ -3,192 +3,147 @@
 ## Inhaltsverzeichnis
 
 - [Purpose](#purpose)
-- [Current Connector Status](#current-connector-status)
-- [What This Builds / Prepares](#what-this-builds--prepares)
-- [What This Does Not Prove](#what-this-does-not-prove)
-- [Repository Layout](#repository-layout)
-- [Prerequisites](#prerequisites)
-- [Required Submodules](#required-submodules)
-- [Command Quickstart](#command-quickstart)
-- [Build / Prepare Variables](#build--prepare-variables)
-- [Testing Commands](#testing-commands)
-- [Production / Production-Style Integration](#production--production-style-integration)
-- [Production / Production-Style Commands](#production--production-style-commands)
-- [End-to-End Flow](#end-to-end-flow-fetch-components--build-modsecurity--buildprepare-connector--run-integrated-smoke)
+- [Current Status / Supported Claim](#current-status-supported-claim)
+- [External Use Overview](#external-use-overview)
+- [Components Needed Outside This Repository](#components-needed-outside-this-repository)
+- [Option A: Use Distribution Packages Where Compatible](#option-a-use-distribution-packages-where-compatible)
+- [Option B: Build libmodsecurity v3 From Source](#option-b-build-libmodsecurity-v3-from-source)
+- [Build / Prepare This Connector Or Runtime Path](#build-prepare-this-connector-or-runtime-path)
+- [Install The Built Artifact Into An External System](#install-the-built-artifact-into-an-external-system)
+- [Wire Configuration](#wire-configuration)
+- [Start / Reload / Restart](#start-reload-restart)
+- [Logs And Runtime Evidence In A Real Deployment](#logs-and-runtime-evidence-in-a-real-deployment)
 - [Example Configs](#example-configs)
-- [Runtime Evidence Paths](#runtime-evidence-paths)
-- [Logs](#logs)
+- [Optional Repository Validation](#optional-repository-validation)
 - [Troubleshooting](#troubleshooting)
-- [Common Failures](#common-failures)
-- [Cleanup](#cleanup)
-- [Best Practices](#best-practices)
-- [Related Docs / Examples](#related-docs--examples)
-
+- [Non-Claims / Limits](#non-claims-limits)
+- [Related Docs](#related-docs)
 
 ## Purpose
 
-Document the repository-supported build or prepare path for Apache without adding unverified production claims. This guide is operator-facing and ties build, runtime, and smoke statements to repository-owned Makefile targets, connector sources, harnesses, examples, or generated evidence.
+Explain how to use the repository-owned Apache connector source in an external Apache/httpd installation without claiming that every distribution layout or MPM has been proven.
 
-## Current Connector Status
+## Current Status / Supported Claim
 
-Adapter-owned Apache module under `connectors/apache/`; request phases are the production-style baseline. Default generated evidence currently reports 54/54 PASS, while force-all evidence still contains FAIL and NOT_EXECUTABLE rows and must not be promoted.
+The Apache connector is adapter-owned source under `connectors/apache/`. Repository evidence covers the documented smoke paths, not every external Apache package, MPM, module set, or RESPONSE_BODY deployment.
 
-## What This Builds / Prepares
+## External Use Overview
 
-libmodsecurity v3, an Apache/APXS toolchain when `BUILD_HTTPD_FROM_SOURCE=1` or a module against explicit matching `APXS`/`APACHE_HTTPD`, and `mod_security3.so` from `connectors/apache/`.
+External use has four parts: provide libmodsecurity v3, build `mod_security3.so` from `connectors/apache` against the target Apache APXS, copy the module and ModSecurity rules/config into the external Apache installation, then validate and reload Apache.
 
-## What This Does Not Prove
+## Components Needed Outside This Repository
 
-It does not prove every distribution Apache package, MPM combination, module mix, CRS deployment, or complete RESPONSE_BODY support. Generated markdown and smoke logs are evidence artifacts, not blanket support guarantees.
+- Target Apache/httpd runtime.
+- Matching Apache development headers and APXS from that target installation.
+- Compatible libmodsecurity v3 headers and libraries.
+- `mod_security3.so` built from this repository's `connectors/apache` source.
+- ModSecurity rules, optional CRS, writable audit/error log locations, and Apache configuration snippets.
 
-## Repository Layout
+## Option A: Use Distribution Packages Where Compatible
 
-`connectors/apache/src/` (module source), `connectors/apache/harness/` (smoke harness), `connectors/apache/docs/`, `examples/apache/`, `common/`, `ci/`, and `reports/testing/generated/`.
-
-## Prerequisites
-
-POSIX shell, `make`, Python 3, Git, C/C++ build tools where a native build is performed, network only when explicitly fetching pinned sources/runtime components, and writable runtime roots outside the checkout.
-
-## Required Submodules
+Debian/Ubuntu-style example only; package names and module paths differ by distribution:
 
 ```sh
+sudo apt-get update
+sudo apt-get install -y apache2 apache2-dev build-essential libmodsecurity-dev
+```
+
+Use equivalent packages for RHEL/Fedora/httpd systems. Compatibility must be verified against the target Apache/APXS and libmodsecurity ABI.
+
+## Option B: Build libmodsecurity v3 From Source
+
+This repository's local smoke flow prepares libmodsecurity through framework helpers and pinned variables. For an external deployment, the following is a standard upstream-style example, not a repository-owned guarantee. Verify the selected `<modsecurity-v3-ref>`, dependencies, and flags against your operating system and the upstream ModSecurity documentation before use.
+
+```sh
+git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
+cd ModSecurity-v3
 git submodule update --init --recursive
-make setup-dev
+./build.sh
+./configure --prefix=/usr/local/modsecurity
+make -j"$(nproc)"
+sudo make install
 ```
 
-`FRAMEWORK_ROOT` defaults to `modules/ModSecurity-test-Framework`. If the submodule is absent, targets that require `check-framework` block before runtime work starts.
+Replace `<modsecurity-v3-ref>` with the ref chosen by your deployment or with the repository/framework pin after you have verified it in the framework source. If your distribution provides a compatible `libmodsecurity-dev`, you may not need this source build.
 
-## Command Quickstart
+## Build / Prepare This Connector Or Runtime Path
 
-Use this copy/paste baseline for local verification before connector-specific commands:
+The repository's verified build/evidence flow is smoke-oriented. If no direct external install target is available, use the Apache connector Autotools/APXS inputs directly and treat the exact output path as something the operator must locate after build:
 
 ```sh
-git submodule update --init --recursive
-make setup-dev
-make doctor-quick
-make lint
-git diff --check
+cd /path/to/ModSecurity-conector/connectors/apache
+./autogen.sh
+./configure --with-apxs=/usr/bin/apxs --with-libmodsecurity=/usr/local/modsecurity
+make
 ```
 
-Use an isolated local run root when you do not want build/test artifacts under the default `/var/tmp/ModSecurity-conector-verified` tree:
+Repository evidence flow with an external APXS/httpd can also be used to prove a local build path, but it is not itself an install step:
 
 ```sh
-export VERIFIED_RUN_ROOT=/tmp/modsecurity-conector-verified
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build"
-export SOURCE_ROOT="$VERIFIED_RUN_ROOT/src"
-export TMP_ROOT="$VERIFIED_RUN_ROOT/tmp"
-export LOG_ROOT="$VERIFIED_RUN_ROOT/logs"
+APXS=/usr/bin/apxs APACHE_HTTPD=/usr/sbin/apache2 MODSECURITY_APACHE_SOURCE_DIR=/path/to/ModSecurity-conector/connectors/apache make smoke-apache
 ```
 
-These are local build/test paths only. They are not global production install paths. Preserve logs, summary JSON, and any generated evidence you need before cleanup.
+## Install The Built Artifact Into An External System
 
-
-## Build / Prepare Variables
-
-`BUILD_HTTPD_FROM_SOURCE`, `APXS`, `APACHE_HTTPD`, `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_ROOT`, `BUILD_ROOT`, `SOURCE_ROOT`, `LOG_ROOT`, `RESULTS_DIR`, `MODSECURITY_TEST_VARIANT`, and `MODSECURITY_MRTS_VARIANT` are present in the Makefile or preparation scripts. Do not invent additional variables; check `Makefile`, `ci/prepare-runtime-components.py`, connector Makefiles, and harness scripts before documenting new ones.
-
-## Testing Commands
-
-Common repository checks:
-
-```sh
-make quick-check
-make smoke-all
-make test-no-crs
-make test-with-crs
-make runtime-matrix
-make check-test-matrix
-```
-
-Expensive or long-running jobs:
-
-```sh
-make runtime-matrix-all-runtime
-make full-matrix-parallel-runtime
-```
-
-Apache-specific commands:
-
-```sh
-BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache
-FORCE_ALL_CASES=1 BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache
-CASE=phase1_header_block CRS=no-crs MRTS=no-mrts BUILD_HTTPD_FROM_SOURCE=1 make verified-apache-case
-CASE=phase1_header_block CRS=with-crs MRTS=no-mrts BUILD_HTTPD_FROM_SOURCE=1 make verified-apache-case
-```
-
-## Production / Production-Style Integration
-
-A production-style Apache deployment needs libmodsecurity v3 libraries, a `mod_security3.so` built for the exact Apache/APXS ABI, Apache config that loads the module, a ModSecurity rules file under an operator-chosen config directory such as `/etc/modsecurity`, optional CRS includes, and writable audit/error log locations. APXS and the Apache binary must come from the same Apache build or package family; this repository does not prove arbitrary distro/APXS/MPM combinations.
-
-## Production / Production-Style Commands
-
-Repository preparation/smoke commands:
-
-```sh
-make prepare-runtime-components
-BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache
-```
-
-Operator install example with placeholders:
+Replace `<built-mod_security3.so>` with the module actually built for the target Apache/APXS ABI:
 
 ```sh
 sudo install -d -m 0755 /etc/modsecurity /var/log/modsecurity
 sudo install -m 0755 <built-mod_security3.so> /usr/lib/apache2/modules/mod_security3.so
 sudo install -m 0644 examples/apache/modsecurity-request-only.conf /etc/modsecurity/modsecurity-request-only.conf
 sudo install -m 0644 examples/apache/apache-modsecurity-request-only.conf /etc/apache2/mods-available/security3.conf
-sudo apachectl configtest
-sudo apachectl graceful
-sudo tail -f /var/log/apache2/error.log /var/log/modsecurity/apache-audit.log
 ```
 
-`<built-mod_security3.so>` must be replaced by the actual module built for the exact Apache/APXS ABI. The repository does not prove every distro package, MPM, or module layout. Use distro-specific paths when they differ.
+Paths differ on RHEL/Fedora/httpd systems; use the module directory, config directory, and log directory for your target installation.
 
-Expected outputs / evidence:
+## Wire Configuration
 
-- Summary JSON under `BUILD_ROOT` results.
-- Apache access/error logs.
-- ModSecurity audit log when enabled.
-- Generated Apache report path under `reports/testing/generated/`.
+Load `mod_security3.so` through the target Apache module mechanism and point the connector at `/etc/modsecurity/modsecurity-request-only.conf` or your adapted rules file. Keep request-only mode as the conservative baseline.
 
-## End-to-End Flow: Fetch Components → Build ModSecurity → Build/Prepare Connector → Run Integrated Smoke
+## Start / Reload / Restart
 
-Fetch components with `make prepare-runtime-components`, build/prepare libmodsecurity through that target, build the Apache module with the prepared APXS flow, and run `BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache` for integrated evidence. If a dependency is unavailable, document the result as blocked or not verified instead of treating it as a pass.
+```sh
+sudo apachectl configtest
+sudo systemctl reload apache2
+```
+
+Use the correct service name for your distribution. Replacing the module or libmodsecurity may require a full restart according to local policy.
+
+## Logs And Runtime Evidence In A Real Deployment
+
+Check Apache error/access logs and the ModSecurity audit log configured by the rules file. Preserve the exact module build path, APXS path, libmodsecurity path, Apache version, and rules file used for incident review.
 
 ## Example Configs
 
-See [examples/apache/README.md](examples/apache/README.md). Example configs are production-style illustrations. They must be reviewed and adapted before use; open connector examples are explicitly not production-ready proof.
+Use the files in [examples/apache/](examples/apache/README.md) as starting points for external configuration. They are not automatically installed by the repository.
 
-## Runtime Evidence Paths
+## Optional Repository Validation
 
-`BUILD_ROOT/results/.../apache`, `LOG_ROOT`, Apache runtime logs, audit logs, and generated report files under `reports/testing/generated/`.
+These commands validate repository evidence. They are not the external installation procedure.
 
-## Logs
-
-Apache access/error logs from the harness runtime plus ModSecurity audit logs when enabled. Preserve logs together with the exact command, connector, CRS variant, and MRTS variant.
+```sh
+git submodule update --init --recursive
+make setup-dev
+make lint
+git diff --check
+```
+```sh
+BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache
+FORCE_ALL_CASES=1 BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache
+```
 
 ## Troubleshooting
 
-Check missing submodule, APXS/httpd mismatch, unwritable runtime roots, missing libmodsecurity headers/libraries, CRS include paths, and response-body tests that are intentionally non-promoted.
+Check APXS/httpd mismatches, missing libmodsecurity headers/libraries, wrong module directory, unwritable audit logs, and CRS include paths.
 
-## Common Failures
+## Non-Claims / Limits
 
-Missing framework returns a blocked preflight; APXS from one Apache and httpd from another can produce an unusable module; force-all rows may fail without changing production support status.
+- RESPONSE_BODY / Phase 4 is not promoted by this guide.
+- Force-all FAIL rows are not production support.
+- The repository does not prove every distro Apache package, MPM, or module layout.
 
-## Cleanup
-
-The repository Makefile writes runtime/build state under `VERIFIED_RUN_ROOT` and related roots, not global install prefixes. Remove the chosen run root only after preserving logs and JSON summaries needed for evidence.
-
-## Best Practices
-
-- Keep build and runtime artifacts outside the git checkout.
-- Pin source/runtime versions through existing framework variables; do not introduce undocumented versions in operator docs.
-- Treat force-all FAIL rows as evidence of boundaries, not production support.
-- Keep request-only operation as the conservative baseline unless generated evidence proves a more specific behavior.
-
-## Related Docs / Examples
+## Related Docs
 
 - [examples/apache/README.md](examples/apache/README.md)
-- `connectors/apache/README.md`
 - `connectors/apache/docs/build.md`
 - `connectors/apache/docs/validation.md`
-- `reports/testing/generated/`

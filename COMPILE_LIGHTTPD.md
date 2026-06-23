@@ -3,200 +3,131 @@
 ## Inhaltsverzeichnis
 
 - [Purpose](#purpose)
-- [Current Connector Status](#current-connector-status)
-- [What This Builds / Prepares](#what-this-builds--prepares)
-- [What This Does Not Prove](#what-this-does-not-prove)
-- [Repository Layout](#repository-layout)
-- [Prerequisites](#prerequisites)
-- [Required Submodules](#required-submodules)
-- [Command Quickstart](#command-quickstart)
-- [Build / Prepare Variables](#build--prepare-variables)
-- [Testing Commands](#testing-commands)
-- [Production / Production-Style Integration](#production--production-style-integration)
-- [Production / Production-Style Commands](#production--production-style-commands)
-- [End-to-End Flow](#end-to-end-flow-fetch-components--build-modsecurity--buildprepare-connector--run-integrated-smoke)
+- [Current Status / Supported Claim](#current-status-supported-claim)
+- [External Use Overview](#external-use-overview)
+- [Components Needed Outside This Repository](#components-needed-outside-this-repository)
+- [Option A: Use Distribution Packages Where Compatible](#option-a-use-distribution-packages-where-compatible)
+- [Option B: Build libmodsecurity v3 From Source](#option-b-build-libmodsecurity-v3-from-source)
+- [Build / Prepare This Connector Or Runtime Path](#build-prepare-this-connector-or-runtime-path)
+- [Install The Built Artifact Into An External System](#install-the-built-artifact-into-an-external-system)
+- [Wire Configuration](#wire-configuration)
+- [Start / Reload / Restart](#start-reload-restart)
+- [Logs And Runtime Evidence In A Real Deployment](#logs-and-runtime-evidence-in-a-real-deployment)
 - [Example Configs](#example-configs)
-- [Runtime Evidence Paths](#runtime-evidence-paths)
-- [Logs](#logs)
+- [Optional Repository Validation](#optional-repository-validation)
 - [Troubleshooting](#troubleshooting)
-- [Common Failures](#common-failures)
-- [Cleanup](#cleanup)
-- [Best Practices](#best-practices)
-- [Related Docs / Examples](#related-docs--examples)
-
+- [Non-Claims / Limits](#non-claims-limits)
+- [Related Docs](#related-docs)
 
 ## Purpose
 
-Document the repository-supported build or prepare path for Lighttpd without adding unverified production claims. This guide is operator-facing and ties build, runtime, and smoke statements to repository-owned Makefile targets, connector sources, harnesses, examples, or generated evidence.
+Explain the external Lighttpd integration pattern documented by this repository without claiming production readiness.
 
-## Current Connector Status
+## Current Status / Supported Claim
 
-Open connector runtime path under `connectors/lighttpd/` using Phase 1 `sidecar_proxy`. Lighttpd is built locally from a pinned source tarball when runtime builds are allowed. There is no native Lighttpd ModSecurity connector. Production ready, full matrix ready, CRS complete, and response-body verified are all false.
+Lighttpd is a sidecar_proxy / Phase 1 path. A native Lighttpd ModSecurity module is not implemented. The `-tt`, `-D`, and `-f` flags are documented by `lighttpd(8)` and are used here as operator-style commands; operators must still validate them against the staged or packaged binary in their environment.
 
-## What This Builds / Prepares
+## External Use Overview
 
-a pinned Lighttpd source tarball/build/install under the component cache and generated sidecar_proxy smoke artifacts.
+The external pattern is `sidecar_proxy` plus an operator-provided decision service or sidecar. This repository provides example configuration and smoke paths, but not a complete production service.
 
-## What This Does Not Prove
+## Components Needed Outside This Repository
 
-It does not prove a native Lighttpd module, FastCGI/SCGI/mod_magnet/Lua integration, production readiness, full CRS coverage, full matrix coverage, or response-body support. Generated markdown and smoke logs are evidence artifacts, not blanket support guarantees.
+- Lighttpd runtime, either staged by this repository or supplied by the operator.
+- Lighttpd proxy config.
+- Reachable sidecar/decision backend.
+- libmodsecurity if the backend uses it.
+- ModSecurity rules/CRS and writable logs.
 
-## Repository Layout
+## Option A: Use Distribution Packages Where Compatible
 
-`connectors/lighttpd/src/`, `connectors/lighttpd/harness/`, `connectors/lighttpd/docs/`, `examples/lighttpd/`, `ci/`, and generated reports.
+Use a distribution or vendor runtime package when it matches your deployment needs. Package names, service names, and paths are operator-specific and are not guaranteed by this repository.
 
-## Prerequisites
+## Option B: Build libmodsecurity v3 From Source
 
-POSIX shell, `make`, Python 3, Git, C/C++ build tools where a native build is performed, network only when explicitly fetching pinned sources/runtime components, and writable runtime roots outside the checkout.
-
-## Required Submodules
+This repository's local smoke flow prepares libmodsecurity through framework helpers and pinned variables. For an external deployment, the following is a standard upstream-style example, not a repository-owned guarantee. Verify the selected `<modsecurity-v3-ref>`, dependencies, and flags against your operating system and the upstream ModSecurity documentation before use.
 
 ```sh
+git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
+cd ModSecurity-v3
 git submodule update --init --recursive
-make setup-dev
+./build.sh
+./configure --prefix=/usr/local/modsecurity
+make -j"$(nproc)"
+sudo make install
 ```
 
-`FRAMEWORK_ROOT` defaults to `modules/ModSecurity-test-Framework`. If the submodule is absent, targets that require `check-framework` block before runtime work starts.
+Replace `<modsecurity-v3-ref>` with the ref chosen by your deployment or with the repository/framework pin after you have verified it in the framework source. If your distribution provides a compatible `libmodsecurity-dev`, you may not need this source build.
 
-## Command Quickstart
+## Build / Prepare This Connector Or Runtime Path
 
-Use this copy/paste baseline for local verification before connector-specific commands:
-
-```sh
-git submodule update --init --recursive
-make setup-dev
-make doctor-quick
-make lint
-git diff --check
-```
-
-Use an isolated local run root when you do not want build/test artifacts under the default `/var/tmp/ModSecurity-conector-verified` tree:
-
-```sh
-export VERIFIED_RUN_ROOT=/tmp/modsecurity-conector-verified
-export BUILD_ROOT="$VERIFIED_RUN_ROOT/build"
-export SOURCE_ROOT="$VERIFIED_RUN_ROOT/src"
-export TMP_ROOT="$VERIFIED_RUN_ROOT/tmp"
-export LOG_ROOT="$VERIFIED_RUN_ROOT/logs"
-```
-
-These are local build/test paths only. They are not global production install paths. Preserve logs, summary JSON, and any generated evidence you need before cleanup.
-
-
-## Build / Prepare Variables
-
-`LIGHTTPD_BIN`, `LIGHTTPD_DECISION_BACKEND`, `DECISION_BACKEND`, `ALLOW_RUNTIME_BUILDS`, `CONNECTOR_COMPONENT_CACHE`, `SKIP_RUNTIME_COMPONENT_PREPARE`, `RUNTIME_COMPONENT_STRICT_VERIFY`, and `KEEP_RUNTIME_ARTIFACTS` are present in Makefile exports or harnesses. Version/checksum values are sourced from framework `common.sh` when present. Do not invent additional variables; check `Makefile`, `ci/prepare-runtime-components.py`, connector Makefiles, and harness scripts before documenting new ones.
-
-## Testing Commands
-
-Common repository checks:
-
-```sh
-make quick-check
-make smoke-all
-make test-no-crs
-make test-with-crs
-make runtime-matrix
-make check-test-matrix
-```
-
-Expensive or long-running jobs:
-
-```sh
-make runtime-matrix-all-runtime
-make full-matrix-parallel-runtime
-```
-
-Lighttpd-specific commands:
+Repository runtime preparation command:
 
 ```sh
 ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
-make smoke-lighttpd
-make smoke-lighttpd-modsecurity
-make smoke-lighttpd-crs
-make smoke-lighttpd-crs-secondary
 ```
 
-Open connector batch tests:
+This prepares/stages the repository-supported runtime component or build path where implemented. It is not a global production installation.
 
-```sh
-make smoke-new-connectors
-make smoke-open-connectors-crs
-make smoke-open-connectors-crs-secondary
-```
+## Install The Built Artifact Into An External System
 
-## Production / Production-Style Integration
+No production install target is provided by this repository for this path. Copy or reference the staged runtime binary and configuration according to your process manager and deployment layout. Use placeholders such as `<lighttpd-bin>` until you have resolved the actual staged or packaged binary path.
 
-This is production-style only, not production-ready. A comparable deployment would need the pinned/staged runtime, the `sidecar_proxy` integration path, libmodsecurity for the libmodsecurity backend, ModSecurity rules and optional CRS, and runtime plus sidecar decision/audit logs. Do not treat smoke evidence as production readiness.
+## Wire Configuration
 
-## Production / Production-Style Commands
+Adapt the example config for your listener, backend, decision service address, rules, CRS, and log paths. Do not assume the repository starts a production decision service.
 
-Repository preparation/smoke commands:
+## Start / Reload / Restart
 
-```sh
-ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
-make smoke-lighttpd
-make smoke-lighttpd-modsecurity
-make smoke-lighttpd-crs
-```
-
-Example config command with placeholder binary:
+Production-style placeholder command:
 
 ```sh
 <lighttpd-bin> -tt -f examples/lighttpd/lighttpd-sidecar-proxy.conf
 <lighttpd-bin> -D -f examples/lighttpd/lighttpd-sidecar-proxy.conf
 ```
 
-The Lighttpd command flags above are placeholders for operator verification with the staged binary before use. There is no native Lighttpd ModSecurity connector. The current path is sidecar_proxy / Phase 1. FastCGI/SCGI/mod_magnet/Lua are not implemented here.
+Replace the placeholder binary with the actual runtime binary. Decision service startup is operator-provided unless a real production service command exists in your deployment.
 
-Expected outputs / evidence:
+## Logs And Runtime Evidence In A Real Deployment
 
-- `result.json` when produced by the runtime harness.
-- `runtime-result.json` when produced by the runtime harness.
-- `targeted-result.json` when the targeted libmodsecurity smoke runs.
-- `crs-result.json` when the CRS smoke runs.
-- `crs-secondary-result.json` when the secondary CRS smoke runs.
-- Decision/audit logs when the selected backend supports them.
-
-## End-to-End Flow: Fetch Components → Build ModSecurity → Build/Prepare Connector → Run Integrated Smoke
-
-Run `ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build`, prepare libmodsecurity through `make prepare-runtime-components` when the libmodsecurity backend is used, prepare the `sidecar_proxy` path, then run `make smoke-lighttpd` or the libmodsecurity/CRS variants. If a dependency is unavailable, document the result as blocked or not verified instead of treating it as a pass.
+Inspect runtime logs, decision-service logs, and ModSecurity audit/decision logs when the selected backend supports them. Preserve the runtime binary path, config file, rules file, CRS version, and sidecar command used.
 
 ## Example Configs
 
-See [examples/lighttpd/README.md](examples/lighttpd/README.md). Example configs are production-style illustrations. They must be reviewed and adapted before use; open connector examples are explicitly not production-ready proof.
+Use the files in [examples/lighttpd/README.md](examples/lighttpd/README.md) as starting points for external configuration. They are not automatically installed by the repository.
 
-## Runtime Evidence Paths
+## Optional Repository Validation
 
-Runtime result/log roots from framework `common.sh` when available and generated reports under `reports/testing/generated/`.
+These commands validate repository evidence. They are not the external installation procedure.
 
-## Logs
-
-Runtime logs when configured plus sidecar or decision-service logs for the libmodsecurity path. Preserve logs together with the exact command, connector, CRS variant, and MRTS variant.
+```sh
+git submodule update --init --recursive
+make setup-dev
+make lint
+git diff --check
+```
+```sh
+ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
+make smoke-lighttpd
+make smoke-lighttpd-modsecurity
+make smoke-lighttpd-crs
+```
 
 ## Troubleshooting
 
-If the pinned runtime, integration service wiring, libmodsecurity, or CRS is absent, treat the run as blocked or runtime evidence only, not success.
+Check missing runtime binary, unreachable decision service, missing libmodsecurity backend, missing CRS/rules, and unwritable logs. Treat blocked runs as blocked, not success.
 
-## Common Failures
+## Non-Claims / Limits
 
-Missing runtime build permission, missing local Lighttpd binary, missing sidecar wiring, missing libmodsecurity backend, or assuming a native connector exists.
+- Lighttpd can be staged from a pinned source tarball here, or operators can use their own compatible Lighttpd.
+- There is no native Lighttpd ModSecurity connector in this repository.
+- The current pattern is `sidecar_proxy` / Phase 1 and is not production-ready proof.
+- FastCGI/SCGI/mod_magnet/Lua are not implemented here.
+- RESPONSE_BODY is not verified or promoted.
+- Force-all FAIL rows are not production support.
 
-## Cleanup
-
-The repository Makefile writes runtime/build state under `VERIFIED_RUN_ROOT` and related roots, not global install prefixes. Remove the chosen run root only after preserving logs and JSON summaries needed for evidence.
-
-## Best Practices
-
-- Keep build and runtime artifacts outside the git checkout.
-- Pin source/runtime versions through existing framework variables; do not introduce undocumented versions in operator docs.
-- Treat force-all FAIL rows as evidence of boundaries, not production support.
-- Keep request-only operation as the conservative baseline unless generated evidence proves a more specific behavior.
-
-## Related Docs / Examples
+## Related Docs
 
 - [examples/lighttpd/README.md](examples/lighttpd/README.md)
-- `connectors/lighttpd/README.md`
 - `connectors/lighttpd/docs/build.md`
 - `connectors/lighttpd/docs/validation.md`
-- `reports/testing/generated/`
