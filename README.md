@@ -408,7 +408,13 @@ files, and temporary job output are local artifacts and must not be committed.
 
 ## Documentation Links
 
-- Build docs: [Compile NGINX](./COMPILE_NGINX.md), [Compile Apache](./COMPILE_APACHE.md), [Compile HAProxy](./COMPILE_HAPROXY.md)
+- Build / prepare docs: [Compile Apache](./COMPILE_APACHE.md),
+  [Compile HAProxy](./COMPILE_HAPROXY.md),
+  [Compile NGINX](./COMPILE_NGINX.md),
+  [Prepare Envoy](./COMPILE_ENVOY.md),
+  [Prepare Traefik](./COMPILE_TRAEFIK.md),
+  [Compile Lighttpd](./COMPILE_LIGHTTPD.md),
+  [Open connectors](./COMPILE_OPEN_CONNECTORS.md)
 - Example configs: [Apache examples](./examples/apache/README.md), [NGINX examples](./examples/nginx/README.md), [HAProxy examples](./examples/haproxy/README.md)
 - Shared connector feature docs: [Shared Features](./SHARED_FEATURES.md)
 - Roadmap: [docs/roadmap/roadmap.md](./docs/roadmap/roadmap.md)
