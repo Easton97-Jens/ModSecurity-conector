@@ -1,0 +1,11 @@
+# Example only. This does not prove production readiness.
+entryPoints:
+  web:
+    address: ":8080"
+providers:
+  file:
+    filename: "./traefik-dynamic.yaml"
+    watch: true
+log:
+  level: INFO
+accessLog: {}

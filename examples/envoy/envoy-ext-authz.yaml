@@ -1,0 +1,60 @@
+# Example only. This does not prove production readiness.
+# Envoy is expected to be a pinned runtime binary prepared by repository scripts,
+# not compiled from source by this repository.
+static_resources:
+  listeners:
+  - name: listener_0
+    address:
+      socket_address: { address: 0.0.0.0, port_value: 8080 }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: backend
+              domains: ["*"]
+              routes:
+              - match: { prefix: "/" }
+                route: { cluster: app_backend }
+          http_filters:
+          - name: envoy.filters.http.ext_authz
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+              http_service:
+                server_uri:
+                  uri: http://127.0.0.1:9000
+                  cluster: modsecurity_authz
+                  timeout: 0.2s
+                authorization_request:
+                  allowed_headers:
+                    patterns:
+                    - exact: authorization
+                    - exact: content-type
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+  - name: modsecurity_authz
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    load_assignment:
+      cluster_name: modsecurity_authz
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address: { address: 127.0.0.1, port_value: 9000 }
+  - name: app_backend
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    load_assignment:
+      cluster_name: app_backend
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address: { address: 127.0.0.1, port_value: 8081 }

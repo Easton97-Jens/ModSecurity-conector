@@ -1,0 +1,18 @@
+# Example only. Attach forwardAuth to routes that need ModSecurity decisions.
+http:
+  routers:
+    app:
+      rule: "PathPrefix(`/`)"
+      entryPoints: ["web"]
+      middlewares: ["modsecurity-auth"]
+      service: "app"
+  middlewares:
+    modsecurity-auth:
+      forwardAuth:
+        address: "http://127.0.0.1:9000/authorize"
+        trustForwardHeader: false
+  services:
+    app:
+      loadBalancer:
+        servers:
+        - url: "http://127.0.0.1:8081"

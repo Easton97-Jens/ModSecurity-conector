@@ -1,96 +1,41 @@
+Language: English | [Deutsch](COMPILE_NGINX.de.md)
+
 # Compile NGINX
+
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Status and Limits](#status-and-limits)
+- [Overview: Three Paths](#overview-three-paths)
+- [Path 1: Repository Smoke / Validation](#path-1-repository-smoke-validation)
+- [Path 2: External Use With Distribution Packages](#path-2-external-use-with-distribution-packages)
+- [Path 3: External Use From Source](#path-3-external-use-from-source)
+- [Config Snippets](#config-snippets)
+- [Example Configs](#example-configs)
+- [Logs](#logs)
+- [Troubleshooting](#troubleshooting)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
 
 ## Purpose
 
-This guide documents the repository-supported NGINX build and runtime-smoke
-path from a clean clone. It covers the dynamic-module flow used by
-`make smoke-nginx`, supported variables, and the evidence paths used by the
-generated reports.
+This guide is for using the NGINX connector outside this repository: provide libmodsecurity, build `ngx_http_modsecurity_module.so` against a compatible NGINX version/ABI, copy the module into an external NGINX setup, wire configuration, and run the first syntax check/reload.
 
-## Current Connector Status
+## Status and Limits
 
-- Connector: adapter-owned NGINX dynamic module under `connectors/nginx/`.
-- Default runtime evidence: 60 attempted / 60 PASS.
-- Force-all runtime evidence: 140 attempted / 95 PASS / 39 FAIL / 0 BLOCKED / 6 NOT_EXECUTABLE.
-- Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is documented as runtime evidence only.
+The NGINX connector source lives under `connectors/nginx/`. Repository smoke evidence validates specific repository paths only. External use depends on NGINX ABI compatibility and does not prove every package, module set, or RESPONSE_BODY / Phase 4 deployment.
 
-## What This Builds
+## Overview: Three Paths
 
-- libmodsecurity v3 under `BUILD_ROOT`.
-- A local NGINX source/build tree when `BUILD_NGINX_FROM_SOURCE=1`.
-- The repo-owned `ngx_http_modsecurity_module.so` dynamic module.
-- Per-case local NGINX runtime directories and smoke evidence under `BUILD_ROOT`.
+| Path | Purpose | Main use |
+| --- | --- | --- |
+| Path 1: Repository smoke | Validate repository evidence | Developers / reviewers |
+| Path 2: External use with packages | Use distro packages where compatible | Operators using system packages |
+| Path 3: External use from source | Build ModSecurity and/or connector pieces manually | Operators needing exact version control |
 
-## What Not Prove
+## Path 1: Repository Smoke / Validation
 
-- It does not prove every NGINX release, distro package, module set, or production configuration.
-- It does not promote force-all FAIL rows or former expected-failure rows.
-- It does not promote full RESPONSE_BODY support.
-- Generated markdown is reporting only; runtime proof comes from smoke summary JSON and per-case logs.
-
-## Repository Layout
-
-| Path | Meaning |
-|---|---|
-| `connectors/nginx/` | NGINX connector source, module `config`, metadata, and harness |
-| `connectors/nginx/src/` | Productive NGINX adapter source |
-| `connectors/nginx/harness/` | Runtime smoke config template and runner |
-| `common/` | Connector-neutral metadata and helper shapes |
-| `modules/ModSecurity-test-Framework/` | YAML cases, runners, generators, and smoke orchestration |
-| `reports/testing/` | Parent-repository generated runtime reports |
-
-## Prerequisites
-
-- POSIX shell, `make`, C/C++ build tools, `git`, `curl`, `python3`.
-- Python dependencies from `make setup-dev`.
-- Network access only when fetching libmodsecurity, NGINX, or CRS.
-- A writable absolute `BUILD_ROOT` outside the git checkout.
-
-## Required Submodules
-
-```sh
-git clone <repo-url> ModSecurity-conector
-cd ModSecurity-conector
-git submodule update --init --recursive
-make setup-dev
-```
-
-Use `FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework` only when using a separate framework checkout.
-
-## Build Variables
-
-The supported variables below are consumed by the current Makefile or shell helpers.
-
-## Full Variable Reference Table
-
-| Variable | Required | Default | Example | Used by | Meaning | Notes |
-|---|---|---|---|---|---|---|
-| `FRAMEWORK_ROOT` | No | `$(CURDIR)/modules/ModSecurity-test-Framework` | `/work/ModSecurity-test-Framework` | Makefile, framework scripts | Test framework checkout | Must contain `ci/` and `tests/runners/` |
-| `CONNECTOR_ROOT` | No | current repo | `/work/ModSecurity-conector` | Makefile, harnesses | Connector repository root | Root Makefile exports this as `$(CURDIR)` |
-| `BUILD_ROOT` | No | `/src/ModSecurity-conector-build` | `/tmp/mscon-build` | all build/smoke helpers | Generated build, runtime, logs, and results root | Must be absolute and outside the checkout |
-| `SOURCE_ROOT` | No | `/src` | `/src` | fetch/build helpers | Source checkout root | The helpers keep fetched sources under this root |
-| `MODSECURITY_GIT_REF` | No | `v3/master` | `v3.0.15` | fetch helpers | libmodsecurity git ref | Alias for `MODSECURITY_V3_GIT_REF` |
-| `MODSECURITY_SOURCE_DIR` | No | `$SOURCE_ROOT/ModSecurity_V3` | `/src/ModSecurity_V3` | build helpers | Existing libmodsecurity source tree | Also feeds `MODSECURITY_V3_SOURCE_DIR` |
-| `REFRESH` | No | unset | `1` | prepare/fetch helpers | Recreate generated source/build trees | Use intentionally; it refreshes generated state |
-| `FORCE_ALL_CASES` | No | unset | `1` | case discovery, smoke runners | Attempt materializable former-XFAIL/future/gap rows | Evidence only; does not promote support |
-| `SMOKE_CASES` | No | unset | `phase1_header_block phase2_args_block` | case discovery | Limit smoke to named cases | Space-separated case names or paths |
-| `BUILD_NGINX_FROM_SOURCE` | No | unset | `1` | NGINX prepare helper | Build local NGINX runtime/module | Recommended for reproducible local smoke |
-| `NGINX_BINARY` | No | `$NGINX_PREFIX/sbin/nginx` | `/usr/sbin/nginx` | NGINX harness/prepare helper | NGINX executable | Use with a matching module path |
-| `NGINX_SOURCE_DIR` | No | resolved by prepare helper | `/src/nginx` | NGINX prepare helper | Existing NGINX source tree | Used when providing source directly |
-| `MODSECURITY_NGINX_SOURCE_DIR` | No | `$CONNECTOR_ROOT/connectors/nginx` | `/src/ModSecurity-nginx` | NGINX prepare helper | NGINX connector source input | Repo-local source is the default |
-| `NGINX_PREFIX` | No | `$BUILD_ROOT/nginx-runtime/nginx` | `/tmp/mscon-build/nginx-runtime/nginx` | NGINX harness | Runtime prefix | Generated |
-| `NGINX_MODULE` | No | `$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so` | `/tmp/mscon-build/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so` | NGINX harness | Dynamic module path | Supported variable is `NGINX_MODULE`, not `NGINX_MODULE_PATH` |
-| `NGINX_HARNESS_PARENT` | No | `$BUILD_ROOT` | `/tmp/mscon-build` | NGINX harness | Parent for generated runtime work dirs | Generated |
-| `LOG_DIR` | No | `$NGINX_HARNESS_WORK_ROOT/logs` | `/tmp/mscon-build/nginx-runtime/logs` | NGINX harness | Per-run/per-case log root | Generated |
-| `RESULTS_DIR` | No | `$BUILD_ROOT/results` | `/tmp/mscon-build/results` | NGINX harness | Summary JSON/TXT output root | Force-all defaults to `$BUILD_ROOT/results/force-all` |
-| `RUNTIME_BASE` | No | `$NGINX_HARNESS_WORK_ROOT/runtime` | `/tmp/mscon-build/nginx-runtime/runtime` | NGINX harness | Per-case runtime root parent | Generated |
-| `RUNTIME_ROOT` | No | `$RUNTIME_BASE/<case>` | `/tmp/mscon-build/nginx-runtime/runtime/phase1_header_block` | NGINX harness | One case runtime root | Used for selected-case runs |
-| `PORT` | No | `18081` | `19081` | NGINX harness | Local listener base port | Harness searches for a free port |
-| `MODSECURITY_RULE_PREAMBLE_FILE` | No | unset | `$BUILD_ROOT/crs/modsecurity-crs-preamble.conf` | CRS variant smoke | Rules prepended before generated case rules | Required for `MODSECURITY_TEST_VARIANT=with-crs` |
-
-Unsupported as current repository variables: `VERBOSE`, `DEBUG`, `NGINX_PORT`, `NGINX_CONF`, `NGINX_LOG_DIR`, and `NGINX_MODULE_PATH`. Use `PORT`, generated config paths, `LOG_DIR`, and `NGINX_MODULE` instead.
-
-## Minimal Local Build
+These commands validate repository evidence. They are not the external installation procedure.
 
 ```sh
 git submodule update --init --recursive
@@ -98,101 +43,125 @@ make setup-dev
 BUILD_NGINX_FROM_SOURCE=1 make smoke-nginx
 ```
 
-## Rebuild / Refresh
+Optional broader repository evidence:
 
 ```sh
-REFRESH=1 BUILD_NGINX_FROM_SOURCE=1 make smoke-nginx
+FORCE_ALL_CASES=1 BUILD_NGINX_FROM_SOURCE=1 make smoke-nginx
 ```
 
-Use a separate build root for independent reproductions:
+## Path 2: External Use With Distribution Packages
+
+1. Install NGINX, compatible NGINX development/source package, build tools, and libmodsecurity development files. Package names vary by distribution; this Debian/Ubuntu-style command is only an example:
+
+   ```sh
+   sudo apt-get update
+   sudo apt-get install -y nginx nginx-dev build-essential libmodsecurity-dev
+   ```
+
+2. Packages may provide NGINX, NGINX development files, and libmodsecurity. The package path does **not** mean the connector module comes ready-made. `ngx_http_modsecurity_module.so` still must be built from `connectors/nginx` against a compatible NGINX version/ABI.
+3. Inspect the deployed NGINX binary:
+
+   ```sh
+   nginx -V 2>&1
+   ```
+
+4. Get this repository's connector source:
+
+   ```sh
+   git clone <modsecurity-conector-repo-url> ModSecurity-conector
+   cd ModSecurity-conector
+   ```
+
+5. Build the dynamic module using matching NGINX source and compatible configure arguments:
+
+   ```sh
+   NGINX_VERSION=<version-from-nginx-V>
+   curl -LO "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz"
+   tar xf "nginx-${NGINX_VERSION}.tar.gz"
+   cd "nginx-${NGINX_VERSION}"
+   ./configure --with-compat \
+     --add-dynamic-module=/path/to/ModSecurity-conector/connectors/nginx \
+     <other-compatible-nginx-configure-args>
+   make modules
+   ```
+
+6. Copy the built module and adapted configs into the target system using your module directory, service config directory, ModSecurity rules directory, and log directory:
+
+   > Note: `install` is not a package manager command here. It copies files and can set permissions. For example, `sudo install -m 0755 file.so /target/file.so` is similar to `sudo cp file.so /target/file.so` followed by `sudo chmod 0755 /target/file.so`.
+
+   ```sh
+   sudo install -d -m 0755 <nginx-module-dir> <modsecurity-config-dir> <modsecurity-log-dir>
+   sudo install -m 0755 objs/ngx_http_modsecurity_module.so <nginx-module-dir>/ngx_http_modsecurity_module.so
+   sudo install -m 0644 /path/to/ModSecurity-conector/examples/nginx/modsecurity-request-only.conf <modsecurity-config-dir>/modsecurity-request-only.conf
+   sudo install -m 0644 /path/to/ModSecurity-conector/examples/nginx/nginx-modsecurity-request-only.conf <nginx-service-config-dir>/modsecurity.conf
+   sudo nginx -t
+   sudo systemctl reload <nginx-service-name>
+   ```
+
+The module must be rebuilt whenever the NGINX binary/package changes. If the module ABI does not match NGINX, NGINX will fail to load the module.
+
+## Path 3: External Use From Source
+
+1. Install compiler/build prerequisites.
+2. Build libmodsecurity v3 from source if packages are not suitable:
+
+Install build prerequisites for your operating system first. Then either use the libmodsecurity ref selected by your deployment or identify the repository/framework pin before building. The following is an upstream-style example, not a repository-owned build guarantee:
 
 ```sh
-BUILD_ROOT=/tmp/mscon-nginx-build SOURCE_ROOT=/src REFRESH=1 BUILD_NGINX_FROM_SOURCE=1 make smoke-nginx
+git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
+cd ModSecurity-v3
+git submodule update --init --recursive
+./build.sh
+./configure --prefix=<libmodsecurity-prefix>
+make -j"$(nproc)"
+sudo make install
 ```
 
-## Manual Build Flow
+Replace `<modsecurity-v3-ref>` and `<libmodsecurity-prefix>` with operator-selected values. Verify upstream prerequisites and flags for your operating system.
 
-The helper flow is the source of truth. A manual reproduction follows the same shape:
+3. Build or obtain the exact NGINX source corresponding to the deployed NGINX binary. Always inspect `nginx -V` first.
+4. Configure NGINX source with `--add-dynamic-module=/path/to/ModSecurity-conector/connectors/nginx`, compatible arguments, and `--with-compat` when appropriate; then run `make modules`.
+5. Install/copy `objs/ngx_http_modsecurity_module.so`, place `load_module` in the top-level NGINX config context, run `nginx -t`, then reload/restart NGINX.
 
-```sh
-make fetch-deps
-BUILD_NGINX_FROM_SOURCE=1 sh modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh
-NGINX_BINARY=/path/to/nginx make smoke-nginx
+## Config Snippets
+
+```nginx
+load_module modules/ngx_http_modsecurity_module.so;
+
+modsecurity on;
+modsecurity_rules_file <modsecurity-rules-file>;
+
+proxy_pass <backend-upstream>;
 ```
 
-## Production-Style Install / Deploy
+`load_module` belongs in the top-level NGINX config context, not inside `http`, `server`, or `location`. See [examples/nginx/README.md](examples/nginx/README.md) for the explanation of these directives, placeholders, logs, and limitations.
 
-- Install `ngx_http_modsecurity_module.so` into the NGINX modules directory.
-- Load it from `/etc/nginx/nginx.conf` with `load_module`.
-- Keep ModSecurity config in `/etc/modsecurity/`.
-- Keep CRS in `/etc/modsecurity/crs/`.
-- Write connector decisions under `/var/log/modsecurity/` and server logs under `/var/log/nginx/`.
-- Reload/restart NGINX after changing loaded modules, ModSecurity config, CRS, or connector directives.
+## Example Configs
 
-## Test / Smoke Validation
-
-```sh
-make quick-check
-make smoke-nginx
-FORCE_ALL_CASES=1 make smoke-nginx
-make generate-test-matrix
-make check-test-matrix
-```
-
-Expected current default evidence is 60 attempted / 60 PASS. Current force-all evidence contains expected FAIL and NOT_EXECUTABLE rows and is not a support promotion.
-
-## Runtime Evidence Paths
-
-| Evidence | Path |
-|---|---|
-| Default summary | `$BUILD_ROOT/results/nginx-summary.json` |
-| Default JSONL | `$BUILD_ROOT/results/nginx-results.jsonl` |
-| Force-all summary | `$BUILD_ROOT/results/force-all/nginx-summary.json` |
-| Per-case logs | `$NGINX_HARNESS_WORK_ROOT/logs/<case>/` |
-| Generated report | `reports/testing/generated/nginx-runtime-results.generated.md` |
-
-## Generated Artifacts
-
-- `$BUILD_ROOT/nginx-build/`
-- `$BUILD_ROOT/nginx-runtime/`
-- `$BUILD_ROOT/results/nginx-summary.json`
-- `$BUILD_ROOT/logs/`
+Use the files in [examples/nginx/](examples/nginx/README.md) as starting points for external configuration. They are not automatically installed by the repository and are not universal production defaults.
 
 ## Logs
 
-Per-case logs include NGINX access/error logs, generated config, curl errors, `phase4.log`, `response-body.txt`, `audit.log`, and normalized `result.json`.
+Inspect the relevant deployment logs; do not treat the paths in examples as universal requirements.
+
+- Webserver/proxy access logs.
+- Webserver/proxy error logs.
+- ModSecurity audit log when enabled.
+- Connector decision log, if this connector/path has one.
+- Sidecar/agent log, if this connector/path has one.
 
 ## Troubleshooting
 
-- Missing framework: run `git submodule update --init --recursive` or set `FRAMEWORK_ROOT`.
-- Module mismatch: rebuild NGINX and the dynamic module together.
-- CRS run blocked: run `make prepare-crs` or use `make test-with-crs`.
-- Port conflict: set `PORT` to another base port.
+Check NGINX module ABI mismatch, missing headers, missing shared libraries, wrong top-level `load_module` placement, wrong rules path, missing writable log directory, and RESPONSE_BODY assumptions beyond evidence.
 
-## Common Failures
+## Non-Claims
 
-- Build dependency missing: install compiler and NGINX build prerequisites or let the helper build locally.
-- Generated path rejected: use absolute `BUILD_ROOT`, `LOG_DIR`, and `RUNTIME_ROOT` outside the checkout.
-- Response-body mismatch: treat as bounded evidence only; do not promote RESPONSE_BODY.
+- RESPONSE_BODY / Phase 4 is not promoted.
+- Force-all FAIL rows are not production support.
+- This guide does not prove every NGINX distro package, version, or module ABI.
 
-## Cleanup
+## Related Docs
 
-```sh
-rm -rf /src/ModSecurity-conector-build/nginx-build
-rm -rf /src/ModSecurity-conector-build/nginx-runtime
-rm -rf /src/ModSecurity-conector-build/logs/nginx*
-```
-
-## Best Practices
-
-- Prefer clean `BUILD_ROOT` values for evidence runs.
-- Record exact commands and summary JSON paths in review notes.
-- Keep generated runtime artifacts out of git.
-- Stage generated markdown only after `make generate-test-matrix`.
-
-## Related Docs / Examples
-
-- `examples/nginx/README.md`
+- [examples/nginx/README.md](examples/nginx/README.md)
 - `connectors/nginx/docs/build.md`
 - `connectors/nginx/docs/validation.md`
-- `reports/testing/generated/nginx-runtime-results.generated.md`

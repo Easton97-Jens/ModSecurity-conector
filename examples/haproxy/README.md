@@ -1,4 +1,28 @@
+Language: English | [Deutsch](README.de.md)
+
 # HAProxy ModSecurity Examples
+
+## Table of Contents
+
+- [Status](#status)
+- [Purpose](#purpose)
+- [Needed Components](#needed-components)
+- [Files](#files)
+- [Production Paths](#production-paths)
+- [Request Phases 1/2](#request-phases-12)
+- [Phase 3 Response Headers](#phase-3-response-headers)
+- [Phase 4 / RESPONSE_BODY Strict-Abort](#phase-4-response_body-strict-abort)
+- [Variable And Placeholder Reference](#variable-and-placeholder-reference)
+- [Runtime Evidence](#runtime-evidence)
+- [Reload And Restart](#reload-and-restart)
+- [Limitations](#limitations)
+- [External Usage](#external-usage)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
+
+## Status
+
+HAProxy SPOE/SPOP production-style examples for `haproxy-modsecurity-spoa`. They do not promote RESPONSE_BODY or force-all FAIL rows as production support.
 
 ## Purpose
 
@@ -6,6 +30,10 @@ These examples show the production SPOA path for HAProxy:
 `haproxy-modsecurity-spoa`, HAProxy + SPOE/SPOP + libmodsecurity, decision
 logging, audit-log plumbing, request phases 1/2, implemented phase 3 response
 headers, and bounded Phase 4 strict-abort evidence.
+
+## Needed Components
+
+HAProxy, `haproxy-modsecurity-spoa`, libmodsecurity v3, SPOE config, ModSecurity rules, optional CRS, and writable HAProxy/SPOA/ModSecurity log locations.
 
 ## Files
 
@@ -111,9 +139,22 @@ The root summaries are connector-neutral. Row-level HAProxy evidence stays in
 synthetic matrix writer; generated reports consume runtime summaries and
 snapshot data.
 
+
+## External Usage
+
+This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `haproxy-modsecurity-spoa`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+
+Service context: HAProxy plus SPOA process. After adapting the files, haproxy -c, reload HAProxy, and restart the operator-managed SPOA process. Inspect HAProxy logs, decision.jsonl, audit.log, and SPOA diagnostic logs.
+
+## Non-Claims
+
+- These examples are not a blanket production-readiness certification.
+- They do not prove every package/version/layout.
+- Phase 4 / RESPONSE_BODY examples are bounded runtime evidence only, not promoted full support.
+
 ## Related Docs
 
-- `COMPILE_HAPROXY.md`
+- [COMPILE_HAPROXY.md](../../COMPILE_HAPROXY.md)
 - `connectors/haproxy/docs/build.md`
 - `connectors/haproxy/docs/validation.md`
 - `reports/testing/haproxy-poc.md`

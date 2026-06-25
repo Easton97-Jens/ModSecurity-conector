@@ -1,9 +1,35 @@
+Language: English | [Deutsch](README.de.md)
+
 # NGINX ModSecurity Examples
+
+## Table of Contents
+
+- [Status](#status)
+- [Purpose](#purpose)
+- [Needed Components](#needed-components)
+- [Files](#files)
+- [Production Paths](#production-paths)
+- [Request-Only Mode](#request-only-mode)
+- [Phase 4 / RESPONSE_BODY Mode](#phase-4-response_body-mode)
+- [Variable And Placeholder Reference](#variable-and-placeholder-reference)
+- [Logging And Evidence](#logging-and-evidence)
+- [Security Notes](#security-notes)
+- [External Usage](#external-usage)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
+
+## Status
+
+NGINX dynamic-module request-only and bounded strict-abort examples. Production-style, but not proof of every NGINX build, module ABI, or complete RESPONSE_BODY support.
 
 ## Purpose
 
 These examples show production-style NGINX configuration for request-only
 ModSecurity and bounded strict-abort Phase 4 / RESPONSE_BODY evidence.
+
+## Needed Components
+
+NGINX and `ngx_http_modsecurity_module.so` built for a compatible NGINX ABI, libmodsecurity v3, ModSecurity rules, optional CRS, and writable NGINX/ModSecurity log locations.
 
 ## Files
 
@@ -84,9 +110,22 @@ Keep request-only mode as the baseline, verify module ABI compatibility with
 the deployed NGINX binary, validate response-body behavior with compression
 disabled first, and preserve strict-abort evidence when testing outbound rules.
 
+
+## External Usage
+
+This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `ngx_http_modsecurity_module.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+
+Service context: NGINX. After adapting the files, nginx -t and reload the NGINX service. Inspect NGINX error/access logs and ModSecurity audit logs.
+
+## Non-Claims
+
+- These examples are not a blanket production-readiness certification.
+- They do not prove every package/version/layout.
+- Phase 4 / RESPONSE_BODY examples are bounded runtime evidence only, not promoted full support.
+
 ## Related Docs
 
-- `COMPILE_NGINX.md`
+- [COMPILE_NGINX.md](../../COMPILE_NGINX.md)
 - `connectors/nginx/docs/build.md`
 - `connectors/nginx/docs/validation.md`
 - `reports/testing/nginx-poc.md`
