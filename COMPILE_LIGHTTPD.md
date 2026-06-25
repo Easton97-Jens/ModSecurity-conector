@@ -1,129 +1,133 @@
 # Compile Lighttpd
 
-## Inhaltsverzeichnis
+## Table of Contents
 
 - [Purpose](#purpose)
-- [Current Status / Supported Claim](#current-status-supported-claim)
-- [External Use Overview](#external-use-overview)
-- [Components Needed Outside This Repository](#components-needed-outside-this-repository)
-- [Option A: Use Distribution Packages Where Compatible](#option-a-use-distribution-packages-where-compatible)
-- [Option B: Build libmodsecurity v3 From Source](#option-b-build-libmodsecurity-v3-from-source)
-- [Build / Prepare This Connector Or Runtime Path](#build-prepare-this-connector-or-runtime-path)
-- [Install The Built Artifact Into An External System](#install-the-built-artifact-into-an-external-system)
-- [Wire Configuration](#wire-configuration)
-- [Start / Reload / Restart](#start-reload-restart)
-- [Logs And Runtime Evidence In A Real Deployment](#logs-and-runtime-evidence-in-a-real-deployment)
+- [Status and Limits](#status-and-limits)
+- [Overview: Three Paths](#overview-three-paths)
+- [Path 1: Repository Smoke / Validation](#path-1-repository-smoke-validation)
+- [Path 2: External Use With Distribution Packages](#path-2-external-use-with-distribution-packages)
+- [Path 3: External Use From Source](#path-3-external-use-from-source)
+- [Config Snippets](#config-snippets)
 - [Example Configs](#example-configs)
-- [Optional Repository Validation](#optional-repository-validation)
+- [Logs](#logs)
 - [Troubleshooting](#troubleshooting)
-- [Non-Claims / Limits](#non-claims-limits)
+- [Non-Claims](#non-claims)
 - [Related Docs](#related-docs)
 
 ## Purpose
 
-Explain the external Lighttpd integration pattern documented by this repository without claiming production readiness.
+This guide is for using the Lighttpd runtime path outside this repository with an operator-provided sidecar_proxy decision service/sidecar and external configuration.
 
-## Current Status / Supported Claim
+## Status and Limits
 
-Lighttpd is a sidecar_proxy / Phase 1 path. A native Lighttpd ModSecurity module is not implemented. The `-tt`, `-D`, and `-f` flags are documented by `lighttpd(8)` and are used here as operator-style commands; operators must still validate them against the staged or packaged binary in their environment.
+Lighttpd may be operator-provided or built through the repository helper. There is no native Lighttpd ModSecurity module here; external use is `sidecar_proxy` / Phase 1.
 
-## External Use Overview
+## Overview: Three Paths
 
-The external pattern is `sidecar_proxy` plus an operator-provided decision service or sidecar. This repository provides example configuration and smoke paths, but not a complete production service.
+| Path | Purpose | Main use |
+| --- | --- | --- |
+| Path 1: Repository smoke | Validate repository evidence | Developers / reviewers |
+| Path 2: External use with packages | Use distro packages where compatible | Operators using system packages |
+| Path 3: External use from source | Build ModSecurity and/or connector pieces manually | Operators needing exact version control |
 
-## Components Needed Outside This Repository
-
-- Lighttpd runtime, either staged by this repository or supplied by the operator.
-- Lighttpd proxy config.
-- Reachable sidecar/decision backend.
-- libmodsecurity if the backend uses it.
-- ModSecurity rules/CRS and writable logs.
-
-## Option A: Use Distribution Packages Where Compatible
-
-Use a distribution or vendor runtime package when it matches your deployment needs. Package names, service names, and paths are operator-specific and are not guaranteed by this repository.
-
-## Option B: Build libmodsecurity v3 From Source
-
-This repository's local smoke flow prepares libmodsecurity through framework helpers and pinned variables. For an external deployment, the following is a standard upstream-style example, not a repository-owned guarantee. Verify the selected `<modsecurity-v3-ref>`, dependencies, and flags against your operating system and the upstream ModSecurity documentation before use.
-
-```sh
-git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
-cd ModSecurity-v3
-git submodule update --init --recursive
-./build.sh
-./configure --prefix=/usr/local/modsecurity
-make -j"$(nproc)"
-sudo make install
-```
-
-Replace `<modsecurity-v3-ref>` with the ref chosen by your deployment or with the repository/framework pin after you have verified it in the framework source. If your distribution provides a compatible `libmodsecurity-dev`, you may not need this source build.
-
-## Build / Prepare This Connector Or Runtime Path
-
-Repository runtime preparation command:
-
-```sh
-ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
-```
-
-This prepares/stages the repository-supported runtime component or build path where implemented. It is not a global production installation.
-
-## Install The Built Artifact Into An External System
-
-No production install target is provided by this repository for this path. Copy or reference the staged runtime binary and configuration according to your process manager and deployment layout. Use placeholders such as `<lighttpd-bin>` until you have resolved the actual staged or packaged binary path.
-
-## Wire Configuration
-
-Adapt the example config for your listener, backend, decision service address, rules, CRS, and log paths. Do not assume the repository starts a production decision service.
-
-## Start / Reload / Restart
-
-Production-style placeholder command:
-
-```sh
-<lighttpd-bin> -tt -f examples/lighttpd/lighttpd-sidecar-proxy.conf
-<lighttpd-bin> -D -f examples/lighttpd/lighttpd-sidecar-proxy.conf
-```
-
-Replace the placeholder binary with the actual runtime binary. Decision service startup is operator-provided unless a real production service command exists in your deployment.
-
-## Logs And Runtime Evidence In A Real Deployment
-
-Inspect runtime logs, decision-service logs, and ModSecurity audit/decision logs when the selected backend supports them. Preserve the runtime binary path, config file, rules file, CRS version, and sidecar command used.
-
-## Example Configs
-
-Use the files in [examples/lighttpd/README.md](examples/lighttpd/README.md) as starting points for external configuration. They are not automatically installed by the repository.
-
-## Optional Repository Validation
+## Path 1: Repository Smoke / Validation
 
 These commands validate repository evidence. They are not the external installation procedure.
 
 ```sh
 git submodule update --init --recursive
 make setup-dev
-make lint
-git diff --check
-```
-```sh
 ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 make smoke-lighttpd
+```
+
+Optional repository evidence:
+
+```sh
 make smoke-lighttpd-modsecurity
 make smoke-lighttpd-crs
 ```
 
+## Path 2: External Use With Distribution Packages
+
+1. Install or provide the Lighttpd runtime binary through your distribution, vendor package, container image, or deployment tooling. Package names and service names vary by distribution.
+2. Provide a reachable sidecar_proxy decision service/sidecar. If the service uses libmodsecurity, install compatible libmodsecurity headers/libraries or runtime packages.
+3. Get this repository for example configs and smoke references:
+
+   ```sh
+   git clone <modsecurity-conector-repo-url> ModSecurity-conector
+   cd ModSecurity-conector
+   ```
+
+4. Adapt the example config for your listener, backend, decision service URL/address, rules directory, CRS directory, runtime directory, and log directory.
+5. Run the first syntax check/start with operator-selected binary placeholders:
+
+   ```sh
+   <lighttpd-bin> -tt -f examples/lighttpd/lighttpd-sidecar-proxy.conf
+   <lighttpd-bin> -D -f examples/lighttpd/lighttpd-sidecar-proxy.conf
+   ```
+
+6. Inspect runtime logs, decision-service logs, and ModSecurity audit/decision logs when the backend supports them.
+
+## Path 3: External Use From Source
+
+Source-based external use may use the pinned Lighttpd runtime build helper shown in Path 1/2, or an operator-built compatible Lighttpd. It is still a sidecar_proxy path, not a native connector. If the sidecar backend uses libmodsecurity, build libmodsecurity as needed.
+
+If your decision backend uses libmodsecurity and packages are not suitable, build libmodsecurity v3 from source:
+
+Install build prerequisites for your operating system first. Then either use the libmodsecurity ref selected by your deployment or identify the repository/framework pin before building. The following is an upstream-style example, not a repository-owned build guarantee:
+
+```sh
+git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
+cd ModSecurity-v3
+git submodule update --init --recursive
+./build.sh
+./configure --prefix=<libmodsecurity-prefix>
+make -j"$(nproc)"
+sudo make install
+```
+
+Replace `<modsecurity-v3-ref>` and `<libmodsecurity-prefix>` with operator-selected values. Verify upstream prerequisites and flags for your operating system.
+
+Then build or start your operator-provided decision service/sidecar, adapt the example config, run the first syntax check/start from Path 2, and inspect logs.
+
+## Config Snippets
+
+```yaml
+server.modules += ("mod_proxy")
+proxy.server = (
+  "" => (("host" => "<sidecar-or-backend-host>", "port" => <port>))
+)
+```
+
+See [examples/lighttpd/README.md](examples/lighttpd/README.md) for the explanation of these directives, placeholders, logs, and limitations.
+
+## Example Configs
+
+Use the files in [examples/lighttpd/README.md](examples/lighttpd/README.md) as starting points for external configuration. They are not automatically installed by the repository and are not universal production defaults.
+
+## Logs
+
+Inspect the relevant deployment logs; do not treat the paths in examples as universal requirements.
+
+- Webserver/proxy access logs.
+- Webserver/proxy error logs.
+- ModSecurity audit log when enabled.
+- Connector decision log, if this connector/path has one.
+- Sidecar/agent log, if this connector/path has one.
+
 ## Troubleshooting
 
-Check missing runtime binary, unreachable decision service, missing libmodsecurity backend, missing CRS/rules, and unwritable logs. Treat blocked runs as blocked, not success.
+Check missing runtime binary, missing sidecar/auth/decision service, wrong backend address, missing shared libraries, wrong rules path, missing writable log directory, and response-body assumptions beyond evidence.
 
-## Non-Claims / Limits
+## Non-Claims
 
-- Lighttpd can be staged from a pinned source tarball here, or operators can use their own compatible Lighttpd.
-- There is no native Lighttpd ModSecurity connector in this repository.
-- The current pattern is `sidecar_proxy` / Phase 1 and is not production-ready proof.
+- Lighttpd is not production-ready proof here.
+- There is no native Lighttpd ModSecurity connector here.
+- The current path is `sidecar_proxy` / Phase 1.
 - FastCGI/SCGI/mod_magnet/Lua are not implemented here.
-- RESPONSE_BODY is not verified or promoted.
+- RESPONSE_BODY / Phase 4 is not promoted.
 - Force-all FAIL rows are not production support.
 
 ## Related Docs

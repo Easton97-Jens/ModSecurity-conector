@@ -111,7 +111,7 @@ disabled first, and preserve strict-abort evidence when testing outbound rules.
 
 ## External Usage
 
-This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `ngx_http_modsecurity_module.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `ngx_http_modsecurity_module.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
 
 Service context: NGINX. After adapting the files, nginx -t and reload the NGINX service. Inspect NGINX error/access logs and ModSecurity audit logs.
 

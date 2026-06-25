@@ -140,7 +140,7 @@ snapshot data.
 
 ## External Usage
 
-This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `haproxy-modsecurity-spoa`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `haproxy-modsecurity-spoa`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
 
 Service context: HAProxy plus SPOA process. After adapting the files, haproxy -c, reload HAProxy, and restart the operator-managed SPOA process. Inspect HAProxy logs, decision.jsonl, audit.log, and SPOA diagnostic logs.
 

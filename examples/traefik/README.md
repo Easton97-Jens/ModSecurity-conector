@@ -38,7 +38,7 @@ Use Traefik logs/access logs plus authorization-service decision and audit logs.
 
 ## External Usage
 
-This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `Traefik forwardAuth config`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `Traefik forwardAuth config`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
 
 Service context: Traefik plus operator-provided decision service. After adapting the files, restart Traefik for static config and restart the operator-provided decision service. Inspect Traefik logs plus decision-service audit/decision logs.
 

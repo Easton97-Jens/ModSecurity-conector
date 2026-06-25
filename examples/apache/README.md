@@ -115,7 +115,7 @@ compressed or uncompressed response bytes.
 
 ## External Usage
 
-This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `mod_security3.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `mod_security3.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
 
 Service context: Apache/httpd. After adapting the files, apachectl configtest and reload the Apache service. Inspect Apache error/access logs and ModSecurity audit logs.
 

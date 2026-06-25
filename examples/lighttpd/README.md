@@ -37,7 +37,7 @@ Use Lighttpd access/error logs plus sidecar decision and audit logs. Paths here 
 
 ## External Usage
 
-This directory contains example configs for external usage. The matching compile guide explains how to build or prepare the required artifact: `Lighttpd sidecar_proxy config`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `Lighttpd sidecar_proxy config`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
 
 Service context: Lighttpd plus operator-provided sidecar/decision backend. After adapting the files, validate/reload Lighttpd and restart the sidecar/decision backend. Inspect Lighttpd logs plus sidecar audit/decision logs.
 
