@@ -118,10 +118,10 @@ TMPDIR=/tmp make runtime-components-sources
 
 Open connector evidence must not claim:
 
-- `production_ready=true`
-- `full_matrix_ready=true`
-- `crs_complete=true`
-- `response_body_verified=true`
+- `production_ready = true`
+- `full_matrix_ready = true`
+- `crs_complete = true`
+- `response_body_verified = true`
 
 Lighttpd Phase 1 evidence must also not claim a native Lighttpd module.
 

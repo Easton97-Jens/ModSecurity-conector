@@ -23,7 +23,7 @@ This guide is for using the Traefik runtime path outside this repository with an
 
 ## Status and Limits
 
-Traefik is not compiled from source by this repository. External use is Traefik `forwardAuth` plus a decision service. The repository provides example config and smoke paths, not production readiness.
+Traefik is not built from source by this repository. External use is Traefik `forwardAuth` plus a decision service. The repository provides example config and smoke paths, not production readiness.
 
 ## Overview: Three Paths
 
@@ -124,7 +124,7 @@ Check missing runtime binary, missing sidecar/auth/decision service, wrong backe
 
 ## Non-Claims
 
-- Traefik is not compiled from source by this repository.
+- Traefik is not built from source by this repository.
 - Traefik is not production-ready proof here.
 - No Go plugin implementation is provided here.
 - RESPONSE_BODY / Phase 4 is not promoted.

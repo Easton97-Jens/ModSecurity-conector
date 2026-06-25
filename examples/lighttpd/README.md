@@ -15,7 +15,7 @@ Language: English | [Deutsch](README.de.md)
 
 ## Status
 
-Example only. This does not prove production readiness. The current repository path is `sidecar_proxy` / Phase 1. There is no native Lighttpd ModSecurity connector in this repository.
+Example only. This does not prove production readiness. The current repository path is `sidecar_proxy` / Phase 1. This repository does not provide a native Lighttpd ModSecurity integration.
 
 ## Needed Components
 

@@ -15,7 +15,7 @@ Language: English | [Deutsch](README.de.md)
 
 ## Status
 
-Example only. This does not prove production readiness. The repository prepares a pinned Traefik release archive/binary and exercises a `forwardAuth` smoke path when required local runtime components exist. Traefik is not compiled from source by this repository.
+Example only. This does not prove production readiness. The repository prepares a pinned Traefik release archive/binary and exercises a `forwardAuth` smoke path when required local runtime components exist. Traefik is not built from source by this repository.
 
 ## Needed Components
 

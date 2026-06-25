@@ -126,7 +126,7 @@ Check missing runtime binary, missing sidecar/auth/decision service, wrong backe
 ## Non-Claims
 
 - Lighttpd is not production-ready proof here.
-- There is no native Lighttpd ModSecurity connector here.
+- This repository does not provide a native Lighttpd ModSecurity integration here.
 - The current path is `sidecar_proxy` / Phase 1.
 - FastCGI/SCGI/mod_magnet/Lua are not implemented here.
 - RESPONSE_BODY / Phase 4 is not promoted.

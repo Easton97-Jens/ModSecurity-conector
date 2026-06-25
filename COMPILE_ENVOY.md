@@ -23,7 +23,7 @@ This guide is for using the Envoy runtime path outside this repository with an o
 
 ## Status and Limits
 
-Envoy is not compiled from source by this repository. External use is Envoy `ext_authz` plus an authorization service/sidecar. The repository provides example config and smoke paths, not production readiness.
+Envoy is not built from source by this repository. External use is Envoy `ext_authz` plus an authorization service/sidecar. The repository provides example config and smoke paths, not production readiness.
 
 ## Overview: Three Paths
 
@@ -123,7 +123,7 @@ Check missing runtime binary, missing sidecar/auth/decision service, wrong backe
 
 ## Non-Claims
 
-- Envoy is not compiled from source by this repository.
+- Envoy is not built from source by this repository.
 - Envoy is not production-ready proof here.
 - RESPONSE_BODY / Phase 4 is not promoted.
 - Force-all FAIL rows are not production support.

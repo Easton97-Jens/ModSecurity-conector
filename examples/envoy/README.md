@@ -15,7 +15,7 @@ Language: English | [Deutsch](README.de.md)
 
 ## Status
 
-Example only. This does not prove production readiness. The repository prepares a pinned Envoy runtime component and exercises an `ext_authz` smoke path when the required local runtime components exist. Envoy is not compiled from source by this repository.
+Example only. This does not prove production readiness. The repository prepares a pinned Envoy runtime component and exercises an `ext_authz` smoke path when the required local runtime components exist. Envoy is not built from source by this repository.
 
 ## Needed Components
 
