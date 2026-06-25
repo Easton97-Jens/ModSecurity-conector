@@ -14,6 +14,7 @@ Dieses Repository enthält connector-fokussierten Code und Integrationsgerüste 
 - [Envoy](./COMPILE_ENVOY.de.md)
 - [Traefik](./COMPILE_TRAEFIK.de.md)
 - [Lighttpd](./COMPILE_LIGHTTPD.de.md)
+- [Open Connectors](./COMPILE_OPEN_CONNECTORS.de.md)
 
 ### Beispiel-Konfigurationen
 

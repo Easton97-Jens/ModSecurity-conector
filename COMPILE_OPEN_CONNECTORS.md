@@ -1,118 +1,70 @@
+Language: English | [Deutsch](COMPILE_OPEN_CONNECTORS.de.md)
+
 # Compile / Prepare Open Connectors
+
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Status and Limits](#status-and-limits)
+- [Overview: Three Paths](#overview-three-paths)
+- [Path 1: Repository Smoke / Validation](#path-1-repository-smoke-validation)
+- [Path 2: External Use With Distribution Packages](#path-2-external-use-with-distribution-packages)
+- [Path 3: External Use From Source](#path-3-external-use-from-source)
+- [Per-Connector Guides](#per-connector-guides)
+- [Claims Not Allowed](#claims-not-allowed)
 
 ## Purpose
 
-This guide is the shared local preparation entry point for the open connector
-runtime components:
+This is a shared index for the open connector runtime paths: Envoy, Traefik, and Lighttpd. Use the per-connector guides for operator steps; this file only summarizes shared repository preparation and evidence rules.
 
-- Envoy
-- Traefik
-- Lighttpd
+## Status and Limits
 
-Envoy and Traefik are runtime-staged, not source-compiled. Lighttpd is built
-locally from a pinned source tarball. All three use common.sh-managed runtime
-roots and evidence contracts.
+Envoy and Traefik are runtime-staged, not source-built by this repository. Lighttpd can be built locally from a pinned source tarball, but its current integration is `sidecar_proxy` / Phase 1, not a native module. PASS in this file means a repository target/evidence path exists when dependencies are present; it is not production readiness.
 
-## Common Runtime Rules
+## Overview: Three Paths
 
-- `modules/ModSecurity-test-Framework/ci/common.sh` is the source of truth for
-  versions, URLs, checksums, component roots, binary paths, runtime roots, log
-  roots, and result roots.
-- Runtime components are not installed globally.
-- Downloads require explicit `ALLOW_RUNTIME_DOWNLOADS=1`.
-- Builds require explicit `ALLOW_RUNTIME_BUILDS=1`.
-- Staging stays under `$CONNECTOR_COMPONENT_CACHE`.
-- Runtime evidence is written under `$VERIFIED_RUN_ROOT` or a
-  `TMPDIR=/tmp` verified root.
-- Global system paths and global `PATH` fallbacks are rejected for runtime
-  proof.
-- Missing dependencies should produce Exit 77/BLOCKED evidence, not synthetic
-  PASS rows.
+| Path | Purpose | Main use |
+| --- | --- | --- |
+| Path 1: Repository smoke | Validate repository evidence | Developers / reviewers |
+| Path 2: External use with packages | Use operator-provided runtime packages/binaries | Operators using system packages |
+| Path 3: External use from source | Build libmodsecurity and applicable sidecar/runtime pieces | Operators needing exact version control |
 
-## Full Local Preparation
+## Path 1: Repository Smoke / Validation
+
+These commands validate repository evidence. They are not the external installation procedure.
 
 ```sh
 TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime
 TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
 TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
-```
-
-Envoy stages a pinned runtime binary. Traefik stages the expected binary from a
-pinned release archive. Lighttpd stages pinned source and builds a local binary
-under `$LIGHTTPD_COMPONENT_ROOT`.
-
-## Simple Runtime Smokes
-
-```sh
 TMPDIR=/tmp make smoke-envoy
 TMPDIR=/tmp make smoke-traefik
 TMPDIR=/tmp make smoke-lighttpd
 ```
 
-## Targeted ModSecurity Smokes
+Targeted libmodsecurity and CRS smokes are repository evidence only:
 
 ```sh
 TMPDIR=/tmp make smoke-envoy-modsecurity
 TMPDIR=/tmp make smoke-traefik-modsecurity
 TMPDIR=/tmp make smoke-lighttpd-modsecurity
-```
-
-These use the targeted local libmodsecurity rule `1000001`. They do not prove
-CRS completeness.
-
-## Minimal CRS Smokes
-
-```sh
-TMPDIR=/tmp make smoke-envoy-crs
-TMPDIR=/tmp make smoke-traefik-crs
-TMPDIR=/tmp make smoke-lighttpd-crs
 TMPDIR=/tmp make smoke-open-connectors-crs
-```
-
-The minimal CRS smoke uses the existing SQLi anomaly probe and may set
-`crs_minimal_smoke_verified=true` only with local CRS/libmodsecurity/runtime
-evidence.
-
-## Secondary CRS Smokes
-
-```sh
-TMPDIR=/tmp make smoke-envoy-crs-secondary
-TMPDIR=/tmp make smoke-traefik-crs-secondary
-TMPDIR=/tmp make smoke-lighttpd-crs-secondary
 TMPDIR=/tmp make smoke-open-connectors-crs-secondary
 ```
 
-The secondary CRS smoke is available. It uses `CRS_SMOKE_CASE=secondary` and a
-separate XSS probe. It may set `crs_secondary_smoke_verified=true` only with
-local CRS/libmodsecurity/runtime evidence and an observed CRS rule ID/message.
+## Path 2: External Use With Distribution Packages
 
-## Status Matrix
+Use operator-provided Envoy, Traefik, or Lighttpd packages/binaries where compatible. Package names, service names, runtime directories, and log locations vary by distribution. The repository does not install these components globally. Follow the per-connector guide for ext_authz, forwardAuth, or sidecar_proxy wiring and example configs.
 
-| Connector | Prepare | Build | Runtime Smoke | ModSecurity Smoke | Minimal CRS Smoke | Secondary CRS Smoke | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Envoy | PASS: pinned binary staging target available | Not applicable; no source compile | PASS | PASS | PASS | PASS | `ext_authz`; runtime binary only |
-| Traefik | PASS: pinned release archive staging target available | Not applicable; no source compile | PASS | PASS | PASS | PASS | `forwardAuth`; release archive extraction only |
-| Lighttpd | PASS: pinned source staging target available | PASS: local source build with opt-in | PASS | PASS | PASS | PASS | Phase 1 `sidecar_proxy`, not native module |
+## Path 3: External Use From Source
 
-PASS means the repository target exists and has local evidence when required
-runtime dependencies are present. It does not mean production readiness.
+For Envoy and Traefik, do not treat source-building the proxy itself as repository-supported. Source-based external use applies to libmodsecurity and any operator-provided decision backend. For Lighttpd, the repository helper can build the pinned Lighttpd runtime locally, but that remains a sidecar_proxy path and not a native connector.
 
-## Evidence Roots
+## Per-Connector Guides
 
-With `TMPDIR=/tmp`, typical result and log roots are:
-
-| Connector | Result root | Log root |
-| --- | --- | --- |
-| Envoy | `/tmp/ModSecurity-conector-verified/envoy-smoke/` | `/tmp/ModSecurity-conector-verified/logs/envoy-smoke/` |
-| Traefik | `/tmp/ModSecurity-conector-verified/traefik-smoke/` | `/tmp/ModSecurity-conector-verified/logs/traefik-smoke/` |
-| Lighttpd | `/tmp/ModSecurity-conector-verified/lighttpd-smoke/` | `/tmp/ModSecurity-conector-verified/logs/lighttpd-smoke/` |
-
-Inventory can be inspected with:
-
-```sh
-TMPDIR=/tmp make runtime-components-inventory
-TMPDIR=/tmp make runtime-components-sources
-```
+- [Envoy](COMPILE_ENVOY.md)
+- [Traefik](COMPILE_TRAEFIK.md)
+- [Lighttpd](COMPILE_LIGHTTPD.md)
 
 ## Claims Not Allowed
 
@@ -124,9 +76,3 @@ Open connector evidence must not claim:
 - `response_body_verified = true`
 
 Lighttpd Phase 1 evidence must also not claim a native Lighttpd module.
-
-## Per-Connector Guides
-
-- `COMPILE_ENVOY.md`
-- `COMPILE_TRAEFIK.md`
-- `COMPILE_LIGHTTPD.md`
