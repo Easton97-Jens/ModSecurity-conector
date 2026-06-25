@@ -1,3 +1,5 @@
+Language: English | [Deutsch](README.de.md)
+
 # Apache ModSecurity Examples
 
 ## Table of Contents

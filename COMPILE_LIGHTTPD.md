@@ -1,3 +1,5 @@
+Language: English | [Deutsch](COMPILE_LIGHTTPD.de.md)
+
 # Compile Lighttpd
 
 ## Table of Contents

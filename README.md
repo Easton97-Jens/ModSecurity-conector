@@ -1,3 +1,5 @@
+Language: English | [Deutsch](README.de.md)
+
 # ModSecurity Connector Monorepo
 
 This repository contains connector-focused code and integration scaffolding for
@@ -5,6 +7,29 @@ libmodsecurity v3 based server connectors. The reusable test framework lives in
 the `modules/ModSecurity-test-Framework` module; this repository keeps the
 connector source trees, connector metadata, harness integration, and generated
 connector evidence.
+
+
+## Documentation Index
+
+GitHub still shows all files in the repository tree; these links keep you in the selected documentation language.
+
+### Compile / Operator Guides
+
+- [Apache](./COMPILE_APACHE.md)
+- [NGINX](./COMPILE_NGINX.md)
+- [HAProxy](./COMPILE_HAPROXY.md)
+- [Envoy](./COMPILE_ENVOY.md)
+- [Traefik](./COMPILE_TRAEFIK.md)
+- [Lighttpd](./COMPILE_LIGHTTPD.md)
+
+### Example Config READMEs
+
+- [Apache examples](./examples/apache/README.md)
+- [NGINX examples](./examples/nginx/README.md)
+- [HAProxy examples](./examples/haproxy/README.md)
+- [Envoy examples](./examples/envoy/README.md)
+- [Traefik examples](./examples/traefik/README.md)
+- [Lighttpd examples](./examples/lighttpd/README.md)
 
 ## Connector Architecture
 

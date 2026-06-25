@@ -1,3 +1,5 @@
+Language: English | [Deutsch](README.de.md)
+
 # Lighttpd sidecar_proxy Example
 
 ## Table of Contents

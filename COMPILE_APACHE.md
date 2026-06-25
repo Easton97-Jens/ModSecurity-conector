@@ -1,3 +1,5 @@
+Language: English | [Deutsch](COMPILE_APACHE.de.md)
+
 # Compile Apache
 
 ## Table of Contents

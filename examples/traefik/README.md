@@ -1,3 +1,5 @@
+Language: English | [Deutsch](README.de.md)
+
 # Traefik forwardAuth Example
 
 ## Table of Contents

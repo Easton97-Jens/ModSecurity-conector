@@ -1,3 +1,5 @@
+Language: English | [Deutsch](COMPILE_NGINX.de.md)
+
 # Compile NGINX
 
 ## Table of Contents

@@ -1,3 +1,5 @@
+Language: English | [Deutsch](README.de.md)
+
 # Envoy ext_authz Example
 
 ## Table of Contents

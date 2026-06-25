@@ -1,3 +1,5 @@
+Language: English | [Deutsch](README.de.md)
+
 # HAProxy ModSecurity Examples
 
 ## Table of Contents
