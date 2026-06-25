@@ -1,157 +1,136 @@
-# Compile / Prepare Envoy
+Language: English | [Deutsch](COMPILE_ENVOY.de.md)
+
+# Compile Envoy
+
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Status and Limits](#status-and-limits)
+- [Overview: Three Paths](#overview-three-paths)
+- [Path 1: Repository Smoke / Validation](#path-1-repository-smoke-validation)
+- [Path 2: External Use With Distribution Packages](#path-2-external-use-with-distribution-packages)
+- [Path 3: External Use From Source](#path-3-external-use-from-source)
+- [Config Snippets](#config-snippets)
+- [Example Configs](#example-configs)
+- [Logs](#logs)
+- [Troubleshooting](#troubleshooting)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
 
 ## Purpose
 
-This guide documents the repository-supported Envoy runtime-prepare and smoke
-path. Envoy is not compiled from source by this repository. The supported flow
-stages a pinned Envoy runtime binary into the common.sh-managed component cache
-and then runs local runtime evidence through the Envoy `ext_authz` path.
+This guide is for using the Envoy runtime path outside this repository with an operator-provided ext_authz decision service/sidecar and external configuration.
 
-Use this file when you need to prepare the Envoy runtime component, run the
-open-connector smokes, or locate Envoy evidence artifacts.
+## Status and Limits
 
-## Current Connector Status
+Envoy is not built from source by this repository. External use is Envoy `ext_authz` plus an authorization service/sidecar. The repository provides example config and smoke paths, not production readiness.
 
-- Connector: `connectors/envoy/`.
-- Integration mode: `ext_authz`.
-- Runtime component: pinned Envoy binary.
-- Source compile: not performed by this repository.
-- Simple runtime smoke: PASS when a local common.sh-managed Envoy binary is
-  resolved.
-- Targeted libmodsecurity smoke: PASS when local common.sh-managed
-  libmodsecurity headers/libraries are available.
-- Minimal CRS smoke: PASS when local common.sh-managed CRS and libmodsecurity
-  are available.
-- Secondary CRS smoke: PASS when local common.sh-managed CRS and
-  libmodsecurity block the secondary CRS probe.
-- Production ready: false.
-- Full matrix ready: false.
-- CRS complete: false.
-- Response body verified: false.
+## Overview: Three Paths
 
-## What This Prepares
+| Path | Purpose | Main use |
+| --- | --- | --- |
+| Path 1: Repository smoke | Validate repository evidence | Developers / reviewers |
+| Path 2: External use with packages | Use distro packages where compatible | Operators using system packages |
+| Path 3: External use from source | Build ModSecurity and/or connector pieces manually | Operators needing exact version control |
 
-- A pinned Envoy Linux x86_64 runtime binary under `ENVOY_COMPONENT_ROOT`.
-- Local generated Envoy smoke configuration under `ENVOY_CONFIG_ROOT`.
-- Runtime evidence under `ENVOY_RESULT_ROOT` and `ENVOY_LOG_ROOT`.
+## Path 1: Repository Smoke / Validation
 
-It does not build Envoy from source, install Envoy globally, or accept a global
-`PATH` fallback as runtime proof.
-
-## Source / Version
-
-The source of truth is
-`modules/ModSecurity-test-Framework/ci/common.sh`.
-
-| Variable | Current default |
-| --- | --- |
-| `ENVOY_VERSION` | `1.38.2` |
-| `ENVOY_SOURCE_URL` | `https://github.com/envoyproxy/envoy/releases` |
-| `ENVOY_INSTALL_DOCS_URL` | `https://www.envoyproxy.io/docs/envoy/latest/start/install` |
-| `ENVOY_DOWNLOAD_URL` | `https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/envoy-$ENVOY_VERSION-linux-x86_64` |
-| `ENVOY_SHA256` | `87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899` |
-| `ENVOY_SHA256_URL` | `https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/checksums.txt.asc` |
-| `ENVOY_COMPONENT_ROOT` | `$CONNECTOR_COMPONENT_CACHE/envoy` |
-| `ENVOY_BIN` | `$ENVOY_COMPONENT_ROOT/bin/envoy` |
-
-## Local Runtime Paths
-
-| Path | Meaning |
-| --- | --- |
-| `$ENVOY_COMPONENT_ROOT` | Pinned Envoy runtime component cache |
-| `$ENVOY_BIN` | Staged Envoy executable used by smokes |
-| `$ENVOY_RUNTIME_ROOT` | Envoy runtime smoke root |
-| `$ENVOY_CONFIG_ROOT` | Generated Envoy config root |
-| `$ENVOY_LOG_ROOT` | Envoy smoke logs |
-| `$ENVOY_RESULT_ROOT` | Envoy smoke result JSON |
-
-By default these roots are under
-`${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified`. In
-restricted sandboxes, prefer `TMPDIR=/tmp`.
-
-## Prepare Runtime Component
+These commands validate repository evidence. They are not the external installation procedure.
 
 ```sh
+git submodule update --init --recursive
+make setup-dev
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime
+make smoke-envoy
 ```
 
-The prepare helper:
-
-- downloads only after explicit `ALLOW_RUNTIME_DOWNLOADS=1`;
-- verifies the pinned SHA256 before staging;
-- writes only under `$CONNECTOR_COMPONENT_CACHE`;
-- stages the binary at `$ENVOY_BIN`;
-- does not install global files;
-- rejects global system paths and global `PATH` fallback.
-
-Without download opt-in, the target reports the expected binary path and exits
-77/BLOCKED when the binary is not already staged.
-
-## Smoke Commands
+Optional repository evidence:
 
 ```sh
-TMPDIR=/tmp make smoke-envoy
-TMPDIR=/tmp make smoke-envoy-modsecurity
-TMPDIR=/tmp make smoke-envoy-crs
-TMPDIR=/tmp make smoke-envoy-crs-secondary
+make smoke-envoy-modsecurity
+make smoke-envoy-crs
 ```
 
-The secondary CRS target is available and selects
-`CRS_SMOKE_CASE=secondary`. It is separate from the minimal CRS SQLi probe.
+## Path 2: External Use With Distribution Packages
 
-## Evidence
+1. Install or provide the Envoy runtime binary through your distribution, vendor package, container image, or deployment tooling. Package names and service names vary by distribution.
+2. Provide a reachable ext_authz decision service/sidecar. If the service uses libmodsecurity, install compatible libmodsecurity headers/libraries or runtime packages.
+3. Get this repository for example configs and smoke references:
 
-Typical evidence paths with `TMPDIR=/tmp`:
+   ```sh
+   git clone <modsecurity-conector-repo-url> ModSecurity-conector
+   cd ModSecurity-conector
+   ```
 
-| Evidence | Path |
-| --- | --- |
-| Current result | `/tmp/ModSecurity-conector-verified/envoy-smoke/result.json` |
-| Simple runtime result | `/tmp/ModSecurity-conector-verified/envoy-smoke/runtime-result.json` |
-| Targeted ModSecurity result | `/tmp/ModSecurity-conector-verified/envoy-smoke/targeted-result.json` |
-| Minimal CRS result | `/tmp/ModSecurity-conector-verified/envoy-smoke/crs-result.json` |
-| Secondary CRS result | `/tmp/ModSecurity-conector-verified/envoy-smoke/crs-secondary-result.json` |
-| Logs | `/tmp/ModSecurity-conector-verified/logs/envoy-smoke/` |
+4. Adapt the example config for your listener, backend, decision service URL/address, rules directory, CRS directory, runtime directory, and log directory.
+5. Run the first syntax check/start with operator-selected binary placeholders:
 
-Variable equivalents:
+   ```sh
+   <envoy-bin> --mode validate -c examples/envoy/envoy-ext-authz.yaml
+   <envoy-bin> -c examples/envoy/envoy-ext-authz.yaml --log-level info
+   ```
 
-- `$ENVOY_RESULT_ROOT/result.json`
-- `$ENVOY_LOG_ROOT/`
+6. Inspect runtime logs, decision-service logs, and ModSecurity audit/decision logs when the backend supports them.
 
-Secondary CRS evidence includes `crs-secondary-decision.log` and
-`crs-secondary-audit.log`.
+## Path 3: External Use From Source
 
-## Claims Not Allowed
+Do not document building Envoy from source as repository-supported. Source-based external use applies to libmodsecurity and/or operator-provided decision backend pieces while Envoy itself remains operator-provided or prepared through the pinned runtime helper.
 
-Envoy open-connector evidence must not claim:
+If your decision backend uses libmodsecurity and packages are not suitable, build libmodsecurity v3 from source:
 
-- `production_ready=true`
-- `full_matrix_ready=true`
-- `crs_complete=true`
-- `response_body_verified=true`
+Install build prerequisites for your operating system first. Then either use the libmodsecurity ref selected by your deployment or identify the repository/framework pin before building. The following is an upstream-style example, not a repository-owned build guarantee:
 
-`crs_secondary_smoke_verified=true` is allowed only when the secondary CRS
-smoke has local CRS/libmodsecurity/runtime evidence and an observed CRS rule
-ID/message.
+```sh
+git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
+cd ModSecurity-v3
+git submodule update --init --recursive
+./build.sh
+./configure --prefix=<libmodsecurity-prefix>
+make -j"$(nproc)"
+sudo make install
+```
+
+Replace `<modsecurity-v3-ref>` and `<libmodsecurity-prefix>` with operator-selected values. Verify upstream prerequisites and flags for your operating system.
+
+Then build or start your operator-provided decision service/sidecar, adapt the example config, run the first syntax check/start from Path 2, and inspect logs.
+
+## Config Snippets
+
+```yaml
+http_filters:
+  - name: envoy.filters.http.ext_authz
+```
+
+See [examples/envoy/README.md](examples/envoy/README.md) for the explanation of these directives, placeholders, logs, and limitations.
+
+## Example Configs
+
+Use the files in [examples/envoy/README.md](examples/envoy/README.md) as starting points for external configuration. They are not automatically installed by the repository and are not universal production defaults.
+
+## Logs
+
+Inspect the relevant deployment logs; do not treat the paths in examples as universal requirements.
+
+- Webserver/proxy access logs.
+- Webserver/proxy error logs.
+- ModSecurity audit log when enabled.
+- Connector decision log, if this connector/path has one.
+- Sidecar/agent log, if this connector/path has one.
 
 ## Troubleshooting
 
-- Missing binary: run `ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime` or
-  set `ENVOY_BIN` to an executable local common.sh-managed path.
-- Missing download opt-in: prepare exits 77/BLOCKED until
-  `ALLOW_RUNTIME_DOWNLOADS=1` is set.
-- SHA256 mismatch: the pinned artifact is rejected; check `ENVOY_SHA256`,
-  `ENVOY_SHA256_URL`, and the downloaded artifact.
-- Read-only `/var/tmp`: run with `TMPDIR=/tmp`.
-- Missing libmodsecurity dependencies: targeted and CRS smokes exit
-  77/BLOCKED until local common.sh-managed headers and libraries are available.
-- Missing CRS checkout: CRS smokes exit 77/BLOCKED; run the repository CRS
-  preparation flow or stage CRS under common.sh-managed roots.
-- Port conflict: rerun with a clean runtime root or adjust the smoke port
-  environment if needed.
+Check missing runtime binary, missing sidecar/auth/decision service, wrong backend address, missing shared libraries, wrong rules path, missing writable log directory, and response-body assumptions beyond evidence.
+
+## Non-Claims
+
+- Envoy is not built from source by this repository.
+- Envoy is not production-ready proof here.
+- RESPONSE_BODY / Phase 4 is not promoted.
+- Force-all FAIL rows are not production support.
+- Auth service startup is operator-provided unless your deployment adds one.
 
 ## Related Docs
 
-- `connectors/envoy/README.md`
+- [examples/envoy/README.md](examples/envoy/README.md)
+- `connectors/envoy/docs/build.md`
 - `connectors/envoy/docs/validation.md`
-- `common/docs/design.md`
-- `reports/connector-parallel-runtime-smoke-plan.md`

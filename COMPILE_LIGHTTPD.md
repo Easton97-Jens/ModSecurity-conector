@@ -1,209 +1,139 @@
+Language: English | [Deutsch](COMPILE_LIGHTTPD.de.md)
+
 # Compile Lighttpd
+
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Status and Limits](#status-and-limits)
+- [Overview: Three Paths](#overview-three-paths)
+- [Path 1: Repository Smoke / Validation](#path-1-repository-smoke-validation)
+- [Path 2: External Use With Distribution Packages](#path-2-external-use-with-distribution-packages)
+- [Path 3: External Use From Source](#path-3-external-use-from-source)
+- [Config Snippets](#config-snippets)
+- [Example Configs](#example-configs)
+- [Logs](#logs)
+- [Troubleshooting](#troubleshooting)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
 
 ## Purpose
 
-This guide documents the repository-supported Lighttpd source-build and Phase 1
-`sidecar_proxy` smoke path. Lighttpd is prepared from a pinned source tarball
-and built locally under the common.sh-managed component cache. The current
-runtime proof is a sidecar/proxy integration, not a native Lighttpd
-ModSecurity module.
+This guide is for using the Lighttpd runtime path outside this repository with an operator-provided sidecar_proxy decision service/sidecar and external configuration.
 
-Use this file when you need to stage Lighttpd source, build the local runtime
-binary, run the open-connector smokes, or locate Lighttpd evidence artifacts.
+## Status and Limits
 
-## Current Connector Status
+Lighttpd may be operator-provided or built through the repository helper. There is no native Lighttpd ModSecurity module here; external use is `sidecar_proxy` / Phase 1.
 
-- Connector: `connectors/lighttpd/`.
-- Integration mode: `sidecar_proxy`.
-- Local source build: PASS when `ALLOW_RUNTIME_BUILDS=1` is used with the
-  pinned source.
-- Simple runtime smoke: PASS when a local common.sh-managed Lighttpd binary is
-  resolved.
-- Targeted libmodsecurity smoke: PASS when local common.sh-managed
-  libmodsecurity headers/libraries are available.
-- Minimal CRS smoke: PASS when local common.sh-managed CRS and libmodsecurity
-  are available.
-- Secondary CRS smoke: PASS when local common.sh-managed CRS and
-  libmodsecurity block the secondary CRS probe.
-- Native Lighttpd module: not implemented.
-- FastCGI/SCGI: not implemented.
-- mod_magnet/Lua: not implemented.
-- Production ready: false.
-- Full matrix ready: false.
-- CRS complete: false.
-- Response body verified: false.
+## Overview: Three Paths
 
-## What This Builds
+| Path | Purpose | Main use |
+| --- | --- | --- |
+| Path 1: Repository smoke | Validate repository evidence | Developers / reviewers |
+| Path 2: External use with packages | Use distro packages where compatible | Operators using system packages |
+| Path 3: External use from source | Build ModSecurity and/or connector pieces manually | Operators needing exact version control |
 
-- A pinned Lighttpd source tarball staged under `LIGHTTPD_COMPONENT_ROOT`.
-- A local Lighttpd build workspace under `LIGHTTPD_COMPONENT_ROOT`.
-- The final Lighttpd executable at `LIGHTTPD_BIN`.
-- Local generated Lighttpd and sidecar smoke artifacts under the verified
-  runtime roots.
+## Path 1: Repository Smoke / Validation
 
-It does not install Lighttpd globally, write system paths, require root, or
-claim a native Lighttpd connector.
-
-## Source / Version
-
-The source of truth is
-`modules/ModSecurity-test-Framework/ci/common.sh`.
-
-| Variable | Current default |
-| --- | --- |
-| `LIGHTTPD_VERSION` | `1.4.84` |
-| `LIGHTTPD_SOURCE_URL` | `https://download.lighttpd.net/lighttpd/releases-1.4.x/` |
-| `LIGHTTPD_RELEASE_INDEX_URL` | `$LIGHTTPD_SOURCE_URL` |
-| `LIGHTTPD_LATEST_URL` | `https://download.lighttpd.net/lighttpd/releases-1.4.x/latest.txt` |
-| `LIGHTTPD_DOWNLOAD_URL` | `https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.tar.xz` |
-| `LIGHTTPD_SHA256` | `076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70` |
-| `LIGHTTPD_SHA256_URL` | `https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.sha256sum` |
-| `LIGHTTPD_COMPONENT_ROOT` | `$CONNECTOR_COMPONENT_CACHE/lighttpd` |
-| `LIGHTTPD_BIN` | `$LIGHTTPD_COMPONENT_ROOT/bin/lighttpd` |
-
-## Local Build / Runtime Paths
-
-| Path | Meaning |
-| --- | --- |
-| `$LIGHTTPD_COMPONENT_ROOT` | Lighttpd source/build/install component root |
-| `$LIGHTTPD_BIN` | Staged Lighttpd executable used by smokes |
-| `$LIGHTTPD_RUNTIME_ROOT` | Lighttpd runtime smoke root |
-| `$LIGHTTPD_CONFIG_ROOT` | Generated Lighttpd config root |
-| `$LIGHTTPD_LOG_ROOT` | Lighttpd smoke and prepare logs |
-| `$LIGHTTPD_RESULT_ROOT` | Lighttpd smoke result JSON |
-
-The prepare helper also uses:
-
-- `$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION`
-- `$LIGHTTPD_COMPONENT_ROOT/build/lighttpd-$LIGHTTPD_VERSION`
-- `$LIGHTTPD_LOG_ROOT/prepare-runtime`
-
-By default these roots are under
-`${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified`. In
-restricted sandboxes, prefer `TMPDIR=/tmp`.
-
-## Prepare Source
+These commands validate repository evidence. They are not the external installation procedure.
 
 ```sh
-ALLOW_RUNTIME_DOWNLOADS=1 make prepare-lighttpd-runtime
-```
-
-This downloads the pinned source tarball only after explicit opt-in, verifies
-the pinned SHA256, and stages source under `$LIGHTTPD_COMPONENT_ROOT/src`.
-Without `ALLOW_RUNTIME_BUILDS=1`, it stops after source staging and reports
-77/BLOCKED if no runtime binary is already available.
-
-## Build Runtime Binary
-
-Build from already staged source:
-
-```sh
-ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime
-```
-
-Download and build in one command:
-
-```sh
-ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime
-```
-
-The convenience build target is also available:
-
-```sh
+git submodule update --init --recursive
+make setup-dev
 ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
+make smoke-lighttpd
 ```
 
-The build helper:
-
-- builds only under `$LIGHTTPD_COMPONENT_ROOT`;
-- writes no global installation files;
-- uses no system install prefix;
-- requires no root privileges;
-- writes build logs under `$LIGHTTPD_LOG_ROOT/prepare-runtime`;
-- stages the final binary at `$LIGHTTPD_BIN`.
-
-## Smoke Commands
+Optional repository evidence:
 
 ```sh
-TMPDIR=/tmp make smoke-lighttpd
-TMPDIR=/tmp make smoke-lighttpd-modsecurity
-TMPDIR=/tmp make smoke-lighttpd-crs
-TMPDIR=/tmp make smoke-lighttpd-crs-secondary
+make smoke-lighttpd-modsecurity
+make smoke-lighttpd-crs
 ```
 
-The secondary CRS target is available and selects
-`CRS_SMOKE_CASE=secondary`. It is separate from the minimal CRS SQLi probe.
+## Path 2: External Use With Distribution Packages
 
-## Evidence
+1. Install or provide the Lighttpd runtime binary through your distribution, vendor package, container image, or deployment tooling. Package names and service names vary by distribution.
+2. Provide a reachable sidecar_proxy decision service/sidecar. If the service uses libmodsecurity, install compatible libmodsecurity headers/libraries or runtime packages.
+3. Get this repository for example configs and smoke references:
 
-Typical evidence paths with `TMPDIR=/tmp`:
+   ```sh
+   git clone <modsecurity-conector-repo-url> ModSecurity-conector
+   cd ModSecurity-conector
+   ```
 
-| Evidence | Path |
-| --- | --- |
-| Current result | `/tmp/ModSecurity-conector-verified/lighttpd-smoke/result.json` |
-| Simple runtime result | `/tmp/ModSecurity-conector-verified/lighttpd-smoke/runtime-result.json` |
-| Targeted ModSecurity result | `/tmp/ModSecurity-conector-verified/lighttpd-smoke/targeted-result.json` |
-| Minimal CRS result | `/tmp/ModSecurity-conector-verified/lighttpd-smoke/crs-result.json` |
-| Secondary CRS result | `/tmp/ModSecurity-conector-verified/lighttpd-smoke/crs-secondary-result.json` |
-| Logs | `/tmp/ModSecurity-conector-verified/logs/lighttpd-smoke/` |
+4. Adapt the example config for your listener, backend, decision service URL/address, rules directory, CRS directory, runtime directory, and log directory.
+5. Run the first syntax check/start with operator-selected binary placeholders:
 
-Variable equivalents:
+   ```sh
+   <lighttpd-bin> -tt -f examples/lighttpd/lighttpd-sidecar-proxy.conf
+   <lighttpd-bin> -D -f examples/lighttpd/lighttpd-sidecar-proxy.conf
+   ```
 
-- `$LIGHTTPD_RESULT_ROOT/result.json`
-- `$LIGHTTPD_LOG_ROOT/`
+6. Inspect runtime logs, decision-service logs, and ModSecurity audit/decision logs when the backend supports them.
 
-Secondary CRS evidence includes `crs-secondary-decision.log`,
-`crs-secondary-audit.log`, and `crs-secondary-request-transcript.jsonl`.
+## Path 3: External Use From Source
 
-## Phase-1 Scope
+Source-based external use may use the pinned Lighttpd runtime build helper shown in Path 1/2, or an operator-built compatible Lighttpd. It is still a sidecar_proxy path, not a native connector. If the sidecar backend uses libmodsecurity, build libmodsecurity as needed.
 
-- `sidecar_proxy` is Phase 1.
-- This is not a native Lighttpd ModSecurity connector.
-- Native module, FastCGI/SCGI, and mod_magnet/Lua paths remain later options.
-- No production claim is made.
-- No full-matrix claim is made.
-- No CRS-complete claim is made.
-- No response-body claim is made.
+If your decision backend uses libmodsecurity and packages are not suitable, build libmodsecurity v3 from source:
 
-## Claims Not Allowed
+Install build prerequisites for your operating system first. Then either use the libmodsecurity ref selected by your deployment or identify the repository/framework pin before building. The following is an upstream-style example, not a repository-owned build guarantee:
 
-Lighttpd Phase 1 evidence must not claim:
+```sh
+git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
+cd ModSecurity-v3
+git submodule update --init --recursive
+./build.sh
+./configure --prefix=<libmodsecurity-prefix>
+make -j"$(nproc)"
+sudo make install
+```
 
-- `production_ready=true`
-- `full_matrix_ready=true`
-- `crs_complete=true`
-- `response_body_verified=true`
+Replace `<modsecurity-v3-ref>` and `<libmodsecurity-prefix>` with operator-selected values. Verify upstream prerequisites and flags for your operating system.
 
-`crs_secondary_smoke_verified=true` is allowed only when the secondary CRS
-smoke has local CRS/libmodsecurity/runtime evidence and an observed CRS rule
-ID/message.
+Then build or start your operator-provided decision service/sidecar, adapt the example config, run the first syntax check/start from Path 2, and inspect logs.
+
+## Config Snippets
+
+```yaml
+server.modules += ("mod_proxy")
+proxy.server = (
+  "" => (("host" => "<sidecar-or-backend-host>", "port" => <port>))
+)
+```
+
+See [examples/lighttpd/README.md](examples/lighttpd/README.md) for the explanation of these directives, placeholders, logs, and limitations.
+
+## Example Configs
+
+Use the files in [examples/lighttpd/README.md](examples/lighttpd/README.md) as starting points for external configuration. They are not automatically installed by the repository and are not universal production defaults.
+
+## Logs
+
+Inspect the relevant deployment logs; do not treat the paths in examples as universal requirements.
+
+- Webserver/proxy access logs.
+- Webserver/proxy error logs.
+- ModSecurity audit log when enabled.
+- Connector decision log, if this connector/path has one.
+- Sidecar/agent log, if this connector/path has one.
 
 ## Troubleshooting
 
-- Missing download opt-in: source staging exits 77/BLOCKED until
-  `ALLOW_RUNTIME_DOWNLOADS=1` is set.
-- Missing build opt-in: source may be staged, but building requires
-  `ALLOW_RUNTIME_BUILDS=1`.
-- Missing compiler: install or expose a local `cc`, `gcc`, or `clang`.
-- Missing `make`: install or expose `make`.
-- Missing build dependencies: check
-  `$LIGHTTPD_LOG_ROOT/prepare-runtime/build-dependencies.missing`.
-- SHA256 mismatch: the pinned source tarball is rejected; check
-  `LIGHTTPD_SHA256`, `LIGHTTPD_SHA256_URL`, and the downloaded tarball.
-- `$LIGHTTPD_BIN` missing: run the build target or set `LIGHTTPD_BIN` to an
-  executable local common.sh-managed path.
-- Read-only `/var/tmp`: run with `TMPDIR=/tmp`.
-- Missing libmodsecurity dependencies: targeted and CRS smokes exit
-  77/BLOCKED until local common.sh-managed headers and libraries are available.
-- Missing CRS checkout: CRS smokes exit 77/BLOCKED; run the repository CRS
-  preparation flow or stage CRS under common.sh-managed roots.
-- Port conflict: rerun with a clean runtime root or adjust the smoke port
-  environment if needed.
+Check missing runtime binary, missing sidecar/auth/decision service, wrong backend address, missing shared libraries, wrong rules path, missing writable log directory, and response-body assumptions beyond evidence.
+
+## Non-Claims
+
+- Lighttpd is not production-ready proof here.
+- This repository does not provide a native Lighttpd ModSecurity integration here.
+- The current path is `sidecar_proxy` / Phase 1.
+- FastCGI/SCGI/mod_magnet/Lua are not implemented here.
+- RESPONSE_BODY / Phase 4 is not promoted.
+- Force-all FAIL rows are not production support.
 
 ## Related Docs
 
-- `connectors/lighttpd/README.md`
-- `connectors/lighttpd/docs/architecture.md`
+- [examples/lighttpd/README.md](examples/lighttpd/README.md)
+- `connectors/lighttpd/docs/build.md`
 - `connectors/lighttpd/docs/validation.md`
-- `common/docs/design.md`
-- `reports/connector-parallel-runtime-smoke-plan.md`

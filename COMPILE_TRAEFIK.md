@@ -1,161 +1,138 @@
-# Compile / Prepare Traefik
+Language: English | [Deutsch](COMPILE_TRAEFIK.de.md)
+
+# Compile Traefik
+
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Status and Limits](#status-and-limits)
+- [Overview: Three Paths](#overview-three-paths)
+- [Path 1: Repository Smoke / Validation](#path-1-repository-smoke-validation)
+- [Path 2: External Use With Distribution Packages](#path-2-external-use-with-distribution-packages)
+- [Path 3: External Use From Source](#path-3-external-use-from-source)
+- [Config Snippets](#config-snippets)
+- [Example Configs](#example-configs)
+- [Logs](#logs)
+- [Troubleshooting](#troubleshooting)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
 
 ## Purpose
 
-This guide documents the repository-supported Traefik runtime-prepare and smoke
-path. Traefik is not compiled from source by this repository. The supported
-flow downloads a pinned Traefik release archive, extracts the expected binary,
-stages it into the common.sh-managed component cache, and then runs local
-runtime evidence through the Traefik `forwardAuth` path.
+This guide is for using the Traefik runtime path outside this repository with an operator-provided forwardAuth decision service/sidecar and external configuration.
 
-Use this file when you need to prepare the Traefik runtime component, run the
-open-connector smokes, or locate Traefik evidence artifacts.
+## Status and Limits
 
-## Current Connector Status
+Traefik is not built from source by this repository. External use is Traefik `forwardAuth` plus a decision service. The repository provides example config and smoke paths, not production readiness.
 
-- Connector: `connectors/traefik/`.
-- Integration mode: `forwardAuth`.
-- Runtime component: pinned Traefik release archive containing the Traefik
-  binary.
-- Source compile: not performed by this repository.
-- Simple runtime smoke: PASS when a local common.sh-managed Traefik binary is
-  resolved.
-- Targeted libmodsecurity smoke: PASS when local common.sh-managed
-  libmodsecurity headers/libraries are available.
-- Minimal CRS smoke: PASS when local common.sh-managed CRS and libmodsecurity
-  are available.
-- Secondary CRS smoke: PASS when local common.sh-managed CRS and
-  libmodsecurity block the secondary CRS probe.
-- Production ready: false.
-- Full matrix ready: false.
-- CRS complete: false.
-- Response body verified: false.
+## Overview: Three Paths
 
-## What This Prepares
+| Path | Purpose | Main use |
+| --- | --- | --- |
+| Path 1: Repository smoke | Validate repository evidence | Developers / reviewers |
+| Path 2: External use with packages | Use distro packages where compatible | Operators using system packages |
+| Path 3: External use from source | Build ModSecurity and/or connector pieces manually | Operators needing exact version control |
 
-- A pinned Traefik Linux amd64 release archive.
-- The extracted Traefik binary under `TRAEFIK_COMPONENT_ROOT`.
-- Local generated Traefik smoke configuration under `TRAEFIK_CONFIG_ROOT`.
-- Runtime evidence under `TRAEFIK_RESULT_ROOT` and `TRAEFIK_LOG_ROOT`.
+## Path 1: Repository Smoke / Validation
 
-It does not build Traefik from source, install Traefik globally, or accept a
-global `PATH` fallback as runtime proof.
-
-## Source / Version
-
-The source of truth is
-`modules/ModSecurity-test-Framework/ci/common.sh`.
-
-| Variable | Current default |
-| --- | --- |
-| `TRAEFIK_VERSION` | `3.7.5` |
-| `TRAEFIK_SOURCE_URL` | `https://github.com/traefik/traefik/releases` |
-| `TRAEFIK_INSTALL_DOCS_URL` | `https://doc.traefik.io/traefik/getting-started/install-traefik/` |
-| `TRAEFIK_DOWNLOAD_URL` | `https://github.com/traefik/traefik/releases/download/v$TRAEFIK_VERSION/traefik_v${TRAEFIK_VERSION}_linux_amd64.tar.gz` |
-| `TRAEFIK_SHA256` | `9da81a928fde965c2c4678698bbc28bc3f600223b14c32b35bd480bf5ec863dc` |
-| `TRAEFIK_SHA256_URL` | `https://github.com/traefik/traefik/releases/download/v$TRAEFIK_VERSION/traefik_v${TRAEFIK_VERSION}_checksums.txt` |
-| `TRAEFIK_COMPONENT_ROOT` | `$CONNECTOR_COMPONENT_CACHE/traefik` |
-| `TRAEFIK_BIN` | `$TRAEFIK_COMPONENT_ROOT/bin/traefik` |
-
-## Local Runtime Paths
-
-| Path | Meaning |
-| --- | --- |
-| `$TRAEFIK_COMPONENT_ROOT` | Pinned Traefik runtime component cache |
-| `$TRAEFIK_BIN` | Staged Traefik executable used by smokes |
-| `$TRAEFIK_RUNTIME_ROOT` | Traefik runtime smoke root |
-| `$TRAEFIK_CONFIG_ROOT` | Generated Traefik config root |
-| `$TRAEFIK_LOG_ROOT` | Traefik smoke logs |
-| `$TRAEFIK_RESULT_ROOT` | Traefik smoke result JSON |
-
-By default these roots are under
-`${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified`. In
-restricted sandboxes, prefer `TMPDIR=/tmp`.
-
-## Prepare Runtime Component
+These commands validate repository evidence. They are not the external installation procedure.
 
 ```sh
+git submodule update --init --recursive
+make setup-dev
 ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
+make smoke-traefik
 ```
 
-The prepare helper:
-
-- downloads only after explicit `ALLOW_RUNTIME_DOWNLOADS=1`;
-- verifies the pinned SHA256 before extraction;
-- extracts only the expected `traefik` binary from the archive;
-- writes only under `$CONNECTOR_COMPONENT_CACHE`;
-- stages the binary at `$TRAEFIK_BIN`;
-- does not install global files;
-- rejects global system paths and global `PATH` fallback.
-
-Without download opt-in, the target reports the expected binary path and exits
-77/BLOCKED when the binary is not already staged.
-
-## Smoke Commands
+Optional repository evidence:
 
 ```sh
-TMPDIR=/tmp make smoke-traefik
-TMPDIR=/tmp make smoke-traefik-modsecurity
-TMPDIR=/tmp make smoke-traefik-crs
-TMPDIR=/tmp make smoke-traefik-crs-secondary
+make smoke-traefik-modsecurity
+make smoke-traefik-crs
 ```
 
-The secondary CRS target is available and selects
-`CRS_SMOKE_CASE=secondary`. It is separate from the minimal CRS SQLi probe.
+## Path 2: External Use With Distribution Packages
 
-## Evidence
+1. Install or provide the Traefik runtime binary through your distribution, vendor package, container image, or deployment tooling. Package names and service names vary by distribution.
+2. Provide a reachable forwardAuth decision service/sidecar. If the service uses libmodsecurity, install compatible libmodsecurity headers/libraries or runtime packages.
+3. Get this repository for example configs and smoke references:
 
-Typical evidence paths with `TMPDIR=/tmp`:
+   ```sh
+   git clone <modsecurity-conector-repo-url> ModSecurity-conector
+   cd ModSecurity-conector
+   ```
 
-| Evidence | Path |
-| --- | --- |
-| Current result | `/tmp/ModSecurity-conector-verified/traefik-smoke/result.json` |
-| Simple runtime result | `/tmp/ModSecurity-conector-verified/traefik-smoke/runtime-result.json` |
-| Targeted ModSecurity result | `/tmp/ModSecurity-conector-verified/traefik-smoke/targeted-result.json` |
-| Minimal CRS result | `/tmp/ModSecurity-conector-verified/traefik-smoke/crs-result.json` |
-| Secondary CRS result | `/tmp/ModSecurity-conector-verified/traefik-smoke/crs-secondary-result.json` |
-| Logs | `/tmp/ModSecurity-conector-verified/logs/traefik-smoke/` |
+4. Adapt the example config for your listener, backend, decision service URL/address, rules directory, CRS directory, runtime directory, and log directory.
+5. Run the first syntax check/start with operator-selected binary placeholders:
 
-Variable equivalents:
+   ```sh
+   <traefik-bin> --configFile=examples/traefik/traefik-static.yaml
+   ```
 
-- `$TRAEFIK_RESULT_ROOT/result.json`
-- `$TRAEFIK_LOG_ROOT/`
+6. Inspect runtime logs, decision-service logs, and ModSecurity audit/decision logs when the backend supports them.
 
-Secondary CRS evidence includes `crs-secondary-decision.log` and
-`crs-secondary-audit.log`.
+## Path 3: External Use From Source
 
-## Claims Not Allowed
+Do not document building Traefik from source as repository-supported. Source-based external use applies to libmodsecurity and/or operator-provided decision backend pieces while Traefik itself remains operator-provided or prepared through the pinned runtime helper.
 
-Traefik open-connector evidence must not claim:
+If your decision backend uses libmodsecurity and packages are not suitable, build libmodsecurity v3 from source:
 
-- `production_ready=true`
-- `full_matrix_ready=true`
-- `crs_complete=true`
-- `response_body_verified=true`
+Install build prerequisites for your operating system first. Then either use the libmodsecurity ref selected by your deployment or identify the repository/framework pin before building. The following is an upstream-style example, not a repository-owned build guarantee:
 
-`crs_secondary_smoke_verified=true` is allowed only when the secondary CRS
-smoke has local CRS/libmodsecurity/runtime evidence and an observed CRS rule
-ID/message.
+```sh
+git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
+cd ModSecurity-v3
+git submodule update --init --recursive
+./build.sh
+./configure --prefix=<libmodsecurity-prefix>
+make -j"$(nproc)"
+sudo make install
+```
+
+Replace `<modsecurity-v3-ref>` and `<libmodsecurity-prefix>` with operator-selected values. Verify upstream prerequisites and flags for your operating system.
+
+Then build or start your operator-provided decision service/sidecar, adapt the example config, run the first syntax check/start from Path 2, and inspect logs.
+
+## Config Snippets
+
+```yaml
+middlewares:
+  modsecurity-forwardauth:
+    forwardAuth:
+      address: http://<decision-service>
+```
+
+See [examples/traefik/README.md](examples/traefik/README.md) for the explanation of these directives, placeholders, logs, and limitations.
+
+## Example Configs
+
+Use the files in [examples/traefik/README.md](examples/traefik/README.md) as starting points for external configuration. They are not automatically installed by the repository and are not universal production defaults.
+
+## Logs
+
+Inspect the relevant deployment logs; do not treat the paths in examples as universal requirements.
+
+- Webserver/proxy access logs.
+- Webserver/proxy error logs.
+- ModSecurity audit log when enabled.
+- Connector decision log, if this connector/path has one.
+- Sidecar/agent log, if this connector/path has one.
 
 ## Troubleshooting
 
-- Missing binary: run `ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime`
-  or set `TRAEFIK_BIN` to an executable local common.sh-managed path.
-- Missing download opt-in: prepare exits 77/BLOCKED until
-  `ALLOW_RUNTIME_DOWNLOADS=1` is set.
-- SHA256 mismatch: the pinned archive is rejected; check `TRAEFIK_SHA256`,
-  `TRAEFIK_SHA256_URL`, and the downloaded archive.
-- Read-only `/var/tmp`: run with `TMPDIR=/tmp`.
-- Missing libmodsecurity dependencies: targeted and CRS smokes exit
-  77/BLOCKED until local common.sh-managed headers and libraries are available.
-- Missing CRS checkout: CRS smokes exit 77/BLOCKED; run the repository CRS
-  preparation flow or stage CRS under common.sh-managed roots.
-- Port conflict: rerun with a clean runtime root or adjust the smoke port
-  environment if needed.
+Check missing runtime binary, missing sidecar/auth/decision service, wrong backend address, missing shared libraries, wrong rules path, missing writable log directory, and response-body assumptions beyond evidence.
+
+## Non-Claims
+
+- Traefik is not built from source by this repository.
+- Traefik is not production-ready proof here.
+- No Go plugin implementation is provided here.
+- RESPONSE_BODY / Phase 4 is not promoted.
+- Force-all FAIL rows are not production support.
+- Decision service startup is operator-provided unless your deployment adds one.
 
 ## Related Docs
 
-- `connectors/traefik/README.md`
+- [examples/traefik/README.md](examples/traefik/README.md)
+- `connectors/traefik/docs/build.md`
 - `connectors/traefik/docs/validation.md`
-- `common/docs/design.md`
-- `reports/connector-parallel-runtime-smoke-plan.md`

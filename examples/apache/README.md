@@ -1,9 +1,35 @@
+Language: English | [Deutsch](README.de.md)
+
 # Apache ModSecurity Examples
+
+## Table of Contents
+
+- [Status](#status)
+- [Purpose](#purpose)
+- [Needed Components](#needed-components)
+- [Files](#files)
+- [Production Paths](#production-paths)
+- [Request-Only Mode](#request-only-mode)
+- [Phase 4 / RESPONSE_BODY Mode](#phase-4-response_body-mode)
+- [Variable And Placeholder Reference](#variable-and-placeholder-reference)
+- [Logging And Evidence](#logging-and-evidence)
+- [Security Notes](#security-notes)
+- [External Usage](#external-usage)
+- [Non-Claims](#non-claims)
+- [Related Docs](#related-docs)
+
+## Status
+
+Apache request-only and bounded Phase 4 examples. Production-style, but not proof of every Apache distribution package, MPM, or complete RESPONSE_BODY support.
 
 ## Purpose
 
 These examples show production-style Apache httpd configuration for
 request-only ModSecurity and bounded Phase 4 / RESPONSE_BODY evidence.
+
+## Needed Components
+
+Apache httpd/APXS and `mod_security3.so` built for the same Apache ABI, libmodsecurity v3, ModSecurity rules, optional CRS, and writable Apache/ModSecurity log locations.
 
 ## Files
 
@@ -88,9 +114,22 @@ Start with request-only mode, enable audit logging, validate CRS includes, and
 disable compression until the deployment proves whether the connector sees
 compressed or uncompressed response bytes.
 
+
+## External Usage
+
+This directory contains example configs for external usage. They are starting points only and are not universal production defaults. The matching compile guide explains how to build or prepare the required artifact: `mod_security3.so`. Copy or adapt only the files that match your deployment; paths such as `/etc/...`, `/usr/lib/...`, `127.0.0.1`, ports, backend URLs, and log paths are placeholders unless they match your system.
+
+Service context: Apache/httpd. After adapting the files, apachectl configtest and reload the Apache service. Inspect Apache error/access logs and ModSecurity audit logs.
+
+## Non-Claims
+
+- These examples are not a blanket production-readiness certification.
+- They do not prove every package/version/layout.
+- Phase 4 / RESPONSE_BODY examples are bounded runtime evidence only, not promoted full support.
+
 ## Related Docs
 
-- `COMPILE_APACHE.md`
+- [COMPILE_APACHE.md](../../COMPILE_APACHE.md)
 - `connectors/apache/docs/build.md`
 - `connectors/apache/docs/validation.md`
 - `reports/testing/apache-poc.md`
