@@ -1,5 +1,7 @@
 # NGINX Evaluation
 
+**Language:** English | [Deutsch](nginx-evaluation.de.md)
+
 Status: reviewed
 
 NGINX rating: partial with current `/src` No-CRS PASS and With-CRS PASS for

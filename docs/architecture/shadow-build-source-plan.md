@@ -1,5 +1,8 @@
 # Shadow Build Source Plan
 
+**Language:** English | [Deutsch](shadow-build-source-plan.de.md)
+
+
 Status: phase 11 Apache and NGINX adapter-owned implementation
 
 The connector build no longer treats `connectors/*/upstream/` as the direct

@@ -1,5 +1,7 @@
 # PR Evidence Summary
 
+**Language:** English | [Deutsch](pr-evidence-summary.de.md)
+
 Status: implemented
 
 This repository keeps source-derived smoke evidence for ModSecurity connector

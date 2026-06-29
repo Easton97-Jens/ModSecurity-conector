@@ -1,5 +1,8 @@
 # Verified Run Environment
 
+**Language:** English | [Deutsch](verified-run-environment.de.md)
+
+
 Verified runs use a worker-compatible runtime root outside the source checkout
 and outside `/root`.
 

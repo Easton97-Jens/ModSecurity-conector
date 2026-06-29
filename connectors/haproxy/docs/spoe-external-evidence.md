@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA External Evidence
 
+**Language:** English | [Deutsch](spoe-external-evidence.de.md)
+
 Status: external mechanism documented, repository runtime implemented
 
 HAProxy SPOE/SPOP is the external mechanism used by the current HAProxy

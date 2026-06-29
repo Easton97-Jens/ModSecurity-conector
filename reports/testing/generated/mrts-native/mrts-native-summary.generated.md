@@ -13,6 +13,8 @@
 
 # MRTS Native Summary
 
+**Language:** English | [Deutsch](mrts-native-summary.generated.de.md)
+
 Generated at: `2026-06-19T16:58:10Z`
 
 | Native target | Report | Status | Classification | Critical blocker | Attempted | Pass | Fail | Blocked |

@@ -6,6 +6,8 @@ labels: [documentation]
 assignees: []
 ---
 
+**Language:** English | [Deutsch](documentation.de.md)
+
 ## Note
 English is preferred, but German is also accepted.
 

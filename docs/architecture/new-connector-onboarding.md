@@ -1,5 +1,8 @@
 # New Connector Onboarding
 
+**Language:** English | [Deutsch](new-connector-onboarding.de.md)
+
+
 This document defines the evidence gates for future ModSecurity connector work.
 It is intentionally stricter than a scaffold checklist: a connector must not be
 promoted by intent, naming, or expected status changes. Promotion requires files,

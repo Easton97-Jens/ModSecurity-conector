@@ -13,6 +13,8 @@
 
 # MRTS Native NGINX PR24 Report
 
+**Language:** English | [Deutsch](mrts-native-nginx.generated.de.md)
+
 Generated at: `2026-06-19T16:58:10Z`
 
 ## Target

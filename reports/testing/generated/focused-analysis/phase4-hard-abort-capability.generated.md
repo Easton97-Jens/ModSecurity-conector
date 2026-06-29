@@ -13,6 +13,8 @@
 
 # Phase 4 Hard Abort Capability
 
+**Language:** English | [Deutsch](phase4-hard-abort-capability.generated.de.md)
+
 Generated at: `2026-06-19T16:58:23Z`
 
 ## Capability Contract

@@ -1,5 +1,7 @@
 # Envoy Template Alignment
 
+**Language:** English | [Deutsch](envoy-template-alignment.de.md)
+
 Status: bridge-starter
 Runtime status: not-verified
 

@@ -13,6 +13,8 @@
 
 # Native Semantics Comparison
 
+**Language:** English | [Deutsch](native-semantics-comparison.generated.de.md)
+
 ## Tool Inventory
 
 | Tool/Target | Purpose | Inputs | Outputs | Usable for Single Case? |

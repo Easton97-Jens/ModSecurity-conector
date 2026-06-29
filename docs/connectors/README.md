@@ -1,5 +1,8 @@
 # Connector Docs
 
+**Language:** English | [Deutsch](README.de.md)
+
+
 Status: implemented
 
 Connector docs explain current Apache, NGINX, and HAProxy connector behavior and

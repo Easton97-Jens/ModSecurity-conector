@@ -1,5 +1,7 @@
 # Template Verification: NGINX and Apache
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: reviewed
 
 This report folder documents the verification work for turning the connector

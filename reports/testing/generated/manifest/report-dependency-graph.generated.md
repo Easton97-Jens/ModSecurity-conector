@@ -13,6 +13,8 @@
 
 # Report Dependency Graph
 
+**Language:** English | [Deutsch](report-dependency-graph.generated.de.md)
+
 ## Mermaid
 
 ```mermaid

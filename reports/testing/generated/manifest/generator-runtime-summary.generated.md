@@ -13,6 +13,8 @@
 
 # Generator Runtime Summary
 
+**Language:** English | [Deutsch](generator-runtime-summary.generated.de.md)
+
 | Report | Generator | Target | Status | Return Code | Duration | Missing Inputs | Missing Outputs |
 |---|---|---|---|---:|---:|---|---|
 | `connector_coverage_reports` | `framework:ci/generate-case-matrix.py` | `generate-test-matrix` | generated | 0 | 2.166 | - | - |

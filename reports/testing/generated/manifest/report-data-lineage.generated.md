@@ -13,6 +13,8 @@
 
 # Report Data Lineage
 
+**Language:** English | [Deutsch](report-data-lineage.generated.de.md)
+
 | Report | Owner | Origin | Kind | Inputs | Outputs | Commit Policy | Notes |
 |---|---|---|---|---|---|---|---|
 | `report_refresh_manifest` | manifest | manifest | manifest | - | `reports/testing/generated/manifest/report-refresh-manifest.generated.json`<br>`reports/testing/generated/manifest/report-refresh-manifest.generated.md` | versioned-generated | Catalog of report generators, outputs, inputs, and refresh status. |

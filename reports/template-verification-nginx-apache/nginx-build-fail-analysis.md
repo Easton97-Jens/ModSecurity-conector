@@ -1,5 +1,7 @@
 # NGINX Build Fail Analysis
 
+**Language:** English | [Deutsch](nginx-build-fail-analysis.de.md)
+
 Status: build fix verified; current `/src` runtime smokes PASS for executed scope
 
 ## Original Build Failure

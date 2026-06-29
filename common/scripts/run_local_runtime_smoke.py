@@ -23,6 +23,11 @@ from pathlib import Path
 
 
 BLOCK_VALUES = {"1", "true", "block", "yes", "on"}
+REQUEST_BODY_BLOCK_MARKER = "modsec-request-body-block"
+REQUEST_BODY_ALLOW_BODY = b"payload=modsec-request-body-allow"
+REQUEST_BODY_BLOCK_BODY = b"payload=modsec-request-body-block"
+REQUEST_BODY_CONTENT_TYPE = "application/x-www-form-urlencoded"
+TARGETED_SMOKE_CASES = {"targeted", "request_body"}
 CRS_SMOKE_CASES = {
     "minimal": {
         "blocked_path": "/?id=1%20UNION%20SELECT%20password%20FROM%20users",
@@ -54,6 +59,13 @@ def normalize_ruleset(value: str) -> str:
     if normalized in {"crs", "owasp-crs", "coreruleset"}:
         return "crs"
     raise SmokeBlocked(f"unsupported ModSecurity ruleset: {value}", ["modsecurity ruleset"])
+
+
+def normalize_modsecurity_smoke_case(value: str) -> str:
+    normalized = (value or "targeted").strip().lower().replace("-", "_")
+    if normalized in TARGETED_SMOKE_CASES:
+        return normalized
+    raise SmokeBlocked(f"unsupported ModSecurity smoke case: {value}", ["modsecurity smoke case"])
 
 
 def normalize_crs_smoke_case(value: str) -> str:
@@ -133,6 +145,28 @@ def crs_detection_from_audit_log(audit_log_path: Path, fallback_rule_id: str, fa
     return fallback_rule_id, fallback_message
 
 
+def request_body_smoke_enabled(args: argparse.Namespace) -> bool:
+    return (
+        args.decision_backend == "libmodsecurity"
+        and args.modsecurity_ruleset == "targeted"
+        and args.modsecurity_smoke_case == "request_body"
+    )
+
+
+def request_body_headers() -> dict[str, str]:
+    return {"Content-Type": REQUEST_BODY_CONTENT_TYPE}
+
+
+def request_body_evidence(
+    decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend,
+) -> tuple[bool, bool, bool]:
+    return (
+        bool(getattr(decision_backend, "request_body_smoke_verified", False)),
+        bool(getattr(decision_backend, "request_body_access_enabled", False)),
+        bool(getattr(decision_backend, "request_body_rule_loaded", False)),
+    )
+
+
 def crs_source_candidate_roots(args: argparse.Namespace) -> list[Path]:
     roots: list[Path] = []
 
@@ -183,13 +217,21 @@ class QuietHandler(http.server.BaseHTTPRequestHandler):
 
 
 class UpstreamHandler(QuietHandler):
-    def do_GET(self) -> None:
+    def _answer(self) -> None:
+        length = int(self.headers.get("content-length") or "0")
+        if length > 0:
+            self.rfile.read(length)
         body = b"msconnector upstream ok\n"
         self.send_response(200)
         self.send_header("content-type", "text/plain")
         self.send_header("content-length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    do_GET = _answer
+    do_POST = _answer
+    do_HEAD = _answer
 
 
 class SimpleDecisionBackend:
@@ -200,8 +242,14 @@ class SimpleDecisionBackend:
     last_error: str | None = None
     blocked_decision: dict[str, object] | None = None
 
-    def decide(self, headers: http.client.HTTPMessage, path: str) -> dict[str, object]:
-        del path
+    def decide(
+        self,
+        headers: http.client.HTTPMessage,
+        path: str,
+        method: str = "GET",
+        body: bytes = b"",
+    ) -> dict[str, object]:
+        del path, method, body
         values = (
             headers.get("x-msconnector-block", ""),
             headers.get("x-modsec-smoke", ""),
@@ -228,6 +276,7 @@ class ModSecurityDecisionBackend:
         env: dict[str, str],
         ruleset: str,
         crs_smoke_case: str,
+        modsecurity_smoke_case: str,
     ) -> None:
         self.helper = helper
         self.rule_file = rule_file
@@ -235,8 +284,12 @@ class ModSecurityDecisionBackend:
         self.env = env
         self.ruleset = ruleset
         self.crs_smoke_case = crs_smoke_case
+        self.modsecurity_smoke_case = modsecurity_smoke_case
         self.modsecurity_backend_verified = False
         self.modsecurity_rule_loaded = False
+        self.request_body_smoke_verified = False
+        self.request_body_access_enabled = False
+        self.request_body_rule_loaded = False
         self.intervention_status: int | None = None
         self.last_error: str | None = None
         self.blocked_decision: dict[str, object] | None = None
@@ -244,7 +297,14 @@ class ModSecurityDecisionBackend:
         self.crs_rule_id = ""
         self.crs_rule_message = ""
 
-    def _evaluate(self, header_value: str, path: str) -> dict[str, object]:
+    def _evaluate(
+        self,
+        header_value: str,
+        path: str,
+        method: str = "GET",
+        body: bytes = b"",
+        content_type: str = "",
+    ) -> dict[str, object]:
         command = [
             str(self.helper),
             "--rule-file",
@@ -255,9 +315,17 @@ class ModSecurityDecisionBackend:
             self.ruleset,
             "--uri",
             path,
+            "--smoke-case",
+            self.modsecurity_smoke_case,
+            "--method",
+            method,
         ]
         if header_value:
             command.extend(["--header-value", header_value])
+        if body:
+            command.extend(["--body", body.decode("utf-8", errors="replace")])
+            command.extend(["--content-type", content_type or REQUEST_BODY_CONTENT_TYPE])
+            command.extend(["--request-body-marker", REQUEST_BODY_BLOCK_MARKER])
         completed = subprocess.run(
             command,
             check=False,
@@ -277,15 +345,32 @@ class ModSecurityDecisionBackend:
             raise RuntimeError(str(payload.get("error") or "libmodsecurity targeted evaluator failed"))
         return payload
 
-    def decide(self, headers: http.client.HTTPMessage, path: str) -> dict[str, object]:
+    def decide(
+        self,
+        headers: http.client.HTTPMessage,
+        path: str,
+        method: str = "GET",
+        body: bytes = b"",
+    ) -> dict[str, object]:
         if self.ruleset == "crs":
             header_value = ""
             evaluation_path = crs_probe_uri(headers, path)
+            evaluation_body = b""
+            content_type = ""
+        elif self.modsecurity_smoke_case == "request_body":
+            header_value = ""
+            evaluation_path = path
+            evaluation_body = body
+            content_type = headers.get("content-type", REQUEST_BODY_CONTENT_TYPE)
         else:
             header_value = headers.get("x-modsec-smoke", "")
             evaluation_path = path
-        payload = self._evaluate(header_value, evaluation_path)
+            evaluation_body = b""
+            content_type = ""
+        payload = self._evaluate(header_value, evaluation_path, method, evaluation_body, content_type)
         self.modsecurity_rule_loaded = bool(payload.get("modsecurity_rule_loaded"))
+        self.request_body_access_enabled = bool(payload.get("request_body_access_enabled"))
+        self.request_body_rule_loaded = bool(payload.get("request_body_rule_loaded"))
         disruptive = bool(payload.get("intervention_disruptive"))
         status = int(payload.get("intervention_status") or (403 if disruptive else 200))
         self.intervention_status = status
@@ -313,6 +398,29 @@ class ModSecurityDecisionBackend:
                 "body": body,
                 "status": status if disruptive else 200,
             }
+        if self.modsecurity_smoke_case == "request_body":
+            body_has_marker = REQUEST_BODY_BLOCK_MARKER.encode("utf-8") in evaluation_body
+            if body_has_marker:
+                self.blocked_decision = payload
+                self.request_body_smoke_verified = (
+                    self.request_body_access_enabled
+                    and self.request_body_rule_loaded
+                    and disruptive
+                    and status == 403
+                    and payload.get("modsecurity_rule_id") == "1000002"
+                )
+                self.modsecurity_backend_verified = self.request_body_smoke_verified
+            else:
+                self.allowed_decision = payload
+            response_body = (
+                b"blocked by libmodsecurity request body smoke rule\n"
+                if disruptive
+                else b"allowed by libmodsecurity request body smoke rule\n"
+            )
+            return {
+                "body": response_body,
+                "status": status if disruptive else 200,
+            }
         if header_value == "block":
             self.blocked_decision = payload
             self.modsecurity_backend_verified = (
@@ -332,17 +440,64 @@ class ModSecurityDecisionBackend:
         }
 
 
-def make_decision_handler(decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend) -> type[QuietHandler]:
+def read_request_body(handler: http.server.BaseHTTPRequestHandler) -> bytes:
+    transfer_encoding = (handler.headers.get("transfer-encoding") or "").lower()
+    if "chunked" in transfer_encoding:
+        chunks: list[bytes] = []
+        while True:
+            line = handler.rfile.readline()
+            if not line:
+                break
+            size_text = line.split(b";", 1)[0].strip()
+            try:
+                size = int(size_text, 16)
+            except ValueError:
+                break
+            if size == 0:
+                while True:
+                    trailer = handler.rfile.readline()
+                    if trailer in {b"\r\n", b"\n", b""}:
+                        break
+                break
+            chunks.append(handler.rfile.read(size))
+            handler.rfile.read(2)
+        return b"".join(chunks)
+    length = int(handler.headers.get("content-length") or "0")
+    if length <= 0:
+        return b""
+    return handler.rfile.read(length)
+
+
+def make_decision_handler(
+    decision_backend: SimpleDecisionBackend | ModSecurityDecisionBackend,
+    transcript_path: Path | None = None,
+) -> type[QuietHandler]:
     class RuntimeDecisionHandler(QuietHandler):
         def _answer(self) -> None:
             try:
-                decision = decision_backend.decide(self.headers, self.path)
+                request_body = read_request_body(self)
+                decision = decision_backend.decide(self.headers, self.path, self.command, request_body)
                 status = int(decision["status"])
                 body = decision["body"]
             except Exception as exc:  # noqa: BLE001 - auth backend errors become smoke evidence.
                 decision_backend.last_error = str(exc)
                 status = 500
                 body = f"decision backend error: {exc}\n".encode("utf-8")
+                request_body = b""
+            if transcript_path is not None:
+                append_jsonl(
+                    transcript_path,
+                    {
+                        "blocked_body_marker_present": REQUEST_BODY_BLOCK_MARKER.encode("utf-8") in request_body,
+                        "body_length": len(request_body),
+                        "content_length": self.headers.get("content-length"),
+                        "decision_backend": decision_backend.decision_backend,
+                        "method": self.command,
+                        "path": self.path,
+                        "response_status": status,
+                        "transfer_encoding": self.headers.get("transfer-encoding"),
+                    },
+                )
             self.send_response(status)
             self.send_header("content-type", "text/plain")
             self.send_header("content-length", str(len(body)))
@@ -374,8 +529,10 @@ def make_sidecar_proxy_handler(
             decision_status = 500
             upstream_status: int | None = None
             forwarded = False
+            request_body = b""
             try:
-                decision = decision_backend.decide(self.headers, self.path)
+                request_body = read_request_body(self)
+                decision = decision_backend.decide(self.headers, self.path, self.command, request_body)
                 decision_status = int(decision["status"])
                 if decision_status >= 400:
                     body = decision["body"]
@@ -388,7 +545,8 @@ def make_sidecar_proxy_handler(
                         for key, value in self.headers.items()
                         if key.lower() not in {"connection", "host", "proxy-connection"}
                     }
-                    request = urllib.request.Request(url, headers=forward_headers, method=self.command)
+                    data = request_body if self.command not in {"GET", "HEAD"} else None
+                    request = urllib.request.Request(url, data=data, headers=forward_headers, method=self.command)
                     try:
                         with urllib.request.urlopen(request, timeout=2) as response:
                             body = response.read()
@@ -405,12 +563,16 @@ def make_sidecar_proxy_handler(
             append_jsonl(
                 transcript_path,
                 {
+                    "blocked_body_marker_present": REQUEST_BODY_BLOCK_MARKER.encode("utf-8") in request_body,
+                    "body_length": len(request_body),
+                    "content_length": self.headers.get("content-length"),
                     "decision_backend": decision_backend.decision_backend,
                     "decision_status": decision_status,
                     "forwarded_to_lighttpd": forwarded,
                     "method": self.command,
                     "path": self.path,
                     "response_status": status,
+                    "transfer_encoding": self.headers.get("transfer-encoding"),
                     "upstream_status": upstream_status,
                 },
             )
@@ -422,6 +584,7 @@ def make_sidecar_proxy_handler(
                 self.wfile.write(body)
 
         do_GET = _answer
+        do_POST = _answer
         do_HEAD = _answer
 
     return LighttpdSidecarProxyHandler
@@ -434,8 +597,13 @@ def start_http_server(handler: type[http.server.BaseHTTPRequestHandler], port: i
     return server
 
 
-def http_status(url: str, headers: dict[str, str] | None = None) -> int:
-    request = urllib.request.Request(url, headers=headers or {})
+def http_status(
+    url: str,
+    headers: dict[str, str] | None = None,
+    method: str = "GET",
+    data: bytes | None = None,
+) -> int:
+    request = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
     try:
         with urllib.request.urlopen(request, timeout=2) as response:
             response.read()
@@ -674,8 +842,13 @@ def envoy_config(listen_port: int, admin_port: int, upstream_port: int, auth_por
                 authorization_request:
                   allowed_headers:
                     patterns:
+                    - exact: content-length
+                    - exact: content-type
                     - exact: x-msconnector-block
                     - exact: x-modsec-smoke
+              with_request_body:
+                max_request_bytes: 4096
+                allow_partial_message: false
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -731,8 +904,13 @@ def traefik_dynamic_config(upstream_port: int, auth_port: int) -> str:
         address: http://127.0.0.1:{auth_port}/auth
         trustForwardHeader: true
         authRequestHeaders:
+        - Content-Length
+        - Content-Type
         - X-Msconnector-Block
         - X-Modsec-Smoke
+        forwardBody: true
+        maxBodySize: 4096
+        preserveRequestMethod: true
   services:
     upstream:
       loadBalancer:
@@ -815,6 +993,9 @@ def writer_args(
     lighttpd_log_path: str = "",
     upstream_log_path: str = "",
     request_transcript_path: str = "",
+    request_body_smoke_verified: bool = False,
+    request_body_access_enabled: bool = False,
+    request_body_rule_loaded: bool = False,
     crs_minimal_smoke_verified: bool = False,
     crs_secondary_smoke_verified: bool = False,
     crs_rule_id: str = "",
@@ -826,7 +1007,21 @@ def writer_args(
     crs_version = namespace_value(args, "effective_crs_version", "")
     modsecurity_rule_id = ""
     if args.decision_backend == "libmodsecurity":
-        modsecurity_rule_id = crs_rule_id if args.modsecurity_ruleset == "crs" else "1000001"
+        if args.modsecurity_ruleset == "crs":
+            modsecurity_rule_id = crs_rule_id
+        elif args.modsecurity_smoke_case == "request_body":
+            modsecurity_rule_id = "1000002"
+        else:
+            modsecurity_rule_id = "1000001"
+    request_body_rule_file = ""
+    request_body_rule_id = ""
+    request_method = ""
+    blocked_body_marker = ""
+    if args.decision_backend == "libmodsecurity" and args.modsecurity_smoke_case == "request_body":
+        request_body_rule_file = effective_rule_file
+        request_body_rule_id = "1000002"
+        request_method = "POST"
+        blocked_body_marker = REQUEST_BODY_BLOCK_MARKER
     command = [
         sys.executable,
         str(Path(args.connector_root) / "common/scripts/write_smoke_result.py"),
@@ -850,6 +1045,8 @@ def writer_args(
         args.decision_backend,
         "--modsecurity-ruleset",
         args.modsecurity_ruleset if args.decision_backend == "libmodsecurity" else "",
+        "--modsecurity-smoke-case",
+        args.modsecurity_smoke_case if args.decision_backend == "libmodsecurity" else "",
         "--crs-smoke-case",
         args.crs_smoke_case if args.modsecurity_ruleset == "crs" else "",
         "--modsecurity-backend-verified",
@@ -860,6 +1057,20 @@ def writer_args(
         modsecurity_rule_id,
         "--modsecurity-rule-loaded",
         "true" if modsecurity_rule_loaded else "false",
+        "--request-body-smoke-verified",
+        "true" if request_body_smoke_verified else "false",
+        "--request-body-access-enabled",
+        "true" if request_body_access_enabled else "false",
+        "--request-body-rule-file",
+        request_body_rule_file,
+        "--request-body-rule-id",
+        request_body_rule_id,
+        "--request-body-rule-loaded",
+        "true" if request_body_rule_loaded else "false",
+        "--request-method",
+        request_method,
+        "--blocked-body-marker",
+        blocked_body_marker,
         "--intervention-status",
         str(intervention_status) if intervention_status is not None else "not-run",
         "--audit-log-path",
@@ -964,6 +1175,9 @@ def write_result(
     lighttpd_log_path: str = "",
     upstream_log_path: str = "",
     request_transcript_path: str = "",
+    request_body_smoke_verified: bool = False,
+    request_body_access_enabled: bool = False,
+    request_body_rule_loaded: bool = False,
     crs_minimal_smoke_verified: bool = False,
     crs_secondary_smoke_verified: bool = False,
     crs_rule_id: str = "",
@@ -990,6 +1204,9 @@ def write_result(
             lighttpd_log_path,
             upstream_log_path,
             request_transcript_path,
+            request_body_smoke_verified,
+            request_body_access_enabled,
+            request_body_rule_loaded,
             crs_minimal_smoke_verified,
             crs_secondary_smoke_verified,
             crs_rule_id,
@@ -1026,6 +1243,9 @@ def run_lighttpd_sidecar_smoke(
     elif args.modsecurity_ruleset == "crs":
         upstream_log_name = "crs-lighttpd-upstream.log"
         transcript_name = "crs-request-transcript.jsonl"
+    elif request_body_smoke_enabled(args):
+        upstream_log_name = "request-body-lighttpd-upstream.log"
+        transcript_name = "request-body-request-transcript.jsonl"
     else:
         upstream_log_name = "lighttpd-upstream.log"
         transcript_name = "request-transcript.jsonl"
@@ -1100,12 +1320,28 @@ def run_lighttpd_sidecar_smoke(
             )
             sidecar_url = f"http://127.0.0.1:{listen_port}/allowed"
             wait_for_http_url(sidecar_url, time.monotonic() + 8, label="lighttpd sidecar proxy")
-            allowed_status = http_status(sidecar_url)
-            blocked_path = crs_blocked_path(args) if args.modsecurity_ruleset == "crs" else "/blocked"
-            blocked_headers = {} if args.modsecurity_ruleset == "crs" else {"X-Modsec-Smoke": "block"}
+            if request_body_smoke_enabled(args):
+                allowed_status = http_status(
+                    sidecar_url,
+                    request_body_headers(),
+                    method="POST",
+                    data=REQUEST_BODY_ALLOW_BODY,
+                )
+                blocked_path = "/blocked"
+                blocked_headers = request_body_headers()
+                blocked_method = "POST"
+                blocked_body: bytes | None = REQUEST_BODY_BLOCK_BODY
+            else:
+                allowed_status = http_status(sidecar_url)
+                blocked_path = crs_blocked_path(args) if args.modsecurity_ruleset == "crs" else "/blocked"
+                blocked_headers = {} if args.modsecurity_ruleset == "crs" else {"X-Modsec-Smoke": "block"}
+                blocked_method = "GET"
+                blocked_body = None
             blocked_status = http_status(
                 f"http://127.0.0.1:{listen_port}{blocked_path}",
                 blocked_headers,
+                method=blocked_method,
+                data=blocked_body,
             )
 
         modsecurity_backend_verified = bool(
@@ -1115,6 +1351,11 @@ def run_lighttpd_sidecar_smoke(
         intervention_status = getattr(decision_backend, "intervention_status", None)
         backend_error = getattr(decision_backend, "last_error", None)
         sidecar_proxy_verified = lighttpd_http_verified and allowed_status == 200 and blocked_status == 403
+        (
+            request_body_smoke_verified,
+            request_body_access_enabled,
+            request_body_rule_loaded,
+        ) = request_body_evidence(decision_backend)
         crs_rule_id = str(getattr(decision_backend, "crs_rule_id", ""))
         crs_rule_message = str(getattr(decision_backend, "crs_rule_message", ""))
         if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
@@ -1165,6 +1406,9 @@ def run_lighttpd_sidecar_smoke(
                 str(lighttpd_log_path),
                 str(upstream_log_path),
                 str(request_transcript_path),
+                request_body_smoke_verified,
+                request_body_access_enabled,
+                request_body_rule_loaded,
                 crs_minimal_smoke_verified,
                 crs_secondary_smoke_verified,
                 crs_rule_id,
@@ -1216,6 +1460,9 @@ def run_lighttpd_sidecar_smoke(
             str(lighttpd_log_path),
             str(upstream_log_path),
             str(request_transcript_path),
+            request_body_smoke_verified,
+            request_body_access_enabled,
+            request_body_rule_loaded,
             crs_minimal_smoke_verified,
             crs_secondary_smoke_verified,
             crs_rule_id,
@@ -1248,6 +1495,7 @@ def run_lighttpd_sidecar_smoke(
             str(lighttpd_log_path),
             str(upstream_log_path),
             str(request_transcript_path),
+            *request_body_evidence(decision_backend),
         )
         return 77
     finally:
@@ -1266,6 +1514,7 @@ def run_lighttpd_sidecar_smoke(
 def run_smoke(args: argparse.Namespace) -> int:
     try:
         args.modsecurity_ruleset = normalize_ruleset(args.modsecurity_ruleset)
+        args.modsecurity_smoke_case = normalize_modsecurity_smoke_case(args.modsecurity_smoke_case)
         args.crs_smoke_case = normalize_crs_smoke_case(args.crs_smoke_case)
     except SmokeBlocked as exc:
         write_result(
@@ -1280,6 +1529,7 @@ def run_smoke(args: argparse.Namespace) -> int:
         )
         return 77
     if args.modsecurity_ruleset == "crs":
+        args.modsecurity_smoke_case = "targeted"
         config_suffix = "crs-smoke" if args.crs_smoke_case == "minimal" else "crs-secondary-smoke"
         args.config_root = str(Path(args.config_root) / config_suffix)
     binary = Path(args.resolved_runtime_binary)
@@ -1291,6 +1541,8 @@ def run_smoke(args: argparse.Namespace) -> int:
         decision_log_name = "crs-secondary-decision.log"
     elif args.modsecurity_ruleset == "crs":
         decision_log_name = "crs-decision.log"
+    elif request_body_smoke_enabled(args):
+        decision_log_name = "request-body-decision.log"
     else:
         decision_log_name = "modsecurity-decision.log"
     decision_log_path = log_dir / decision_log_name if args.decision_backend == "libmodsecurity" else None
@@ -1318,6 +1570,7 @@ def run_smoke(args: argparse.Namespace) -> int:
                 helper_env,
                 args.modsecurity_ruleset,
                 args.crs_smoke_case,
+                args.modsecurity_smoke_case,
             )
         else:
             decision_backend = SimpleDecisionBackend()
@@ -1365,31 +1618,61 @@ def run_smoke(args: argparse.Namespace) -> int:
     auth_server: http.server.ThreadingHTTPServer | None = None
     stdout_path = log_dir / f"{args.connector}.stdout.log"
     stderr_path = log_dir / f"{args.connector}.stderr.log"
+    request_transcript_path = log_dir / "request-body-request-transcript.jsonl"
     allowed_status: int | None = None
     blocked_status: int | None = None
     process: subprocess.Popen[object] | None = None
 
     try:
         upstream_server = start_http_server(UpstreamHandler, upstream_port)
-        auth_server = start_http_server(make_decision_handler(decision_backend), auth_port)
+        if request_body_smoke_enabled(args) and request_transcript_path.exists():
+            request_transcript_path.unlink()
+        auth_server = start_http_server(
+            make_decision_handler(
+                decision_backend,
+                request_transcript_path if request_body_smoke_enabled(args) else None,
+            ),
+            auth_port,
+        )
         command = build_proxy_command(args.connector, binary, work_dir, listen_port, upstream_port, auth_port)
         (work_dir / "proxy-command.txt").write_text(" ".join(command) + "\n", encoding="utf-8")
         with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
             process = subprocess.Popen(command, stdout=stdout, stderr=stderr)
             wait_for_proxy(f"http://127.0.0.1:{listen_port}/allowed", process, time.monotonic() + 12)
-            allowed_status = http_status(f"http://127.0.0.1:{listen_port}/allowed")
-            if args.decision_backend == "libmodsecurity" and args.modsecurity_ruleset == "crs":
+            if request_body_smoke_enabled(args):
+                allowed_status = http_status(
+                    f"http://127.0.0.1:{listen_port}/allowed",
+                    request_body_headers(),
+                    method="POST",
+                    data=REQUEST_BODY_ALLOW_BODY,
+                )
+                blocked_headers = request_body_headers()
+                blocked_path = "/blocked"
+                blocked_method = "POST"
+                blocked_body: bytes | None = REQUEST_BODY_BLOCK_BODY
+            elif args.decision_backend == "libmodsecurity" and args.modsecurity_ruleset == "crs":
+                allowed_status = http_status(f"http://127.0.0.1:{listen_port}/allowed")
                 blocked_headers = {}
                 blocked_path = crs_blocked_path(args)
+                blocked_method = "GET"
+                blocked_body = None
             elif args.decision_backend == "libmodsecurity":
+                allowed_status = http_status(f"http://127.0.0.1:{listen_port}/allowed")
                 blocked_headers = {"X-Modsec-Smoke": "block"}
                 blocked_path = "/blocked"
+                blocked_method = "GET"
+                blocked_body = None
             else:
+                allowed_status = http_status(f"http://127.0.0.1:{listen_port}/allowed")
                 blocked_headers = {"X-Msconnector-Block": "1"}
                 blocked_path = "/blocked"
+                blocked_method = "GET"
+                blocked_body = None
             blocked_status = http_status(
                 f"http://127.0.0.1:{listen_port}{blocked_path}",
                 blocked_headers,
+                method=blocked_method,
+                data=blocked_body,
             )
 
         modsecurity_backend_verified = bool(
@@ -1398,6 +1681,11 @@ def run_smoke(args: argparse.Namespace) -> int:
         modsecurity_rule_loaded = bool(getattr(decision_backend, "modsecurity_rule_loaded", False))
         intervention_status = getattr(decision_backend, "intervention_status", None)
         backend_error = getattr(decision_backend, "last_error", None)
+        (
+            request_body_smoke_verified,
+            request_body_access_enabled,
+            request_body_rule_loaded,
+        ) = request_body_evidence(decision_backend)
         crs_rule_id = str(getattr(decision_backend, "crs_rule_id", ""))
         crs_rule_message = str(getattr(decision_backend, "crs_rule_message", ""))
         if args.modsecurity_ruleset == "crs" and args.crs_smoke_case == "secondary":
@@ -1441,7 +1729,10 @@ def run_smoke(args: argparse.Namespace) -> int:
                 False,
                 "",
                 "",
-                "",
+                str(request_transcript_path) if request_body_smoke_enabled(args) else "",
+                request_body_smoke_verified,
+                request_body_access_enabled,
+                request_body_rule_loaded,
                 crs_minimal_smoke_verified,
                 crs_secondary_smoke_verified,
                 crs_rule_id,
@@ -1498,7 +1789,10 @@ def run_smoke(args: argparse.Namespace) -> int:
             False,
             "",
             "",
-            "",
+            str(request_transcript_path) if request_body_smoke_enabled(args) else "",
+            request_body_smoke_verified,
+            request_body_access_enabled,
+            request_body_rule_loaded,
             crs_minimal_smoke_verified,
             crs_secondary_smoke_verified,
             crs_rule_id,
@@ -1524,6 +1818,14 @@ def run_smoke(args: argparse.Namespace) -> int:
             modsecurity_rule_loaded,
             intervention_status,
             str(decision_log_path) if decision_log_path is not None else "",
+            "",
+            False,
+            False,
+            False,
+            "",
+            "",
+            str(request_transcript_path) if request_body_smoke_enabled(args) else "",
+            *request_body_evidence(decision_backend),
         )
         return 77
     finally:
@@ -1566,6 +1868,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--architecture-decision", default="")
     parser.add_argument("--decision-backend", choices=["simple", "libmodsecurity"], default="simple")
     parser.add_argument("--modsecurity-ruleset", default=os.environ.get("MODSECURITY_RULESET", "targeted"))
+    parser.add_argument("--modsecurity-smoke-case", default=os.environ.get("MODSECURITY_SMOKE_CASE", "targeted"))
     parser.add_argument("--crs-smoke-case", default=os.environ.get("CRS_SMOKE_CASE", "minimal"))
     parser.add_argument("--modsecurity-rule-file", default="")
     parser.add_argument("--modsecurity-include-dir", default="")

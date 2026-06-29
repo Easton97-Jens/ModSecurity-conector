@@ -13,6 +13,8 @@
 
 # Runtime Cache Index
 
+**Language:** English | [Deutsch](runtime-cache-index.generated.de.md)
+
 - Status: `cache_input_present`
 - Component cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 - Build root: `/var/tmp/ModSecurity-conector-verified/build`

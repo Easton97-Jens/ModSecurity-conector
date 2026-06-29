@@ -13,6 +13,8 @@
 
 # Connector Work Queue
 
+**Language:** English | [Deutsch](connector-work-queue.generated.de.md)
+
 Generated file - do not edit manually.
 
 ## Executive Summary

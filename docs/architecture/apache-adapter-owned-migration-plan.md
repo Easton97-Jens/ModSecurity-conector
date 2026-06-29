@@ -1,5 +1,8 @@
 # Apache Adapter-Owned Migration Plan
 
+**Language:** English | [Deutsch](apache-adapter-owned-migration-plan.de.md)
+
+
 Status: implemented through Phase 12
 
 Apache now follows the same materialized adapter-owned source model as NGINX.

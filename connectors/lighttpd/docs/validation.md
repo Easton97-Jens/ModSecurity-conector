@@ -52,6 +52,7 @@ success, CRS claim, production claim, or response-body claim is allowed.
 | SCGI implementation | blocked |
 | Runtime harness | sidecar_proxy smoke available with local binary |
 | Targeted libmodsecurity smoke | PASS when local common.sh-managed libmodsecurity is available |
+| Request-body smoke | PASS when local sidecar POST body evidence verifies rule `1000002` |
 | Minimal CRS smoke | PASS when local common.sh-managed CRS and libmodsecurity are available |
 | Secondary CRS smoke | PASS when local common.sh-managed CRS and libmodsecurity block the secondary probe |
 | CRS complete | not claimed |
@@ -99,6 +100,25 @@ common.sh-managed lighttpd smoke root.
 This entrypoint does not run bridge-starter scripts as runtime evidence.
 RESPONSE_BODY remains not verified.
 
+The request-body ModSecurity smoke uses the same Phase 1 `sidecar_proxy`
+runtime entrypoint with the request-body smoke case selected:
+
+```sh
+MODSECURITY_SMOKE_CASE=request_body DECISION_BACKEND=libmodsecurity make smoke-lighttpd
+make smoke-lighttpd-request-body
+make smoke-open-connectors-request-body
+```
+
+This mode loads `common/rules/modsecurity_request_body_smoke.conf`, sends POST
+requests with `Content-Type: application/x-www-form-urlencoded`, and requires
+the blocked body marker `modsec-request-body-block` to return 403 from rule
+`1000002`. Successful evidence writes
+`$LIGHTTPD_RESULT_ROOT/request-body-result.json`,
+`$LIGHTTPD_LOG_ROOT/request-body-decision.log`, and
+`$LIGHTTPD_LOG_ROOT/request-body-request-transcript.jsonl`. It may set
+`request_body_smoke_verified=true`; `response_body_verified=true` remains
+forbidden.
+
 The minimal CRS smoke uses the same Phase 1 sidecar_proxy runtime entrypoint
 with CRS selected:
 
@@ -138,8 +158,10 @@ available but the secondary probe is not blocked, the result is FAIL.
 common schema fields `connector`, `integration_mode`, `runtime_verified`,
 `full_matrix_ready`, `production_ready`, `crs_complete`,
 `response_body_verified`, `allowed_request_status`, `blocked_request_status`,
-`evidence_root`, `timestamp`, `skipped_reason`, `missing_dependencies`, and
-`claims_not_allowed`.
+`request_body_smoke_verified`, `request_body_access_enabled`,
+`request_body_rule_file`, `request_body_rule_id`, `request_method`,
+`blocked_body_marker`, `evidence_root`, `timestamp`, `skipped_reason`,
+`missing_dependencies`, and `claims_not_allowed`.
 
 Current expected result without a local binary:
 
@@ -192,6 +214,27 @@ libmodsecurity smoke:
 - Blocked request status: `403`
 - Intervention status: `403`
 - `modsecurity_backend_verified=true`
+- `production_ready=false`, `full_matrix_ready=false`, `crs_complete=false`,
+  and `response_body_verified=false`
+
+Current expected result with a local binary and successful request-body
+libmodsecurity smoke:
+
+- Integration mode: `sidecar_proxy`
+- Decision backend: `libmodsecurity`
+- ModSecurity smoke case: `request_body`
+- Request method: `POST`
+- Request body access enabled: `true`
+- Request body rule file: `common/rules/modsecurity_request_body_smoke.conf`
+- Request body rule ID: `1000002`
+- Request body rule loaded: `true`
+- Blocked body marker: `modsec-request-body-block`
+- Allowed request status: `200`
+- Blocked request status: `403`
+- `lighttpd_binary_verified=true`
+- `lighttpd_http_verified=true`
+- `sidecar_proxy_verified=true`
+- `request_body_smoke_verified=true`
 - `production_ready=false`, `full_matrix_ready=false`, `crs_complete=false`,
   and `response_body_verified=false`
 

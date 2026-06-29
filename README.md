@@ -1,6 +1,6 @@
-Language: English | [Deutsch](README.de.md)
+# ModSecurity Connector
 
-# ModSecurity Connector Monorepo
+**Language:** English | [Deutsch](README.de.md)
 
 This repository contains connector-focused code and integration scaffolding for
 libmodsecurity v3 based server connectors. The reusable test framework lives in
@@ -441,6 +441,8 @@ files, and temporary job output are local artifacts and must not be committed.
   [Prepare Traefik](./COMPILE_TRAEFIK.md),
   [Compile Lighttpd](./COMPILE_LIGHTTPD.md),
   [Open connectors](./COMPILE_OPEN_CONNECTORS.md)
+- Open connector smoke CI:
+  [Open Connector Runtime Smokes](./.github/workflows/open-connectors-smoke.yml)
 - Example configs: [Apache examples](./examples/apache/README.md), [NGINX examples](./examples/nginx/README.md), [HAProxy examples](./examples/haproxy/README.md)
 - Shared connector feature docs: [Shared Features](./SHARED_FEATURES.md)
 - Roadmap: [docs/roadmap/roadmap.md](./docs/roadmap/roadmap.md)

@@ -1,5 +1,8 @@
 # Refactor Phase 9 Review
 
+**Language:** English | [Deutsch](refactor-phase-9-review.de.md)
+
+
 Status: implemented
 
 Phase 9 migrates NGINX connector build inputs from the imported upstream source

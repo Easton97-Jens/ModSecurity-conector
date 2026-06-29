@@ -13,6 +13,8 @@
 
 # NGINX with-crs/with-mrts HTTP-500 Cluster Analysis
 
+**Language:** English | [Deutsch](nginx-mrts-http500-cluster-analysis.generated.de.md)
+
 ## Summary
 
 - Verified run id: `2026-06-16T19-12-00Z-614c8049`

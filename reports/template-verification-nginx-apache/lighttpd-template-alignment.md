@@ -1,5 +1,7 @@
 # lighttpd Template Alignment
 
+**Language:** English | [Deutsch](lighttpd-template-alignment.de.md)
+
 Status: bridge-starter
 Runtime status: not-verified
 Template alignment: bridge-starter, not runtime-verified

@@ -13,6 +13,8 @@
 
 # Report Freshness
 
+**Language:** English | [Deutsch](report-freshness.generated.de.md)
+
 | Report | Status | Generated At | Newest Input | Newest Output | Missing Inputs | Notes |
 |---|---|---|---|---|---|---|
 | `connector_coverage_reports` | fresh | - | 2026-06-16T19:13:26Z | 2026-06-19T16:57:55Z | - | generated |

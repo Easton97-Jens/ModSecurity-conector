@@ -1,6 +1,6 @@
-Language: English | [Deutsch](COMPILE_HAPROXY.de.md)
-
 # Compile HAProxy
+
+**Language:** English | [Deutsch](COMPILE_HAPROXY.de.md)
 
 ## Table of Contents
 

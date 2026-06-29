@@ -1,5 +1,7 @@
 # NGINX Blocked Runtime Cases
 
+**Language:** English | [Deutsch](nginx-blocked-runtime-cases.de.md)
+
 Status: historical blocker resolved in current `/src` run
 
 ## Current Result

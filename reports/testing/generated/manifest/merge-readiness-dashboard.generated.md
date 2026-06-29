@@ -13,6 +13,8 @@
 
 # Merge Readiness Dashboard
 
+**Language:** English | [Deutsch](merge-readiness-dashboard.generated.de.md)
+
 Merge Readiness: `WARN`
 
 ## Summary

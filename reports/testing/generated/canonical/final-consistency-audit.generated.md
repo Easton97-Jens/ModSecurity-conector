@@ -13,6 +13,8 @@
 
 # Final Consistency Audit
 
+**Language:** English | [Deutsch](final-consistency-audit.generated.de.md)
+
 Generated file - do not edit manually.
 
 - Generated at: `2026-06-19T16:59:06Z`

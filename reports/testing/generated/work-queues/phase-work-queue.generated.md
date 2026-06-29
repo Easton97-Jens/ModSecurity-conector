@@ -13,6 +13,8 @@
 
 # Phase-Oriented MRTS Work Queue
 
+**Language:** English | [Deutsch](phase-work-queue.generated.de.md)
+
 Generated file - do not edit manually.
 
 ## Executive Summary

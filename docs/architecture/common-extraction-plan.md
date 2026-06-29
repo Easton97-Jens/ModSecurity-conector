@@ -1,5 +1,8 @@
 # Common Extraction Plan
 
+**Language:** English | [Deutsch](common-extraction-plan.de.md)
+
+
 Status: implemented
 
 The Apache and NGINX connector sources are imported as separate upstream code

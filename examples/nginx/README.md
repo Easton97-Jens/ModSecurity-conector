@@ -1,6 +1,6 @@
-Language: English | [Deutsch](README.de.md)
-
 # NGINX ModSecurity Examples
+
+**Language:** English | [Deutsch](README.de.md)
 
 ## Table of Contents
 

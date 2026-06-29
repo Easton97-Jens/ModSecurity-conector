@@ -94,6 +94,7 @@ export MODSECURITY_NGINX_GIT_REF
 export MODSECURITY_TEST_VARIANT
 export MODSECURITY_MRTS_VARIANT
 export MODSECURITY_RULESET
+export MODSECURITY_SMOKE_CASE
 export CRS_SMOKE_CASE
 export MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO
 export MODSECURITY_MRTS_PREPARED
@@ -180,7 +181,8 @@ export ENVOY_DECISION_BACKEND
 export TRAEFIK_DECISION_BACKEND
 export LIGHTTPD_DECISION_BACKEND
 
-.PHONY: check-framework prepare-runtime-components prepare-envoy-runtime prepare-traefik-runtime prepare-lighttpd-runtime prepare-lighttpd-runtime-build prepare-open-connector-runtimes runtime-components-inventory runtime-components-sources check-framework-fixture-syntax check-runtime-producer-readiness check-runtime-path-policy refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-case verified-native-case verified-apache-case verified-nginx-case verified-haproxy-case verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-envoy-modsecurity smoke-envoy-crs smoke-envoy-crs-secondary smoke-haproxy smoke-lighttpd smoke-lighttpd-modsecurity smoke-lighttpd-crs smoke-lighttpd-crs-secondary smoke-traefik smoke-traefik-modsecurity smoke-traefik-crs smoke-traefik-crs-secondary smoke-open-connectors-crs smoke-open-connectors-crs-secondary smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-native-semantics-comparison generate-remaining-critical-batch-analysis generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: check-framework prepare-runtime-components prepare-envoy-runtime prepare-traefik-runtime prepare-lighttpd-runtime prepare-lighttpd-runtime-build prepare-open-connector-runtimes runtime-components-inventory runtime-components-sources check-framework-fixture-syntax check-runtime-producer-readiness check-runtime-path-policy check-bilingual-docs refresh-connector-reports refresh-all-reports check-generated-report-layout report-governance verified-report-evidence-gate generate-system-environment-proof prove-generated-reports verified-runtime-producers verified-report-refresh verified-report-producers verified-report-consumers verified-report-checks verified-report-run verified-report-run-soft verified-report-run-smoke verified-full-matrix-job verified-case verified-native-case verified-apache-case verified-nginx-case verified-haproxy-case verified-full-matrix-resume full-matrix-single-job-runtime full-matrix-resume-runtime smoke-common smoke-apache smoke-nginx smoke-envoy smoke-envoy-modsecurity smoke-envoy-crs smoke-envoy-crs-secondary smoke-haproxy smoke-lighttpd smoke-lighttpd-modsecurity smoke-lighttpd-crs smoke-lighttpd-crs-secondary smoke-traefik smoke-traefik-modsecurity smoke-traefik-crs smoke-traefik-crs-secondary smoke-open-connectors-crs smoke-open-connectors-crs-secondary smoke-new-connectors smoke-all test test-no-crs test-with-crs test-haproxy-no-crs test-haproxy-with-crs runtime-matrix runtime-matrix-all runtime-matrix-all-runtime runtime-matrix-haproxy full-runtime-matrix full-mrts-runtime-matrix mrts-only-full-run full-matrix-parallel full-matrix-parallel-runtime generate-full-runtime-matrix generate-full-matrix-job-completeness generate-nginx-mrts-http500-cluster-analysis generate-work-queue generate-phase-work-queue generate-nolog-audit-evidence-analysis generate-response-header-hook-analysis generate-phase4-hard-abort-capability generate-intervention-blocking-analysis generate-no-mrts-intervention-nomatch-analysis generate-body-processor-analysis generate-rule-chain-semantics-analysis generate-final-consistency-audit generate-native-semantics-comparison generate-remaining-critical-batch-analysis generate-remaining-failure-analysis mrts-native-full-run mrts-native-full-run-runtime mrts-native-apache-full mrts-native-nginx-pr24-full mrts-upstream-infra-check probe-response-body connector-starter-checks lint summary case-matrix setup-dev install-dev-deps doctor doctor-quick env-check fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs bootstrap-runtime quick-check codex-check quick-all smoke-installed installed-readiness doctor-install-hints cloud-quick-check generate-test-matrix check-test-matrix mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: smoke-envoy-request-body smoke-traefik-request-body smoke-lighttpd-request-body smoke-open-connectors-request-body
 
 define RUN_WITH_REFRESH_ALL
 	@set +e; \
@@ -240,6 +242,9 @@ check-runtime-producer-readiness: check-framework
 
 check-runtime-path-policy: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/check-runtime-path-policy.py
+
+check-bilingual-docs:
+	$(PYTHON) ci/check-bilingual-docs.py
 
 refresh-connector-reports: check-framework
 	"$(FRAMEWORK_PYTHON)" ci/refresh-connector-reports.py --connector-root "$(CURDIR)" --framework-root "$(FRAMEWORK_ROOT)" --build-root "$(BUILD_ROOT)" --native-root "$(MRTS_NATIVE_ROOT)"
@@ -369,6 +374,9 @@ smoke-envoy: check-framework
 smoke-envoy-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-envoy
 
+smoke-envoy-request-body:
+	DECISION_BACKEND=libmodsecurity MODSECURITY_SMOKE_CASE=request_body $(MAKE) smoke-envoy
+
 smoke-envoy-crs:
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs $(MAKE) smoke-envoy
 
@@ -384,6 +392,9 @@ smoke-lighttpd: check-framework
 smoke-lighttpd-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-lighttpd
 
+smoke-lighttpd-request-body:
+	DECISION_BACKEND=libmodsecurity MODSECURITY_SMOKE_CASE=request_body $(MAKE) smoke-lighttpd
+
 smoke-lighttpd-crs:
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs $(MAKE) smoke-lighttpd
 
@@ -396,6 +407,9 @@ smoke-traefik: check-framework
 smoke-traefik-modsecurity:
 	DECISION_BACKEND=libmodsecurity $(MAKE) smoke-traefik
 
+smoke-traefik-request-body:
+	DECISION_BACKEND=libmodsecurity MODSECURITY_SMOKE_CASE=request_body $(MAKE) smoke-traefik
+
 smoke-traefik-crs:
 	DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs $(MAKE) smoke-traefik
 
@@ -406,6 +420,11 @@ smoke-open-connectors-crs:
 	$(MAKE) smoke-envoy-crs
 	$(MAKE) smoke-traefik-crs
 	$(MAKE) smoke-lighttpd-crs
+
+smoke-open-connectors-request-body:
+	$(MAKE) smoke-envoy-request-body
+	$(MAKE) smoke-traefik-request-body
+	$(MAKE) smoke-lighttpd-request-body
 
 smoke-open-connectors-crs-secondary:
 	$(MAKE) smoke-envoy-crs-secondary
@@ -622,6 +641,7 @@ lint: check-framework
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-python-deps.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-workflow-yaml.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/check-doc-links.py"
+	$(MAKE) check-bilingual-docs
 	sh "$(FRAMEWORK_ROOT)/ci/check-crs-version-pinning.sh"
 	sh ci/check-common-helpers.sh
 	sh ci/check-adapter-helpers.sh
@@ -693,6 +713,7 @@ cloud-quick-check: setup-dev lint generate-test-matrix check-test-matrix quick-c
 
 generate-test-matrix: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" OUTPUT_ROOT="$(CURDIR)" SKIP_ROOT_SUMMARY=1 $(MAKE) -C "$(FRAMEWORK_ROOT)" generate-test-matrix
+	$(PYTHON) ci/ensure-test-matrix-language-switches.py
 
 TEST_MATRIX_DIFF_PATHS = reports/testing/generated/coverage reports/testing/generated/runtime reports/testing/test-coverage-overview.md
 

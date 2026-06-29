@@ -13,6 +13,8 @@
 
 # Body Processor Failure Analysis
 
+**Language:** English | [Deutsch](body-processor-analysis.generated.de.md)
+
 - Generated at: `2026-06-19T16:59:03Z`
 - Before selected metadata fix: request_body_processor **6**, multipart_files **6**, xml_processor **12**, combined **24**.
 - After selected metadata fix: request_body_processor **0**, multipart_files **6**, xml_processor **0**, combined **6**.

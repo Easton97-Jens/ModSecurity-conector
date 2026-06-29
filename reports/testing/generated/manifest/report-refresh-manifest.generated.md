@@ -14,6 +14,8 @@
 
 # Report Refresh Manifest
 
+**Language:** English | [Deutsch](report-refresh-manifest.generated.de.md)
+
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 

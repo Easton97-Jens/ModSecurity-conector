@@ -1104,11 +1104,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", required=True)
     parser.add_argument("--cache-root", default=None)
+    parser.add_argument("--output-root", default=None)
     args = parser.parse_args()
 
     connector_root = Path(args.connector_root).resolve()
-    report_dir = connector_root / GENERATED_ROOT
+    output_root = Path(args.output_root).resolve() if args.output_root else connector_root
+    report_dir = output_root / GENERATED_ROOT
     cache_root = local_cache_root(args.cache_root)
+    report_dir.mkdir(parents=True, exist_ok=True)
     add_safe_roots(connector_root, report_dir)
     add_safe_roots(cache_root)
     add_report_roots(report_dir)

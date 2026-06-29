@@ -1,5 +1,7 @@
 # Connector Scaffold Decisions
 
+**Language:** English | [Deutsch](connector-scaffold-decisions.de.md)
+
 Status: reviewed
 
 This file turns the open questions from `open-questions.md` into repository-

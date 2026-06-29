@@ -13,6 +13,8 @@
 
 # Response Header Hook Analysis
 
+**Language:** English | [Deutsch](response-header-hook-analysis.generated.de.md)
+
 Generated file - do not edit manually.
 
 ## Scope

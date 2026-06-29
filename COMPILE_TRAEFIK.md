@@ -1,6 +1,6 @@
-Language: English | [Deutsch](COMPILE_TRAEFIK.de.md)
-
 # Compile Traefik
+
+**Language:** English | [Deutsch](COMPILE_TRAEFIK.de.md)
 
 ## Table of Contents
 

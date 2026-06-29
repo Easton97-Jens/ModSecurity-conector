@@ -13,6 +13,8 @@
 
 # Runtime Component Cache
 
+**Language:** English | [Deutsch](runtime-component-cache.generated.de.md)
+
 - Cache root: `/var/tmp/ModSecurity-conector-verified/component-cache`
 - Build root: `/var/tmp/ModSecurity-conector-verified/build`
 - Generated at: `2026-06-19T16:22:55Z`

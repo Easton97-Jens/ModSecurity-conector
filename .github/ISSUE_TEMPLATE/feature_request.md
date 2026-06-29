@@ -6,6 +6,8 @@ labels: [enhancement]
 assignees: []
 ---
 
+**Language:** English | [Deutsch](feature_request.de.md)
+
 ## Note
 English is preferred, but German is also accepted.
 

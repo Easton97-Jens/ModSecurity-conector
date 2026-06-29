@@ -1,6 +1,6 @@
-Language: English | [Deutsch](../de/README.md)
-
 # English Documentation Index
+
+**Language:** English | [Deutsch](../de/README.md)
 
 GitHub still shows all files in the repository tree; these links keep you in the selected documentation language.
 

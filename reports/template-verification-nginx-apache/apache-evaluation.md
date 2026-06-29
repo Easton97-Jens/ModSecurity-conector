@@ -1,5 +1,7 @@
 # Apache Evaluation
 
+**Language:** English | [Deutsch](apache-evaluation.de.md)
+
 Status: reviewed
 
 Apache-Bewertung: partial with current `/src` No-CRS PASS and With-CRS PASS

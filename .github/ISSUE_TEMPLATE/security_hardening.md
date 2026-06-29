@@ -6,6 +6,8 @@ labels: [security]
 assignees: []
 ---
 
+**Language:** English | [Deutsch](security_hardening.de.md)
+
 ## Note
 English is preferred, but German is also accepted.
 

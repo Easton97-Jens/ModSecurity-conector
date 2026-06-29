@@ -1,5 +1,7 @@
 # HAProxy Integration Evidence Questionnaire
 
+**Language:** English | [Deutsch](evidence-questionnaire.de.md)
+
 Status: answered for the current production SPOA scope
 
 | Question | Current answer | Evidence |

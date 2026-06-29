@@ -1,5 +1,7 @@
 # NGINX Docroot Permission Analysis
 
+**Language:** English | [Deutsch](nginx-docroot-permission-analysis.de.md)
+
 Status: parent-side runtime environment fixed and verified
 
 Date/time: 2026-05-30 15:49:59 UTC

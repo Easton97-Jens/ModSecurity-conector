@@ -6,6 +6,8 @@ labels: [bug]
 assignees: []
 ---
 
+**Language:** English | [Deutsch](bug_report.de.md)
+
 ## Note
 English is preferred, but German is also accepted.
 

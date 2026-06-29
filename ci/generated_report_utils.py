@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import stat
+import inspect
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1110,6 +1111,10 @@ def build_metadata(
     }
     if extra:
         metadata.update(extra)
+    if report_key and "output_name" not in metadata:
+        report = GENERATED_REPORTS.get(report_key)
+        if report is not None and "md" in report.formats:
+            metadata["output_name"] = report.filename("md")
     return metadata
 
 
@@ -1187,6 +1192,42 @@ def missing_information_section(metadata: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _caller_output_name() -> str:
+    frame = inspect.currentframe()
+    caller = frame.f_back if frame is not None else None
+    while caller is not None:
+        candidate = caller.f_locals.get("path")
+        if isinstance(candidate, Path):
+            return candidate.name
+        caller = caller.f_back
+    return ""
+
+
+def _language_switch(output_name: str) -> tuple[str, str] | None:
+    if not output_name.endswith(".md"):
+        return None
+    if output_name.endswith(".de.md"):
+        english_name = output_name.removesuffix(".de.md") + ".md"
+        return "**Sprache:**", f"**Sprache:** [English]({english_name}) | Deutsch"
+    german_name = output_name.removesuffix(".md") + ".de.md"
+    return "**Language:**", f"**Language:** English | [Deutsch]({german_name})"
+
+
+def _insert_language_switch(markdown: str, switch: str, prefix: str) -> str:
+    lines = [line for line in markdown.splitlines() if not line.startswith(prefix)]
+    try:
+        heading_index = next(index for index, line in enumerate(lines) if line.startswith("# "))
+    except StopIteration:
+        heading_index = -1
+    if heading_index < 0:
+        return "\n".join([switch, "", *lines]).strip()
+    before = lines[: heading_index + 1]
+    after = lines[heading_index + 1 :]
+    while after and not after[0].strip():
+        after.pop(0)
+    return "\n".join([*before, "", switch, "", *after]).strip()
+
+
 def generated_markdown_text(markdown: str, metadata: dict[str, Any]) -> str:
     body = markdown.strip()
     if body.startswith(f"> {GENERATED_NOTICE}"):
@@ -1208,6 +1249,12 @@ def generated_markdown_text(markdown: str, metadata: dict[str, Any]) -> str:
         body = body.split(data_marker, 1)[0].rstrip()
     if body.startswith("## Data Sources"):
         body = ""
+    output_name = str(metadata.get("output_name") or "")
+    if not output_name and metadata.get("make_target") == "generate-test-matrix":
+        output_name = _caller_output_name()
+    switch = _language_switch(output_name)
+    if switch is not None:
+        body = _insert_language_switch(body, switch[1], switch[0])
     return (
         metadata_block(metadata)
         + "\n\n"

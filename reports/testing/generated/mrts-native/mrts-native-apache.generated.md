@@ -13,6 +13,8 @@
 
 # MRTS Native Apache Report
 
+**Language:** English | [Deutsch](mrts-native-apache.generated.de.md)
+
 Generated at: `2026-06-19T16:58:10Z`
 
 ## Target

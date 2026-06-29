@@ -1,6 +1,6 @@
-Language: English | [Deutsch](COMPILE_NGINX.de.md)
-
 # Compile NGINX
+
+**Language:** English | [Deutsch](COMPILE_NGINX.de.md)
 
 ## Table of Contents
 

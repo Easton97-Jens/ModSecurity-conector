@@ -11,6 +11,8 @@
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
 
+**Language:** English | [Deutsch](runtime-build-cache.generated.de.md)
+
 <!-- runtime-build-cache:start -->
 ## Runtime Build Cache
 - Shared ModSecurity status: `reused`

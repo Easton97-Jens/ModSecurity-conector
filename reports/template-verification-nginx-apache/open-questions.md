@@ -1,5 +1,7 @@
 # Open Questions
 
+**Language:** English | [Deutsch](open-questions.de.md)
+
 This file separates resolved scaffold/runtime decisions from questions that
 still need evidence. Full decision details are in
 `connector-scaffold-decisions.md`.

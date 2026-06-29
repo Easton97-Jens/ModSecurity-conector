@@ -2874,6 +2874,7 @@ def main() -> int:
         framework_root=framework_root,
         inputs=[cache_root / "manifest.json"],
         generated_at=payload["generated_at"],
+        report_key="runtime_component_cache",
     )
     build_metadata_payload = build_metadata(
         generated_by="ci/prepare-runtime-components.py",
@@ -2882,6 +2883,7 @@ def main() -> int:
         framework_root=framework_root,
         inputs=[cache_root / "runtime-build-cache.json"],
         generated_at=str(build_cache.get("generated_at") or payload["generated_at"]),
+        report_key="runtime_build_cache",
     )
     component_json = report_path_from_root(report_dir, "runtime_component_cache", "json")
     component_md = report_path_from_root(report_dir, "runtime_component_cache", "md")
@@ -2894,7 +2896,7 @@ def main() -> int:
     build_md.write_text(generated_markdown_text(runtime_build_cache_markdown(build_cache), build_metadata_payload), encoding="utf-8")
     postprocess = connector_root / "ci/update-runtime-reports.py"
     if postprocess.is_file():
-        run([sys.executable, str(postprocess), "--connector-root", str(connector_root)])
+        run([sys.executable, str(postprocess), "--connector-root", str(connector_root), "--output-root", str(output_root)])
 
     blocked = [
         item

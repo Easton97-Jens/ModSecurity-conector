@@ -1,5 +1,7 @@
 # Coverage Decision Matrix
 
+**Language:** English | [Deutsch](coverage-decision-matrix.de.md)
+
 Status: suitable scaffold, not runtime-verified
 
 Deutsch: geeignet als Scaffold-Vorlage, nicht runtime-verifiziert.

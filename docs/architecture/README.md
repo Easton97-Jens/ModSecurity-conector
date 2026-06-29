@@ -1,5 +1,8 @@
 # Architecture Docs
 
+**Language:** English | [Deutsch](README.de.md)
+
+
 Status: implemented
 
 Architecture docs define what is connector-neutral, what stays server-specific,

@@ -1,5 +1,7 @@
 # Template Evaluation
 
+**Language:** English | [Deutsch](template-evaluation.de.md)
+
 Status: reviewed
 
 Template status: suitable scaffold, not runtime-verified

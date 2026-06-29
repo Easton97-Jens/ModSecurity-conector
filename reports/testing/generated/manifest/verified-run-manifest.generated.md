@@ -14,6 +14,8 @@
 
 # Verified Run Manifest
 
+**Language:** English | [Deutsch](verified-run-manifest.generated.de.md)
+
 ## Summary
 
 | Field | Value |

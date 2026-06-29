@@ -13,6 +13,8 @@
 
 # Report Path Migration
 
+**Language:** English | [Deutsch](report-path-migration.generated.de.md)
+
 | Old Path | New Path | Category | Status |
 |---|---|---|---|
 | `reports/testing/generated/apache-runtime-results.generated.md` | `reports/testing/generated/runtime/apache-runtime-results.generated.md` | runtime | migrated |

@@ -13,6 +13,8 @@
 
 # Remaining Critical Batch Analysis
 
+**Language:** English | [Deutsch](remaining-critical-batch-analysis.generated.de.md)
+
 ## Official Before / After
 
 | Metric | Before | After |
