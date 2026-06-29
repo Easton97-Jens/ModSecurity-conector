@@ -59,6 +59,7 @@ Gezielte libmodsecurity- und CRS-Smokes sind nur Repository-Evidence:
 TMPDIR=/tmp make smoke-envoy-modsecurity
 TMPDIR=/tmp make smoke-traefik-modsecurity
 TMPDIR=/tmp make smoke-lighttpd-modsecurity
+TMPDIR=/tmp make smoke-open-connectors-request-body
 TMPDIR=/tmp make smoke-open-connectors-crs
 TMPDIR=/tmp make smoke-open-connectors-crs-secondary
 ```
@@ -73,8 +74,8 @@ Repository-Evidence-Pfad unter `TMPDIR=/tmp` aus:
   vorbereiten;
 - Lighttpd mit `ALLOW_RUNTIME_DOWNLOADS=1` und `ALLOW_RUNTIME_BUILDS=1`
   vorbereiten und bauen;
-- einfache, gezielte libmodsecurity-, Minimal-CRS- und sekundäre CRS-Smokes
-  ausführen;
+- einfache, gezielte libmodsecurity-, Request-Body-, Minimal-CRS- und
+  sekundäre CRS-Smokes ausführen;
 - `make lint`, `make quick-check` und `git diff --check` ausführen;
 - `ci-artifacts/open-connectors/` als `open-connectors-smoke-evidence`
   hochladen.
@@ -83,6 +84,9 @@ Das hochgeladene Artefakt enthält den kopierten
 `/tmp/ModSecurity-conector-verified/`-Baum, Runtime-Inventory-Ausgabe,
 Result-JSON, Decision-Logs, Audit-Logs und Request-Transcripts, die während des
 Laufs erzeugt wurden.
+Der finale manuelle `workflow_dispatch`-Status ist in
+[Open Connectors CI Evidence Status](reports/open-connectors-ci-evidence-status.de.md)
+zusammengefasst.
 
 ## Pfad 2: Externer Einsatz mit Distribution-Paketen
 

@@ -25,6 +25,7 @@ make smoke-envoy
 | Build starter | available via `make -C connectors/envoy build-starter` |
 | Bridge self-test | available via `make -C connectors/envoy self-test` |
 | libmodsecurity targeted smoke | conditional via `DECISION_BACKEND=libmodsecurity make smoke-envoy`; PASS only with local common.sh-managed headers/libs and rule-backed 403 |
+| libmodsecurity request-body smoke | conditional via `make smoke-envoy-request-body`; PASS only with local body-forwarding evidence and rule `1000002` |
 | Minimal CRS smoke | conditional via `make smoke-envoy-crs`; PASS only with local CRS and CRS-backed 403 evidence |
 | Secondary CRS smoke | conditional via `make smoke-envoy-crs-secondary`; PASS only with local CRS and secondary CRS-backed 403 evidence |
 | CRS complete | not claimed |
@@ -95,6 +96,25 @@ request with `X-Modsec-Smoke: block` must return 403 from rule `1000001`.
 `intervention_status`, and `decision_log_path`. Missing local libmodsecurity
 headers/libraries are reported as Exit 77/BLOCKED, not as failure or success.
 
+The request-body ModSecurity smoke uses the same Envoy `ext_authz` path, but
+enables body forwarding for the generated local authz configuration and selects
+the request-body smoke case:
+
+```sh
+MODSECURITY_SMOKE_CASE=request_body DECISION_BACKEND=libmodsecurity make smoke-envoy
+make smoke-envoy-request-body
+make smoke-open-connectors-request-body
+```
+
+This mode loads `common/rules/modsecurity_request_body_smoke.conf`, sends POST
+requests with `Content-Type: application/x-www-form-urlencoded`, and requires
+the blocked body marker `modsec-request-body-block` to return 403 from rule
+`1000002`. Successful evidence writes `$ENVOY_RESULT_ROOT/request-body-result.json`,
+`$ENVOY_LOG_ROOT/request-body-decision.log`, and
+`$ENVOY_LOG_ROOT/request-body-request-transcript.jsonl`. It may set
+`request_body_smoke_verified=true`; `response_body_verified=true` remains
+forbidden.
+
 The minimal CRS smoke uses the same runtime entrypoint with CRS selected:
 
 ```sh
@@ -129,8 +149,10 @@ available but the secondary probe is not blocked, the result is FAIL.
 common schema fields `connector`, `integration_mode`, `runtime_verified`,
 `full_matrix_ready`, `production_ready`, `crs_complete`,
 `response_body_verified`, `allowed_request_status`, `blocked_request_status`,
-`evidence_root`, `timestamp`, `skipped_reason`, `missing_dependencies`, and
-`claims_not_allowed`.
+`request_body_smoke_verified`, `request_body_access_enabled`,
+`request_body_rule_file`, `request_body_rule_id`, `request_method`,
+`blocked_body_marker`, `evidence_root`, `timestamp`, `skipped_reason`,
+`missing_dependencies`, and `claims_not_allowed`.
 
 Current expected result without a local binary:
 
@@ -172,6 +194,22 @@ libmodsecurity:
 - Intervention status: `403`
 - Decision log path: `$ENVOY_LOG_ROOT/modsecurity-decision.log`
 - Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
+  `crs_complete=true`, `response_body_verified=true`
+
+Expected request-body PASS result with local Envoy and local libmodsecurity:
+
+- Decision backend: `libmodsecurity`
+- ModSecurity smoke case: `request_body`
+- Request method: `POST`
+- Request body access enabled: `true`
+- Request body rule file: `common/rules/modsecurity_request_body_smoke.conf`
+- Request body rule ID: `1000002`
+- Request body rule loaded: `true`
+- Blocked body marker: `modsec-request-body-block`
+- Allowed request status: `200`
+- Blocked request status: `403`
+- `request_body_smoke_verified=true`
+- Still forbidden: `production_ready=true`, `full_matrix_ready=true`,
   `crs_complete=true`, `response_body_verified=true`
 
 Expected minimal CRS PASS result with local Envoy, local libmodsecurity, and

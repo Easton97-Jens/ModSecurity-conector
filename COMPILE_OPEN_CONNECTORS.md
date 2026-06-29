@@ -49,6 +49,7 @@ Targeted libmodsecurity and CRS smokes are repository evidence only:
 TMPDIR=/tmp make smoke-envoy-modsecurity
 TMPDIR=/tmp make smoke-traefik-modsecurity
 TMPDIR=/tmp make smoke-lighttpd-modsecurity
+TMPDIR=/tmp make smoke-open-connectors-request-body
 TMPDIR=/tmp make smoke-open-connectors-crs
 TMPDIR=/tmp make smoke-open-connectors-crs-secondary
 ```
@@ -67,7 +68,8 @@ path under `TMPDIR=/tmp`:
   `ALLOW_RUNTIME_DOWNLOADS=1`;
 - prepare and build Lighttpd with `ALLOW_RUNTIME_DOWNLOADS=1` and
   `ALLOW_RUNTIME_BUILDS=1`;
-- run simple, targeted libmodsecurity, minimal CRS, and secondary CRS smokes;
+- run simple, targeted libmodsecurity, request-body, minimal CRS, and
+  secondary CRS smokes;
 - run `make lint`, `make quick-check`, and `git diff --check`;
 - upload `ci-artifacts/open-connectors/` as
   `open-connectors-smoke-evidence`, including when an earlier prepare or smoke
@@ -76,8 +78,8 @@ path under `TMPDIR=/tmp`:
 The uploaded artifact contains the copied
 `/tmp/ModSecurity-conector-verified/` tree, runtime inventory output, result
 JSON, decision logs, audit logs, and request transcripts produced by the run.
-The temporary `push` trigger on this workflow file is only a run-diagnosis aid
-and can be removed after `workflow_dispatch` has produced a green CI run.
+The final manual `workflow_dispatch` status is summarized in
+[Open Connectors CI Evidence Status](reports/open-connectors-ci-evidence-status.md).
 
 ## Path 2: External Use With Distribution Packages
 

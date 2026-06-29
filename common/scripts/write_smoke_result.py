@@ -109,10 +109,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--blocked-request-status")
     parser.add_argument("--decision-backend", default="simple")
     parser.add_argument("--modsecurity-ruleset", default="")
+    parser.add_argument("--modsecurity-smoke-case", default="")
     parser.add_argument("--modsecurity-backend-verified", default="false")
     parser.add_argument("--modsecurity-rule-file", default="")
     parser.add_argument("--modsecurity-rule-id", default="")
     parser.add_argument("--modsecurity-rule-loaded", default="false")
+    parser.add_argument("--request-body-smoke-verified", default="false")
+    parser.add_argument("--request-body-access-enabled", default="false")
+    parser.add_argument("--request-body-rule-file", default="")
+    parser.add_argument("--request-body-rule-id", default="")
+    parser.add_argument("--request-body-rule-loaded", default="false")
+    parser.add_argument("--request-method", default="")
+    parser.add_argument("--blocked-body-marker", default="")
     parser.add_argument("--intervention-status")
     parser.add_argument("--audit-log-path", default="")
     parser.add_argument("--decision-log-path", default="")
@@ -188,6 +196,9 @@ def main() -> int:
         claims_not_allowed.insert(0, "runtime_verified=true")
     modsecurity_backend_verified = bool_text(args.modsecurity_backend_verified)
     modsecurity_rule_loaded = bool_text(args.modsecurity_rule_loaded)
+    request_body_smoke_verified = bool_text(args.request_body_smoke_verified)
+    request_body_access_enabled = bool_text(args.request_body_access_enabled)
+    request_body_rule_loaded = bool_text(args.request_body_rule_loaded)
     crs_minimal_smoke_verified = bool_text(args.crs_minimal_smoke_verified)
     crs_secondary_smoke_verified = bool_text(args.crs_secondary_smoke_verified)
     lighttpd_binary_verified = bool_text(args.lighttpd_binary_verified)
@@ -195,6 +206,8 @@ def main() -> int:
     sidecar_proxy_verified = bool_text(args.sidecar_proxy_verified)
     if not modsecurity_backend_verified and "modsecurity_backend_verified=true" not in claims_not_allowed:
         claims_not_allowed.append("modsecurity_backend_verified=true")
+    if not request_body_smoke_verified and "request_body_smoke_verified=true" not in claims_not_allowed:
+        claims_not_allowed.append("request_body_smoke_verified=true")
     if not crs_minimal_smoke_verified and "crs_minimal_smoke_verified=true" not in claims_not_allowed:
         claims_not_allowed.append("crs_minimal_smoke_verified=true")
     if not crs_secondary_smoke_verified and "crs_secondary_smoke_verified=true" not in claims_not_allowed:
@@ -219,6 +232,7 @@ def main() -> int:
     result = {
         "allowed_request_status": allowed_request_status,
         "architecture_decision": args.architecture_decision or None,
+        "blocked_body_marker": args.blocked_body_marker or None,
         "blocked_request_status": blocked_request_status,
         "claims_not_allowed": claims_not_allowed,
         "common_msconnector_components": list(COMMON_COMPONENTS),
@@ -258,10 +272,17 @@ def main() -> int:
         "modsecurity_rule_id": args.modsecurity_rule_id or None,
         "modsecurity_rule_loaded": modsecurity_rule_loaded,
         "modsecurity_ruleset": args.modsecurity_ruleset or None,
+        "modsecurity_smoke_case": args.modsecurity_smoke_case or None,
         "audit_log_path": args.audit_log_path or None,
         "production_ready": False,
         "response_body_verified": response_body_verified,
         "resolved_runtime_binary": resolved_runtime_binary,
+        "request_body_access_enabled": request_body_access_enabled,
+        "request_body_rule_file": args.request_body_rule_file or None,
+        "request_body_rule_id": args.request_body_rule_id or None,
+        "request_body_rule_loaded": request_body_rule_loaded,
+        "request_body_smoke_verified": request_body_smoke_verified,
+        "request_method": args.request_method or None,
         "request_transcript_path": args.request_transcript_path or None,
         "runtime_inventory": runtime_inventory,
         "runtime_status": runtime_status,
@@ -330,6 +351,8 @@ def main() -> int:
         write_json(evidence_root / "crs-secondary-result.json", result)
     elif args.modsecurity_ruleset == "crs":
         write_json(evidence_root / "crs-result.json", result)
+    elif args.modsecurity_ruleset == "targeted" and args.modsecurity_smoke_case == "request_body":
+        write_json(evidence_root / "request-body-result.json", result)
     elif args.modsecurity_ruleset == "targeted" and args.decision_backend == "libmodsecurity":
         write_json(evidence_root / "targeted-result.json", result)
     elif args.decision_backend == "simple":

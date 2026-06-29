@@ -84,7 +84,7 @@ else
         "$BINARY_NAME"
 fi
 
-modsecurity_rule_file="${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-$CONNECTOR_ROOT/common/rules/modsecurity_targeted_smoke.conf}"
+modsecurity_rule_file=$(connector_smoke_modsecurity_rule_file)
 if [ "$decision_backend" = "libmodsecurity" ]; then
     if connector_smoke_resolve_modsecurity_backend "$modsecurity_rule_file"; then
         :
@@ -165,6 +165,7 @@ case "$CONNECTOR_NAME" in
             --architecture-decision "$ARCHITECTURE_DECISION" \
             --decision-backend "$decision_backend" \
             --modsecurity-ruleset "${MODSECURITY_RULESET:-targeted}" \
+            --modsecurity-smoke-case "${MODSECURITY_SMOKE_CASE:-targeted}" \
             --crs-smoke-case "${CRS_SMOKE_CASE:-minimal}" \
             --modsecurity-rule-file "$modsecurity_rule_file" \
             --modsecurity-include-dir "${MODSECURITY_INCLUDE_DIR:-}" \

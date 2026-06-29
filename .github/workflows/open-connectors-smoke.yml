@@ -105,6 +105,11 @@ jobs:
           TMPDIR=/tmp make smoke-traefik-modsecurity
           TMPDIR=/tmp make smoke-lighttpd-modsecurity
 
+      - name: Request Body smokes
+        run: |
+          set -eu
+          TMPDIR=/tmp make smoke-open-connectors-request-body
+
       - name: Minimal CRS smokes
         run: |
           set -eu
@@ -339,6 +344,7 @@ jobs:
                   "n/a",
                   status("envoy", "runtime-result.json"),
                   status("envoy", "targeted-result.json"),
+                  status("envoy", "request-body-result.json"),
                   status("envoy", "crs-result.json"),
                   status("envoy", "crs-secondary-result.json"),
               ),
@@ -347,6 +353,7 @@ jobs:
                   "n/a",
                   status("traefik", "runtime-result.json"),
                   status("traefik", "targeted-result.json"),
+                  status("traefik", "request-body-result.json"),
                   status("traefik", "crs-result.json"),
                   status("traefik", "crs-secondary-result.json"),
               ),
@@ -355,6 +362,7 @@ jobs:
                   lighttpd_build_status(),
                   status("lighttpd", "runtime-result.json"),
                   status("lighttpd", "targeted-result.json"),
+                  status("lighttpd", "request-body-result.json"),
                   status("lighttpd", "crs-result.json"),
                   status("lighttpd", "crs-secondary-result.json"),
               ),
@@ -363,8 +371,8 @@ jobs:
           lines = [
               "# Open Connector Runtime Smokes",
               "",
-              "| Connector | Build | Simple | Targeted ModSecurity | Minimal CRS | Secondary CRS |",
-              "| --- | --- | --- | --- | --- | --- |",
+              "| Connector | Build | Simple | Targeted ModSecurity | Request Body | Minimal CRS | Secondary CRS |",
+              "| --- | --- | --- | --- | --- | --- | --- |",
           ]
           for row in rows:
               lines.append("| " + " | ".join(row) + " |")

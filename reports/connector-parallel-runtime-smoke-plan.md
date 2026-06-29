@@ -51,6 +51,9 @@ These helpers centralize:
 - optional targeted Envoy/Traefik/lighttpd libmodsecurity-backed smoke execution when
   `DECISION_BACKEND=libmodsecurity` is selected and local libmodsecurity
   headers/libraries are resolved from common.sh-managed paths;
+- optional Envoy/Traefik/lighttpd request-body smoke execution when
+  `MODSECURITY_SMOKE_CASE=request_body` is selected with local libmodsecurity,
+  POST body forwarding, and rule `1000002`;
 - optional minimal and secondary CRS smoke execution for Envoy, Traefik, and lighttpd when
   `DECISION_BACKEND=libmodsecurity MODSECURITY_RULESET=crs` is selected and
   local CRS plus local libmodsecurity are resolved from common.sh-managed paths;
@@ -182,6 +185,30 @@ log, and source roots. It can reuse local verified component caches under
 `/tmp/ModSecurity-conector-verified` or `/var/tmp/ModSecurity-conector-verified`
 without falling back to global libmodsecurity or global `pkg-config`.
 
+Request-body libmodsecurity smokes are available for the same three open
+connectors. They use the same resolved proxy runtime binary and local
+libmodsecurity evaluator, but select `MODSECURITY_SMOKE_CASE=request_body` and
+load `common/rules/modsecurity_request_body_smoke.conf`:
+
+```sh
+MODSECURITY_SMOKE_CASE=request_body DECISION_BACKEND=libmodsecurity make smoke-envoy
+MODSECURITY_SMOKE_CASE=request_body DECISION_BACKEND=libmodsecurity make smoke-traefik
+MODSECURITY_SMOKE_CASE=request_body DECISION_BACKEND=libmodsecurity make smoke-lighttpd
+make smoke-envoy-request-body
+make smoke-traefik-request-body
+make smoke-lighttpd-request-body
+make smoke-open-connectors-request-body
+```
+
+The request-body smoke sends POST requests with
+`Content-Type: application/x-www-form-urlencoded`, allows a body without the
+marker, and requires a body containing `modsec-request-body-block` to return
+HTTP 403 from rule `1000002`. Successful evidence writes
+`request-body-result.json`, `request-body-decision.log`, and
+`request-body-request-transcript.jsonl`; it may set only
+`request_body_smoke_verified=true` for this evidence level.
+`response_body_verified=true` remains forbidden.
+
 Minimal CRS smokes are available for the same three open connectors:
 
 ```sh
@@ -239,6 +266,8 @@ Envoy with generated local config, then requires HTTP 200 for an allowed request
 and HTTP 403 for a blocked request. `ext_proc` is deferred to a later phase.
 With `DECISION_BACKEND=libmodsecurity`, the same ext_authz path uses the
 targeted libmodsecurity evaluator instead of the simple decision backend. With
+`MODSECURITY_SMOKE_CASE=request_body`, generated Envoy config forwards the
+request body to ext_authz and records request-body evidence separately. With
 `MODSECURITY_RULESET=crs`, it uses the same ext_authz path for the minimal and
 secondary CRS smokes and records CRS evidence separately.
 
@@ -251,6 +280,8 @@ decision service, and Traefik with generated local config, then requires HTTP
 out of scope for Phase 1.
 With `DECISION_BACKEND=libmodsecurity`, the same forwardAuth path uses the
 targeted libmodsecurity evaluator instead of the simple decision backend. With
+`MODSECURITY_SMOKE_CASE=request_body`, generated Traefik middleware forwards
+the request body and records request-body evidence separately. With
 `MODSECURITY_RULESET=crs`, it uses the same forwardAuth path for the minimal
 and secondary CRS smokes and records CRS evidence separately.
 
@@ -263,8 +294,10 @@ as the selected decision boundary, then requires HTTP 200 for an allowed request
 and HTTP 403 for `X-Modsec-Smoke: block`. With `DECISION_BACKEND=libmodsecurity`,
 the same sidecar path uses the targeted libmodsecurity evaluator and may set
 `modsecurity_backend_verified=true` only after rule `1000001` produces the 403
-intervention. With `MODSECURITY_RULESET=crs`, the same sidecar_proxy path runs
-the minimal and secondary CRS smokes and records CRS evidence separately. This
+intervention. With `MODSECURITY_SMOKE_CASE=request_body`, the same sidecar_proxy
+path forwards POST bodies to the evaluator and records request-body evidence
+separately. With `MODSECURITY_RULESET=crs`, the same sidecar_proxy path runs the
+minimal and secondary CRS smokes and records CRS evidence separately. This
 remains Phase 1 sidecar_proxy evidence, not a native lighttpd module claim.
 
 ## Claims Still Forbidden
@@ -275,6 +308,8 @@ Starter/self-test evidence and BLOCKED smoke evidence must not claim:
 - `production_ready=true`
 - `full_matrix_ready=true`
 - `crs_complete=true`
+- `request_body_smoke_verified=true` without request-body 200/403 evidence from
+  rule `1000002`
 - `crs_minimal_smoke_verified=true` without CRS-backed 200/403 evidence
 - `crs_secondary_smoke_verified=true` without secondary CRS-backed 200/403 evidence
 - `response_body_verified=true`
@@ -288,9 +323,16 @@ production-readiness reports, or CRS-complete claims from starter/self-test
 evidence.
 
 `modsecurity_backend_verified=true` is forbidden unless the targeted
-libmodsecurity smoke loaded rule `1000001` and produced the blocking
-intervention through libmodsecurity. The simple decision-service smoke never
-claims ModSecurity compatibility by itself.
+libmodsecurity smoke loaded rule `1000001` or request-body rule `1000002` and
+produced the blocking intervention through libmodsecurity. The simple
+decision-service smoke never claims ModSecurity compatibility by itself.
+
+`request_body_smoke_verified=true` is forbidden unless the request-body smoke
+loaded `common/rules/modsecurity_request_body_smoke.conf`, observed request
+body access enabled, sent POST bodies through the selected integration mode,
+returned HTTP 200 for the allowed body, and returned HTTP 403 for
+`modsec-request-body-block` via rule `1000002`. This does not permit
+`response_body_verified=true`.
 
 `crs_minimal_smoke_verified=true` is forbidden unless the CRS smoke loaded CRS
 from local common.sh-managed paths and observed a CRS-backed HTTP 403 with a
@@ -320,6 +362,12 @@ Each `result.json` contains at least:
 - `production_ready`
 - `crs_complete`
 - `response_body_verified`
+- `request_body_smoke_verified`
+- `request_body_access_enabled`
+- `request_body_rule_file`
+- `request_body_rule_id`
+- `request_method`
+- `blocked_body_marker`
 - `allowed_request_status`
 - `blocked_request_status`
 - `evidence_root`
@@ -334,11 +382,11 @@ The manual workflow `.github/workflows/open-connectors-smoke.yml` runs the open
 connector runtime path with `TMPDIR=/tmp`, prepares shared runtime components
 through `make prepare-runtime-components` for local libmodsecurity and CRS
 inputs, then prepares Envoy, Traefik, and Lighttpd runtime components. It
-executes simple, targeted libmodsecurity, minimal CRS, and secondary CRS smokes,
-and uploads `ci-artifacts/open-connectors/` as
+executes simple, targeted libmodsecurity, request-body, minimal CRS, and
+secondary CRS smokes, and uploads `ci-artifacts/open-connectors/` as
 `open-connectors-smoke-evidence` even when an earlier prepare or smoke step
-fails. The temporary narrow `push` trigger on the workflow file is only a
-diagnosis aid. The artifact is a copied evidence bundle from
+fails. The workflow remains manually startable through `workflow_dispatch`.
+The artifact is a copied evidence bundle from
 `/tmp/ModSecurity-conector-verified/` plus runtime inventory output; it is not a
 production, full-matrix, CRS-complete, or response-body claim.
 
