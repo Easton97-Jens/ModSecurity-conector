@@ -45,6 +45,7 @@ jobs:
             echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
             echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
             echo "PYTHONPYCACHEPREFIX=/tmp/python-pycache"
+            echo "RUNTIME_REPORT_OUTPUT_ROOT=$GITHUB_WORKSPACE/ci-artifacts/open-connectors/runtime-cache-reports"
           } >> "$GITHUB_ENV"
           mkdir -p ci-artifacts/open-connectors/final-checks
 

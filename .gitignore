@@ -32,6 +32,7 @@ htmlcov/
 verified-runs/
 ModSecurity-conector-build/
 ModSecurity-conector-src/
+ci-artifacts/
 logs/
 tmp/
 *.log

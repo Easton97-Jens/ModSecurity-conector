@@ -1111,6 +1111,10 @@ def build_metadata(
     }
     if extra:
         metadata.update(extra)
+    if report_key and "output_name" not in metadata:
+        report = GENERATED_REPORTS.get(report_key)
+        if report is not None and "md" in report.formats:
+            metadata["output_name"] = report.filename("md")
     return metadata
 
 
@@ -1245,11 +1249,12 @@ def generated_markdown_text(markdown: str, metadata: dict[str, Any]) -> str:
         body = body.split(data_marker, 1)[0].rstrip()
     if body.startswith("## Data Sources"):
         body = ""
-    if metadata.get("make_target") == "generate-test-matrix":
-        output_name = str(metadata.get("output_name") or _caller_output_name())
-        switch = _language_switch(output_name)
-        if switch is not None:
-            body = _insert_language_switch(body, switch[1], switch[0])
+    output_name = str(metadata.get("output_name") or "")
+    if not output_name and metadata.get("make_target") == "generate-test-matrix":
+        output_name = _caller_output_name()
+    switch = _language_switch(output_name)
+    if switch is not None:
+        body = _insert_language_switch(body, switch[1], switch[0])
     return (
         metadata_block(metadata)
         + "\n\n"
