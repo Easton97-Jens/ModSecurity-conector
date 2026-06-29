@@ -15,6 +15,8 @@
 
 **Sprache:** [English](native-semantics-comparison.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 ## Werkzeuginventar
 
 | Tool/Target | Purpose | Inputs | Outputs | Usable for Single Case? |

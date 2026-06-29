@@ -15,6 +15,8 @@
 
 **Sprache:** [English](body-processor-analysis.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 - Erstellt unter: `2026-06-19T16:59:03Z`
 - Vor dem ausgewählten Metadaten-Fix: request_body_processor **6**, multipart_files **6**, xml_processor **12**, kombiniert **24**.
 - Nach der ausgewählten Metadatenkorrektur: request_body_processor **0**, multipart_files **6**, xml_processor **0**, kombiniert **6**.

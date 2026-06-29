@@ -15,6 +15,8 @@
 
 **Sprache:** [English](report-data-lineage.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 | Report | Owner | Origin | Kind | Inputs | Outputs | Commit Policy | Notes |
 |---|---|---|---|---|---|---|---|
 | `report_refresh_manifest` | manifest | manifest | manifest | - | `reports/testing/generated/manifest/report-refresh-manifest.generated.json`<br>`reports/testing/generated/manifest/report-refresh-manifest.generated.md` | versioned-generated | Catalog of report generators, outputs, inputs, and refresh status. |

@@ -21,6 +21,29 @@ and generated reports grow.
 | `../reports/testing/` | Connector-owned generated evidence, real-world validation notes, case matrix, and PR/source evidence |
 | `../modules/ModSecurity-test-Framework/docs/` | Framework-owned YAML schema, fixtures, case corpus, import analyses, TODO inventory, and reusable testing docs |
 
+## Bilingual Documentation Policy
+
+English is the primary project language. German companion files use the
+`*.de.md` suffix and should be created together with new repository-owned
+Markdown documentation whenever practical.
+
+Generated reports need either generator support for their German companion or
+a clear manual-update note in the German file. When an English generated report
+is refreshed, review and update the matching `*.de.md` file in the same
+documentation change while preserving tables, IDs, hashes, paths, metrics, and
+machine-readable values.
+
+GitHub templates remain English-first. German issue templates and German
+sections are complementary user-facing entry points and must not change
+workflow-critical labels, IDs, or YAML keys.
+
+`tools/MRTS/**` is foreign upstream content and is not translated or modified.
+Use the lightweight guard locally before sending documentation changes:
+
+```sh
+make check-bilingual-docs
+```
+
 ## Source References
 
 | Repository | Repo-local purpose | Upstream | Observed version/tag | License |

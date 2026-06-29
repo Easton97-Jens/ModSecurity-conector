@@ -15,6 +15,8 @@
 
 **Sprache:** [English](runtime-cache-index.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 - Status: `cache_input_present`
 - Komponenten-Cache-Stamm: `/var/tmp/ModSecurity-conector-verified/component-cache`
 - Root erstellen: `/var/tmp/ModSecurity-conector-verified/build`

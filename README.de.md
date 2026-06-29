@@ -97,11 +97,11 @@ als semantische Unterschiede, Capability-Gaps, reine Report-Fälle oder
 Status oder PASS/FAIL-Werten gelöst werden sollen. Die kanonischen
 Merge-Readiness-Reports sind:
 
-- [Full runtime matrix](./reports/testing/generated/canonical/full-runtime-matrix.generated.md)
-- [Final consistency audit](./reports/testing/generated/canonical/final-consistency-audit.generated.md)
-- [Next fix plan](./reports/testing/generated/canonical/next-fix-plan.generated.md)
-- [Remaining failure analysis](./reports/testing/generated/canonical/remaining-failure-analysis.generated.md)
-- [Testing report index](./reports/testing/README.md)
+- [Full runtime matrix](reports/testing/generated/canonical/full-runtime-matrix.generated.de.md)
+- [Final consistency audit](reports/testing/generated/canonical/final-consistency-audit.generated.de.md)
+- [Next fix plan](reports/testing/generated/canonical/next-fix-plan.generated.de.md)
+- [Remaining failure analysis](reports/testing/generated/canonical/remaining-failure-analysis.generated.de.md)
+- [Testing report index](reports/testing/README.de.md)
 
 ## Connector-Feature-Status
 
@@ -365,7 +365,7 @@ Verified-Run- und Report-Refresh-Workflows verwenden standardmäßig
 `${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified`, mit
 `NGINX_HARNESS_PARENT` unterhalb dieses Roots, damit Worker-Prozesse den
 generierten Docroot durchlaufen können. Siehe
-[Verified Run Environment](./docs/testing/verified-run-environment.md) für den
+[Verified Run Environment](docs/testing/verified-run-environment.de.md) für den
 Runtime-Pfad-Vertrag, den NGINX-Docroot-Preflight und Regeln für generierte
 Artefakte.
 
@@ -459,26 +459,26 @@ Job-Ausgaben sind lokale Artefakte und dürfen nicht committed werden.
   [Open Connectors](./COMPILE_OPEN_CONNECTORS.de.md)
 - Beispiel-Konfigurationen: [Apache-Beispiele](./examples/apache/README.de.md), [NGINX-Beispiele](./examples/nginx/README.de.md), [HAProxy-Beispiele](./examples/haproxy/README.de.md)
 - Gemeinsame Connector-Feature-Dokumente: [Shared Features](./SHARED_FEATURES.md)
-- Roadmap: [docs/roadmap/roadmap.md](./docs/roadmap/roadmap.md)
+- Roadmap: [docs/roadmap/roadmap.de.md](docs/roadmap/roadmap.de.md)
 - Architektur-Dokumente: [docs/architecture/](./docs/architecture/)
-- Capability Model: [docs/architecture/capability-model.md](./docs/architecture/capability-model.md)
-- Status Model: [docs/architecture/status-model.md](./docs/architecture/status-model.md)
-- Connector Adapter Interface: [docs/architecture/connector-adapter-interface.md](./docs/architecture/connector-adapter-interface.md)
+- Capability Model: [docs/architecture/capability-model.de.md](docs/architecture/capability-model.de.md)
+- Status Model: [docs/architecture/status-model.de.md](docs/architecture/status-model.de.md)
+- Connector Adapter Interface: [docs/architecture/connector-adapter-interface.de.md](docs/architecture/connector-adapter-interface.de.md)
 - Connector-Dokumente: [docs/connectors/](./docs/connectors/)
-- Rule-Load-Stats: [docs/connectors/rule-load-stats.md](./docs/connectors/rule-load-stats.md)
-- YAML-Schema-Hinweise: [modules/ModSecurity-test-Framework/docs/imports/common/schema.md](./modules/ModSecurity-test-Framework/docs/imports/common/schema.md)
-- Gemeinsame Fixtures: [modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md](./modules/ModSecurity-test-Framework/docs/imports/common/fixtures.md)
-- Smoke-Target-Semantik: [modules/ModSecurity-test-Framework/docs/testing/fast-checks.md](./modules/ModSecurity-test-Framework/docs/testing/fast-checks.md)
-- Testing-Report-Index: [reports/testing/README.md](./reports/testing/README.md)
-- Real-World-Connector-Validation: [reports/testing/real-world-connector-validation.md](./reports/testing/real-world-connector-validation.md)
-- HAProxy-PoC-Evidence: [reports/testing/haproxy-poc.md](./reports/testing/haproxy-poc.md)
-- Full Runtime Matrix: [reports/testing/generated/canonical/full-runtime-matrix.generated.md](./reports/testing/generated/canonical/full-runtime-matrix.generated.md)
-- Final Consistency Audit: [reports/testing/generated/canonical/final-consistency-audit.generated.md](./reports/testing/generated/canonical/final-consistency-audit.generated.md)
-- Next Fix Plan: [reports/testing/generated/canonical/next-fix-plan.generated.md](./reports/testing/generated/canonical/next-fix-plan.generated.md)
-- Remaining Failure Analysis: [reports/testing/generated/canonical/remaining-failure-analysis.generated.md](./reports/testing/generated/canonical/remaining-failure-analysis.generated.md)
-- Case-Matrix-Reports: [reports/testing/case-matrix.md](./reports/testing/case-matrix.md), [reports/testing/generated/coverage/case-matrix.generated.md](./reports/testing/generated/coverage/case-matrix.generated.md)
-- PR-/Source-Evidence: [reports/testing/evidence/pr-evidence-summary.md](./reports/testing/evidence/pr-evidence-summary.md), [reports/testing/evidence/raw-args-pr3564.md](./reports/testing/evidence/raw-args-pr3564.md)
-- Lizenz- und Herkunftsindex: [docs/licensing/license-and-origin.md](./docs/licensing/license-and-origin.md)
+- Rule-Load-Stats: [docs/connectors/rule-load-stats.de.md](docs/connectors/rule-load-stats.de.md)
+- YAML-Schema-Hinweise: [modules/ModSecurity-test-Framework/docs/imports/common/schema.de.md](modules/ModSecurity-test-Framework/docs/imports/common/schema.de.md)
+- Gemeinsame Fixtures: [modules/ModSecurity-test-Framework/docs/imports/common/fixtures.de.md](modules/ModSecurity-test-Framework/docs/imports/common/fixtures.de.md)
+- Smoke-Target-Semantik: [modules/ModSecurity-test-Framework/docs/testing/fast-checks.de.md](modules/ModSecurity-test-Framework/docs/testing/fast-checks.de.md)
+- Testing-Report-Index: [reports/testing/README.de.md](reports/testing/README.de.md)
+- Real-World-Connector-Validation: [reports/testing/real-world-connector-validation.de.md](reports/testing/real-world-connector-validation.de.md)
+- HAProxy-PoC-Evidence: [reports/testing/haproxy-poc.de.md](reports/testing/haproxy-poc.de.md)
+- Full Runtime Matrix: [reports/testing/generated/canonical/full-runtime-matrix.generated.de.md](reports/testing/generated/canonical/full-runtime-matrix.generated.de.md)
+- Final Consistency Audit: [reports/testing/generated/canonical/final-consistency-audit.generated.de.md](reports/testing/generated/canonical/final-consistency-audit.generated.de.md)
+- Next Fix Plan: [reports/testing/generated/canonical/next-fix-plan.generated.de.md](reports/testing/generated/canonical/next-fix-plan.generated.de.md)
+- Remaining Failure Analysis: [reports/testing/generated/canonical/remaining-failure-analysis.generated.de.md](reports/testing/generated/canonical/remaining-failure-analysis.generated.de.md)
+- Case-Matrix-Reports: [reports/testing/case-matrix.de.md](reports/testing/case-matrix.de.md), [reports/testing/generated/coverage/case-matrix.generated.de.md](reports/testing/generated/coverage/case-matrix.generated.de.md)
+- PR-/Source-Evidence: [reports/testing/evidence/pr-evidence-summary.de.md](reports/testing/evidence/pr-evidence-summary.de.md), [reports/testing/evidence/raw-args-pr3564.de.md](reports/testing/evidence/raw-args-pr3564.de.md)
+- Lizenz- und Herkunftsindex: [docs/licensing/license-and-origin.de.md](docs/licensing/license-and-origin.de.md)
 - Framework-Dokumente: `modules/ModSecurity-test-Framework/README.md`
 - Connector-Test-Evidence: `reports/testing/`
 - Framework-eigene Coverage-Zusammenfassung: `modules/ModSecurity-test-Framework/TEST-COVERAGE-SUMMARY.md`

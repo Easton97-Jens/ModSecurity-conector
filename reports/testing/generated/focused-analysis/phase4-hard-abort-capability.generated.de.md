@@ -15,6 +15,8 @@
 
 **Sprache:** [English](phase4-hard-abort-capability.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 Erstellt unter: `2026-06-19T16:58:23Z`
 
 ## Fähigkeitsvertrag

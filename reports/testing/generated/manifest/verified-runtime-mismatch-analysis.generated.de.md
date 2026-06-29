@@ -15,6 +15,8 @@
 
 **Sprache:** [English](verified-runtime-mismatch-analysis.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 Verifizierte Lauf-ID: `2026-06-16T19-12-00Z-614c8049`
 
 Dieser Bericht wird nur aus verifizierten Laufzeitproduzentendateien generiert. Fehlende PASS/FAIL-Werte werden nicht erfunden.

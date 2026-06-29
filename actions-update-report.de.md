@@ -2,6 +2,8 @@
 
 **Sprache:** [English](actions-update-report.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 Dieser Bericht scannt `uses:`-Einträge in Root-Workflow-Dateien und dem angebotenen Framework-Modul.
 Lokale Aktionen, Docker-Aktionen, dynamische Ausdrücke und SHA-gepinnte Aktionen werden nicht automatisch aktualisiert.
 

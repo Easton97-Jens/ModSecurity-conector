@@ -15,6 +15,8 @@
 
 **Sprache:** [English](mrts-native-summary.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 Erstellt unter: `2026-06-19T16:58:10Z`
 
 | Native target | Report | Status | Classification | Critical blocker | Attempted | Pass | Fail | Blocked |

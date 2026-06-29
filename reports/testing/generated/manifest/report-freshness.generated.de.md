@@ -15,6 +15,8 @@
 
 **Sprache:** [English](report-freshness.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 | Report | Status | Generated At | Newest Input | Newest Output | Missing Inputs | Notes |
 |---|---|---|---|---|---|---|
 | `connector_coverage_reports` | fresh | - | 2026-06-16T19:13:26Z | 2026-06-19T16:57:55Z | - | generated |

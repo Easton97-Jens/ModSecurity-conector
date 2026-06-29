@@ -15,6 +15,8 @@
 
 **Sprache:** [English](no-mrts-intervention-nomatch-analysis.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 - Erstellt unter: `2026-06-19T16:58:53Z`
 - no-MRTS erwartete `403` / tatsächliche `200` Zeilen mit geladener Regel und keiner Übereinstimmung: **32**
 - Einzelfälle: **8**

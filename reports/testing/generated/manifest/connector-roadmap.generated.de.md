@@ -15,6 +15,8 @@
 
 **Sprache:** [English](connector-roadmap.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 ## Umfang der Roadmap
 
 Dieser Bericht ist `roadmap_only`. Es bewertet die Lagerstruktur, die vorhandenen Skelette, die technische Machbarkeit und erste Nachweisschritte.

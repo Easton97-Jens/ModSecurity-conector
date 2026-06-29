@@ -15,6 +15,8 @@
 
 **Sprache:** [English](full-runtime-matrix.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 Generierte Datei – nicht manuell bearbeiten.
 
 - Erstellt unter: `2026-06-19T16:57:56Z`

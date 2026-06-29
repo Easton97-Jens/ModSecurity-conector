@@ -8,9 +8,9 @@ Status: Historischer Analyse-Snapshot zu Issues/PRs.
 Stand: 2026-05-24. Diese Analyse basiert auf den damals offenen GitHub-Issues und -Pull-Requests in `owasp-modsecurity/ModSecurity-apache`, den lokalen Quellen in `ModSecurity-conector` und den damals vorhandenen Test-/Runtime-Artefakten in `ModSecurity-test-Framework`. Es wurden keine Produktivcodeänderungen vorgenommen und keine neuen Smoke-Runs gestartet.
 
 Aktueller Merge-Readiness-Status, Full-Matrix-Zahlen und der kanonische nächste
-Fix-Plan stehen in [reports/testing/README.md](../reports/testing/README.md)
+Fix-Plan stehen in [reports/testing/README.de.md](../reports/testing/README.de.md)
 und
-[final-consistency-audit.generated.md](../reports/testing/generated/canonical/final-consistency-audit.generated.md).
+[final-consistency-audit.generated.de.md](../reports/testing/generated/canonical/final-consistency-audit.generated.de.md).
 Diese Datei bleibt als historischer Apache-Open-Items-Abgleich erhalten.
 
 ## Quelle

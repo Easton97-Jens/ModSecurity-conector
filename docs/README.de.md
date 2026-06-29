@@ -21,6 +21,31 @@ wachsen.
 | `../reports/testing/` | Connector-eigene generierte Evidence, Real-World-Validierungsnotizen, Case Matrix und PR-/Source-Evidence |
 | `../modules/ModSecurity-test-Framework/docs/` | Framework-eigenes YAML-Schema, Fixtures, Case-Korpus, Importanalysen, TODO-Inventar und wiederverwendbare Testdokumente |
 
+## Richtlinie für zweisprachige Dokumentation
+
+Englisch ist die primäre Projektsprache. Deutsche Begleitdateien verwenden die
+Endung `*.de.md` und sollten bei neuen repository-eigenen Markdown-Dokumenten
+nach Möglichkeit direkt mit angelegt werden.
+
+Generierte Reports benötigen entweder Generator-Unterstützung für die deutsche
+Begleitdatei oder einen klaren manuellen Aktualisierungshinweis in der
+deutschen Datei. Wenn ein englischer generierter Report neu erzeugt wird, muss
+die passende `*.de.md`-Datei in derselben Dokumentationsänderung geprüft und
+aktualisiert werden. Tabellen, IDs, Hashes, Pfade, Metriken und
+maschinenlesbare Werte bleiben dabei unverändert.
+
+GitHub-Templates bleiben englisch zuerst. Deutsche Issue-Templates und
+deutsche Abschnitte sind ergänzende, benutzerseitige Einstiegspunkte und dürfen
+workflow-kritische Labels, IDs oder YAML-Keys nicht verändern.
+
+`tools/MRTS/**` ist fremder Upstream-Inhalt und wird nicht übersetzt oder
+geändert. Vor Dokumentationsänderungen kann der schnelle Schutz lokal so
+ausgeführt werden:
+
+```sh
+make check-bilingual-docs
+```
+
 ## Quellenangaben
 
 | Repository | Repo-lokaler Zweck | Upstream | Beobachtete Version / Tag | Lizenz |
