@@ -2,6 +2,11 @@ name: Open Connector Runtime Smokes
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/open-connectors-smoke.yml"
 
 permissions:
   contents: read
