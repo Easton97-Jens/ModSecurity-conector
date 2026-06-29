@@ -2,6 +2,7 @@ name: Open Connector Runtime Smokes
 
 on:
   workflow_dispatch:
+  # Temporary narrow push trigger for CI run diagnosis; remove after workflow_dispatch is verified green.
   push:
     branches:
       - master
