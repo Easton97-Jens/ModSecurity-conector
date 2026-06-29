@@ -52,6 +52,16 @@ jobs:
           set -eu
           make setup-dev
 
+      - name: Common helper checks
+        run: |
+          set -eu
+          TMPDIR=/tmp make check-common-helpers
+
+      - name: Prepare shared runtime components
+        run: |
+          set -eu
+          TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-runtime-components
+
       - name: Prepare Envoy runtime component
         run: |
           set -eu
@@ -67,10 +77,9 @@ jobs:
           set -eu
           TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 
-      - name: Runtime component checks
+      - name: Runtime component inventory
         run: |
           set -euo pipefail
-          TMPDIR=/tmp make check-common-helpers
           TMPDIR=/tmp make runtime-components-inventory | tee ci-artifacts/open-connectors/runtime-components-inventory.txt
           TMPDIR=/tmp make runtime-components-sources | tee ci-artifacts/open-connectors/runtime-components-sources.txt
 
@@ -88,10 +97,14 @@ jobs:
           TMPDIR=/tmp make smoke-traefik-modsecurity
           TMPDIR=/tmp make smoke-lighttpd-modsecurity
 
-      - name: CRS smokes
+      - name: Minimal CRS smokes
         run: |
           set -eu
           TMPDIR=/tmp make smoke-open-connectors-crs
+
+      - name: Secondary CRS smokes
+        run: |
+          set -eu
           TMPDIR=/tmp make smoke-open-connectors-crs-secondary
 
       - name: Final checks
@@ -100,6 +113,70 @@ jobs:
           TMPDIR=/tmp make lint
           TMPDIR=/tmp make quick-check
           git diff --check
+
+      - name: Capture runtime component reports
+        if: always()
+        run: |
+          set -u
+          mkdir -p ci-artifacts/open-connectors
+          TMPDIR=/tmp make runtime-components-inventory > ci-artifacts/open-connectors/runtime-components-inventory.txt 2>&1 || true
+          TMPDIR=/tmp make runtime-components-sources > ci-artifacts/open-connectors/runtime-components-sources.txt 2>&1 || true
+
+      - name: Collect smoke evidence
+        if: always()
+        run: |
+          set -eu
+          artifact_root="ci-artifacts/open-connectors"
+          mkdir -p "$artifact_root"
+          if [ -d /tmp/ModSecurity-conector-verified ]; then
+            rm -rf "$artifact_root/verified-root"
+            mkdir -p "$artifact_root/verified-root"
+            cp -a /tmp/ModSecurity-conector-verified/. "$artifact_root/verified-root/"
+          else
+            printf 'No /tmp/ModSecurity-conector-verified directory was produced.\n' > "$artifact_root/README.txt"
+          fi
+
+      - name: Cleanup artifacts before upload
+        if: always()
+        continue-on-error: true
+        uses: actions/github-script@v9
+        env:
+          ARTIFACT_NAME: open-connectors-smoke-evidence
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const targetName = process.env.ARTIFACT_NAME;
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+
+            for (const artifact of artifacts) {
+              if (artifact.name !== targetName) {
+                continue;
+              }
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner,
+                  repo,
+                  artifact_id: artifact.id,
+                });
+                core.info(`Deleted previous artifact ${artifact.name} (${artifact.id}).`);
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                core.warning(`Could not delete previous artifact ${artifact.name} (${artifact.id}): ${message}`);
+              }
+            }
+
+      - name: Upload open connector smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: open-connectors-smoke-evidence
+          retention-days: 1
+          if-no-files-found: warn
+          path: ci-artifacts/open-connectors/
 
       - name: Write GitHub step summary
         if: always()
@@ -177,7 +254,8 @@ jobs:
           lines.extend(
               [
                   "",
-                  "Artifact path: `ci-artifacts/open-connectors/` uploaded as `open-connectors-smoke-evidence`.",
+                  "Artifact path: `ci-artifacts/open-connectors/`.",
+                  "Artifact name: `open-connectors-smoke-evidence`.",
                   "",
                   "Forbidden claims remain forbidden:",
                   "",
@@ -190,60 +268,3 @@ jobs:
           )
           summary_path.write_text("\n".join(lines), encoding="utf-8")
           PY
-
-      - name: Collect smoke evidence
-        if: always()
-        run: |
-          set -eu
-          artifact_root="ci-artifacts/open-connectors"
-          mkdir -p "$artifact_root"
-          if [ -d /tmp/ModSecurity-conector-verified ]; then
-            rm -rf "$artifact_root/verified-root"
-            mkdir -p "$artifact_root/verified-root"
-            cp -a /tmp/ModSecurity-conector-verified/. "$artifact_root/verified-root/"
-          else
-            printf 'No /tmp/ModSecurity-conector-verified directory was produced.\n' > "$artifact_root/README.txt"
-          fi
-
-      - name: Cleanup artifacts before upload
-        if: always()
-        continue-on-error: true
-        uses: actions/github-script@v9
-        env:
-          ARTIFACT_NAME: open-connectors-smoke-evidence
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const targetName = process.env.ARTIFACT_NAME;
-            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
-              owner,
-              repo,
-              per_page: 100,
-            });
-
-            for (const artifact of artifacts) {
-              if (artifact.name !== targetName) {
-                continue;
-              }
-              try {
-                await github.rest.actions.deleteArtifact({
-                  owner,
-                  repo,
-                  artifact_id: artifact.id,
-                });
-                core.info(`Deleted previous artifact ${artifact.name} (${artifact.id}).`);
-              } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                core.warning(`Could not delete previous artifact ${artifact.name} (${artifact.id}): ${message}`);
-              }
-            }
-
-      - name: Upload open connector smoke evidence
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: open-connectors-smoke-evidence
-          retention-days: 1
-          if-no-files-found: warn
-          path: ci-artifacts/open-connectors/

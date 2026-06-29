@@ -59,6 +59,10 @@ The manual GitHub Actions workflow
 `.github/workflows/open-connectors-smoke.yml` runs the same repository evidence
 path under `TMPDIR=/tmp`:
 
+- prepare shared runtime components with
+  `ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-runtime-components`
+  so local libmodsecurity and CRS sources are available from common.sh-managed
+  roots;
 - prepare Envoy and Traefik runtime components with
   `ALLOW_RUNTIME_DOWNLOADS=1`;
 - prepare and build Lighttpd with `ALLOW_RUNTIME_DOWNLOADS=1` and
@@ -66,11 +70,14 @@ path under `TMPDIR=/tmp`:
 - run simple, targeted libmodsecurity, minimal CRS, and secondary CRS smokes;
 - run `make lint`, `make quick-check`, and `git diff --check`;
 - upload `ci-artifacts/open-connectors/` as
-  `open-connectors-smoke-evidence`.
+  `open-connectors-smoke-evidence`, including when an earlier prepare or smoke
+  step fails.
 
 The uploaded artifact contains the copied
 `/tmp/ModSecurity-conector-verified/` tree, runtime inventory output, result
 JSON, decision logs, audit logs, and request transcripts produced by the run.
+The temporary `push` trigger on this workflow file is only a run-diagnosis aid
+and can be removed after `workflow_dispatch` has produced a green CI run.
 
 ## Path 2: External Use With Distribution Packages
 

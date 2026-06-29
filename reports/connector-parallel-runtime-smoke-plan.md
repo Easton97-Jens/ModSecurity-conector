@@ -331,13 +331,16 @@ Each `result.json` contains at least:
 - `crs_smoke_case`
 
 The manual workflow `.github/workflows/open-connectors-smoke.yml` runs the open
-connector runtime path with `TMPDIR=/tmp`, prepares Envoy, Traefik, and
-Lighttpd runtime components, executes simple, targeted libmodsecurity, minimal
-CRS, and secondary CRS smokes, and uploads
-`ci-artifacts/open-connectors/` as `open-connectors-smoke-evidence`. The
-artifact is a copied evidence bundle from `/tmp/ModSecurity-conector-verified/`
-plus runtime inventory output; it is not a production, full-matrix,
-CRS-complete, or response-body claim.
+connector runtime path with `TMPDIR=/tmp`, prepares shared runtime components
+through `make prepare-runtime-components` for local libmodsecurity and CRS
+inputs, then prepares Envoy, Traefik, and Lighttpd runtime components. It
+executes simple, targeted libmodsecurity, minimal CRS, and secondary CRS smokes,
+and uploads `ci-artifacts/open-connectors/` as
+`open-connectors-smoke-evidence` even when an earlier prepare or smoke step
+fails. The temporary narrow `push` trigger on the workflow file is only a
+diagnosis aid. The artifact is a copied evidence bundle from
+`/tmp/ModSecurity-conector-verified/` plus runtime inventory output; it is not a
+production, full-matrix, CRS-complete, or response-body claim.
 
 ## Current Expected Outcomes
 
