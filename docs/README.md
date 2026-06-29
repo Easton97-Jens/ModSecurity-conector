@@ -1,5 +1,8 @@
 # Documentation Index
 
+**Language:** English | [Deutsch](README.de.md)
+
+
 Status: implemented
 
 This directory is grouped by topic so connector-owned architecture, roadmap,

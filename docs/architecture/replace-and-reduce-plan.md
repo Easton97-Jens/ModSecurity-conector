@@ -1,5 +1,8 @@
 # Replace-And-Reduce Plan
 
+**Language:** English | [Deutsch](replace-and-reduce-plan.de.md)
+
+
 Status: phase 12 Apache source cleanup complete
 
 This plan records candidates for replacing small imported connector source

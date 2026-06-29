@@ -1,6 +1,6 @@
-Language: English | [Deutsch](COMPILE_ENVOY.de.md)
-
 # Compile Envoy
+
+**Language:** English | [Deutsch](COMPILE_ENVOY.de.md)
 
 ## Table of Contents
 

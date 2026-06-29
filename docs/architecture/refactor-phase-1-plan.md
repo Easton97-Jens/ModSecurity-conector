@@ -1,5 +1,8 @@
 # Refactor Phase 1 Plan
 
+**Language:** English | [Deutsch](refactor-phase-1-plan.de.md)
+
+
 Status: implemented
 
 This phase starts a conservative common foundation without changing Apache or

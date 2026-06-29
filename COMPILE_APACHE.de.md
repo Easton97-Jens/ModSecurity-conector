@@ -1,6 +1,7 @@
-Sprache: [English](COMPILE_APACHE.md) | Deutsch
-
 # Compile Apache
+
+
+**Sprache:** [English](COMPILE_APACHE.md) | Deutsch
 
 ## Inhaltsverzeichnis
 
@@ -8,23 +9,29 @@ Sprache: [English](COMPILE_APACHE.md) | Deutsch
 - [Status und Grenzen](#status-und-grenzen)
 - [Überblick: Drei Pfade](#überblick-drei-pfade)
 - [Pfad 1: Repository-Smoke / Validierung](#pfad-1-repository-smoke--validierung)
-- [Pfad 2: Externer Einsatz mit Paketen](#pfad-2-externer-einsatz-mit-paketen)
+- [Pfad 2: Externer Einsatz mit Distribution-Paketen](#pfad-2-externer-einsatz-mit-distribution-paketen)
 - [Pfad 3: Externer Einsatz aus Source](#pfad-3-externer-einsatz-aus-source)
 - [Config Snippets](#config-snippets)
 - [Beispiel-Konfigurationen](#beispiel-konfigurationen)
 - [Logs](#logs)
 - [Troubleshooting](#troubleshooting)
-- [Nicht-Claims / Grenzen](#nicht-claims--grenzen)
+- [Nicht-Claims](#nicht-claims)
 - [Verwandte Dokumente](#verwandte-dokumente)
-
 
 ## Zweck
 
-Dieser Guide beschreibt den Einsatz des Apache-Connectors oder Runtime-Pfads außerhalb dieses Repositorys. Er erklärt die drei Pfade von Voraussetzungen bis zum ersten Syntax-Check oder Start und verweist auf passende Beispiel-Konfigurationen.
+Dieser Guide beschreibt den Einsatz des Apache-Connectors außerhalb dieses
+Repositorys: libmodsecurity bauen oder installieren, `mod_security3.so` gegen
+das Ziel-Apache/APXS bauen, das Artefakt in ein externes Apache/httpd-Setup
+kopieren, Konfiguration verdrahten und den ersten Syntax-Check oder Reload
+ausführen.
 
 ## Status und Grenzen
 
-Unterstützt ist nur das, was durch Repository-Quellen, Make-Targets, Harnesses oder Beispiele belegt ist. Repository-Smokes sind Evidence für dieses Repository und keine automatische externe Installation. RESPONSE_BODY / Phase 4 ist nicht promoted. Force-all-FAIL-Zeilen sind kein Produktionssupport.
+Der Apache-Connector-Quellcode liegt unter `connectors/apache/`.
+Repository-Smoke-Evidence validiert nur bestimmte Repository-Pfade. Sie belegt
+nicht jedes Apache-Distribution-Paket, jedes MPM, jedes Modul-Layout oder jedes
+RESPONSE_BODY- / Phase-4-Deployment.
 
 ## Überblick: Drei Pfade
 
@@ -36,7 +43,8 @@ Unterstützt ist nur das, was durch Repository-Quellen, Make-Targets, Harnesses 
 
 ## Pfad 1: Repository-Smoke / Validierung
 
-Diese Befehle validieren Repository-Evidence. Sie sind nicht die externe Installationsprozedur.
+Diese Befehle validieren Repository-Evidence. Sie sind nicht die externe
+Installationsprozedur.
 
 ```sh
 git submodule update --init --recursive
@@ -44,27 +52,79 @@ make setup-dev
 BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache
 ```
 
-## Pfad 2: Externer Einsatz mit Paketen
-
-1. Installieren Sie Betriebssystempakete für Runtime, Build-Werkzeuge und libmodsecurity, sofern kompatibel. Paketnamen unterscheiden sich je Distribution.
-2. Aus Paketen kommen typischerweise Runtime und Header/Bibliotheken. Das Artefakt `mod_security3.so` oder der Decision-Service muss weiterhin passend zu diesem Repository-Pfad gebaut, vorbereitet oder vom Betreiber bereitgestellt werden.
-3. Holen Sie die Connector-Quellen:
+Optionale breitere Repository-Evidence:
 
 ```sh
-git clone <modsecurity-conector-repo-url> ModSecurity-conector
-cd ModSecurity-conector
+FORCE_ALL_CASES=1 BUILD_HTTPD_FROM_SOURCE=1 make smoke-apache
 ```
 
-4. Bauen oder bereiten Sie den Pfad mit kompatiblen Paket-Headern/Bibliotheken vor. Benötigte Komponenten: Apache/httpd mit passendem APXS.
-5. Kopieren/adaptieren Sie Konfigurationen in die Modul-, Service-Konfigurations-, ModSecurity-Regel-, Log- und Runtime-Verzeichnisse Ihrer Umgebung. Diese Kategorien sind Platzhalter, keine universellen Pfade.
-6. Führen Sie den ersten Syntax-Check oder Start mit dem Zielservice aus und prüfen Sie Logs.
+## Pfad 2: Externer Einsatz mit Distribution-Paketen
+
+1. Installieren Sie Apache/httpd, passende APXS-/Development-Header,
+   Build-Werkzeuge und libmodsecurity-Development-Dateien. Paketnamen
+   unterscheiden sich je Distribution; dieser Debian-/Ubuntu-artige Befehl ist
+   nur ein Beispiel:
+
+   ```sh
+   sudo apt-get update
+   sudo apt-get install -y apache2 apache2-dev build-essential libmodsecurity-dev
+   ```
+
+2. Paketbereitgestellte Komponenten können Apache/httpd, APXS, Header und
+   libmodsecurity enthalten. `mod_security3.so` muss trotzdem aus diesem
+   Repository gegen das Ziel-APXS gebaut werden.
+3. Holen Sie den Connector-Quellcode dieses Repositorys:
+
+   ```sh
+   git clone <modsecurity-conector-repo-url> ModSecurity-conector
+   cd ModSecurity-conector
+   ```
+
+4. Bauen Sie den Connector gegen paketbereitgestelltes APXS/libmodsecurity.
+   Wenn Sie den direkten Autotools-Pfad verwenden, prüfen Sie ihn für Ihr
+   Zielsystem gegen `connectors/apache`-Dokumentation und -Quellen:
+
+   ```sh
+   cd connectors/apache
+   ./autogen.sh
+   ./configure --with-apxs=<target-apxs> --with-libmodsecurity=<libmodsecurity-prefix>
+   make
+   ```
+
+5. Kopieren Sie das gebaute Modul und angepasste Konfiguration in das
+   Zielsystem. Verwenden Sie Ihr Apache-Modulverzeichnis,
+   Service-Konfigurationsverzeichnis, ModSecurity-Regelverzeichnis und
+   Log-Verzeichnis; die Platzhalter unten sind nicht universell:
+
+   > Hinweis: `install` ist hier kein Paketmanager-Befehl. Er kopiert Dateien
+   > und kann Berechtigungen setzen. Zum Beispiel ist
+   > `sudo install -m 0755 file.so /target/file.so` ähnlich zu
+   > `sudo cp file.so /target/file.so` gefolgt von
+   > `sudo chmod 0755 /target/file.so`.
+
+   ```sh
+   sudo install -d -m 0755 <modsecurity-config-dir> <modsecurity-log-dir>
+   sudo install -m 0755 <built-mod_security3.so> <apache-module-dir>/mod_security3.so
+   sudo install -m 0644 examples/apache/modsecurity-request-only.conf <modsecurity-config-dir>/modsecurity-request-only.conf
+   sudo install -m 0644 examples/apache/apache-modsecurity-request-only.conf <apache-service-config-dir>/security3.conf
+   sudo apachectl configtest
+   sudo systemctl reload <apache-service-name>
+   ```
+
+APXS und Apache/httpd müssen zusammenpassen. Andernfalls kann das Modul zwar
+gebaut werden, aber beim Laden oder zur Laufzeit fehlschlagen.
 
 ## Pfad 3: Externer Einsatz aus Source
 
-1. Installieren Sie Compiler und Build-Voraussetzungen.
-2. Identifizieren Sie den gewünschten libmodsecurity-Ref oder den Repository-/Framework-Pin.
+1. Installieren Sie Compiler-/Build-Voraussetzungen und Apache/httpd APXS für
+   die Zielinstallation.
+2. Bauen Sie libmodsecurity v3 aus Source, falls Pakete nicht geeignet sind:
 
-Wenn Pakete nicht geeignet sind, kann libmodsecurity v3 aus Source gebaut werden. Das folgende Beispiel ist ein Upstream-Style-Beispiel und kein repository-eigener Build-Guarantee:
+Installieren Sie zuerst die Build-Voraussetzungen für Ihr Betriebssystem.
+Verwenden Sie dann entweder den von Ihrem Deployment ausgewählten
+libmodsecurity-Ref oder ermitteln Sie vor dem Build den Repository-/Framework-
+Pin. Das folgende Beispiel ist ein Upstream-Style-Beispiel, keine
+repository-eigene Build-Garantie:
 
 ```sh
 git clone --depth 1 -b <modsecurity-v3-ref> https://github.com/owasp-modsecurity/ModSecurity.git ModSecurity-v3
@@ -76,39 +136,78 @@ make -j"$(nproc)"
 sudo make install
 ```
 
-`<modsecurity-v3-ref>` und `<libmodsecurity-prefix>` müssen vom Betreiber gewählt oder gegen den Repository-/Framework-Pin geprüft werden.
+Ersetzen Sie `<modsecurity-v3-ref>` und `<libmodsecurity-prefix>` durch vom
+Betreiber gewählte Werte. Prüfen Sie Upstream-Voraussetzungen und Flags für Ihr
+Betriebssystem.
 
-3. Holen Sie dieses Repository und bauen/vorbereiten Sie `mod_security3.so` oder die vom Betreiber bereitzustellenden Backend-Teile.
-4. Führen Sie den ersten Syntax-Check oder Start aus. Beispiele und Platzhalter stehen in [examples/apache/README.de.md](examples/apache/README.de.md).
+3. Holen Sie den Connector-Quellcode dieses Repositorys von GitHub oder aus
+   Ihrem Fork:
+
+   ```sh
+   git clone <modsecurity-conector-repo-url> ModSecurity-conector
+   cd ModSecurity-conector/connectors/apache
+   ```
+
+4. Bauen Sie `mod_security3.so` mit dem Ziel-APXS und dem aus Source gebauten
+   libmodsecurity-Prefix. Wenn der genaue Befehl für Ihre Plattform angepasst
+   werden muss, prüfen Sie ihn gegen `connectors/apache/docs/build.md` und die
+   Autotools-Dateien:
+
+   ```sh
+   ./autogen.sh
+   ./configure --with-apxs=<target-apxs> --with-libmodsecurity=<libmodsecurity-prefix>
+   make
+   ```
+
+5. Installieren/kopieren Sie das gebaute Modul mit dem Platzhalter-
+   Installationsmuster aus Pfad 2, führen Sie `apachectl configtest` aus und
+   reloaden oder restarten Sie danach den Ziel-Apache-Service.
 
 ## Config Snippets
 
-```text
+```apache
+LoadModule security3_module <module-path>/mod_security3.so
+
 modsecurity on
 modsecurity_rules_file <modsecurity-rules-file>
 ```
 
-Siehe [examples/apache/README.de.md](examples/apache/README.de.md) für die Erklärung dieser Direktiven, Platzhalter, Logs und Grenzen.
+Siehe [examples/apache/README.de.md](examples/apache/README.de.md) für die
+Erklärung dieser Direktiven, Platzhalter, Logs und Grenzen.
 
 ## Beispiel-Konfigurationen
 
-Nutzen Sie die Dateien in [examples/apache/README.de.md](examples/apache/README.de.md) als Startpunkte für externe Konfiguration. Sie werden nicht automatisch vom Repository installiert und sind keine universellen Produktionsdefaults.
+Verwenden Sie die Dateien in [examples/apache/](examples/apache/README.de.md)
+als Startpunkte für externe Konfiguration. Sie werden vom Repository nicht
+automatisch installiert und sind keine universellen Produktionsdefaults.
 
 ## Logs
 
-Prüfen Sie je nach Pfad Webserver-/Proxy-Access-Logs, Error-Logs, ModSecurity-Audit-Logs, Connector-Decision-Logs und Sidecar-/Agent-Logs. Beispielpfade sind Platzhalter.
+Prüfen Sie die relevanten Deployment-Logs; behandeln Sie die Pfade in den
+Beispielen nicht als universelle Anforderungen.
+
+- Webserver-/Proxy-Access-Logs.
+- Webserver-/Proxy-Error-Logs.
+- ModSecurity-Audit-Log, wenn aktiviert.
+- Connector-Decision-Log, falls dieser Connector/Pfad eines hat.
+- Sidecar-/Agent-Log, falls dieser Connector/Pfad eines hat.
 
 ## Troubleshooting
 
-Prüfen Sie ABI-Mismatch, fehlende Header, fehlende Shared Libraries, falschen Konfigurationskontext, falschen Regelpfad, fehlende schreibbare Log-Verzeichnisse, fehlenden Sidecar/Auth-Service, falsche Backend-Adresse und RESPONSE_BODY-Annahmen über die Evidence hinaus.
+Prüfen Sie APXS-/Apache-ABI-Mismatch, fehlende Header, fehlende Shared
+Libraries, falschen Apache-Konfigurationskontext, falschen Regelpfad, fehlendes
+schreibbares Log-Verzeichnis und RESPONSE_BODY-Annahmen außerhalb belegter
+Evidence.
 
-## Nicht-Claims / Grenzen
+## Nicht-Claims
 
 - RESPONSE_BODY / Phase 4 ist nicht promoted.
 - Force-all-FAIL-Zeilen sind kein Produktionssupport.
-- Nicht jede Apache-Distribution, jedes MPM oder jedes Modullayout ist belegt.
+- Dieser Guide belegt nicht jedes Apache-Distro-Paket, jedes MPM oder jedes
+  Modul-Layout.
 
 ## Verwandte Dokumente
 
-- [English](COMPILE_APACHE.md)
 - [examples/apache/README.de.md](examples/apache/README.de.md)
+- `connectors/apache/docs/build.md`
+- `connectors/apache/docs/validation.md`

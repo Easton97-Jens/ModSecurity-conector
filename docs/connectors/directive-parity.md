@@ -1,5 +1,8 @@
 # Connector Directive Parity
 
+**Language:** English | [Deutsch](directive-parity.de.md)
+
+
 Status: current adapter-owned Apache and NGINX code, plus HAProxy SPOA config
 
 This document records directive and configuration support in the local

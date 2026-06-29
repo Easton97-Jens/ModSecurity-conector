@@ -1,5 +1,8 @@
 # Rule Load Stats Metadata
 
+**Language:** English | [Deutsch](rule-load-stats.de.md)
+
+
 Status: current adapter-owned Apache and NGINX code
 
 This document records the common rule-load statistics metadata shared by the

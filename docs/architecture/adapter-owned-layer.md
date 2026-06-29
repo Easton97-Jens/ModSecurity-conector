@@ -1,5 +1,8 @@
 # Adapter-Owned Layer
 
+**Language:** English | [Deutsch](adapter-owned-layer.de.md)
+
+
 Status: phase 11 Apache and NGINX source migration
 
 The adapter-owned layer is the first repo-owned connector code that sits beside

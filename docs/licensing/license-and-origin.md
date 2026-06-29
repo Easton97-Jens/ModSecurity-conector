@@ -1,5 +1,8 @@
 # License And Origin
 
+**Language:** English | [Deutsch](license-and-origin.de.md)
+
+
 Status: implemented
 
 This repository contains controlled imports of Apache-2.0 licensed connector

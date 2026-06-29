@@ -1,5 +1,8 @@
 # Common Runtime Boundaries
 
+**Language:** English | [Deutsch](common-runtime-boundaries.de.md)
+
+
 Status: implemented
 
 Phase 3 adds the first real Common C implementation files, but only for

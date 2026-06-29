@@ -1,6 +1,6 @@
-Language: English | [Deutsch](COMPILE_OPEN_CONNECTORS.de.md)
-
 # Compile / Prepare Open Connectors
+
+**Language:** English | [Deutsch](COMPILE_OPEN_CONNECTORS.de.md)
 
 ## Table of Contents
 
@@ -8,6 +8,7 @@ Language: English | [Deutsch](COMPILE_OPEN_CONNECTORS.de.md)
 - [Status and Limits](#status-and-limits)
 - [Overview: Three Paths](#overview-three-paths)
 - [Path 1: Repository Smoke / Validation](#path-1-repository-smoke-validation)
+- [CI Workflow and Artifacts](#ci-workflow-and-artifacts)
 - [Path 2: External Use With Distribution Packages](#path-2-external-use-with-distribution-packages)
 - [Path 3: External Use From Source](#path-3-external-use-from-source)
 - [Per-Connector Guides](#per-connector-guides)
@@ -51,6 +52,25 @@ TMPDIR=/tmp make smoke-lighttpd-modsecurity
 TMPDIR=/tmp make smoke-open-connectors-crs
 TMPDIR=/tmp make smoke-open-connectors-crs-secondary
 ```
+
+## CI Workflow and Artifacts
+
+The manual GitHub Actions workflow
+`.github/workflows/open-connectors-smoke.yml` runs the same repository evidence
+path under `TMPDIR=/tmp`:
+
+- prepare Envoy and Traefik runtime components with
+  `ALLOW_RUNTIME_DOWNLOADS=1`;
+- prepare and build Lighttpd with `ALLOW_RUNTIME_DOWNLOADS=1` and
+  `ALLOW_RUNTIME_BUILDS=1`;
+- run simple, targeted libmodsecurity, minimal CRS, and secondary CRS smokes;
+- run `make lint`, `make quick-check`, and `git diff --check`;
+- upload `ci-artifacts/open-connectors/` as
+  `open-connectors-smoke-evidence`.
+
+The uploaded artifact contains the copied
+`/tmp/ModSecurity-conector-verified/` tree, runtime inventory output, result
+JSON, decision logs, audit logs, and request transcripts produced by the run.
 
 ## Path 2: External Use With Distribution Packages
 

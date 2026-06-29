@@ -1,5 +1,8 @@
 # Refactor Phase 6 Review
 
+**Language:** English | [Deutsch](refactor-phase-6-review.de.md)
+
+
 Status: implemented
 
 Phase 6 introduces adapter-owned source skeletons only. It does not replace any

@@ -150,6 +150,15 @@ inventory. Downloads are disabled by default and are allowed only through
 explicit `ALLOW_RUNTIME_DOWNLOADS=1` prepare targets with SHA256 verification
 into `$CONNECTOR_COMPONENT_CACHE`.
 
+The manual GitHub Actions workflow
+`.github/workflows/open-connectors-smoke.yml` runs the open-connector prepare,
+simple runtime, targeted libmodsecurity, minimal CRS, and secondary CRS smokes
+with `TMPDIR=/tmp`. It copies `/tmp/ModSecurity-conector-verified/` into
+`ci-artifacts/open-connectors/` and uploads that directory as
+`open-connectors-smoke-evidence`. The workflow artifact is evidence only; it
+does not promote production readiness, full-matrix readiness, CRS completeness,
+or response-body support.
+
 ## libmodsecurity v3 alignment
 
 The phase names mirror the public v3 transaction sequence:

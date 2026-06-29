@@ -1,5 +1,8 @@
 # Connector Contract
 
+**Language:** English | [Deutsch](connector-contract.de.md)
+
+
 Connector implementations must preserve the evidence gates in
 [new connector onboarding](new-connector-onboarding.md). New connectors start as
 roadmap-only candidates or skeletons and become runtime connectors only after

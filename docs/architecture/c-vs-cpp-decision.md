@@ -1,5 +1,8 @@
 # C vs C++ Decision
 
+**Language:** English | [Deutsch](c-vs-cpp-decision.de.md)
+
+
 Status: accepted for the current connector refactor phases.
 
 ## Decision

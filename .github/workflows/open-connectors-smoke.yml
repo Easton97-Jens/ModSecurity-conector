@@ -1,0 +1,244 @@
+name: Open Connector Runtime Smokes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  open-connectors-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TMPDIR: /tmp
+      ALLOW_RUNTIME_DOWNLOADS: "1"
+    steps:
+      - uses: actions/checkout@v7.0.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Setup python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.13'
+
+      - name: Initialize runtime paths
+        run: |
+          set -eu
+          verified_root="/tmp/ModSecurity-conector-verified"
+          {
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=/tmp/state"
+            echo "SOURCE_ROOT=$verified_root/src"
+            echo "BUILD_ROOT=$verified_root/build"
+            echo "TMP_ROOT=$verified_root/tmp"
+            echo "LOG_ROOT=$verified_root/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+            echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+            echo "PYTHONPYCACHEPREFIX=/tmp/python-pycache"
+          } >> "$GITHUB_ENV"
+          mkdir -p ci-artifacts/open-connectors
+
+      - name: Install local Python dependencies
+        run: |
+          set -eu
+          make setup-dev
+
+      - name: Prepare Envoy runtime component
+        run: |
+          set -eu
+          TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime
+
+      - name: Prepare Traefik runtime component
+        run: |
+          set -eu
+          TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
+
+      - name: Build Lighttpd runtime component
+        run: |
+          set -eu
+          TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
+
+      - name: Runtime component checks
+        run: |
+          set -euo pipefail
+          TMPDIR=/tmp make check-common-helpers
+          TMPDIR=/tmp make runtime-components-inventory | tee ci-artifacts/open-connectors/runtime-components-inventory.txt
+          TMPDIR=/tmp make runtime-components-sources | tee ci-artifacts/open-connectors/runtime-components-sources.txt
+
+      - name: Simple runtime smokes
+        run: |
+          set -eu
+          TMPDIR=/tmp make smoke-envoy
+          TMPDIR=/tmp make smoke-traefik
+          TMPDIR=/tmp make smoke-lighttpd
+
+      - name: Targeted ModSecurity smokes
+        run: |
+          set -eu
+          TMPDIR=/tmp make smoke-envoy-modsecurity
+          TMPDIR=/tmp make smoke-traefik-modsecurity
+          TMPDIR=/tmp make smoke-lighttpd-modsecurity
+
+      - name: CRS smokes
+        run: |
+          set -eu
+          TMPDIR=/tmp make smoke-open-connectors-crs
+          TMPDIR=/tmp make smoke-open-connectors-crs-secondary
+
+      - name: Final checks
+        run: |
+          set -eu
+          TMPDIR=/tmp make lint
+          TMPDIR=/tmp make quick-check
+          git diff --check
+
+      - name: Write GitHub step summary
+        if: always()
+        run: |
+          set -eu
+          if [ -z "${GITHUB_STEP_SUMMARY:-}" ]; then
+            exit 0
+          fi
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          root = Path("/tmp/ModSecurity-conector-verified")
+
+          def load(path):
+              if not path.is_file():
+                  return None
+              try:
+                  return json.loads(path.read_text(encoding="utf-8"))
+              except json.JSONDecodeError:
+                  return None
+
+          def status(connector, filename):
+              data = load(root / f"{connector}-smoke" / filename)
+              if not data:
+                  return "missing"
+              base = str(data.get("status") or "unknown")
+              allowed = data.get("allowed_request_status")
+              blocked = data.get("blocked_request_status")
+              if allowed is not None and blocked is not None:
+                  return f"{base} ({allowed}/{blocked})"
+              return base
+
+          def lighttpd_build_status():
+              binary = root / "component-cache/lighttpd/bin/lighttpd"
+              return "PASS" if binary.is_file() and os.access(binary, os.X_OK) else "missing"
+
+          rows = [
+              (
+                  "Envoy",
+                  "n/a",
+                  status("envoy", "runtime-result.json"),
+                  status("envoy", "targeted-result.json"),
+                  status("envoy", "crs-result.json"),
+                  status("envoy", "crs-secondary-result.json"),
+              ),
+              (
+                  "Traefik",
+                  "n/a",
+                  status("traefik", "runtime-result.json"),
+                  status("traefik", "targeted-result.json"),
+                  status("traefik", "crs-result.json"),
+                  status("traefik", "crs-secondary-result.json"),
+              ),
+              (
+                  "Lighttpd",
+                  lighttpd_build_status(),
+                  status("lighttpd", "runtime-result.json"),
+                  status("lighttpd", "targeted-result.json"),
+                  status("lighttpd", "crs-result.json"),
+                  status("lighttpd", "crs-secondary-result.json"),
+              ),
+          ]
+
+          lines = [
+              "# Open Connector Runtime Smokes",
+              "",
+              "| Connector | Build | Simple | Targeted ModSecurity | Minimal CRS | Secondary CRS |",
+              "| --- | --- | --- | --- | --- | --- |",
+          ]
+          for row in rows:
+              lines.append("| " + " | ".join(row) + " |")
+          lines.extend(
+              [
+                  "",
+                  "Artifact path: `ci-artifacts/open-connectors/` uploaded as `open-connectors-smoke-evidence`.",
+                  "",
+                  "Forbidden claims remain forbidden:",
+                  "",
+                  "- `production_ready=true`",
+                  "- `full_matrix_ready=true`",
+                  "- `crs_complete=true`",
+                  "- `response_body_verified=true`",
+                  "",
+              ]
+          )
+          summary_path.write_text("\n".join(lines), encoding="utf-8")
+          PY
+
+      - name: Collect smoke evidence
+        if: always()
+        run: |
+          set -eu
+          artifact_root="ci-artifacts/open-connectors"
+          mkdir -p "$artifact_root"
+          if [ -d /tmp/ModSecurity-conector-verified ]; then
+            rm -rf "$artifact_root/verified-root"
+            mkdir -p "$artifact_root/verified-root"
+            cp -a /tmp/ModSecurity-conector-verified/. "$artifact_root/verified-root/"
+          else
+            printf 'No /tmp/ModSecurity-conector-verified directory was produced.\n' > "$artifact_root/README.txt"
+          fi
+
+      - name: Cleanup artifacts before upload
+        if: always()
+        continue-on-error: true
+        uses: actions/github-script@v9
+        env:
+          ARTIFACT_NAME: open-connectors-smoke-evidence
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const targetName = process.env.ARTIFACT_NAME;
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+
+            for (const artifact of artifacts) {
+              if (artifact.name !== targetName) {
+                continue;
+              }
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner,
+                  repo,
+                  artifact_id: artifact.id,
+                });
+                core.info(`Deleted previous artifact ${artifact.name} (${artifact.id}).`);
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                core.warning(`Could not delete previous artifact ${artifact.name} (${artifact.id}): ${message}`);
+              }
+            }
+
+      - name: Upload open connector smoke evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: open-connectors-smoke-evidence
+          retention-days: 1
+          if-no-files-found: warn
+          path: ci-artifacts/open-connectors/

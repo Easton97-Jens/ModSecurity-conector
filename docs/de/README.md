@@ -1,6 +1,6 @@
-Sprache: [English](../en/README.md) | Deutsch
-
 # Deutscher Dokumentationsindex
+
+**Sprache:** [English](../en/README.md) | Deutsch
 
 GitHub zeigt weiterhin alle Dateien im Repository-Baum; diese Links halten Sie in der gewählten Dokumentationssprache.
 
