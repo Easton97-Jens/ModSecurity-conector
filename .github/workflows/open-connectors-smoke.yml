@@ -193,6 +193,18 @@ jobs:
         run: |
           set -eu
           mkdir -p ci-artifacts/open-connectors/final-checks
+          if [ ! -f ci-artifacts/open-connectors/final-checks/lint.log ]; then
+            printf 'not run; see workflow steps.\n' > ci-artifacts/open-connectors/final-checks/lint.log
+            printf 'skipped\n' > ci-artifacts/open-connectors/final-checks/lint.status
+          fi
+          if [ ! -f ci-artifacts/open-connectors/final-checks/quick-check.log ]; then
+            printf 'skipped because an earlier final check failed.\n' > ci-artifacts/open-connectors/final-checks/quick-check.log
+            printf 'skipped\n' > ci-artifacts/open-connectors/final-checks/quick-check.status
+          fi
+          if [ ! -f ci-artifacts/open-connectors/final-checks/git-diff-check.log ]; then
+            printf 'skipped because an earlier final check failed.\n' > ci-artifacts/open-connectors/final-checks/git-diff-check.log
+            printf 'skipped\n' > ci-artifacts/open-connectors/final-checks/git-diff-check.status
+          fi
 
       - name: Upload final check diagnostics
         if: always()
