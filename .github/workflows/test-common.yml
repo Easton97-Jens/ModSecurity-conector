@@ -37,7 +37,9 @@ jobs:
         run: |
           set -eu
           test -d modules/ModSecurity-test-Framework
-          test ! -d tests
+          # Top-level tests/ is repo-owned for lightweight repository tooling tests.
+          test -d tests
+          test -f tests/test_update_github_actions_versions.py
           test -f common/include/msconnector/request.h
           test -f common/include/msconnector/response.h
           test -f common/include/msconnector/transaction.h

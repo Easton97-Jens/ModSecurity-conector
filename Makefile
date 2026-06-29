@@ -697,6 +697,7 @@ cloud-quick-check: setup-dev lint generate-test-matrix check-test-matrix quick-c
 
 generate-test-matrix: check-framework
 	PYTHON="$(FRAMEWORK_PYTHON)" FRAMEWORK_ROOT="$(FRAMEWORK_ROOT)" CONNECTOR_ROOT="$(CURDIR)" OUTPUT_ROOT="$(CURDIR)" SKIP_ROOT_SUMMARY=1 $(MAKE) -C "$(FRAMEWORK_ROOT)" generate-test-matrix
+	$(PYTHON) ci/ensure-test-matrix-language-switches.py
 
 TEST_MATRIX_DIFF_PATHS = reports/testing/generated/coverage reports/testing/generated/runtime reports/testing/test-coverage-overview.md
 
