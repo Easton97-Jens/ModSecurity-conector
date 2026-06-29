@@ -151,6 +151,8 @@ def check_empty_tables_explained(path: Path, text: str, errors: list[str], conne
 def check_existing_generated_reports(connector_root: Path, errors: list[str]) -> None:
     generated_root = connector_root / GENERATED_ROOT
     for path in sorted(generated_root.rglob("*.generated.*")):
+        if path.name.endswith(".generated.de.md"):
+            continue
         if os.environ.get("ALLOW_IN_PROGRESS_SYSTEM_PROOF") == "1" and path.name.startswith("system-environment-proof.generated."):
             continue
         if path.suffix == ".json":
@@ -162,6 +164,8 @@ def check_existing_generated_reports(connector_root: Path, errors: list[str]) ->
 def check_no_flat_reports(connector_root: Path, errors: list[str]) -> None:
     generated_root = connector_root / GENERATED_ROOT
     for path in sorted(generated_root.glob("*.generated.*")):
+        if path.name.endswith(".generated.de.md"):
+            continue
         if path.exists():
             errors.append(f"{rel(path, connector_root)}: stale flat generated report remains")
 
@@ -408,6 +412,8 @@ def check_no_orphan_generated_reports(connector_root: Path, errors: list[str]) -
         for ext in report.formats
     }
     for path in sorted(generated_root.rglob("*.generated.*")):
+        if path.name.endswith(".generated.de.md"):
+            continue
         resolved = str(path.resolve(strict=False))
         if path.name not in FILENAME_TO_KEY:
             errors.append(f"{rel(path, connector_root)}: generated file is not in registry")

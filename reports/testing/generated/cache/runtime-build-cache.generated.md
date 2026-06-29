@@ -1,5 +1,3 @@
-**Language:** English | [Deutsch](runtime-build-cache.generated.de.md)
-
 > Generated file - do not edit manually.
 >
 > Generated at: `2026-06-19T16:22:55Z`
@@ -12,6 +10,8 @@
 > Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
 > Framework SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
 > Input status: `complete`
+
+**Language:** English | [Deutsch](runtime-build-cache.generated.de.md)
 
 <!-- runtime-build-cache:start -->
 ## Runtime Build Cache
