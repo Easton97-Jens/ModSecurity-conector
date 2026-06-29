@@ -13,6 +13,8 @@
 
 # Evidence rollup shared by focused analysis and consistency checks.
 
+**Language:** English | [Deutsch](full-run-evidence.generated.de.md)
+
 Status: `blocked`
 
 Reason: required generated input is blocked

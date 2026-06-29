@@ -1,5 +1,7 @@
 # Connector Parallel Runtime Smoke Plan
 
+**Language:** English | [Deutsch](connector-parallel-runtime-smoke-plan.de.md)
+
 Status: parallel phase started for Envoy, Traefik, and lighttpd; lighttpd
 Phase 1 now selects `sidecar_proxy`.
 

@@ -13,6 +13,8 @@
 
 # Generated Phase Coverage
 
+**Language:** English | [Deutsch](phase-coverage.generated.de.md)
+
 | phase | case_count | top_variables | status_distribution |
 |---|---:|---|---|
 | 1 | 38 | REQUEST_URI(7), REQUEST_HEADERS_NAMES(5), ARGS:a(4), REQUEST_COOKIES_NAMES(4), ARGS:param1(2) | active:2, imported:36 |

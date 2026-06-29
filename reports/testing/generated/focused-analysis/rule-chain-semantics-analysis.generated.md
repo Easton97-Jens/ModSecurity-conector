@@ -13,6 +13,8 @@
 
 # Rule Chain Semantics Analysis
 
+**Language:** English | [Deutsch](rule-chain-semantics-analysis.generated.de.md)
+
 Generated at: `2026-06-19T16:59:05Z`
 
 ## Summary

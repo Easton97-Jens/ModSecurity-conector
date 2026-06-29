@@ -1,5 +1,7 @@
 # CRS Action Status 401 Analysis
 
+**Language:** English | [Deutsch](crs-action-status-401-analysis.de.md)
+
 Status: resolved by scoped expectation update; exact CRS/action-merging root
 cause remains not fully proven.
 

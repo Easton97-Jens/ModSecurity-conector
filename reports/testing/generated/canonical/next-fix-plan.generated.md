@@ -13,6 +13,8 @@
 
 # Next Fix Plan
 
+**Language:** English | [Deutsch](next-fix-plan.generated.de.md)
+
 Generated at: `2026-06-19T16:58:27Z`
 
 Native MRTS Apache/NGINX remains separate infrastructure evidence; this plan targets connector Full-Matrix leftovers only.

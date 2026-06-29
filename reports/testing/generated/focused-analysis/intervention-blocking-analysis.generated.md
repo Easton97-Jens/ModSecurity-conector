@@ -13,6 +13,8 @@
 
 # Intervention Blocking Analysis
 
+**Language:** English | [Deutsch](intervention-blocking-analysis.generated.de.md)
+
 - Generated at: `2026-06-19T16:58:52Z`
 - Expected `403` / actual `200` rows under review: **562**.
 - Intervention-blocking true candidates: **6** runtime-fixable rows.

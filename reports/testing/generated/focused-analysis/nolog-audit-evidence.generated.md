@@ -13,6 +13,8 @@
 
 # Nolog Audit Evidence Analysis
 
+**Language:** English | [Deutsch](nolog-audit-evidence.generated.de.md)
+
 Generated file - do not edit manually.
 
 ## Scope

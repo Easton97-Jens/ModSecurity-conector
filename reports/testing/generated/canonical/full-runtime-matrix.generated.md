@@ -13,6 +13,8 @@
 
 # Full MRTS Runtime Matrix
 
+**Language:** English | [Deutsch](full-runtime-matrix.generated.de.md)
+
 Generated file - do not edit manually.
 
 - Generated at: `2026-06-19T16:57:56Z`

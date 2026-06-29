@@ -13,6 +13,8 @@
 
 # Remaining Full-Matrix Failure Analysis
 
+**Language:** English | [Deutsch](remaining-failure-analysis.generated.de.md)
+
 Generated at: `2026-06-19T16:58:27Z`
 
 ## Scope

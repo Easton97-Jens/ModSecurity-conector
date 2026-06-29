@@ -1,5 +1,7 @@
 # Stand der weiteren Connectoren
 
+**Language:** English | [Deutsch](connector_status_remaining.de.md)
+
 ## Zusammenfassung
 
 Apache, HAProxy und Nginx werden hier nur als Referenzrahmen genannt. Sie

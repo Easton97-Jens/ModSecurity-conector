@@ -1,5 +1,7 @@
 # Component Download Check
 
+**Language:** English | [Deutsch](component-download-check.de.md)
+
 Status: reviewed
 
 ## Scope

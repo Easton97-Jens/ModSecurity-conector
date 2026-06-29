@@ -1,5 +1,7 @@
 # Testing Reports
 
+**Language:** English | [Deutsch](README.de.md)
+
 This index is refreshed by `make refresh-connector-reports`. Generated reports live under
 `reports/testing/generated/<category>/`; do not edit generated report files manually.
 

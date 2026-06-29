@@ -1,5 +1,7 @@
 # NGINX Template Alignment
 
+**Language:** English | [Deutsch](nginx-template-alignment.de.md)
+
 ## Overall Decision
 
 - Template alignment: aligned.

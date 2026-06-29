@@ -13,6 +13,8 @@
 
 # System Environment Proof
 
+**Language:** English | [Deutsch](system-environment-proof.generated.de.md)
+
 ## Proof Status
 
 | Field | Value |

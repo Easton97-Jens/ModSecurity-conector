@@ -1,5 +1,7 @@
 # HAProxy Connector PoC
 
+**Language:** English | [Deutsch](haproxy-poc.de.md)
+
 Status: production SPOA runtime evidence
 
 ## Implemented

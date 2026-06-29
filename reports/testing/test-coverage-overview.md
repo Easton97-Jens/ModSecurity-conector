@@ -2,6 +2,8 @@ Generated file - do not edit manually.
 
 # ModSecurity Connector Test Coverage Overview
 
+**Language:** English | [Deutsch](test-coverage-overview.de.md)
+
 ## Summary
 - Total cases: **141**
 - Verified/pass count (`runtime_verified=true`): **0**

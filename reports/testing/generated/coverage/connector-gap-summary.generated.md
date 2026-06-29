@@ -13,6 +13,8 @@
 
 # Generated Connector Gap Summary
 
+**Language:** English | [Deutsch](connector-gap-summary.generated.de.md)
+
 | case_id | path | status | classification | tags | variables | source/provenance | notes |
 |---|---|---|---|---|---|---|---|
 | audit_log_message_presence_connector_gap | `tests/cases/audit-log/audit_log_message_presence_connector_gap.yaml` | imported | active | connector-gap | ARGS:a | unknown | - |

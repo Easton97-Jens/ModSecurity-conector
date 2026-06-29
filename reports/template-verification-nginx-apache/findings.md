@@ -1,5 +1,7 @@
 # Findings
 
+**Language:** English | [Deutsch](findings.de.md)
+
 All findings below are based on files, paths, commands, or local `/src`
 runtime results reviewed in this repository.
 

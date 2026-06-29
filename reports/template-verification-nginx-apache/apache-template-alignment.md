@@ -1,5 +1,7 @@
 # Apache Template Alignment
 
+**Language:** English | [Deutsch](apache-template-alignment.de.md)
+
 ## Overall Decision
 
 - Template alignment: aligned.

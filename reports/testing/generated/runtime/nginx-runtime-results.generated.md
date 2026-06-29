@@ -13,6 +13,8 @@
 
 # Generated NGINX Runtime Results
 
+**Language:** English | [Deutsch](nginx-runtime-results.generated.de.md)
+
 - Command: `make smoke-nginx`
 - Status: **FAIL**
 - Exit code: `2`

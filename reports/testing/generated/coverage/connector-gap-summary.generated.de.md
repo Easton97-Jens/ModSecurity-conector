@@ -1,0 +1,75 @@
+> Generierte Datei – nicht manuell bearbeiten.
+>
+> Erstellt unter: `2026-06-19T16:57:55Z`
+> Verifizierte Lauf-ID: `2026-06-16T19-12-00Z-614c8049`
+> Datenquellenrichtlinie: `verified-inputs-only`
+> Generator: `framework:ci/generate-case-matrix.py`
+> Ziel erstellen: `generate-test-matrix`
+> Besitzer: `runtime`
+> Schweregrad: `informational`
+> Connector SHA: `5c9a0ceb2fb04dbc31347f1adc762512ed7fbf9f`
+> Framework-SHA: `dc19582d89bd8ef50463c5a9c5a0271cc37bb958`
+> Eingabestatus: `complete`
+
+# Generierte Zusammenfassung der Verbindungslücke
+
+**Sprache:** [English](connector-gap-summary.generated.md) | Deutsch
+
+| case_id | path | status | classification | tags | variables | source/provenance | notes |
+|---|---|---|---|---|---|---|---|
+| audit_log_message_presence_connector_gap | `tests/cases/audit-log/audit_log_message_presence_connector_gap.yaml` | imported | active | connector-gap | ARGS:a | unknown | - |
+| audit_log_rule_id_presence_runtime_difference | `tests/cases/audit-log/audit_log_rule_id_presence_runtime_difference.yaml` | imported | active | runtime-difference | ARGS:a | unknown | - |
+| duplicate_cookie_name_runtime_difference | `tests/cases/audit-log/duplicate_cookie_name_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_COOKIES_NAMES | unknown | - |
+| parser_json_partial_body_connector_gap | `tests/cases/audit-log/parser_json_partial_body_connector_gap.yaml` | imported | active | connector-gap | REQUEST_BODY | unknown | - |
+| json_duplicate_keys_runtime_difference | `tests/cases/body/json/json_duplicate_keys_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_BODY | unknown | - |
+| request_body_json_invalid_runtime_difference | `tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_BODY | unknown | - |
+| multipart_empty_filename_connector_gap | `tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml` | imported | active | connector-gap | MULTIPART_FILENAME | unknown | - |
+| multipart_encoded_filename_runtime_difference | `tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml` | imported | active | runtime-difference | MULTIPART_FILENAME | unknown | - |
+| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | imported | active | connector-gap | REQUEST_HEADERS:Content-Type, XML:/* | unknown | - |
+| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | imported | active | connector-gap | REQUEST_HEADERS:Content-Type, XML | unknown | - |
+| v3_args_names_duplicate_query_connector_gap | `tests/cases/future-gap/v3_args_names_duplicate_query_connector_gap.yaml` | imported | active | connector-gap | ARGS_NAMES | unknown | - |
+| v3_request_cookies_names_case_runtime_difference | `tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_COOKIES_NAMES | unknown | - |
+| v3_request_headers_names_duplicate_connector_gap | `tests/cases/request/headers/v3_request_headers_names_duplicate_connector_gap.yaml` | imported | active | connector-gap | REQUEST_HEADERS_NAMES | unknown | - |
+| v3_request_headers_names_lowercase_runtime_difference | `tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_HEADERS_NAMES | unknown | - |
+| edge_plus_vs_space_runtime_difference | `tests/cases/request/uri/edge_plus_vs_space_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_URI | unknown | - |
+| unicode_double_encoded_uri_runtime_difference | `tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml` | imported | active | runtime-difference | REQUEST_URI | unknown | - |
+| phase4_auditlog_outbound_message_connector_gap | `tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml` | imported | active | connector-gap | RESPONSE_BODY | unknown | - |
+| phase4_auditlog_outbound_rule_id_runtime_difference | `tests/cases/response/body/phase4_auditlog_outbound_rule_id_runtime_difference.yaml` | imported | active | runtime-difference | RESPONSE_BODY | unknown | - |
+| phase4_response_body_chunk_assumption_connector_gap | `tests/cases/response/body/phase4_response_body_chunk_assumption_connector_gap.yaml` | imported | active | connector-gap | RESPONSE_BODY | unknown | - |
+| phase4_response_body_unicode_runtime_difference | `tests/cases/response/body/phase4_response_body_unicode_runtime_difference.yaml` | imported | active | runtime-difference | RESPONSE_BODY | unknown | - |
+| phase3_response_headers_duplicate_value_runtime_difference | `tests/cases/response/headers/phase3_response_headers_duplicate_value_runtime_difference.yaml` | imported | active | runtime-difference | RESPONSE_HEADERS:Set-Cookie | unknown | - |
+| phase3_response_headers_mixed_case_connector_gap | `tests/cases/response/headers/phase3_response_headers_mixed_case_connector_gap.yaml` | imported | active | connector-gap | RESPONSE_HEADERS:content-type | unknown | - |
+| phase3_response_headers_multi_value_connector_gap | `tests/cases/response/headers/phase3_response_headers_multi_value_connector_gap.yaml` | imported | active | connector-gap | RESPONSE_HEADERS:Set-Cookie | unknown | - |
+| sqli_like_quote_encoding_runtime_difference | `tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml` | imported | active | runtime-difference | ARGS:q | unknown | - |
+| tests/cases/connector-specific/nginx/nginx_redirect_phase1_302.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX redirect behavior is not yet proven against Apache. |
+| tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX TX scoring import is not yet proven against Apache. |
+| tests/cases/connector-specific/nginx/nginx_tx_scoring_iterative_block.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX TX scoring import is not yet proven against Apache. |
+| tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX-specific phase-4 log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion. |
+| tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX-specific phase-4 minimal log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion. |
+| tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX-specific phase-4 safe log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion. |
+| ModSecurity-apache/tests/regression/rule/10-xml.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity-apache/tests/regression/rule/10-xml.t | XML parser cases require explicit fixture/schema support before active import. |
+| ModSecurity-apache/tests/regression/misc/00-multipart-parser.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity-apache/tests/regression/misc/00-multipart-parser.t | Multipart parser error and file collection branches exceed the current minimal multipart smoke. |
+| ModSecurity-nginx/tests/nginx-tests-cvt.pl | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity-nginx/tests/nginx-tests-cvt.pl | Converter tooling is build-runtime support, not a portable rule case. |
+| ModSecurity_V2/tests/tfn/urlDecode.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity_V2/tests/tfn/urlDecode.t | Full-byte, NUL, and invalid-encoding urlDecode branches are mapped only; active smoke imports only source-confirmed text-safe Test+Case -> Test Case. |
+| ModSecurity_V2/tests/tfn/htmlEntityDecode.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity_V2/tests/tfn/htmlEntityDecode.t | NUL, nbsp, non-ASCII, and invalid entity branches are mapped only; active smoke imports only the text-safe &lt;&gt; -> <> fragment. |
+| ModSecurity_V2/tests/op/pm.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity_V2/tests/op/pm.t | Long phrase-list and no-match branches are mapped only; active smoke imports the source-confirmed param abc/input abcdefghi match. |
+| ModSecurity_V2/tests/op/containsWord.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity_V2/tests/op/containsWord.t | Negative word-boundary branches are mapped only; active smoke imports the source-confirmed param abc/input abc def ghi match. |
+| ModSecurity-nginx PR #377 tests/modsecurity-phase4-invalid-config.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity-nginx PR #377 tests/modsecurity-phase4-invalid-config.t | Invalid config tests require config-test expected-failure assertions rather than HTTP smokes. |
+| ModSecurity-nginx PR #377 tests/modsecurity-phase4-regression.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity-nginx PR #377 tests/modsecurity-phase4-regression.t | Large-response phase-4 regression needs dedicated large fixture/log-leak coverage before active import. |
+| ModSecurity-nginx PR #377 tests/modsecurity-response-body.t | `config/testing/import-status.json` | mapped_only | - | - | ModSecurity-nginx PR #377 tests/modsecurity-response-body.t | Response-body blocking remains non-promoted/mapped-only and is not promoted without stable real HTTP blocking semantics. |
+| ModSecurity-nginx/tests/modsecurity-request-body-h2.t | `config/testing/import-status.json` | blocked | - | - | ModSecurity-nginx/tests/modsecurity-request-body-h2.t | HTTP/2 is outside the current HTTP/1.1 smoke harness. |
+| ModSecurity-nginx/tests/modsecurity-h2.t | `config/testing/import-status.json` | blocked | - | - | ModSecurity-nginx/tests/modsecurity-h2.t | HTTP/2 is outside the current HTTP/1.1 smoke harness. |
+
+## Datenquellen
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `c8e7113e2b7d4982ad6817e9f3fd4387370db33224a0f14ec265126ec685f5f9` | `2026-06-16T19-12-00Z-614c8049` | present |
+
+## Datenverfügbarkeit / fehlende Informationen
+
+| Input | Status | Notes |
+|---|---|---|
+| `config/testing/import-status.json` | present | input file available |
+| `reports/testing/runtime-validation-snapshot.json` | present | input file available |

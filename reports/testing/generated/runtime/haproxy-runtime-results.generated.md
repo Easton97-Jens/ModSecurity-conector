@@ -13,6 +13,8 @@
 
 # Generated HAProxy Runtime Results
 
+**Language:** English | [Deutsch](haproxy-runtime-results.generated.de.md)
+
 - Command: `MODSECURITY_MRTS_VARIANT=with-mrts make smoke-haproxy`
 - Status: **FAIL**
 - Exit code: `2`

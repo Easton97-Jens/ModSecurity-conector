@@ -1,5 +1,7 @@
 # Apache Coverage Decision Matrix
 
+**Language:** English | [Deutsch](coverage-decision-matrix.de.md)
+
 Status: partial, evidence-scoped
 
 Generated coverage reporting is not automatic runtime promotion. Apache remains

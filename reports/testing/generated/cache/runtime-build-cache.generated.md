@@ -1,3 +1,5 @@
+**Language:** English | [Deutsch](runtime-build-cache.generated.de.md)
+
 > Generated file - do not edit manually.
 >
 > Generated at: `2026-06-19T16:22:55Z`

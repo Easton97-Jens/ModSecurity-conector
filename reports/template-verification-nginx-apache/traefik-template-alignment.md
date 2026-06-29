@@ -1,5 +1,7 @@
 # Traefik Template Alignment
 
+**Language:** English | [Deutsch](traefik-template-alignment.de.md)
+
 Status: decision-service-starter
 Runtime status: not-verified
 

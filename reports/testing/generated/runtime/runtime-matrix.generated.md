@@ -13,6 +13,8 @@
 
 # Generated Runtime Matrix
 
+**Language:** English | [Deutsch](runtime-matrix.generated.de.md)
+
 This matrix joins repository YAML cases with the latest tracked local runtime snapshot.
 Former XFAIL cases are rendered from live runtime evidence like any other YAML case; RESPONSE_BODY remains non-verified/non-promoted.
 

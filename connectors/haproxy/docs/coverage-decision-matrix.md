@@ -1,5 +1,7 @@
 # HAProxy Coverage Decision Matrix
 
+**Language:** English | [Deutsch](coverage-decision-matrix.de.md)
+
 Status: partial, production SPOA runtime evidence
 
 The HAProxy matrix is generated from live runtime evidence through HAProxy,

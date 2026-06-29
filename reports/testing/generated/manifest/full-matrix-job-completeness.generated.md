@@ -13,6 +13,8 @@
 
 # Full-Matrix Job Completeness
 
+**Language:** English | [Deutsch](full-matrix-job-completeness.generated.de.md)
+
 Verified run id: `2026-06-16T19-12-00Z-614c8049`
 
 ## Summary

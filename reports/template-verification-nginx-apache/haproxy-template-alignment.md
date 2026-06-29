@@ -1,5 +1,7 @@
 # HAProxy Template Alignment
 
+**Language:** English | [Deutsch](haproxy-template-alignment.de.md)
+
 Status: spoa-agent-starter
 Runtime status: runtime-smoke-verified for `haproxy_phase1_header_block` and `haproxy_crs_sqli_anomaly_block`
 Template alignment: scaffold-aligned plus local SPOA agent starter

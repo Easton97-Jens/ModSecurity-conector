@@ -1,5 +1,7 @@
 # SPOE PoC Reports Placeholder
 
+**Language:** English | [Deutsch](README.de.md)
+
 documentation only
 
 Dieses Verzeichnis ist nur ein Platzhalter für spätere Dokumentation, nicht für

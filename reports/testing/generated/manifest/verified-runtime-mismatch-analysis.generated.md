@@ -13,6 +13,8 @@
 
 # Verified Runtime Mismatch Analysis
 
+**Language:** English | [Deutsch](verified-runtime-mismatch-analysis.generated.de.md)
+
 Verified run id: `2026-06-16T19-12-00Z-614c8049`
 
 This report is generated only from verified runtime producer files. It does not invent missing PASS/FAIL values.

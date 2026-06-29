@@ -13,6 +13,8 @@
 
 # Generated Apache Runtime Results
 
+**Language:** English | [Deutsch](apache-runtime-results.generated.de.md)
+
 - Command: `make smoke-apache`
 - Status: **FAIL**
 - Exit code: `2`

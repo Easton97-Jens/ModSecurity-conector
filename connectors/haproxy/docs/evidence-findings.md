@@ -1,5 +1,7 @@
 # HAProxy Evidence Findings
 
+**Language:** English | [Deutsch](evidence-findings.de.md)
+
 Status: current runtime evidence
 
 ## Finding Summary

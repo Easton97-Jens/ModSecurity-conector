@@ -1,5 +1,7 @@
 # HAProxy Integration Decision Record
 
+**Language:** English | [Deutsch](haproxy-integration-decision-record.de.md)
+
 ## Kurzfazit
 Es gibt mehrere plausible Optionen, aber keine ist ausreichend belegt.
 

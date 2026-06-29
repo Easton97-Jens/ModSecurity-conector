@@ -1,5 +1,7 @@
 # Verification Summary
 
+**Language:** English | [Deutsch](summary.de.md)
+
 Status: reviewed
 
 Updated: 2026-05-31 00:00:00 UTC

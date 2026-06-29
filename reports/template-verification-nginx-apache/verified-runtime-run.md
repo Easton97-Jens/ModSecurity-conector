@@ -1,5 +1,7 @@
 # Verified Runtime Run
 
+**Language:** English | [Deutsch](verified-runtime-run.de.md)
+
 Status: partial runtime evidence, current `/src` No-CRS and With-CRS targets
 passing for executed scope
 

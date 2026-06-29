@@ -13,6 +13,8 @@
 
 # Connector Roadmap
 
+**Language:** English | [Deutsch](connector-roadmap.generated.de.md)
+
 ## Roadmap Scope
 
 This report is `roadmap_only`. It evaluates repository structure, existing skeletons, technical feasibility, and first proof steps.
