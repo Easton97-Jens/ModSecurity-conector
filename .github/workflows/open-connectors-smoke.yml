@@ -46,7 +46,7 @@ jobs:
             echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
             echo "PYTHONPYCACHEPREFIX=/tmp/python-pycache"
           } >> "$GITHUB_ENV"
-          mkdir -p ci-artifacts/open-connectors
+          mkdir -p ci-artifacts/open-connectors/final-checks
 
       - name: Install local Python dependencies
         run: |
@@ -78,6 +78,12 @@ jobs:
           set -eu
           TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 
+      - name: Workspace status after prepare
+        run: |
+          set -eu
+          mkdir -p ci-artifacts/open-connectors/final-checks
+          git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after-prepare.txt
+
       - name: Runtime component inventory
         run: |
           set -euo pipefail
@@ -90,6 +96,12 @@ jobs:
           TMPDIR=/tmp make smoke-envoy
           TMPDIR=/tmp make smoke-traefik
           TMPDIR=/tmp make smoke-lighttpd
+
+      - name: Workspace status after simple smokes
+        run: |
+          set -eu
+          mkdir -p ci-artifacts/open-connectors/final-checks
+          git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after-simple-smokes.txt
 
       - name: Targeted ModSecurity smokes
         run: |
@@ -108,12 +120,49 @@ jobs:
           set -eu
           TMPDIR=/tmp make smoke-open-connectors-crs-secondary
 
-      - name: Final checks
+      - name: Workspace status after CRS smokes
         run: |
           set -eu
-          TMPDIR=/tmp make lint
-          TMPDIR=/tmp make quick-check
-          git diff --check
+          mkdir -p ci-artifacts/open-connectors/final-checks
+          git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after-crs-smokes.txt
+
+      - name: Final check - git status before
+        run: |
+          set -eu
+          mkdir -p ci-artifacts/open-connectors/final-checks
+          git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-before.txt
+          git diff --name-only | tee ci-artifacts/open-connectors/final-checks/git-diff-name-only-before.txt
+          git diff --stat | tee ci-artifacts/open-connectors/final-checks/git-diff-stat-before.txt
+
+      - name: Final check - lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/open-connectors/final-checks
+          TMPDIR=/tmp make lint 2>&1 | tee ci-artifacts/open-connectors/final-checks/lint.log
+
+      - name: Final check - quick-check
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/open-connectors/final-checks
+          TMPDIR=/tmp make quick-check 2>&1 | tee ci-artifacts/open-connectors/final-checks/quick-check.log
+
+      - name: Final check - git diff check
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-artifacts/open-connectors/final-checks
+          git diff --check 2>&1 | tee ci-artifacts/open-connectors/final-checks/git-diff-check.log
+
+      - name: Final check - git status after
+        if: always()
+        run: |
+          set -eu
+          mkdir -p ci-artifacts/open-connectors/final-checks
+          git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after.txt
+          git diff --name-only | tee ci-artifacts/open-connectors/final-checks/git-diff-name-only-after.txt
+          git diff --stat | tee ci-artifacts/open-connectors/final-checks/git-diff-stat-after.txt
 
       - name: Capture runtime component reports
         if: always()
