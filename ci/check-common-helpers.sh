@@ -8,6 +8,8 @@ VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
 BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
 
 CC_BIN="${CC:-cc}"
+MSCONNECTOR_C_STD="${MSCONNECTOR_C_STD:-c17}"
+MSCONNECTOR_CFLAGS="${MSCONNECTOR_CFLAGS:--std=$MSCONNECTOR_C_STD -Wall -Wextra -Werror}"
 OUT_DIR="$BUILD_ROOT/common-helper-smoke"
 SMOKE_C="$OUT_DIR/common_helper_smoke.c"
 SMOKE_BIN="$OUT_DIR/common_helper_smoke"
@@ -252,7 +254,7 @@ int main(void) {
 }
 EOF
 
-"$CC_BIN" -std=c99 -Wall -Wextra -Werror \
+"$CC_BIN" $MSCONNECTOR_CFLAGS \
     -I "$REPO_ROOT/common/include" \
     "$SMOKE_C" \
     "$REPO_ROOT"/common/src/*.c \

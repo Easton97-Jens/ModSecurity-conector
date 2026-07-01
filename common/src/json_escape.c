@@ -1,3 +1,76 @@
 #include "msconnector/json_escape.h"
-static void putc_safe(char c, char *dst, size_t dst_size, size_t *pos) { if (dst && dst_size && *pos + 1 < dst_size) dst[*pos] = c; (*pos)++; }
-size_t msconnector_json_escape(const char *src, char *dst, size_t dst_size) { size_t pos = 0, i = 0; const char *hex = "0123456789abcdef"; if (!src) src = ""; while (src[i]) { unsigned char c = (unsigned char)src[i++]; switch (c) { case '"': putc_safe('\\', dst, dst_size, &pos); putc_safe('"', dst, dst_size, &pos); break; case '\\': putc_safe('\\', dst, dst_size, &pos); putc_safe('\\', dst, dst_size, &pos); break; case '\n': putc_safe('\\', dst, dst_size, &pos); putc_safe('n', dst, dst_size, &pos); break; case '\r': putc_safe('\\', dst, dst_size, &pos); putc_safe('r', dst, dst_size, &pos); break; case '\t': putc_safe('\\', dst, dst_size, &pos); putc_safe('t', dst, dst_size, &pos); break; default: if (c < 0x20) { putc_safe('\\', dst, dst_size, &pos); putc_safe('u', dst, dst_size, &pos); putc_safe('0', dst, dst_size, &pos); putc_safe('0', dst, dst_size, &pos); putc_safe(hex[(c >> 4) & 0xf], dst, dst_size, &pos); putc_safe(hex[c & 0xf], dst, dst_size, &pos); } else putc_safe((char)c, dst, dst_size, &pos); } } if (dst && dst_size) dst[pos < dst_size ? pos : dst_size - 1] = '\0'; return pos; }
+
+static void append_json_char(char value, char *dst, size_t dst_size, size_t *position) {
+    if (dst != 0 && dst_size != 0 && *position + 1U < dst_size) {
+        dst[*position] = value;
+    }
+
+    ++(*position);
+}
+
+static void append_json_escape_sequence(
+    char escape,
+    char *dst,
+    size_t dst_size,
+    size_t *position) {
+    append_json_char('\\', dst, dst_size, position);
+    append_json_char(escape, dst, dst_size, position);
+}
+
+static void append_json_control_escape(
+    unsigned char value,
+    char *dst,
+    size_t dst_size,
+    size_t *position) {
+    static const char hex[] = "0123456789abcdef";
+
+    append_json_char('\\', dst, dst_size, position);
+    append_json_char('u', dst, dst_size, position);
+    append_json_char('0', dst, dst_size, position);
+    append_json_char('0', dst, dst_size, position);
+    append_json_char(hex[(value >> 4U) & 0x0fU], dst, dst_size, position);
+    append_json_char(hex[value & 0x0fU], dst, dst_size, position);
+}
+
+size_t msconnector_json_escape(const char *src, char *dst, size_t dst_size) {
+    size_t position = 0;
+
+    if (src == 0) {
+        src = "";
+    }
+
+    for (size_t index = 0; src[index] != '\0'; ++index) {
+        const unsigned char value = (unsigned char)src[index];
+
+        switch (value) {
+        case '"':
+            append_json_escape_sequence('"', dst, dst_size, &position);
+            break;
+        case '\\':
+            append_json_escape_sequence('\\', dst, dst_size, &position);
+            break;
+        case '\n':
+            append_json_escape_sequence('n', dst, dst_size, &position);
+            break;
+        case '\r':
+            append_json_escape_sequence('r', dst, dst_size, &position);
+            break;
+        case '\t':
+            append_json_escape_sequence('t', dst, dst_size, &position);
+            break;
+        default:
+            if (value < 0x20U) {
+                append_json_control_escape(value, dst, dst_size, &position);
+            } else {
+                append_json_char((char)value, dst, dst_size, &position);
+            }
+            break;
+        }
+    }
+
+    if (dst != 0 && dst_size != 0) {
+        dst[position < dst_size ? position : dst_size - 1U] = '\0';
+    }
+
+    return position;
+}

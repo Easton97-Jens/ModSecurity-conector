@@ -1,4 +1,6 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+MSCONNECTOR_C_STD ?= c17
+MSCONNECTOR_CFLAGS ?= -std=$(MSCONNECTOR_C_STD) -Wall -Wextra -Werror
 FRAMEWORK_PYTHON := $(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON))
 VERIFIED_RUN_PARENT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),/var/tmp))
 VERIFIED_RUN_ROOT ?= $(VERIFIED_RUN_PARENT)/ModSecurity-conector-verified
@@ -626,12 +628,18 @@ probe-response-body: check-framework prepare-runtime-components
 connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
-.PHONY: check-common-helpers check-common-sdk-contract check-block-status-generator
+.PHONY: check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-sdk-contract check-block-status-generator
 check-block-status-generator:
 	$(PYTHON) ci/check-block-status-generator.py
 
 check-common-helpers:
-	sh ci/check-common-helpers.sh
+	MSCONNECTOR_C_STD="$(MSCONNECTOR_C_STD)" MSCONNECTOR_CFLAGS="$(MSCONNECTOR_CFLAGS)" sh ci/check-common-helpers.sh
+
+check-common-helpers-c17:
+	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c17
+
+check-common-helpers-c23:
+	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c23
 
 check-common-sdk-contract:
 	$(PYTHON) ci/check-common-sdk-contract.py

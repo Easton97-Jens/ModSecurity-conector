@@ -1,6 +1,7 @@
 #include "msconnector/directive_spec.h"
 #include "msconnector/directives.h"
 #include <string.h>
+
 static const msconnector_directive_spec specs[] = {
     {MSCONNECTOR_DIRECTIVE_MODSECURITY, MSCONNECTOR_DIRECTIVE_VALUE_BOOL, "off", "on|off", "Enable or disable connector processing."},
     {MSCONNECTOR_DIRECTIVE_RULES, MSCONNECTOR_DIRECTIVE_VALUE_STRING, 0, 0, "Inline rules text."},
@@ -14,6 +15,25 @@ static const msconnector_directive_spec specs[] = {
     {MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT, MSCONNECTOR_DIRECTIVE_VALUE_SIZE, "1048576", 0, "Phase 4 body limit."},
     {MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG, MSCONNECTOR_DIRECTIVE_VALUE_BOOL, "on", "on|off", "Use connector error log."}
 };
-const msconnector_directive_spec *msconnector_directive_specs(void) { return specs; }
-size_t msconnector_directive_spec_count(void) { return sizeof(specs) / sizeof(specs[0]); }
-const msconnector_directive_spec *msconnector_directive_spec_find(const char *name) { size_t i; if (!name) return 0; for (i = 0; i < msconnector_directive_spec_count(); ++i) if (strcmp(specs[i].name, name) == 0) return &specs[i]; return 0; }
+
+const msconnector_directive_spec *msconnector_directive_specs(void) {
+    return specs;
+}
+
+size_t msconnector_directive_spec_count(void) {
+    return sizeof(specs) / sizeof(specs[0]);
+}
+
+const msconnector_directive_spec *msconnector_directive_spec_find(const char *name) {
+    if (name == 0) {
+        return 0;
+    }
+
+    for (size_t index = 0; index < msconnector_directive_spec_count(); ++index) {
+        if (strcmp(specs[index].name, name) == 0) {
+            return &specs[index];
+        }
+    }
+
+    return 0;
+}
