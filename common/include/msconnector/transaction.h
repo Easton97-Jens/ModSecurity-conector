@@ -27,25 +27,8 @@ typedef struct msconnector_transaction_view {
     msconnector_intervention intervention;
 } msconnector_transaction_view;
 
-typedef struct msconnector_decision {
-    enum msconnector_status status;
-    msconnector_intervention intervention;
-    const char *rule_id;
-    const char *reason;
-} msconnector_decision;
+#include "msconnector/decision.h"
 
-msconnector_decision msconnector_decision_make(
-    enum msconnector_status status,
-    msconnector_intervention intervention,
-    const char *rule_id,
-    const char *reason);
-msconnector_decision msconnector_decision_allow(
-    const char *rule_id,
-    const char *reason);
-msconnector_decision msconnector_decision_block(
-    int http_status,
-    const char *rule_id,
-    const char *reason);
 
 #ifdef __cplusplus
 }

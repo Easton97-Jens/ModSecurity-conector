@@ -50,3 +50,13 @@ C++20, C++23, and C++26 apply only to C++ wrapper checks, not C `.c` files. No n
 | NOT VERIFIED | c:S1066-equivalent nested-if finding | UNKNOWN | CODE_SMELL | common/src/event.c | escape helper | Merge this `if` statement with the enclosing one. | Merged the truncation-condition check with the null-output-parameter check in `escape_field()`. | Local smoke and contract checks run in this PR update; SonarCloud after-count NOT VERIFIED. |
 
 SonarCloud after-count: NOT VERIFIED.
+
+## Common SDK expansion after review
+
+This update adds connector-neutral helper modules for header duplicate and
+Set-Cookie/Content-Length policy, the common decision model, common error model,
+rule-loader backend orchestration, a ModSecurity engine facade, and a
+transaction-ID resolver. These modules are common SDK scaffolding only and do not
+change connector runtime behavior.
+
+SonarCloud after-count: NOT VERIFIED.

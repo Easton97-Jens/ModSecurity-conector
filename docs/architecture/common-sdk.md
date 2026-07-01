@@ -54,3 +54,50 @@ The common event model represents this with
 was aborted."
 
 No connector currently emits this event from this common model in this PR.
+
+## Header policy
+
+Common header helpers perform case-insensitive lookup, first/last duplicate
+selection, and duplicate counts. Content-Type matching accepts an exact media
+type or a parameter separator after optional whitespace; whitespace followed by
+other text is not treated as a match. `Set-Cookie`, `Cookie`, `Content-Length`,
+and `Host` are not treated as comma-combinable by the common helper. Duplicate
+identical `Content-Length` values are accepted by the parser, while conflicting,
+empty, signed, invalid, or overflowing values fail. Header log sanitizing
+replaces control characters so multiline values are not emitted directly; it is
+not redaction and connectors remain responsible for not passing secrets.
+
+## Decision model
+
+The common decision model represents connector-neutral outcomes: allow,
+log-only, deny, redirect, drop, connection-abort, error, and unsupported. It can
+map decisions to common events, including action names and HTTP status metadata.
+This is only a data model until a connector explicitly adopts it.
+
+## Error model
+
+The common error model defines stable error codes, default messages, status
+mapping, HTTP status mapping, fatal classification, and conversion to common
+events. It does not change connector error handling by itself.
+
+## Rule loader
+
+The rule loader is an orchestration helper around caller-provided backend
+callbacks for inline, file, and remote rules. It tracks `msconnector_rule_load_stats`
+but does not own the native rules object and does not include libmodsecurity
+headers.
+
+## ModSecurity engine facade
+
+The ModSecurity engine facade is a connector-neutral lifecycle and transaction
+phase wrapper around caller-provided backend callbacks. It does not include or
+link libmodsecurity by itself. Actual libmodsecurity bindings remain future
+connector-specific or optional adapter work.
+
+## Transaction ID policy
+
+The transaction ID resolver checks sources in this order: static config ID,
+config expression callback, host request ID, configured header, then fallback ID.
+Resolved IDs must be non-empty printable ASCII, must not contain CR/LF or other
+control characters, and must fit the fixed common result buffer without
+truncation.

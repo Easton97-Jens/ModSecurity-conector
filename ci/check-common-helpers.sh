@@ -48,19 +48,143 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/decision_action.h"
 #include "msconnector/directive_spec.h"
 #include "msconnector/directives.h"
+#include "msconnector/decision.h"
+#include "msconnector/error.h"
 #include "msconnector/event.h"
 #include "msconnector/headers.h"
 #include "msconnector/http_status.h"
 #include "msconnector/json_escape.h"
 #include "msconnector/late_intervention.h"
+#include "msconnector/modsecurity_engine.h"
 #include "msconnector/lifecycle_status.h"
 #include "msconnector/path_policy.h"
 #include "msconnector/redaction.h"
+#include "msconnector/rule_loader.h"
 #include "msconnector/test_result.h"
+#include "msconnector/transaction_id.h"
 #include "msconnector/transaction_state.h"
 
 #include <assert.h>
 #include <string.h>
+
+typedef struct fake_backend_state {
+    int inline_calls;
+    int file_calls;
+    int remote_calls;
+    int init_calls;
+    int cleanup_calls;
+    int create_rules_calls;
+    int new_transaction_calls;
+    int request_headers_calls;
+    int response_body_calls;
+    int logging_calls;
+    int fail_next;
+} fake_backend_state;
+
+static int fake_add_inline(void *userdata, void *rules_set, const char *rules, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)rules_set;
+    (void)rules;
+    (void)error;
+    if (state->fail_next) { state->fail_next = 0; return 0; }
+    ++state->inline_calls;
+    return 1;
+}
+
+static int fake_add_file(void *userdata, void *rules_set, const char *path, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)rules_set;
+    (void)path;
+    (void)error;
+    if (state->fail_next) { state->fail_next = 0; return 0; }
+    ++state->file_calls;
+    return 1;
+}
+
+static int fake_add_remote(void *userdata, void *rules_set, const char *key, const char *url, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)rules_set;
+    (void)key;
+    (void)url;
+    (void)error;
+    if (state->fail_next) { state->fail_next = 0; return 0; }
+    ++state->remote_calls;
+    return 1;
+}
+
+static int fake_engine_init(void *userdata, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)error;
+    ++state->init_calls;
+    return 1;
+}
+
+static void fake_engine_cleanup(void *userdata) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    ++state->cleanup_calls;
+}
+
+static void *fake_create_rules(void *userdata, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)error;
+    ++state->create_rules_calls;
+    return state;
+}
+
+static void fake_destroy_rules(void *userdata, void *rules_set) {
+    (void)userdata;
+    (void)rules_set;
+}
+
+static void *fake_new_transaction(void *userdata, void *rules_set, const char *transaction_id, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)rules_set;
+    (void)transaction_id;
+    (void)error;
+    ++state->new_transaction_calls;
+    return state;
+}
+
+static void fake_free_transaction(void *userdata, void *transaction) {
+    (void)userdata;
+    (void)transaction;
+}
+
+static int fake_process_request_headers(void *userdata, void *transaction, const msconnector_request *request, msconnector_decision *decision, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)transaction;
+    (void)request;
+    (void)error;
+    ++state->request_headers_calls;
+    if (decision != 0) { msconnector_decision_set_allow(decision); }
+    return 1;
+}
+
+static int fake_process_response_body(void *userdata, void *transaction, const msconnector_response *response, msconnector_decision *decision, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)transaction;
+    (void)response;
+    (void)error;
+    ++state->response_body_calls;
+    if (decision != 0) { msconnector_decision_set_connection_abort(decision, "900", "phase4"); }
+    return 1;
+}
+
+static int fake_process_logging(void *userdata, void *transaction, msconnector_error *error) {
+    fake_backend_state *state = (fake_backend_state *)userdata;
+    (void)transaction;
+    (void)error;
+    ++state->logging_calls;
+    return 1;
+}
+
+static int fake_expr_eval(void *userdata, const msconnector_request *request, char *out, size_t out_len) {
+    (void)userdata;
+    (void)request;
+    if (out_len < 8U) { return 0; }
+    strcpy(out, "expr-id");
+    return 1;
+}
 
 int main(void) {
     msconnector_blocking_policy blocking_policy;
@@ -357,6 +481,197 @@ int main(void) {
     assert(!msconnector_path_has_parent_reference("folder..name/file"));
     assert(!msconnector_path_has_parent_reference("safe/path"));
     assert(!msconnector_path_has_parent_reference("safe\\path"));
+    {
+        const msconnector_header headers[] = {
+            {"Content-Length", 14, " 42 ", 4},
+            {"content-length", 14, "42", 2},
+            {"Set-Cookie", 10, "a=b", 3},
+            {"Host", 4, "example.test", 12},
+            {"X-Test", 6, "first", 5},
+            {"x-test", 6, "last", 4}
+        };
+        const msconnector_header conflicting[] = {
+            {"Content-Length", 14, "42", 2},
+            {"Content-Length", 14, "43", 2}
+        };
+        const msconnector_header invalid_cl[] = {{"Content-Length", 14, "+1", 2}};
+        size_t content_length = 0;
+        char sanitized[8];
+        int truncated = 0;
+        assert(msconnector_headers_count_name(headers, 6, "x-test") == 2U);
+        assert(msconnector_headers_find_first(headers, 6, "x-test") == &headers[4]);
+        assert(msconnector_headers_find_last(headers, 6, "x-test") == &headers[5]);
+        assert(!msconnector_header_value_can_be_combined("Set-Cookie", 10));
+        assert(!msconnector_header_value_can_be_combined("Content-Length", 14));
+        assert(msconnector_header_value_can_be_combined("Accept", 6));
+        assert(msconnector_headers_parse_content_length(headers, 6, &content_length) == 1);
+        assert(content_length == 42U);
+        assert(msconnector_headers_parse_content_length(conflicting, 2, &content_length) == -1);
+        assert(msconnector_headers_parse_content_length(invalid_cl, 1, &content_length) == -1);
+        assert(strcmp(msconnector_headers_host(headers, 6), "example.test") == 0);
+        assert(msconnector_header_sanitize_value_for_log("a\r\nb", 4, sanitized, sizeof(sanitized), &truncated) == 4U);
+        assert(strcmp(sanitized, "a  b") == 0);
+        assert(!truncated);
+        assert(msconnector_header_sanitize_value_for_log("abcdef", 6, sanitized, 4, &truncated) == 6U);
+        assert(truncated);
+    }
+    {
+        msconnector_event event;
+        char json[2048];
+        msconnector_decision model_decision;
+        msconnector_decision_set_allow(&model_decision);
+        assert(msconnector_decision_is_allow(&model_decision));
+        msconnector_decision_set_log_only(&model_decision, "observe");
+        assert(!msconnector_decision_is_disruptive(&model_decision));
+        msconnector_decision_set_deny(&model_decision, 0, "1", "deny");
+        assert(msconnector_decision_is_deny(&model_decision));
+        assert(model_decision.http_status == 403);
+        msconnector_decision_set_deny(&model_decision, 406, "1", "deny");
+        assert(model_decision.http_status == 406);
+        msconnector_decision_set_deny(&model_decision, 429, "1", "deny");
+        assert(model_decision.http_status == 429);
+        msconnector_decision_set_deny(&model_decision, 200, "1", "deny");
+        assert(model_decision.http_status == 500);
+        msconnector_decision_set_redirect(&model_decision, 302, "https://example.test/", "2", "redirect");
+        assert(msconnector_decision_is_redirect(&model_decision));
+        assert(strcmp(model_decision.redirect_url, "https://example.test/") == 0);
+        msconnector_decision_set_drop(&model_decision, "3", "drop");
+        assert(msconnector_decision_is_drop(&model_decision));
+        msconnector_decision_set_connection_abort(&model_decision, "4", "abort");
+        assert(msconnector_decision_is_connection_abort(&model_decision));
+        msconnector_decision_set_unsupported(&model_decision, "unsupported");
+        assert(model_decision.http_status == 501);
+        msconnector_decision_set_error(&model_decision, 0, "error");
+        assert(model_decision.http_status == 500);
+        assert(msconnector_decision_to_event(&model_decision, &event, "common", "tx-decision"));
+        assert(msconnector_event_write_json(&event, json, sizeof(json)));
+        assert(strstr(json, "\"message_id\":") != 0);
+        assert(strstr(json, "\"action\":\"error\"") != 0);
+        assert(strstr(json, "\"request_body\":") == 0);
+        assert(strstr(json, "\"response_body\":") == 0);
+    }
+    {
+        msconnector_error error;
+        msconnector_event event;
+        char json[1024];
+        msconnector_error_init(&error);
+        assert(strcmp(msconnector_error_code_name(MSCONNECTOR_ERROR_TIMEOUT), "timeout") == 0);
+        assert(msconnector_error_default_message(MSCONNECTOR_ERROR_INTERNAL) != 0);
+        assert(msconnector_error_status(MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY) == MSCONNECTOR_STATUS_UNSUPPORTED);
+        assert(msconnector_error_http_status(MSCONNECTOR_ERROR_TIMEOUT) == 504);
+        assert(msconnector_error_is_fatal(MSCONNECTOR_ERROR_INTERNAL));
+        msconnector_error_set(&error, MSCONNECTOR_ERROR_RULE_PARSE_FAILED, "parse failed", "smoke");
+        assert(msconnector_error_to_event(&error, &event, "common", "tx-error"));
+        assert(msconnector_event_write_json(&event, json, sizeof(json)));
+        assert(strstr(json, "parse failed") != 0);
+    }
+    {
+        fake_backend_state state = {0};
+        msconnector_rule_loader_backend backend = {&state, fake_add_inline, fake_add_file, fake_add_remote};
+        msconnector_rule_loader loader;
+        msconnector_error error;
+        msconnector_config config;
+        const msconnector_rule_load_stats *stats;
+        msconnector_rule_loader_init(&loader, &state, &backend);
+        assert(msconnector_rule_loader_add_inline(&loader, "SecRule ARGS x", &error));
+        assert(msconnector_rule_loader_add_file(&loader, "rules.conf", &error));
+        assert(msconnector_rule_loader_add_remote(&loader, "key", "https://example.test/rules", &error));
+        stats = msconnector_rule_loader_stats(&loader);
+        assert(stats->inline_rules == 1);
+        assert(stats->file_rules == 1);
+        assert(stats->remote_rules == 1);
+        assert(!msconnector_rule_loader_add_remote(&loader, 0, "url", &error));
+        assert(!msconnector_rule_loader_add_file(&loader, "../rules.conf", &error));
+        state.fail_next = 1;
+        assert(!msconnector_rule_loader_add_inline(&loader, "fail", &error));
+        assert(stats->inline_rules == 1);
+        msconnector_config_init(&config);
+        config.rules_inline = "inline";
+        config.rules_file = "rules.conf";
+        config.rules_remote_key = "key";
+        config.rules_remote_url = "url";
+        assert(msconnector_rule_loader_load_config(&loader, &config, &error));
+        assert(state.inline_calls >= 2);
+        assert(state.file_calls >= 2);
+        assert(state.remote_calls >= 2);
+    }
+    {
+        fake_backend_state state = {0};
+        msconnector_modsecurity_engine_ops ops;
+        msconnector_modsecurity_engine engine;
+        msconnector_modsecurity_transaction tx;
+        msconnector_decision engine_decision;
+        msconnector_error error;
+        memset(&ops, 0, sizeof(ops));
+        ops.userdata = &state;
+        ops.init = fake_engine_init;
+        ops.cleanup = fake_engine_cleanup;
+        ops.create_rules_set = fake_create_rules;
+        ops.destroy_rules_set = fake_destroy_rules;
+        ops.new_transaction = fake_new_transaction;
+        ops.free_transaction = fake_free_transaction;
+        ops.process_request_headers = fake_process_request_headers;
+        ops.process_response_body = fake_process_response_body;
+        ops.process_logging = fake_process_logging;
+        msconnector_modsecurity_engine_init(&engine, &ops);
+        assert(msconnector_modsecurity_engine_start(&engine, &error));
+        assert(msconnector_modsecurity_engine_create_rules(&engine, &error));
+        assert(msconnector_modsecurity_transaction_init(&tx, &engine, "tx-engine", &error));
+        assert(msconnector_modsecurity_process_request_headers(&tx, 0, &engine_decision, &error));
+        assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_REQUEST_HEADERS));
+        assert(msconnector_modsecurity_process_response_body(&tx, 0, &engine_decision, &error));
+        assert(msconnector_decision_is_connection_abort(&engine_decision));
+        assert(msconnector_modsecurity_process_logging(&tx, &error));
+        assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_LOGGING));
+        msconnector_modsecurity_transaction_cleanup(&tx);
+        msconnector_modsecurity_transaction_cleanup(&tx);
+        msconnector_modsecurity_engine_cleanup(&engine);
+        msconnector_modsecurity_engine_cleanup(&engine);
+        memset(&ops, 0, sizeof(ops));
+        msconnector_modsecurity_engine_init(&engine, &ops);
+        assert(!msconnector_modsecurity_engine_start(&engine, &error));
+    }
+    {
+        msconnector_config config;
+        msconnector_request request;
+        msconnector_header headers[] = {{"X-Request-ID", 12, "header-id", 9}};
+        msconnector_transaction_id_context ctx;
+        msconnector_transaction_id_result result;
+        msconnector_error error;
+        memset(&request, 0, sizeof(request));
+        request.headers = headers;
+        request.header_count = 1;
+        msconnector_config_init(&config);
+        memset(&ctx, 0, sizeof(ctx));
+        ctx.config = &config;
+        ctx.request = &request;
+        ctx.header_name = "X-Request-ID";
+        ctx.host_request_id = "host-id";
+        ctx.fallback_id = "fallback-id";
+        config.transaction_id = "static-id";
+        assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
+        assert(result.source == MSCONNECTOR_TRANSACTION_ID_SOURCE_STATIC);
+        config.transaction_id = 0;
+        config.transaction_id_expr = "expr";
+        ctx.expr_eval = fake_expr_eval;
+        assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
+        assert(strcmp(result.value, "expr-id") == 0);
+        ctx.expr_eval = 0;
+        assert(!msconnector_transaction_id_resolve(&ctx, &result, &error));
+        config.transaction_id_expr = 0;
+        assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
+        assert(result.source == MSCONNECTOR_TRANSACTION_ID_SOURCE_HOST);
+        ctx.host_request_id = 0;
+        assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
+        assert(result.source == MSCONNECTOR_TRANSACTION_ID_SOURCE_HEADER);
+        ctx.header_name = 0;
+        assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
+        assert(result.source == MSCONNECTOR_TRANSACTION_ID_SOURCE_FALLBACK);
+        assert(!msconnector_transaction_id_validate("bad\nid"));
+        assert(!msconnector_transaction_id_validate("  spaced"));
+        assert(!msconnector_transaction_id_copy("01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567", result.value, sizeof(result.value)));
+        assert(strcmp(msconnector_transaction_id_source_name(MSCONNECTOR_TRANSACTION_ID_SOURCE_HEADER), "header") == 0);
+    }
     {
         msconnector_event event;
         char json[4096];

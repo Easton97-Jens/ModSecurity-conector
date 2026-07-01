@@ -49,6 +49,18 @@ for source in (COMMON / "src").glob("*.c"):
     if expected not in text:
         fail(f"missing matching header include {expected} in {source.relative_to(ROOT)}")
 
+for required_header in (
+    "decision.h",
+    "error.h",
+    "rule_loader.h",
+    "modsecurity_engine.h",
+    "transaction_id.h",
+):
+    if not (COMMON / "include" / "msconnector" / required_header).is_file():
+        fail(f"missing common SDK header {required_header}")
+    if not (COMMON / "src" / required_header.replace(".h", ".c")).is_file():
+        fail(f"missing common SDK source {required_header.replace('.h', '.c')}")
+
 for root in SEARCH_ROOTS:
     for path in root.rglob("*"):
         if not path.is_file():
@@ -175,6 +187,28 @@ if "merge_remote_rules_pair" not in config_source or "merge_transaction_id_pair"
     fail("config merge must preserve paired remote-rule and transaction-id fields")
 if "is_path_separator" not in path_policy_source or "\\" not in path_policy_source:
     fail("path policy must treat backslash as a parent-traversal separator")
+
+if "set-cookie" not in headers_source or "content-length" not in headers_source or "msconnector_headers_parse_content_length" not in headers_source:
+    fail("headers.c must contain Set-Cookie and Content-Length duplicate-header policy")
+decision_source = (ROOT / "common" / "src" / "decision.c").read_text(encoding="utf-8")
+error_source = (ROOT / "common" / "src" / "error.c").read_text(encoding="utf-8")
+rule_loader_source = (ROOT / "common" / "src" / "rule_loader.c").read_text(encoding="utf-8")
+engine_source = (ROOT / "common" / "src" / "modsecurity_engine.c").read_text(encoding="utf-8")
+transaction_id_source = (ROOT / "common" / "src" / "transaction_id.c").read_text(encoding="utf-8")
+if "msconnector_decision_to_event" not in decision_source:
+    fail("decision.c must expose decision_to_event integration")
+if "msconnector_error_to_event" not in error_source:
+    fail("error.c must expose error_to_event integration")
+if "backend.add_inline" not in rule_loader_source or "msconnector_rule_load_stats_add_inline" not in rule_loader_source:
+    fail("rule_loader.c must use backend callbacks and rule_load_stats")
+if "modsecurity/" in engine_source.lower() or "modsecurity.h" in engine_source.lower():
+    fail("modsecurity_engine.c must not include libmodsecurity headers directly")
+if "ops." not in engine_source or "msconnector_transaction_state_mark_phase" not in engine_source:
+    fail("modsecurity_engine.c must use backend ops and mark transaction phases")
+if "\\n" not in transaction_id_source and "< 32U" not in transaction_id_source:
+    fail("transaction_id.c must reject CR/LF/control characters")
+if "expr_eval" not in transaction_id_source:
+    fail("transaction_id.c must support callback expression resolution")
 
 event_header = (ROOT / "common" / "include" / "msconnector" / "event.h").read_text(encoding="utf-8")
 event_source = (ROOT / "common" / "src" / "event.c").read_text(encoding="utf-8")
