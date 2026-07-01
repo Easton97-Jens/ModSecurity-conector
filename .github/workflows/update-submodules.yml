@@ -1,0 +1,57 @@
+name: Update submodules
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-submodules:
+    name: Update submodules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Update submodules recursively
+        run: git submodule update --remote --recursive
+
+      - name: Run quick check
+        id: quick-check
+        continue-on-error: true
+        run: make quick-check
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: chore: update submodules
+          commit-message: chore: update submodules
+          branch: chore/update-submodules
+          base: master
+          delete-branch: true
+          body: |
+            Updates all Git submodules recursively using:
+
+            ```sh
+            git submodule update --remote --recursive
+            ```
+
+            Validation:
+            - `make quick-check`: ${{ steps.quick-check.outcome }}
+
+            If `make quick-check` failed, this pull request is still opened so the update can be reviewed.
+
+      - name: Fail if quick check failed
+        if: steps.quick-check.outcome == 'failure'
+        run: |
+          echo "make quick-check failed after updating submodules. Review the generated pull request."
+          exit 1
