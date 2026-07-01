@@ -26,15 +26,15 @@ jobs:
         run: git submodule update --remote --recursive
 
       - name: Run quick check
-        id: quick-check
+        id: quick_check
         continue-on-error: true
         run: make quick-check
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
         with:
-          title: chore: update submodules
-          commit-message: chore: update submodules
+          title: "chore: update submodules"
+          commit-message: "chore: update submodules"
           branch: chore/update-submodules
           base: master
           delete-branch: true
@@ -46,12 +46,12 @@ jobs:
             ```
 
             Validation:
-            - `make quick-check`: ${{ steps.quick-check.outcome }}
+            - `make quick-check`: ${{ steps.quick_check.outcome }}
 
             If `make quick-check` failed, this pull request is still opened so the update can be reviewed.
 
       - name: Fail if quick check failed
-        if: steps.quick-check.outcome == 'failure'
+        if: steps.quick_check.outcome == 'failure'
         run: |
           echo "make quick-check failed after updating submodules. Review the generated pull request."
           exit 1
