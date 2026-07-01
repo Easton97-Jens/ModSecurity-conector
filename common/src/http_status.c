@@ -9,6 +9,7 @@ static const char *const UNKNOWN_DEFAULT_MESSAGE = "HTTP status";
 static const char *const INVALID_DEFAULT_MESSAGE = "Invalid HTTP status";
 
 static const msconnector_http_status_info http_statuses[] = {
+    {200, "OK", "Request succeeded", MSCONNECTOR_HTTP_STATUS_CLASS_SUCCESS, 0},
     {400, "Bad Request", "Bad request", MSCONNECTOR_HTTP_STATUS_CLASS_CLIENT_ERROR, 1},
     {401, "Unauthorized", "Authentication required", MSCONNECTOR_HTTP_STATUS_CLASS_CLIENT_ERROR, 1},
     {403, "Forbidden", "Request blocked", MSCONNECTOR_HTTP_STATUS_CLASS_CLIENT_ERROR, 1},

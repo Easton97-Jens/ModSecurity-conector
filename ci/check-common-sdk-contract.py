@@ -111,7 +111,10 @@ def extract_http_status_table_statuses(source_text: str) -> set[int]:
     )
     if table_match is None:
         fail("common/src/http_status.c does not expose a parseable http_statuses table")
-    return {int(value) for value in re.findall(r"\{\s*(\d{3})\s*,", table_match.group("body"))}
+    return {
+        int(match.group(1))
+        for match in re.finditer(r"\{\s*(\d{3})\s*,[^{}]*,\s*1\s*\}", table_match.group("body"))
+    }
 
 
 def extract_generator_statuses(source_text: str) -> set[int]:
@@ -139,5 +142,20 @@ if "case 400:" in block_status_source or "case 403:" in block_status_source:
     fail("common/src/block_statuses.c must delegate block status decisions instead of keeping a divergent switch list")
 if "msconnector_http_status_is_block_response" not in block_status_source:
     fail("common/src/block_statuses.c does not delegate block status allow checks to HTTP status metadata")
+
+event_header = (ROOT / "common" / "include" / "msconnector" / "event.h").read_text(encoding="utf-8")
+event_source = (ROOT / "common" / "src" / "event.c").read_text(encoding="utf-8")
+if "message_id" not in event_header or "message;" not in event_header:
+    fail("common event model must contain message_id and message fields")
+if "requested_action" not in event_header or "actual_action" not in event_header:
+    fail("common event model must contain requested_action and actual_action fields")
+if "msconnector_event_set_phase4_hard_abort_after_200" not in event_header or "MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200" not in event_source:
+    fail("common event model must expose the Phase 4 hard-abort-after-200 helper")
+if "body_payload" in event_source or "request_body" in event_source or "response_body" in event_source:
+    fail("common event JSON writer must not include request/response body payload fields")
+if "truncated" not in event_header or "truncated" not in event_source:
+    fail("common event JSON writer must expose truncation")
+if '{200, "OK", "Request succeeded", MSCONNECTOR_HTTP_STATUS_CLASS_SUCCESS, 0}' not in http_status_source:
+    fail("common HTTP status metadata must include non-blocking 200 OK metadata")
 
 print("common-sdk-contract: pass")

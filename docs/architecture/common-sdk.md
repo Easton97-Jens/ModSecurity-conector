@@ -31,3 +31,23 @@ suitability. It does not change connector runtime responses. NGINX, Apache,
 HAProxy, Envoy, Traefik, lighttpd, and future connectors must explicitly map to
 this metadata in later connector-specific changes before any runtime response
 message behavior can be claimed.
+
+## Event and log message model
+
+The common event model is connector-neutral metadata intended for future runtime
+integration. It does not change existing connector logs by itself. The model
+avoids request and response body payloads by design, and includes message IDs,
+short operator-facing messages, HTTP status metadata, action metadata,
+redaction markers, and truncation markers so future connector integrations can
+produce understandable logs without leaking payloads by default.
+
+### Phase 4 hard abort after HTTP 200
+
+If Phase 4 detects a blocking rule after a response has already started with
+HTTP 200, a connector may not be able to send a clean replacement HTTP status.
+The common event model represents this with
+`MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200` and the short message:
+"Response already started with HTTP 200; Phase 4 requested a block; connection
+was aborted."
+
+No connector currently emits this event from this common model in this PR.

@@ -299,11 +299,47 @@ int main(void) {
     assert(msconnector_path_has_parent_reference("a/../b"));
     {
         msconnector_event event;
-        char json[256];
+        char json[4096];
+        char small_json[64];
+        int truncated = 0;
         msconnector_event_init(&event);
         event.event = "smoke";
         assert(strcmp(msconnector_event_status_name(&event), "ok") == 0);
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
+
+        msconnector_event_set_phase4_hard_abort_after_200(
+            &event,
+            "nginx",
+            "tx-1",
+            "1001",
+            "phase4 rule matched");
+        assert(strcmp(event.message_id, MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200) == 0);
+        assert(strcmp(event.message, "Response already started with HTTP 200; Phase 4 requested a block; connection was aborted.") == 0);
+        assert(event.http_status == 200);
+        assert(event.original_http_status == 200);
+        assert(event.visible_http_status == 200);
+        assert(event.late_intervention == 1);
+        assert(event.response_started == 1);
+        assert(event.headers_sent == 1);
+        assert(event.connection_aborted == 1);
+        assert(strcmp(event.requested_action, "deny") == 0);
+        assert(strcmp(event.actual_action, "connection_abort") == 0);
+        assert(strcmp(msconnector_http_status_reason_phrase(200), "OK") == 0);
+        assert(strcmp(msconnector_http_status_default_message(200), "Request succeeded") == 0);
+        assert(!msconnector_http_status_is_block_response(200));
+        assert(msconnector_event_write_json_ex(&event, json, sizeof(json), &truncated));
+        assert(!truncated);
+        assert(strstr(json, "\"message_id\":\"MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200\"") != 0);
+        assert(strstr(json, "Response already started with HTTP 200; Phase 4 requested a block; connection was aborted.") != 0);
+        assert(strstr(json, "\"http_reason_phrase\":\"OK\"") != 0);
+        assert(strstr(json, "\"http_default_message\":\"Request succeeded\"") != 0);
+        assert(strstr(json, "\"requested_action\":\"deny\"") != 0);
+        assert(strstr(json, "\"actual_action\":\"connection_abort\"") != 0);
+        assert(strstr(json, "\"late_intervention\":true") != 0);
+        assert(strstr(json, "\"connection_aborted\":true") != 0);
+        assert(strstr(json, "body_payload") == 0);
+        assert(!msconnector_event_write_json_ex(&event, small_json, sizeof(small_json), &truncated));
+        assert(truncated);
     }
 
     return 0;
