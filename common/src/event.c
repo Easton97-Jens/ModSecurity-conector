@@ -144,6 +144,9 @@ int msconnector_event_write_json_ex(
     if (truncated != 0) {
         *truncated = 0;
     }
+    if (dst != 0 && dst_size > 0) {
+        dst[0] = '\0';
+    }
     if (event == 0 || dst == 0 || dst_size == 0) {
         return 0;
     }
@@ -207,7 +210,7 @@ int msconnector_event_write_json_ex(
     if (truncated != 0) {
         *truncated = was_truncated;
     }
-    return !was_truncated;
+    return was_truncated ? 0 : 1;
 }
 
 int msconnector_event_write_json(const msconnector_event *event, char *dst, size_t dst_size) {

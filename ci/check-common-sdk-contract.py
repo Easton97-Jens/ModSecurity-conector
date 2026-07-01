@@ -85,6 +85,13 @@ if "--profile c23" not in makefile_text or "c2x" not in makefile_text:
 if "--profile c2y" not in makefile_text or "gnu2y" not in makefile_text:
     fail("optional future-C c2y/gnu2y common helper check is not wired")
 
+if "MSCONNECTOR_COMPILER_ID ?=" not in makefile_text:
+    fail("Makefile must derive a common smoke compiler id for optional standard probes")
+if '--compiler "$(MSCONNECTOR_COMPILER_ID)"' not in makefile_text:
+    fail("optional C standard probes must use the same compiler id as the smoke")
+if 'check-common-helpers CC="$(MSCONNECTOR_COMPILER_ID)"' not in makefile_text:
+    fail("optional C standard smokes must compile with the probed compiler id")
+
 
 detect_text = (ROOT / "ci" / "detect-c-standard.py").read_text(encoding="utf-8")
 if "args.cc" in detect_text or 'parser.add_argument("--cc"' in detect_text:
@@ -143,6 +150,19 @@ if "case 400:" in block_status_source or "case 403:" in block_status_source:
 if "msconnector_http_status_is_block_response" not in block_status_source:
     fail("common/src/block_statuses.c does not delegate block status allow checks to HTTP status metadata")
 
+
+headers_source = (ROOT / "common" / "src" / "headers.c").read_text(encoding="utf-8")
+config_source = (ROOT / "common" / "src" / "config.c").read_text(encoding="utf-8")
+path_policy_source = (ROOT / "common" / "src" / "path_policy.c").read_text(encoding="utf-8")
+if "suffix_index" not in headers_source or "isspace" not in headers_source or "header->value[suffix_index] == ';'" not in headers_source:
+    fail("Content-Type matching must reject whitespace followed by garbage after the media type")
+if "msconnector_block_status_is_allowed" not in config_source or "validate_block_status_value" not in config_source:
+    fail("default_block_status validation must use block-status allowance metadata")
+if "merge_remote_rules_pair" not in config_source or "merge_transaction_id_pair" not in config_source:
+    fail("config merge must preserve paired remote-rule and transaction-id fields")
+if "is_path_separator" not in path_policy_source or "\\" not in path_policy_source:
+    fail("path policy must treat backslash as a parent-traversal separator")
+
 event_header = (ROOT / "common" / "include" / "msconnector" / "event.h").read_text(encoding="utf-8")
 event_source = (ROOT / "common" / "src" / "event.c").read_text(encoding="utf-8")
 if "message_id" not in event_header or "message;" not in event_header:
@@ -155,6 +175,8 @@ if "body_payload" in event_source or "request_body" in event_source or "response
     fail("common event JSON writer must not include request/response body payload fields")
 if "truncated" not in event_header or "truncated" not in event_source:
     fail("common event JSON writer must expose truncation")
+if "msconnector_event_write_json_ex" not in event_source or "return was_truncated ? 0 : 1" not in event_source:
+    fail("common event JSON writer must fail success status when truncation is detected")
 if '{200, "OK", "Request succeeded", MSCONNECTOR_HTTP_STATUS_CLASS_SUCCESS, 0}' not in http_status_source:
     fail("common HTTP status metadata must include non-blocking 200 OK metadata")
 

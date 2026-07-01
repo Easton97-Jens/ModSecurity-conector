@@ -235,14 +235,65 @@ int main(void) {
         assert(merged_config.enable == MSCONNECTOR_BOOL_ON);
         assert(merged_config.default_block_status == MSCONNECTOR_DEFAULT_BLOCK_STATUS);
         assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
+
+        merged_config.default_block_status = 403;
+        assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.default_block_status = 200;
+        error[0] = '\0';
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        assert(error[0] != '\0');
+        merged_config.default_block_status = 99;
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.default_block_status = 600;
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+
+        msconnector_config_init(&parent_config);
+        msconnector_config_init(&child_config);
+        parent_config.rules_remote_key = "parent-key";
+        child_config.rules_remote_url = "https://example.invalid/rules.conf";
+        assert(!msconnector_config_merge(&merged_config, &parent_config, &child_config));
+        assert(merged_config.rules_remote_key == 0);
+        assert(strcmp(merged_config.rules_remote_url, "https://example.invalid/rules.conf") == 0);
+
+        msconnector_config_init(&parent_config);
+        msconnector_config_init(&child_config);
+        parent_config.transaction_id = "parent-id";
+        child_config.transaction_id_expr = "child-expr";
+        assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
+        assert(merged_config.transaction_id == 0);
+        assert(strcmp(merged_config.transaction_id_expr, "child-expr") == 0);
+
+        msconnector_config_init(&parent_config);
+        msconnector_config_init(&child_config);
+        parent_config.transaction_id_expr = "parent-expr";
+        child_config.transaction_id = "child-id";
+        assert(msconnector_config_merge(&merged_config, &parent_config, &child_config));
+        assert(strcmp(merged_config.transaction_id, "child-id") == 0);
+        assert(merged_config.transaction_id_expr == 0);
     }
     assert(msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_MODSECURITY) != 0);
     assert(msconnector_directive_spec_count() > 0);
     {
         const msconnector_header headers[] = {{"Content-Type", 12, "application/json; charset=utf-8", 31}};
+        const msconnector_header exact[] = {{"Content-Type", 12, "application/json", 16}};
+        const msconnector_header spaced[] = {{"Content-Type", 12, "application/json ; charset=utf-8", 32}};
+        const msconnector_header uppercase[] = {{"Content-Type", 12, "APPLICATION/JSON", 16}};
+        const msconnector_header garbage[] = {{"Content-Type", 12, "application/json garbage", 24}};
+        const msconnector_header spaced_garbage[] = {{"Content-Type", 12, "application/json    garbage", 27}};
+        const msconnector_header tab_garbage[] = {{"Content-Type", 12, "application/json	garbage", 24}};
+        const msconnector_header suffix[] = {{"Content-Type", 12, "application/jsonx", 17}};
+        const msconnector_header embedded[] = {{"Content-Type", 12, "text/application-json", 21}};
         assert(msconnector_header_name_equals(&headers[0], "content-type"));
         assert(msconnector_headers_find(headers, 1, "CONTENT-TYPE") == &headers[0]);
         assert(msconnector_headers_content_type_matches(headers, 1, "application/json"));
+        assert(msconnector_headers_content_type_matches(exact, 1, "application/json"));
+        assert(msconnector_headers_content_type_matches(spaced, 1, "application/json"));
+        assert(msconnector_headers_content_type_matches(uppercase, 1, "application/json"));
+        assert(!msconnector_headers_content_type_matches(garbage, 1, "application/json"));
+        assert(!msconnector_headers_content_type_matches(spaced_garbage, 1, "application/json"));
+        assert(!msconnector_headers_content_type_matches(tab_garbage, 1, "application/json"));
+        assert(!msconnector_headers_content_type_matches(suffix, 1, "application/json"));
+        assert(!msconnector_headers_content_type_matches(embedded, 1, "application/json"));
     }
     {
         msconnector_body_policy policy;
@@ -296,7 +347,16 @@ int main(void) {
     }
     assert(msconnector_path_is_absolute("/tmp/result.json"));
     assert(msconnector_path_is_empty(""));
-    assert(msconnector_path_has_parent_reference("a/../b"));
+    assert(msconnector_path_has_parent_reference("../secret"));
+    assert(msconnector_path_has_parent_reference("a/../secret"));
+    assert(msconnector_path_has_parent_reference("..\\secret"));
+    assert(msconnector_path_has_parent_reference("a\\..\\secret"));
+    assert(msconnector_path_has_parent_reference("a\\../secret"));
+    assert(msconnector_path_has_parent_reference("a/..\\secret"));
+    assert(!msconnector_path_has_parent_reference("abc..def"));
+    assert(!msconnector_path_has_parent_reference("folder..name/file"));
+    assert(!msconnector_path_has_parent_reference("safe/path"));
+    assert(!msconnector_path_has_parent_reference("safe\\path"));
     {
         msconnector_event event;
         char json[4096];
@@ -338,8 +398,16 @@ int main(void) {
         assert(strstr(json, "\"late_intervention\":true") != 0);
         assert(strstr(json, "\"connection_aborted\":true") != 0);
         assert(strstr(json, "body_payload") == 0);
+        assert(strstr(json, "\"request_body\":") == 0);
+        assert(strstr(json, "\"response_body\":") == 0);
+        event.reason = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert(!msconnector_event_write_json_ex(&event, json, sizeof(json), &truncated));
+        assert(truncated);
+        assert(strstr(json, "\"truncated\":true") != 0);
+        assert(!msconnector_event_write_json(&event, json, sizeof(json)));
         assert(!msconnector_event_write_json_ex(&event, small_json, sizeof(small_json), &truncated));
         assert(truncated);
+        assert(small_json[sizeof(small_json) - 1U] == '\0' || strlen(small_json) < sizeof(small_json));
     }
 
     return 0;

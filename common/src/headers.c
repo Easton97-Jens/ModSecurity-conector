@@ -76,7 +76,11 @@ int msconnector_headers_content_type_matches(
         }
     }
 
-    return header->value_size == content_type_size ||
-        header->value[content_type_size] == ';' ||
-        isspace((unsigned char)header->value[content_type_size]);
+    size_t suffix_index = content_type_size;
+    while (suffix_index < header->value_size &&
+        isspace((unsigned char)header->value[suffix_index])) {
+        ++suffix_index;
+    }
+
+    return suffix_index == header->value_size || header->value[suffix_index] == ';';
 }

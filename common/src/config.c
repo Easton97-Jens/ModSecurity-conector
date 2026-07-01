@@ -65,7 +65,7 @@ static int validate_bool_option(
     return 1;
 }
 
-static int validate_status_value(
+static int validate_http_status_value(
     int value,
     const char *message,
     char *error,
@@ -76,6 +76,52 @@ static int validate_status_value(
     }
 
     return 1;
+}
+
+static int validate_block_status_value(
+    int value,
+    const char *message,
+    char *error,
+    size_t error_len) {
+    if (value != 0 && !msconnector_block_status_is_allowed(value)) {
+        set_error(error, error_len, message);
+        return 0;
+    }
+
+    return 1;
+}
+
+static void merge_remote_rules_pair(
+    msconnector_config *out,
+    const msconnector_config *parent,
+    const msconnector_config *child) {
+    if (child->rules_remote_key != 0 || child->rules_remote_url != 0) {
+        out->rules_remote_key = child->rules_remote_key;
+        out->rules_remote_url = child->rules_remote_url;
+        return;
+    }
+
+    out->rules_remote_key = parent->rules_remote_key;
+    out->rules_remote_url = parent->rules_remote_url;
+}
+
+static void merge_transaction_id_pair(
+    msconnector_config *out,
+    const msconnector_config *parent,
+    const msconnector_config *child) {
+    if (child->transaction_id != 0) {
+        out->transaction_id = child->transaction_id;
+        out->transaction_id_expr = 0;
+        return;
+    }
+    if (child->transaction_id_expr != 0) {
+        out->transaction_id = 0;
+        out->transaction_id_expr = child->transaction_id_expr;
+        return;
+    }
+
+    out->transaction_id = parent->transaction_id;
+    out->transaction_id_expr = parent->transaction_id_expr;
 }
 
 void msconnector_config_init(msconnector_config *config) {
@@ -159,10 +205,8 @@ int msconnector_config_merge(
     out->use_error_log = merge_bool_option(parent->use_error_log, child->use_error_log);
     out->rules_inline = merge_string(parent->rules_inline, child->rules_inline);
     out->rules_file = merge_string(parent->rules_file, child->rules_file);
-    out->rules_remote_key = merge_string(parent->rules_remote_key, child->rules_remote_key);
-    out->rules_remote_url = merge_string(parent->rules_remote_url, child->rules_remote_url);
-    out->transaction_id = merge_string(parent->transaction_id, child->transaction_id);
-    out->transaction_id_expr = merge_string(parent->transaction_id_expr, child->transaction_id_expr);
+    merge_remote_rules_pair(out, parent, child);
+    merge_transaction_id_pair(out, parent, child);
     out->phase4_mode = merge_phase4_mode(parent->phase4_mode, child->phase4_mode);
     out->phase4_content_types_file = merge_string(
         parent->phase4_content_types_file,
@@ -197,15 +241,25 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
         return 0;
     }
 
-    if (!validate_status_value(config->default_block_status, "invalid default block status", error, error_len)) {
+    if ((config->rules_remote_key == 0) != (config->rules_remote_url == 0)) {
+        set_error(error, error_len, "incomplete remote rules pair");
         return 0;
     }
 
-    if (!validate_status_value(config->default_error_status, "invalid default error status", error, error_len)) {
+    if (config->transaction_id != 0 && config->transaction_id_expr != 0) {
+        set_error(error, error_len, "transaction id and expression are mutually exclusive");
         return 0;
     }
 
-    if (!validate_status_value(config->unsupported_status, "invalid unsupported status", error, error_len)) {
+    if (!validate_block_status_value(config->default_block_status, "invalid default block status", error, error_len)) {
+        return 0;
+    }
+
+    if (!validate_http_status_value(config->default_error_status, "invalid default error status", error, error_len)) {
+        return 0;
+    }
+
+    if (!validate_http_status_value(config->unsupported_status, "invalid unsupported status", error, error_len)) {
         return 0;
     }
 

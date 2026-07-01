@@ -1,6 +1,7 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 MSCONNECTOR_C_STD ?= c17
 MSCONNECTOR_CFLAGS ?= -std=$(MSCONNECTOR_C_STD) -Wall -Wextra -Werror
+MSCONNECTOR_COMPILER_ID ?= $(notdir $(firstword $(CC)))
 FRAMEWORK_PYTHON := $(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON))
 VERIFIED_RUN_PARENT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),/var/tmp))
 VERIFIED_RUN_ROOT ?= $(VERIFIED_RUN_PARENT)/ModSecurity-conector-verified
@@ -639,12 +640,12 @@ check-common-helpers-c17:
 	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c17
 
 check-common-helpers-c23:
-	@flag="$$(python3 ci/detect-c-standard.py --profile c23 --compiler "$${MSCONNECTOR_COMPILER_ID:-cc}")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional C23 check — compiler does not support c23 or c2x"; exit 0; fi; exit "$$rc"; }; \
-	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c23 MSCONNECTOR_CFLAGS="$$flag -Wall -Wextra -Werror"
+	@flag="$$(python3 ci/detect-c-standard.py --profile c23 --compiler "$(MSCONNECTOR_COMPILER_ID)")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional C23 check — compiler does not support c23 or c2x"; exit 0; fi; exit "$$rc"; }; \
+	$(MAKE) check-common-helpers CC="$(MSCONNECTOR_COMPILER_ID)" MSCONNECTOR_C_STD=c23 MSCONNECTOR_CFLAGS="$$flag -Wall -Wextra -Werror"
 
 check-common-helpers-future-c:
-	@flag="$$(python3 ci/detect-c-standard.py --profile c2y --compiler "$${MSCONNECTOR_COMPILER_ID:-cc}")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional future C check — compiler does not support c2y or gnu2y"; exit 0; fi; exit "$$rc"; }; \
-	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c2y MSCONNECTOR_CFLAGS="$$flag -Wall -Wextra -Werror"
+	@flag="$$(python3 ci/detect-c-standard.py --profile c2y --compiler "$(MSCONNECTOR_COMPILER_ID)")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional future C check — compiler does not support c2y or gnu2y"; exit 0; fi; exit "$$rc"; }; \
+	$(MAKE) check-common-helpers CC="$(MSCONNECTOR_COMPILER_ID)" MSCONNECTOR_C_STD=c2y MSCONNECTOR_CFLAGS="$$flag -Wall -Wextra -Werror"
 
 check-common-helpers-c20:
 	@echo "SKIPPED: c20 is not a C standard mode; use c23/c2x for C or c++20 for C++."
