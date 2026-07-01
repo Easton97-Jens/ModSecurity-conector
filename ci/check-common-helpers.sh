@@ -363,7 +363,7 @@ int main(void) {
         char small_json[64];
         int truncated = 0;
         msconnector_event_init(&event);
-        event.event = "smoke";
+        event.meta.event = "smoke";
         assert(strcmp(msconnector_event_status_name(&event), "ok") == 0);
         assert(msconnector_event_write_json(&event, json, sizeof(json)));
 
@@ -373,17 +373,19 @@ int main(void) {
             "tx-1",
             "1001",
             "phase4 rule matched");
-        assert(strcmp(event.message_id, MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200) == 0);
-        assert(strcmp(event.message, "Response already started with HTTP 200; Phase 4 requested a block; connection was aborted.") == 0);
-        assert(event.http_status == 200);
-        assert(event.original_http_status == 200);
-        assert(event.visible_http_status == 200);
-        assert(event.late_intervention == 1);
-        assert(event.response_started == 1);
-        assert(event.headers_sent == 1);
-        assert(event.connection_aborted == 1);
-        assert(strcmp(event.requested_action, "deny") == 0);
-        assert(strcmp(event.actual_action, "connection_abort") == 0);
+        assert(strcmp(event.meta.message_id, MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200) == 0);
+        assert(strcmp(event.meta.message, "Response already started with HTTP 200; Phase 4 requested a block; connection was aborted.") == 0);
+        assert(event.http.http_status == 200);
+        assert(event.http.original_http_status == 200);
+        assert(event.http.visible_http_status == 200);
+        assert(event.flags.late_intervention == 1);
+        assert(event.flags.response_started == 1);
+        assert(event.flags.headers_sent == 1);
+        assert(event.flags.body_started == 1);
+        assert(event.flags.connection_aborted == 1);
+        assert(strcmp(event.decision.requested_action, "deny") == 0);
+        assert(strcmp(event.decision.actual_action, "connection_abort") == 0);
+        assert(strcmp(event.decision.action, "connection_abort") == 0);
         assert(strcmp(msconnector_http_status_reason_phrase(200), "OK") == 0);
         assert(strcmp(msconnector_http_status_default_message(200), "Request succeeded") == 0);
         assert(!msconnector_http_status_is_block_response(200));
@@ -400,7 +402,7 @@ int main(void) {
         assert(strstr(json, "body_payload") == 0);
         assert(strstr(json, "\"request_body\":") == 0);
         assert(strstr(json, "\"response_body\":") == 0);
-        event.reason = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        event.decision.reason = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         assert(!msconnector_event_write_json_ex(&event, json, sizeof(json), &truncated));
         assert(truncated);
         assert(strstr(json, "\"truncated\":true") != 0);

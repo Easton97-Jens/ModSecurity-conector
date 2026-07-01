@@ -15,10 +15,8 @@ static const char *json_bool(int value) {
 
 static void escape_field(const char *src, char *dst, size_t dst_size, int *truncated) {
     const size_t needed = msconnector_json_escape(src, dst, dst_size);
-    if (dst_size == 0 || needed >= dst_size) {
-        if (truncated != 0) {
-            *truncated = 1;
-        }
+    if ((dst_size == 0 || needed >= dst_size) && truncated != 0) {
+        *truncated = 1;
     }
 }
 
@@ -77,35 +75,35 @@ void msconnector_event_init(msconnector_event *event) {
         return;
     }
 
-    event->timestamp = 0;
-    event->level = "info";
-    event->message_id = 0;
-    event->message = 0;
-    event->event = 0;
-    event->connector = 0;
-    event->transaction_id = 0;
-    event->phase = MSCONNECTOR_PHASE_CONNECTION;
-    event->status = MSCONNECTOR_STATUS_OK;
-    event->action = 0;
-    event->requested_action = 0;
-    event->actual_action = 0;
-    event->http_status = 0;
-    event->original_http_status = 0;
-    event->visible_http_status = 0;
-    event->http_reason_phrase = 0;
-    event->http_default_message = 0;
-    event->rule_id = 0;
-    event->reason = 0;
-    event->method = 0;
-    event->uri = 0;
-    event->client_ip = 0;
-    event->late_intervention = 0;
-    event->response_started = 0;
-    event->headers_sent = 0;
-    event->body_started = 0;
-    event->connection_aborted = 0;
-    event->redacted = 0;
-    event->truncated = 0;
+    event->meta.timestamp = 0;
+    event->meta.level = "info";
+    event->meta.message_id = 0;
+    event->meta.message = 0;
+    event->meta.event = 0;
+    event->meta.connector = 0;
+    event->meta.transaction_id = 0;
+    event->decision.phase = MSCONNECTOR_PHASE_CONNECTION;
+    event->decision.status = MSCONNECTOR_STATUS_OK;
+    event->decision.action = 0;
+    event->decision.requested_action = 0;
+    event->decision.actual_action = 0;
+    event->http.http_status = 0;
+    event->http.original_http_status = 0;
+    event->http.visible_http_status = 0;
+    event->http.http_reason_phrase = 0;
+    event->http.http_default_message = 0;
+    event->decision.rule_id = 0;
+    event->decision.reason = 0;
+    event->request.method = 0;
+    event->request.uri = 0;
+    event->request.client_ip = 0;
+    event->flags.late_intervention = 0;
+    event->flags.response_started = 0;
+    event->flags.headers_sent = 0;
+    event->flags.body_started = 0;
+    event->flags.connection_aborted = 0;
+    event->flags.redacted = 0;
+    event->flags.truncated = 0;
 }
 
 const char *msconnector_event_status_name(const msconnector_event *event) {
@@ -113,7 +111,7 @@ const char *msconnector_event_status_name(const msconnector_event *event) {
         return msconnector_status_name(MSCONNECTOR_STATUS_ERROR);
     }
 
-    return msconnector_status_name(event->status);
+    return msconnector_status_name(event->decision.status);
 }
 
 int msconnector_event_write_json_ex(
@@ -151,24 +149,24 @@ int msconnector_event_write_json_ex(
         return 0;
     }
 
-    was_truncated = event->truncated != 0;
-    escape_field(event->timestamp, timestamp, sizeof(timestamp), &was_truncated);
-    escape_field(event->level, level, sizeof(level), &was_truncated);
-    escape_field(event->message_id, message_id, sizeof(message_id), &was_truncated);
-    escape_field(event->message, message, sizeof(message), &was_truncated);
-    escape_field(event->event, event_name, sizeof(event_name), &was_truncated);
-    escape_field(event->connector, connector, sizeof(connector), &was_truncated);
-    escape_field(event->transaction_id, transaction_id, sizeof(transaction_id), &was_truncated);
-    escape_field(event->action, action, sizeof(action), &was_truncated);
-    escape_field(event->requested_action, requested_action, sizeof(requested_action), &was_truncated);
-    escape_field(event->actual_action, actual_action, sizeof(actual_action), &was_truncated);
-    escape_field(event->http_reason_phrase, http_reason_phrase, sizeof(http_reason_phrase), &was_truncated);
-    escape_field(event->http_default_message, http_default_message, sizeof(http_default_message), &was_truncated);
-    escape_field(event->rule_id, rule_id, sizeof(rule_id), &was_truncated);
-    escape_field(event->reason, reason, sizeof(reason), &was_truncated);
-    escape_field(event->method, method, sizeof(method), &was_truncated);
-    escape_field(event->uri, uri, sizeof(uri), &was_truncated);
-    escape_field(event->client_ip, client_ip, sizeof(client_ip), &was_truncated);
+    was_truncated = event->flags.truncated != 0;
+    escape_field(event->meta.timestamp, timestamp, sizeof(timestamp), &was_truncated);
+    escape_field(event->meta.level, level, sizeof(level), &was_truncated);
+    escape_field(event->meta.message_id, message_id, sizeof(message_id), &was_truncated);
+    escape_field(event->meta.message, message, sizeof(message), &was_truncated);
+    escape_field(event->meta.event, event_name, sizeof(event_name), &was_truncated);
+    escape_field(event->meta.connector, connector, sizeof(connector), &was_truncated);
+    escape_field(event->meta.transaction_id, transaction_id, sizeof(transaction_id), &was_truncated);
+    escape_field(event->decision.action, action, sizeof(action), &was_truncated);
+    escape_field(event->decision.requested_action, requested_action, sizeof(requested_action), &was_truncated);
+    escape_field(event->decision.actual_action, actual_action, sizeof(actual_action), &was_truncated);
+    escape_field(event->http.http_reason_phrase, http_reason_phrase, sizeof(http_reason_phrase), &was_truncated);
+    escape_field(event->http.http_default_message, http_default_message, sizeof(http_default_message), &was_truncated);
+    escape_field(event->decision.rule_id, rule_id, sizeof(rule_id), &was_truncated);
+    escape_field(event->decision.reason, reason, sizeof(reason), &was_truncated);
+    escape_field(event->request.method, method, sizeof(method), &was_truncated);
+    escape_field(event->request.uri, uri, sizeof(uri), &was_truncated);
+    escape_field(event->request.client_ip, client_ip, sizeof(client_ip), &was_truncated);
 
     written = snprintf(
         dst,
@@ -181,14 +179,14 @@ int msconnector_event_write_json_ex(
         event_name,
         connector,
         transaction_id,
-        msconnector_phase_name(event->phase),
-        msconnector_status_name(event->status),
+        msconnector_phase_name(event->decision.phase),
+        msconnector_status_name(event->decision.status),
         action,
         requested_action,
         actual_action,
-        event->http_status,
-        event->original_http_status,
-        event->visible_http_status,
+        event->http.http_status,
+        event->http.original_http_status,
+        event->http.visible_http_status,
         http_reason_phrase,
         http_default_message,
         rule_id,
@@ -196,12 +194,12 @@ int msconnector_event_write_json_ex(
         method,
         uri,
         client_ip,
-        json_bool(event->late_intervention),
-        json_bool(event->response_started),
-        json_bool(event->headers_sent),
-        json_bool(event->body_started),
-        json_bool(event->connection_aborted),
-        json_bool(event->redacted),
+        json_bool(event->flags.late_intervention),
+        json_bool(event->flags.response_started),
+        json_bool(event->flags.headers_sent),
+        json_bool(event->flags.body_started),
+        json_bool(event->flags.connection_aborted),
+        json_bool(event->flags.redacted),
         json_bool(was_truncated));
 
     if (written < 0 || (size_t)written >= dst_size) {
@@ -229,27 +227,27 @@ void msconnector_event_set_phase4_hard_abort_after_200(
     }
 
     msconnector_event_init(event);
-    event->level = msconnector_event_default_level(MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200);
-    event->message_id = MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200;
-    event->message = msconnector_event_default_message(MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200);
-    event->event = "phase4_hard_abort_after_200";
-    event->connector = connector;
-    event->transaction_id = transaction_id;
-    event->phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
-    event->status = MSCONNECTOR_STATUS_BLOCKED;
-    event->action = "connection_abort";
-    event->requested_action = "deny";
-    event->actual_action = "connection_abort";
-    event->http_status = 200;
-    event->original_http_status = 200;
-    event->visible_http_status = 200;
-    event->http_reason_phrase = msconnector_http_status_reason_phrase(200);
-    event->http_default_message = msconnector_http_status_default_message(200);
-    event->rule_id = rule_id;
-    event->reason = reason;
-    event->late_intervention = 1;
-    event->response_started = 1;
-    event->headers_sent = 1;
-    event->body_started = 1;
-    event->connection_aborted = 1;
+    event->meta.level = msconnector_event_default_level(MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200);
+    event->meta.message_id = MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200;
+    event->meta.message = msconnector_event_default_message(MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200);
+    event->meta.event = "phase4_hard_abort_after_200";
+    event->meta.connector = connector;
+    event->meta.transaction_id = transaction_id;
+    event->decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event->decision.status = MSCONNECTOR_STATUS_BLOCKED;
+    event->decision.action = "connection_abort";
+    event->decision.requested_action = "deny";
+    event->decision.actual_action = "connection_abort";
+    event->http.http_status = 200;
+    event->http.original_http_status = 200;
+    event->http.visible_http_status = 200;
+    event->http.http_reason_phrase = msconnector_http_status_reason_phrase(200);
+    event->http.http_default_message = msconnector_http_status_default_message(200);
+    event->decision.rule_id = rule_id;
+    event->decision.reason = reason;
+    event->flags.late_intervention = 1;
+    event->flags.response_started = 1;
+    event->flags.headers_sent = 1;
+    event->flags.body_started = 1;
+    event->flags.connection_aborted = 1;
 }

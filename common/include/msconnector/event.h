@@ -19,13 +19,13 @@ extern "C" {
 #define MSCONN_EVENT_RULE_PARSE_ERROR "MSCONN_EVENT_RULE_PARSE_ERROR"
 
 /*
- * Connector-neutral event model for metadata-only log records.
+ * Connector-neutral event metadata.
  *
- * Pointer fields are borrowed. The caller owns their lifetime. This structure
- * does not own strings and does not include request or response body payloads.
- * Connectors remain responsible for not passing sensitive payloads.
+ * Pointer fields are borrowed. The caller owns their lifetime.
+ * This structure is connector-neutral metadata only and does not own strings.
+ * It does not include request or response bodies.
  */
-typedef struct msconnector_event {
+typedef struct msconnector_event_meta {
     const char *timestamp;
     const char *level;
     const char *message_id;
@@ -33,21 +33,61 @@ typedef struct msconnector_event {
     const char *event;
     const char *connector;
     const char *transaction_id;
+} msconnector_event_meta;
+
+/*
+ * Connector-neutral decision metadata for an event.
+ *
+ * Pointer fields are borrowed. The caller owns their lifetime.
+ * This structure is connector-neutral metadata only and does not own strings.
+ * It does not include request or response bodies.
+ */
+typedef struct msconnector_event_decision {
     enum msconnector_phase phase;
     enum msconnector_status status;
     const char *action;
     const char *requested_action;
     const char *actual_action;
+    const char *rule_id;
+    const char *reason;
+} msconnector_event_decision;
+
+/*
+ * Connector-neutral HTTP metadata for an event.
+ *
+ * Pointer fields are borrowed. The caller owns their lifetime.
+ * This structure is connector-neutral metadata only and does not own strings.
+ * It does not include request or response bodies.
+ */
+typedef struct msconnector_event_http {
     int http_status;
     int original_http_status;
     int visible_http_status;
     const char *http_reason_phrase;
     const char *http_default_message;
-    const char *rule_id;
-    const char *reason;
+} msconnector_event_http;
+
+/*
+ * Connector-neutral request-identifying metadata for an event.
+ *
+ * Pointer fields are borrowed. The caller owns their lifetime.
+ * This structure is connector-neutral metadata only and does not own strings.
+ * It does not include request or response bodies.
+ */
+typedef struct msconnector_event_request {
     const char *method;
     const char *uri;
     const char *client_ip;
+} msconnector_event_request;
+
+/*
+ * Connector-neutral boolean event flags.
+ *
+ * This structure is connector-neutral metadata only. The flags describe how a
+ * connector may classify a future event record; they do not imply runtime
+ * integration in any existing connector.
+ */
+typedef struct msconnector_event_flags {
     int late_intervention;
     int response_started;
     int headers_sent;
@@ -55,6 +95,21 @@ typedef struct msconnector_event {
     int connection_aborted;
     int redacted;
     int truncated;
+} msconnector_event_flags;
+
+/*
+ * Connector-neutral event model for metadata-only log records.
+ *
+ * Pointer fields in nested structures are borrowed. The caller owns their
+ * lifetime. This structure is connector-neutral metadata only and does not own
+ * strings. It does not include request or response bodies.
+ */
+typedef struct msconnector_event {
+    msconnector_event_meta meta;
+    msconnector_event_decision decision;
+    msconnector_event_http http;
+    msconnector_event_request request;
+    msconnector_event_flags flags;
 } msconnector_event;
 
 void msconnector_event_init(msconnector_event *event);

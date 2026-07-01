@@ -41,3 +41,12 @@ Future C checks are optional and may use `c2y` or `gnu2y` where supported by the
 C20 and C26 are not treated as mandatory C compiler modes. The Makefile targets for those names print explicit `SKIPPED` messages instead of pretending to compile C20 or C26.
 
 C++20, C++23, and C++26 apply only to C++ wrapper checks, not C `.c` files. No new C++ wrapper standard smoke check was added in this cleanup.
+
+## Event model Sonar cleanup
+
+| Issue key | Rule | Severity | Type | File | Line | Message | Local fix | Verification |
+| --- | --- | --- | --- | --- | ---: | --- | --- | --- |
+| NOT VERIFIED | c:S1820-equivalent struct-size finding | UNKNOWN | CODE_SMELL | common/include/msconnector/event.h | struct definition | Refactor this structure so it has no more than 20 fields. | Grouped event metadata into nested connector-neutral structs (`meta`, `decision`, `http`, `request`, and `flags`) while preserving the Phase 4 hard-abort-after-HTTP-200 semantics. | Local smoke and contract checks run in this PR update; SonarCloud after-count NOT VERIFIED. |
+| NOT VERIFIED | c:S1066-equivalent nested-if finding | UNKNOWN | CODE_SMELL | common/src/event.c | escape helper | Merge this `if` statement with the enclosing one. | Merged the truncation-condition check with the null-output-parameter check in `escape_field()`. | Local smoke and contract checks run in this PR update; SonarCloud after-count NOT VERIFIED. |
+
+SonarCloud after-count: NOT VERIFIED.

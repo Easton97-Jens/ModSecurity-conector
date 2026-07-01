@@ -39,7 +39,10 @@ integration. It does not change existing connector logs by itself. The model
 avoids request and response body payloads by design, and includes message IDs,
 short operator-facing messages, HTTP status metadata, action metadata,
 redaction markers, and truncation markers so future connector integrations can
-produce understandable logs without leaking payloads by default.
+produce understandable logs without leaking payloads by default. The C event
+structure groups those fields into nested connector-neutral sections for
+metadata, decisions, HTTP status data, request-identifying data, and flags; this
+layout is only a data model and does not imply runtime log integration.
 
 ### Phase 4 hard abort after HTTP 200
 

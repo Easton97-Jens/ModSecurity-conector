@@ -110,6 +110,19 @@ if detect_text.count("subprocess.run(") != 1 or "def compiler_supports" not in d
     fail("detect-c-standard.py subprocess.run must appear only in the compiler probe helper")
 
 
+
+
+def count_direct_fields(header_text: str, struct_name: str) -> int:
+    match = re.search(
+        rf"typedef\s+struct\s+{struct_name}\s*\{{(?P<body>.*?)\}}\s*{struct_name}\s*;",
+        header_text,
+        flags=re.S,
+    )
+    if match is None:
+        fail(f"common event model is missing {struct_name}")
+    body = text_without_comments(match.group("body"))
+    return sum(1 for line in body.splitlines() if line.strip().endswith(";"))
+
 def extract_http_status_table_statuses(source_text: str) -> set[int]:
     table_match = re.search(
         r"static\s+const\s+msconnector_http_status_info\s+http_statuses\[\]\s*=\s*\{(?P<body>.*?)\};",
@@ -165,18 +178,42 @@ if "is_path_separator" not in path_policy_source or "\\" not in path_policy_sour
 
 event_header = (ROOT / "common" / "include" / "msconnector" / "event.h").read_text(encoding="utf-8")
 event_source = (ROOT / "common" / "src" / "event.c").read_text(encoding="utf-8")
-if "message_id" not in event_header or "message;" not in event_header:
-    fail("common event model must contain message_id and message fields")
-if "requested_action" not in event_header or "actual_action" not in event_header:
-    fail("common event model must contain requested_action and actual_action fields")
+if count_direct_fields(event_header, "msconnector_event") > 20:
+    fail("top-level msconnector_event must not exceed 20 direct fields")
+for nested_struct in (
+    "msconnector_event_meta",
+    "msconnector_event_decision",
+    "msconnector_event_http",
+    "msconnector_event_request",
+    "msconnector_event_flags",
+):
+    if count_direct_fields(event_header, nested_struct) > 20:
+        fail(f"{nested_struct} must not exceed 20 direct fields")
+for required_field in (
+    "message_id",
+    "message",
+    "requested_action",
+    "actual_action",
+    "http_reason_phrase",
+    "http_default_message",
+    "late_intervention",
+    "connection_aborted",
+    "truncated",
+):
+    if required_field not in event_header:
+        fail(f"common event model must retain {required_field} metadata")
 if "msconnector_event_set_phase4_hard_abort_after_200" not in event_header or "MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200" not in event_source:
     fail("common event model must expose the Phase 4 hard-abort-after-200 helper")
 if "body_payload" in event_source or "request_body" in event_source or "response_body" in event_source:
     fail("common event JSON writer must not include request/response body payload fields")
+if "event->meta.message_id" not in event_source or "event->decision.requested_action" not in event_source:
+    fail("common event JSON writer must use nested event metadata")
 if "truncated" not in event_header or "truncated" not in event_source:
     fail("common event JSON writer must expose truncation")
 if "msconnector_event_write_json_ex" not in event_source or "return was_truncated ? 0 : 1" not in event_source:
     fail("common event JSON writer must fail success status when truncation is detected")
+if "if ((dst_size == 0 || needed >= dst_size) && truncated != 0)" not in event_source:
+    fail("common event JSON escaping helper must merge the truncation nested-if condition")
 if '{200, "OK", "Request succeeded", MSCONNECTOR_HTTP_STATUS_CLASS_SUCCESS, 0}' not in http_status_source:
     fail("common HTTP status metadata must include non-blocking 200 OK metadata")
 
