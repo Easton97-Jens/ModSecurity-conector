@@ -639,11 +639,11 @@ check-common-helpers-c17:
 	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c17
 
 check-common-helpers-c23:
-	@flag="$$(python3 ci/detect-c-standard.py --profile c23 --cc "$${CC:-cc}")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional C23 check — compiler does not support c23 or c2x"; exit 0; fi; exit "$$rc"; }; \
+	@flag="$$(python3 ci/detect-c-standard.py --profile c23 --compiler "$${MSCONNECTOR_COMPILER_ID:-cc}")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional C23 check — compiler does not support c23 or c2x"; exit 0; fi; exit "$$rc"; }; \
 	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c23 MSCONNECTOR_CFLAGS="$$flag -Wall -Wextra -Werror"
 
 check-common-helpers-future-c:
-	@flag="$$(python3 ci/detect-c-standard.py --profile c2y --cc "$${CC:-cc}")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional future C check — compiler does not support c2y or gnu2y"; exit 0; fi; exit "$$rc"; }; \
+	@flag="$$(python3 ci/detect-c-standard.py --profile c2y --compiler "$${MSCONNECTOR_COMPILER_ID:-cc}")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional future C check — compiler does not support c2y or gnu2y"; exit 0; fi; exit "$$rc"; }; \
 	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c2y MSCONNECTOR_CFLAGS="$$flag -Wall -Wextra -Werror"
 
 check-common-helpers-c20:

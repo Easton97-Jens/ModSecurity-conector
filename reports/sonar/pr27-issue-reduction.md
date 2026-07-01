@@ -16,14 +16,17 @@ PY
 
 Before count from API for the previous C-standard cleanup: 1 open/confirmed issue.
 
-Additional issue addressed in this cleanup: `pythonsecurity:S8701` in `ci/detect-c-standard.py` from the latest SonarCloud screenshot/context.
+Current SonarCloud count before this cleanup: 5 open/confirmed issues. Additional issues addressed in this cleanup: duplicated `-std=c17`, duplicated `-std=c2x`, `[0-9]` regex digit-class findings, and `pythonsecurity:S8701` in `ci/detect-c-standard.py` from the latest SonarCloud screenshot/context.
 
 ## Issue inventory
 
 | Issue key | Rule | Severity | Type | File | Line | Message | Local fix | Verification |
 | --- | --- | --- | --- | --- | ---: | --- | --- | --- |
 | AZ8eutpSXijY4QmtfWjQ | c:S1905 | MINOR | CODE_SMELL | common/src/config.c | 198 | Remove this redundant cast. | Added an explicit `MSCONNECTOR_PHASE4_MODE_UNSET` enum value and removed the redundant enum-bound casts in validation. | `make check-common-helpers`, `MSCONNECTOR_C_STD=c17 make check-common-helpers`, and `make check-common-helpers-c17` passed locally. |
-| AZ8eyFH9F6pdaofMWPVp | pythonsecurity:S8701 | UNKNOWN | VULNERABILITY | ci/detect-c-standard.py | around subprocess.run | LLMs running this code with faulty CLI arguments can escape from shell sandboxes. | Added strict compiler command resolution/validation, internal standard-flag validation, retained `shell=False`, added subprocess timeout and a conservative environment, and added `--self-test` malicious-input checks. | `python3 ci/detect-c-standard.py --self-test` and common SDK checks passed locally; SonarCloud after-count NOT VERIFIED. |
+| AZ8e0c2868MLw0jos7KS | python:S1192 | UNKNOWN | CODE_SMELL | ci/detect-c-standard.py | standard flag constants | Define a constant instead of duplicating `-std=c17`. | Added `STD_C17` and reused it in profiles, allow-list, and self-test. | `python3 ci/detect-c-standard.py --self-test` and `python3 ci/check-common-sdk-contract.py` passed locally; SonarCloud after-count NOT VERIFIED. |
+| AZ8e0c2868MLw0jos7KR | python:S1192 | UNKNOWN | CODE_SMELL | ci/detect-c-standard.py | standard flag constants | Define a constant instead of duplicating `-std=c2x`. | Added `STD_C2X` and reused it in profiles, allow-list, and self-test. | `python3 ci/detect-c-standard.py --self-test` and `python3 ci/check-common-sdk-contract.py` passed locally; SonarCloud after-count NOT VERIFIED. |
+| AZ8e0c2868MLw0jos7KT/AZ8e0c2868MLw0jos7KU | python:S6353 | UNKNOWN | CODE_SMELL | ci/detect-c-standard.py | compiler validation regex | Use concise character class syntax `\d` instead of `[0-9]`. | Removed the compiler basename regex by replacing arbitrary command validation with fixed compiler-id choices. | `python3 ci/detect-c-standard.py --self-test` and `python3 ci/check-common-sdk-contract.py` passed locally; SonarCloud after-count NOT VERIFIED. |
+| AZ8eyFH9F6pdaofMWPVp | pythonsecurity:S8701 | UNKNOWN | VULNERABILITY | ci/detect-c-standard.py | around subprocess.run | LLMs running this code with faulty CLI arguments can escape from shell sandboxes. | Removed arbitrary `--cc` command/path support, added allow-listed `--compiler` choices, resolved only fixed compiler ids, retained internal standard-flag validation, retained `shell=False`, added subprocess timeout and a conservative environment, and updated `--self-test` malicious-input checks. | `python3 ci/detect-c-standard.py --self-test` and common SDK checks passed locally; SonarCloud after-count NOT VERIFIED. |
 
 After SonarCloud count: NOT VERIFIED. A new SonarCloud analysis result was not available from this local environment after committing changes.
 

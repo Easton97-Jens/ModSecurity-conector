@@ -4,17 +4,31 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+STD_C17 = "-std=c17"
+STD_C18 = "-std=c18"
+STD_C23 = "-std=c23"
+STD_C2X = "-std=c2x"
+STD_C2Y = "-std=c2y"
+STD_GNU2Y = "-std=gnu2y"
+
+PROFILE_C17 = "c17"
+PROFILE_C23 = "c23"
+PROFILE_FUTURE_C = "c2y"
+
+COMPILER_CC = "cc"
+COMPILER_GCC = "gcc"
+COMPILER_CLANG = "clang"
+
 PROFILES = {
-    "c17": ("-std=c17", "-std=c18"),
-    "c23": ("-std=c23", "-std=c2x"),
-    "c2y": ("-std=c2y", "-std=gnu2y"),
+    PROFILE_C17: (STD_C17, STD_C18),
+    PROFILE_C23: (STD_C23, STD_C2X),
+    PROFILE_FUTURE_C: (STD_C2Y, STD_GNU2Y),
 }
 INVALID = {
     "c20": "c20 is not a portable ISO C compiler mode; use c23/c2x for C or c++20 for C++.",
@@ -22,77 +36,58 @@ INVALID = {
 }
 ALLOWED_STANDARD_FLAGS = frozenset(
     {
-        "-std=c17",
-        "-std=c18",
-        "-std=c23",
-        "-std=c2x",
-        "-std=c2y",
-        "-std=gnu2y",
+        STD_C17,
+        STD_C18,
+        STD_C23,
+        STD_C2X,
+        STD_C2Y,
+        STD_GNU2Y,
     }
 )
-COMPILER_BASENAME_RE = re.compile(r"^(cc|gcc|clang)(-[0-9]+(\.[0-9]+)*)?$")
+ALLOWED_COMPILER_IDS = frozenset({COMPILER_CC, COMPILER_GCC, COMPILER_CLANG})
 COMPILER_PROBE_TIMEOUT_SECONDS = 10
 
 
 class CompilerValidationError(ValueError):
-    """Raised when a requested compiler command is not a safe C compiler name."""
+    """Raised when a requested compiler id is not safe or available."""
 
 
 def validate_standard_flag(flag: str) -> str:
-    """Return a known C standard flag or reject it.
-
-    The script has no raw CLI option for arbitrary compiler flags. This helper
-    still validates each internally mapped flag before it reaches subprocess.run.
-    """
+    """Return a known C standard flag or reject it."""
 
     if flag not in ALLOWED_STANDARD_FLAGS:
         raise ValueError(f"unsupported C standard flag: {flag!r}")
     return flag
 
 
-def compiler_basename_is_allowed(path: str) -> bool:
-    """Return whether the executable basename is an allow-listed compiler."""
+def validate_compiler_id(compiler_id: str) -> str:
+    """Return an allow-listed compiler id or reject it.
 
-    return COMPILER_BASENAME_RE.fullmatch(Path(path).name) is not None
-
-
-def resolve_compiler(cc: str) -> str:
-    """Resolve and validate the compiler executable.
-
-    This intentionally rejects arbitrary commands. The script only needs a C
-    compiler probe, not a general command runner. Plain compiler names are
-    resolved through PATH. Absolute paths are accepted only when their basename
-    still matches the strict compiler allow-list. Relative paths are rejected to
-    avoid path traversal and wrapper ambiguity.
+    The CLI accepts compiler ids only, not executable paths or command strings.
+    This keeps the compile probe from becoming a general command runner.
     """
 
-    if cc == "" or cc.strip() != cc:
-        raise CompilerValidationError(f"unsafe compiler command {cc!r}")
-    if any(character.isspace() for character in cc):
-        raise CompilerValidationError(f"unsafe compiler command {cc!r}")
+    if compiler_id not in ALLOWED_COMPILER_IDS:
+        raise CompilerValidationError(f"compiler id is not allowed: {compiler_id!r}")
+    return compiler_id
 
-    compiler_path = Path(cc)
-    if compiler_path.is_absolute():
-        if not compiler_basename_is_allowed(cc):
-            raise CompilerValidationError(f"compiler not found or not allowed: {cc!r}")
-        if not os.access(cc, os.X_OK):
-            raise CompilerValidationError(f"compiler not found or not allowed: {cc!r}")
-        return str(compiler_path)
 
-    if compiler_path.parent != Path("."):
-        raise CompilerValidationError(f"unsafe compiler command {cc!r}")
-    if not compiler_basename_is_allowed(cc):
-        raise CompilerValidationError(f"compiler not found or not allowed: {cc!r}")
+def resolve_compiler_id(compiler_id: str) -> str:
+    """Resolve an allow-listed compiler id through PATH."""
 
-    resolved = shutil.which(cc)
-    if resolved is None or not compiler_basename_is_allowed(resolved):
-        raise CompilerValidationError(f"compiler not found or not allowed: {cc!r}")
+    validated_id = validate_compiler_id(compiler_id)
+    resolved = shutil.which(validated_id)
+    if resolved is None:
+        raise CompilerValidationError(f"compiler id is not available on PATH: {validated_id!r}")
     return resolved
+
+
+def compiler_probe_environment() -> dict[str, str]:
+    return {"PATH": os.environ.get("PATH", ""), "LC_ALL": "C"}
 
 
 def compiler_supports(compiler_path: str, flag: str) -> bool:
     validated_flag = validate_standard_flag(flag)
-    env = {"PATH": os.environ.get("PATH", ""), "LC_ALL": "C"}
 
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "detect.c"
@@ -105,7 +100,7 @@ def compiler_supports(compiler_path: str, flag: str) -> bool:
                 stderr=subprocess.DEVNULL,
                 check=False,
                 timeout=COMPILER_PROBE_TIMEOUT_SECONDS,
-                env=env,
+                env=compiler_probe_environment(),
             )
         except (OSError, subprocess.TimeoutExpired):
             return False
@@ -113,8 +108,10 @@ def compiler_supports(compiler_path: str, flag: str) -> bool:
 
 
 def run_self_test() -> int:
-    validate_standard_flag("-std=c17")
-    validate_standard_flag("-std=c2x")
+    validate_standard_flag(STD_C17)
+    validate_standard_flag(STD_C2X)
+    validate_compiler_id(COMPILER_GCC)
+    validate_compiler_id(COMPILER_CLANG)
 
     for rejected_flag in ("-std=c20", "-std=c26"):
         try:
@@ -136,7 +133,7 @@ def run_self_test() -> int:
         "",
     ):
         try:
-            resolve_compiler(rejected_compiler)
+            validate_compiler_id(rejected_compiler)
         except CompilerValidationError:
             pass
         else:
@@ -144,9 +141,9 @@ def run_self_test() -> int:
             return 1
 
     try:
-        resolve_compiler("cc")
+        resolve_compiler_id(COMPILER_CC)
     except CompilerValidationError as exc:
-        print(f"self-test notice: cc unavailable or not allowed: {exc}", file=sys.stderr)
+        print(f"self-test notice: cc unavailable: {exc}", file=sys.stderr)
 
     print("detect-c-standard self-test: pass")
     return 0
@@ -155,7 +152,12 @@ def run_self_test() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile")
-    parser.add_argument("--cc", default="cc")
+    parser.add_argument(
+        "--compiler",
+        choices=sorted(ALLOWED_COMPILER_IDS),
+        default=COMPILER_CC,
+        help="Allowed compiler id, not an arbitrary command path.",
+    )
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
@@ -177,7 +179,7 @@ def main() -> int:
         return 2
 
     try:
-        compiler_path = resolve_compiler(args.cc)
+        compiler_path = resolve_compiler_id(args.compiler)
     except CompilerValidationError as exc:
         print(f"INVALID: {exc}", file=sys.stderr)
         return 2

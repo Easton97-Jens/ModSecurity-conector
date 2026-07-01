@@ -85,4 +85,21 @@ if "--profile c23" not in makefile_text or "c2x" not in makefile_text:
 if "--profile c2y" not in makefile_text or "gnu2y" not in makefile_text:
     fail("optional future-C c2y/gnu2y common helper check is not wired")
 
+
+detect_text = (ROOT / "ci" / "detect-c-standard.py").read_text(encoding="utf-8")
+if "args.cc" in detect_text or 'parser.add_argument("--cc"' in detect_text:
+    fail("detect-c-standard.py must not accept or use raw --cc command paths")
+if "shell=True" in detect_text:
+    fail("detect-c-standard.py must not use shell=True")
+if "[0-9]" in detect_text:
+    fail("detect-c-standard.py compiler regex must not use [0-9]")
+if detect_text.count('"-std=c17"') > 1:
+    fail("detect-c-standard.py duplicates the -std=c17 literal outside its constant")
+if detect_text.count('"-std=c2x"') > 1:
+    fail("detect-c-standard.py duplicates the -std=c2x literal outside its constant")
+if "--compiler" not in detect_text or "choices=sorted(ALLOWED_COMPILER_IDS)" not in detect_text:
+    fail("detect-c-standard.py must expose only an allow-listed compiler selector")
+if detect_text.count("subprocess.run(") != 1 or "def compiler_supports" not in detect_text:
+    fail("detect-c-standard.py subprocess.run must appear only in the compiler probe helper")
+
 print("common-sdk-contract: pass")
