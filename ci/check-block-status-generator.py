@@ -16,6 +16,10 @@ HEADER = "msconnector_block_statuses.generated.h"
 SOURCE = "msconnector_block_statuses.generated.c"
 HAPROXY_CFG = "haproxy-block-status-rules.generated.cfg"
 
+
+FULL_STATUS_LIST = "400,401,403,404,405,406,408,409,410,413,415,418,422,425,429,451,500,501,502,503,504"
+FULL_STATUSES = tuple(int(value) for value in FULL_STATUS_LIST.split(","))
+
 RUNS = (
     ("nginx", "403,501"),
     ("apache", "403,501"),
@@ -92,6 +96,32 @@ def check_successful_runs(tmp: Path) -> None:
     require("http-response deny status 501 if { var(txn.modsec.status) -m int 501 }" in haproxy_text, "missing HAProxy response 501 mapping")
 
 
+def check_full_status_list(tmp: Path) -> None:
+    out_dir = tmp / "full-haproxy"
+    require_success(run_generator("haproxy", FULL_STATUS_LIST, out_dir))
+    header_text = read(out_dir / HEADER)
+    source_text = read(out_dir / SOURCE)
+    haproxy_text = read(out_dir / HAPROXY_CFG)
+
+    for status in FULL_STATUSES:
+        require(
+            f"#define MSCONNECTOR_ENABLE_BLOCK_STATUS_{status} 1" in header_text,
+            f"full list did not enable {status}",
+        )
+        require(
+            f"http-request deny status {status} if {{ var(txn.modsec.status) -m int {status} }}" in haproxy_text,
+            f"full HAProxy config missing request mapping for {status}",
+        )
+        require(
+            f"http-response deny status {status} if {{ var(txn.modsec.status) -m int {status} }}" in haproxy_text,
+            f"full HAProxy config missing response mapping for {status}",
+        )
+
+    require("#define MSCONNECTOR_ENABLE_BLOCK_STATUS_200" not in header_text, "unexpected 200 generated macro")
+    require("deny status 200" not in haproxy_text, "disabled 200 appeared in HAProxy config")
+    require("501" in source_text, "501 should appear in generated source only when explicitly requested")
+
+
 def check_failures(tmp: Path) -> None:
     require_failure(run_generator("nginx", "403,403", tmp / "duplicate"), "duplicate status")
     require_failure(run_generator("nginx", "99", tmp / "invalid-low"), "outside the valid HTTP range")
@@ -114,6 +144,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="msconnector-block-status-generator-") as raw_tmp:
         tmp = Path(raw_tmp)
         check_successful_runs(tmp)
+        check_full_status_list(tmp)
         check_failures(tmp)
         check_deterministic(tmp)
     print("block_status_generator: pass")

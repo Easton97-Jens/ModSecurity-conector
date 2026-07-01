@@ -102,4 +102,42 @@ if "--compiler" not in detect_text or "choices=sorted(ALLOWED_COMPILER_IDS)" not
 if detect_text.count("subprocess.run(") != 1 or "def compiler_supports" not in detect_text:
     fail("detect-c-standard.py subprocess.run must appear only in the compiler probe helper")
 
+
+def extract_http_status_table_statuses(source_text: str) -> set[int]:
+    table_match = re.search(
+        r"static\s+const\s+msconnector_http_status_info\s+http_statuses\[\]\s*=\s*\{(?P<body>.*?)\};",
+        source_text,
+        flags=re.S,
+    )
+    if table_match is None:
+        fail("common/src/http_status.c does not expose a parseable http_statuses table")
+    return {int(value) for value in re.findall(r"\{\s*(\d{3})\s*,", table_match.group("body"))}
+
+
+def extract_generator_statuses(source_text: str) -> set[int]:
+    list_match = re.search(
+        r"ALLOWED_BLOCK_STATUSES\s*=\s*\((?P<body>.*?)\)",
+        source_text,
+        flags=re.S,
+    )
+    if list_match is None:
+        fail("ci/generate-block-status-config.py does not expose a parseable ALLOWED_BLOCK_STATUSES tuple")
+    return {int(value) for value in re.findall(r"\b(\d{3})\b", list_match.group("body"))}
+
+
+http_status_source = (ROOT / "common" / "src" / "http_status.c").read_text(encoding="utf-8")
+block_status_source = (ROOT / "common" / "src" / "block_statuses.c").read_text(encoding="utf-8")
+generator_source = (ROOT / "ci" / "generate-block-status-config.py").read_text(encoding="utf-8")
+http_statuses = extract_http_status_table_statuses(http_status_source)
+generator_statuses = extract_generator_statuses(generator_source)
+if http_statuses != generator_statuses:
+    fail(
+        "HTTP status metadata and generator ALLOWED_BLOCK_STATUSES drift: "
+        f"http_status.c={sorted(http_statuses)} generator={sorted(generator_statuses)}"
+    )
+if "case 400:" in block_status_source or "case 403:" in block_status_source:
+    fail("common/src/block_statuses.c must delegate block status decisions instead of keeping a divergent switch list")
+if "msconnector_http_status_is_block_response" not in block_status_source:
+    fail("common/src/block_statuses.c does not delegate block status allow checks to HTTP status metadata")
+
 print("common-sdk-contract: pass")

@@ -99,19 +99,60 @@ int main(void) {
     assert(strcmp(msconnector_http_status_name(403), "Forbidden") == 0);
     assert(strcmp(msconnector_http_status_name(501), "Not Implemented") == 0);
     assert(strcmp(msconnector_http_status_name(777), "Unknown") == 0);
-    assert(strcmp(msconnector_http_status_reason_phrase(403), "Forbidden") == 0);
+    {
+        const struct {
+            int status;
+            const char *reason;
+        } status_reasons[] = {
+            {400, "Bad Request"},
+            {401, "Unauthorized"},
+            {403, "Forbidden"},
+            {404, "Not Found"},
+            {405, "Method Not Allowed"},
+            {406, "Not Acceptable"},
+            {408, "Request Timeout"},
+            {409, "Conflict"},
+            {410, "Gone"},
+            {413, "Payload Too Large"},
+            {415, "Unsupported Media Type"},
+            {418, "I'm a teapot"},
+            {422, "Unprocessable Content"},
+            {425, "Too Early"},
+            {429, "Too Many Requests"},
+            {451, "Unavailable For Legal Reasons"},
+            {500, "Internal Server Error"},
+            {501, "Not Implemented"},
+            {502, "Bad Gateway"},
+            {503, "Service Unavailable"},
+            {504, "Gateway Timeout"}
+        };
+        size_t index;
+
+        for (index = 0; index < sizeof(status_reasons) / sizeof(status_reasons[0]); ++index) {
+            assert(strcmp(msconnector_http_status_reason_phrase(status_reasons[index].status),
+                status_reasons[index].reason) == 0);
+            assert(msconnector_http_status_is_block_response(status_reasons[index].status));
+        }
+    }
     assert(strcmp(msconnector_http_status_default_message(403), "Request blocked") == 0);
-    assert(strcmp(msconnector_http_status_reason_phrase(500), "Internal Server Error") == 0);
-    assert(strcmp(msconnector_http_status_reason_phrase(501), "Not Implemented") == 0);
+    assert(strcmp(msconnector_http_status_default_message(500), "Internal error") == 0);
     assert(strcmp(msconnector_http_status_default_message(501), "Requested capability is not implemented") == 0);
-    assert(strcmp(msconnector_http_status_reason_phrase(503), "Service Unavailable") == 0);
+    assert(strcmp(msconnector_http_status_default_message(503), "Service unavailable") == 0);
     assert(!msconnector_http_status_is_valid(99));
+    assert(!msconnector_http_status_is_valid(600));
+    assert(strcmp(msconnector_http_status_reason_phrase(99), "Invalid Status") == 0);
+    assert(strcmp(msconnector_http_status_default_message(99), "Invalid HTTP status") == 0);
     assert(strcmp(msconnector_http_status_reason_phrase(299), "Unknown Status") == 0);
     assert(strcmp(msconnector_http_status_default_message(299), "HTTP status") == 0);
     assert(msconnector_http_status_classify(403) == MSCONNECTOR_HTTP_STATUS_CLASS_CLIENT_ERROR);
     assert(msconnector_http_status_classify(500) == MSCONNECTOR_HTTP_STATUS_CLASS_SERVER_ERROR);
+    assert(msconnector_http_status_classify(302) == MSCONNECTOR_HTTP_STATUS_CLASS_REDIRECTION);
+    assert(msconnector_http_status_classify(599) == MSCONNECTOR_HTTP_STATUS_CLASS_SERVER_ERROR);
+    assert(msconnector_http_status_classify(99) == MSCONNECTOR_HTTP_STATUS_CLASS_UNKNOWN);
+    assert(msconnector_http_status_classify(600) == MSCONNECTOR_HTTP_STATUS_CLASS_UNKNOWN);
     assert(msconnector_http_status_is_error(500));
-    assert(msconnector_http_status_is_block_response(403));
+    assert(!msconnector_http_status_is_block_response(299));
+    assert(!msconnector_http_status_is_block_response(99));
     assert(!msconnector_http_status_is_block_response(200));
     assert(strcmp(msconnector_block_action_name(MSCONNECTOR_BLOCK_ACTION_DENY), "deny") == 0);
     assert(strcmp(msconnector_block_action_name(MSCONNECTOR_BLOCK_ACTION_LOG_ONLY), "log_only") == 0);

@@ -22,3 +22,12 @@
 ## Integration status
 
 Connector integration is future work. This document and the common SDK scaffolding do not claim production readiness, connector capability support, runtime support, or full-matrix readiness.
+
+## HTTP status metadata
+
+The common HTTP status table is connector-neutral metadata for reason phrases,
+default connector-neutral messages, status classes, and block-response
+suitability. It does not change connector runtime responses. NGINX, Apache,
+HAProxy, Envoy, Traefik, lighttpd, and future connectors must explicitly map to
+this metadata in later connector-specific changes before any runtime response
+message behavior can be claimed.
