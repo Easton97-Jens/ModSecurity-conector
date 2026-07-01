@@ -31,6 +31,8 @@ command -v "$CC_BIN" >/dev/null 2>&1 || {
 
 mkdir -p "$OUT_DIR"
 cat > "$SMOKE_C" <<'EOF'
+#include "msconnector/block_statuses.h"
+#include "msconnector/blocking.h"
 #include "msconnector/capabilities.h"
 #include "msconnector/intervention.h"
 #include "msconnector/origin.h"
@@ -42,6 +44,7 @@ cat > "$SMOKE_C" <<'EOF'
 #include <string.h>
 
 int main(void) {
+    msconnector_blocking_policy blocking_policy;
     msconnector_capabilities capabilities;
     msconnector_capability_flags flags = MSCONNECTOR_CAPABILITY_NONE;
     msconnector_intervention intervention;
@@ -59,6 +62,32 @@ int main(void) {
     assert(msconnector_status_from_result("blocked") == MSCONNECTOR_STATUS_BLOCKED);
     assert(msconnector_status_from_result("not_executable") == MSCONNECTOR_STATUS_UNSUPPORTED);
     assert(msconnector_status_from_result("skipped") == MSCONNECTOR_STATUS_UNSUPPORTED);
+
+    assert(MSCONNECTOR_DEFAULT_BLOCK_STATUS == 403);
+    assert(MSCONNECTOR_DEFAULT_ERROR_STATUS == 500);
+    assert(MSCONNECTOR_DEFAULT_UNSUPPORTED_STATUS == 501);
+    assert(msconnector_http_status_is_valid(100));
+    assert(msconnector_http_status_is_valid(599));
+    assert(!msconnector_http_status_is_valid(99));
+    assert(!msconnector_http_status_is_valid(600));
+    assert(msconnector_block_status_is_allowed(403));
+    assert(msconnector_block_status_is_allowed(501));
+    assert(!msconnector_block_status_is_allowed(200));
+    assert(msconnector_block_status_normalize(0) == 403);
+    assert(msconnector_block_status_normalize(406) == 406);
+    assert(msconnector_block_status_normalize(99) == 500);
+    assert(msconnector_block_status_normalize(200) == 500);
+    assert(strcmp(msconnector_http_status_name(403), "Forbidden") == 0);
+    assert(strcmp(msconnector_http_status_name(501), "Not Implemented") == 0);
+    assert(strcmp(msconnector_http_status_name(777), "Unknown") == 0);
+    assert(strcmp(msconnector_block_action_name(MSCONNECTOR_BLOCK_ACTION_DENY), "deny") == 0);
+    assert(strcmp(msconnector_block_action_name(MSCONNECTOR_BLOCK_ACTION_LOG_ONLY), "log_only") == 0);
+    assert(msconnector_block_action_is_disruptive(MSCONNECTOR_BLOCK_ACTION_DENY));
+    assert(!msconnector_block_action_is_disruptive(MSCONNECTOR_BLOCK_ACTION_LOG_ONLY));
+    blocking_policy = msconnector_blocking_policy_make(MSCONNECTOR_BLOCK_ACTION_DENY, 406);
+    assert(blocking_policy.status == 406);
+    blocking_policy = msconnector_blocking_policy_make(MSCONNECTOR_BLOCK_ACTION_LOG_ONLY, 403);
+    assert(blocking_policy.status == 0);
 
     intervention = msconnector_intervention_make(1, 403, 0, "blocked");
     assert(msconnector_intervention_is_disruptive(&intervention));
@@ -124,6 +153,8 @@ EOF
 "$CC_BIN" -std=c99 -Wall -Wextra -Werror \
     -I "$REPO_ROOT/common/include" \
     "$REPO_ROOT/common/src/status.c" \
+    "$REPO_ROOT/common/src/block_statuses.c" \
+    "$REPO_ROOT/common/src/blocking.c" \
     "$REPO_ROOT/common/src/intervention.c" \
     "$REPO_ROOT/common/src/origin.c" \
     "$REPO_ROOT/common/src/capabilities.c" \

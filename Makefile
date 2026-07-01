@@ -626,7 +626,10 @@ probe-response-body: check-framework prepare-runtime-components
 connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
-.PHONY: check-common-helpers
+.PHONY: check-common-helpers check-block-status-generator
+check-block-status-generator:
+	$(PYTHON) ci/check-block-status-generator.py
+
 check-common-helpers:
 	sh ci/check-common-helpers.sh
 

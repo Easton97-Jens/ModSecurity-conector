@@ -1,0 +1,105 @@
+name: Update submodules
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+# Repository settings must also allow this workflow to open pull requests:
+# Settings -> Actions -> General -> Workflow permissions:
+# - enable Read and write permissions
+# - enable "Allow GitHub Actions to create and approve pull requests"
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-submodules:
+    name: Update submodules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Update submodules recursively
+        run: git submodule update --remote --recursive
+
+      - name: Run quick check
+        id: quick_check
+        continue-on-error: true
+        run: make quick-check
+
+      - name: Check for submodule changes
+        id: changes
+        run: |
+          if git diff --quiet -- modules/ModSecurity-test-Framework; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No submodule changes detected."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Submodule changes detected."
+          fi
+
+      - name: Commit and push submodule update branch
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B chore/update-submodules
+          git add modules/ModSecurity-test-Framework
+
+          if git diff --cached --quiet; then
+            echo "No staged submodule changes."
+            exit 0
+          fi
+
+          git commit -m "chore: update submodules"
+          git push --force-with-lease origin chore/update-submodules
+
+      - name: Create pull request with GitHub CLI
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing_pr_count=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base master \
+            --head chore/update-submodules \
+            --state open \
+            --json number \
+            --jq 'length')
+
+          if [ "$existing_pr_count" -gt 0 ]; then
+            echo "Pull request already exists for chore/update-submodules -> master."
+          else
+            cat > pr-body.md <<'EOF'
+          Automated recursive submodule update.
+
+          Validation:
+          - make quick-check was executed in this workflow.
+
+          If the workflow failed, inspect the check output before merging.
+          EOF
+
+            if ! gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base master \
+              --head chore/update-submodules \
+              --title "chore: update submodules" \
+              --body-file pr-body.md; then
+              echo "::error::GitHub CLI could not create the pull request with github.token. Enable the repository setting: Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests."
+              exit 1
+            fi
+          fi
+
+      - name: Fail if quick check failed
+        if: steps.quick_check.outcome == 'failure'
+        run: |
+          echo "make quick-check failed after updating submodules. Review the generated pull request."
+          exit 1
