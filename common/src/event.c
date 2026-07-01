@@ -1,0 +1,7 @@
+#include "msconnector/event.h"
+#include "msconnector/json_escape.h"
+#include "msconnector/transaction_state.h"
+#include <stdio.h>
+void msconnector_event_init(msconnector_event *e) { if (e) { e->event = 0; e->connector = 0; e->transaction_id = 0; e->phase = MSCONNECTOR_PHASE_CONNECTION; e->status = MSCONNECTOR_STATUS_OK; e->http_status = 0; e->rule_id = 0; e->reason = 0; e->action = 0; } }
+const char *msconnector_event_status_name(const msconnector_event *e) { return msconnector_status_name(e ? e->status : MSCONNECTOR_STATUS_ERROR); }
+int msconnector_event_write_json(const msconnector_event *e, char *dst, size_t n) { char ev[64], co[64], tx[64], rid[64], rsn[128], act[64]; int written; if (!e || !dst || n == 0) return 0; msconnector_json_escape(e->event, ev, sizeof(ev)); msconnector_json_escape(e->connector, co, sizeof(co)); msconnector_json_escape(e->transaction_id, tx, sizeof(tx)); msconnector_json_escape(e->rule_id, rid, sizeof(rid)); msconnector_json_escape(e->reason, rsn, sizeof(rsn)); msconnector_json_escape(e->action, act, sizeof(act)); written = snprintf(dst, n, "{\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"http_status\":%d,\"rule_id\":\"%s\",\"reason\":\"%s\",\"action\":\"%s\"}", ev, co, tx, msconnector_phase_name(e->phase), msconnector_status_name(e->status), e->http_status, rid, rsn, act); return written >= 0 && (size_t)written < n; }

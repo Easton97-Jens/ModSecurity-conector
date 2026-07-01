@@ -626,18 +626,22 @@ probe-response-body: check-framework prepare-runtime-components
 connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
-.PHONY: check-common-helpers check-block-status-generator
+.PHONY: check-common-helpers check-common-sdk-contract check-block-status-generator
 check-block-status-generator:
 	$(PYTHON) ci/check-block-status-generator.py
 
 check-common-helpers:
 	sh ci/check-common-helpers.sh
 
+check-common-sdk-contract:
+	$(PYTHON) ci/check-common-sdk-contract.py
+
 lint: check-framework
 	sh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile ci/*.py
+	$(MAKE) check-common-sdk-contract
 	$(MAKE) check-framework-fixture-syntax
 	$(MAKE) report-governance
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null

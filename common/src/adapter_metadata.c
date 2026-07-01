@@ -1,0 +1,3 @@
+#include "msconnector/adapter_metadata.h"
+void msconnector_adapter_metadata_init(msconnector_adapter_metadata *m) { if (m) { m->origin = msconnector_origin_make(0,0,0,0,0,0); m->capabilities.flags = MSCONNECTOR_CAPABILITY_NONE; m->capabilities.connector_name = 0; m->capabilities.connector_version = 0; m->capabilities.server_family = 0; m->capabilities.notes = 0; m->connector_name = 0; m->server_family = 0; m->source_kind = 0; m->imported_path = 0; m->integration_path = 0; m->build_status = 0; m->runtime_status = 0; m->verification_status = 0; } }
+int msconnector_adapter_metadata_is_complete(const msconnector_adapter_metadata *m) { return m && m->connector_name && m->server_family && m->source_kind && m->build_status && m->runtime_status && m->verification_status; }
