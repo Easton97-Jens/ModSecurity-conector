@@ -7,6 +7,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 COMMON = ROOT / "common"
 CHECK_COMMON_HELPERS = ROOT / "ci" / "check-common-helpers.sh"
+MAKEFILE = ROOT / "Makefile"
 SEARCH_ROOTS = [COMMON / "include", COMMON / "src"]
 FORBIDDEN_INCLUDES = (
     "#include <ngx_",
@@ -65,11 +66,23 @@ for root in SEARCH_ROOTS:
                 fail(f"server-specific token {token!r} lacks non-integration context in {path.relative_to(ROOT)}")
 
 helper_text = CHECK_COMMON_HELPERS.read_text(encoding="utf-8")
+makefile_text = MAKEFILE.read_text(encoding="utf-8")
+combined_check_text = helper_text + "\n" + makefile_text
 if "common/src/*.c" not in helper_text:
     fail("check-common-helpers.sh does not compile all common/src/*.c files")
 if "-std=c99" in helper_text:
     fail("hardcoded -std=c99 remains in check-common-helpers.sh")
 if "MSCONNECTOR_C_STD" not in helper_text or "MSCONNECTOR_CFLAGS" not in helper_text:
     fail("check-common-helpers.sh does not expose configurable common C standard flags")
+if "MSCONNECTOR_C_STD ?= c17" not in makefile_text:
+    fail("Makefile does not define c17 as the default common C standard")
+if "-std=c20" in combined_check_text:
+    fail("common C checks must not use -std=c20")
+if "-std=c26" in combined_check_text:
+    fail("common C checks must not use -std=c26")
+if "--profile c23" not in makefile_text or "c2x" not in makefile_text:
+    fail("optional c23/c2x common helper check is not wired")
+if "--profile c2y" not in makefile_text or "gnu2y" not in makefile_text:
+    fail("optional future-C c2y/gnu2y common helper check is not wired")
 
 print("common-sdk-contract: pass")

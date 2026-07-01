@@ -2,9 +2,6 @@
 #include "msconnector/block_statuses.h"
 #include <stdio.h>
 
-static const enum msconnector_phase4_mode MSCONNECTOR_PHASE4_MODE_UNSET =
-    (enum msconnector_phase4_mode)-1;
-
 static void set_error(char *error, size_t error_len, const char *message) {
     if (error != 0 && error_len > 0) {
         (void)snprintf(error, error_len, "%s", message);
@@ -194,8 +191,8 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
         return 0;
     }
 
-    if ((int)config->phase4_mode < (int)MSCONNECTOR_PHASE4_MODE_UNSET ||
-        (int)config->phase4_mode > (int)MSCONNECTOR_PHASE4_MODE_STRICT) {
+    if (config->phase4_mode < MSCONNECTOR_PHASE4_MODE_UNSET ||
+        config->phase4_mode > MSCONNECTOR_PHASE4_MODE_STRICT) {
         set_error(error, error_len, "invalid phase4 mode");
         return 0;
     }
