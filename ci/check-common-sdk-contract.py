@@ -351,4 +351,31 @@ if "if ((dst_size == 0 || needed >= dst_size) && truncated != 0)" not in event_s
 if '{200, "OK", "Request succeeded", MSCONNECTOR_HTTP_STATUS_CLASS_SUCCESS, 0}' not in http_status_source:
     fail("common HTTP status metadata must include non-blocking 200 OK metadata")
 
+# Review hardening checks for PR 27 common SDK correctness.
+decision_action_source = (ROOT / "common" / "src" / "decision_action.c").read_text(encoding="utf-8")
+adapter_contract_source = (ROOT / "common" / "src" / "adapter_contract.c").read_text(encoding="utf-8")
+rule_event_source = (ROOT / "common" / "src" / "rule_event.c").read_text(encoding="utf-8")
+transaction_header = (ROOT / "common" / "include" / "msconnector" / "transaction.h").read_text(encoding="utf-8")
+harness_source = (ROOT / "ci" / "common-harness.sh").read_text(encoding="utf-8")
+if "decision_message_id" not in decision_source or "MSCONNECTOR_DECISION_KIND_ALLOW" not in decision_source or "return 0" not in decision_source:
+    fail("decision_to_event must not map ALLOW/LOG_ONLY decisions to blocked events")
+if "MSCONNECTOR_DECISION_KIND_DROP" not in decision_action_source or "MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION" not in decision_action_source:
+    fail("decision_action must preserve specific decision kinds")
+if "validate_n" not in transaction_id_source or "header->value_size" not in transaction_id_source or "msconnector_headers_find_first" not in transaction_id_source:
+    fail("transaction ID header fallback must use bounded header value_size")
+if "new_rules_set" not in engine_source or "old_rules_set" not in engine_source or "engine->rules_set = new_rules_set" not in engine_source:
+    fail("modsecurity_engine_create_rules must preserve the old rules set until reload succeeds")
+if '".."' not in harness_source or '../*' not in harness_source or '*/..' not in harness_source or '*\\\\..' not in harness_source:
+    fail("common-harness must reject terminal parent-directory artifact segments")
+if "validate_phase_callbacks" not in adapter_contract_source or "MSCONNECTOR_CAPABILITY_REQUEST_HEADERS" not in adapter_contract_source or "process_response_body" not in adapter_contract_source:
+    fail("adapter contract must compare advertised phase capabilities with callbacks")
+if "static char" in rule_event_source or "rule_event_reason" in rule_event_source:
+    fail("rule_event must not use static mutable reason storage")
+if "msconnector_rule_load_event_ex" not in rule_event_source or "reason_buffer" not in rule_event_source:
+    fail("rule_event must require caller-owned reason storage")
+if '#include "msconnector/decision.h"' not in transaction_header:
+    fail("transaction.h must preserve compatibility with msconnector_decision declarations")
+if "MSCONNECTOR_ERROR_NONE" not in error_source or "error == 0" not in error_source or "return 0" not in error_source:
+    fail("error_to_event must handle MSCONNECTOR_ERROR_NONE without emitting an error event")
+
 print("common-sdk-contract: pass")

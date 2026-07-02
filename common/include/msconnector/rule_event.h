@@ -6,6 +6,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+int msconnector_rule_load_event_ex(const msconnector_rule_load_stats *stats, msconnector_event *event, const char *connector, const char *transaction_id, char *reason_buffer, size_t reason_buffer_size);
 int msconnector_rule_load_event(const msconnector_rule_load_stats *stats, msconnector_event *event, const char *connector, const char *transaction_id);
 int msconnector_rule_error_event(const msconnector_error *error, msconnector_event *event, const char *connector, const char *transaction_id);
 #ifdef __cplusplus

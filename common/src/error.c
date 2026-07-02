@@ -61,8 +61,8 @@ int msconnector_error_is_fatal(msconnector_error_code code) { return code == MSC
 int msconnector_error_to_event(const msconnector_error *error, msconnector_event *event, const char *connector, const char *transaction_id) {
     msconnector_error_code code;
     int http_status;
-    if (event == 0) { return 0; }
-    code = error == 0 ? MSCONNECTOR_ERROR_INTERNAL : error->code;
+    if (event == 0 || error == 0 || error->code == MSCONNECTOR_ERROR_NONE) { return 0; }
+    code = error->code;
     http_status = msconnector_error_http_status(code);
     msconnector_event_init(event);
     event->meta.connector = connector; event->meta.transaction_id = transaction_id;

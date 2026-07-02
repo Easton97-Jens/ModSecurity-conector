@@ -29,3 +29,20 @@ SonarCloud-Issue-Abruf: lokal über die SonarCloud-Issues-API für Pull Request 
 Lokale Korrektur: Die offenen neuen SonarCloud-Hinweise wurden in den Common-SDK-Dateien durch explizitere Deklarationen, ausgeschriebene Kontrollflüsse, entfernte verschachtelte Bedingungsoperatoren, einen gruppierten Event-JSON-Formatter und Shell-Hilfsfunktionen mit lokalen Parameterzuweisungen adressiert. Diese Änderungen bleiben connector-neutral und ändern keine Connector-Laufzeitpfade.
 
 SonarCloud after-count: NOT VERIFIED. Die lokalen Prüfungen lösen keine neue SonarCloud-Analyse aus.
+
+## PR-27-Folgekorrektur für Codex-Review-P2-Hinweise
+
+Die lokalen Folgekorrekturen bleiben ausschließlich im Common SDK und ändern keine Connector-Laufzeitpfade.
+
+- `ALLOW`- und `LOG_ONLY`-Entscheidungen erzeugen keine Blockierungsereignisse mehr.
+- Transaction-IDs aus Headern verwenden jetzt die begrenzte Header-Slice-Länge.
+- Spezifische Entscheidungsaktionen wie Drop und Connection-Abort bleiben erhalten.
+- Ruleset-Neuladen ersetzt das alte Ruleset erst nach erfolgreicher Erstellung.
+- Artifact-Helfer lehnen terminale Parent-Directory-Segmente ab.
+- Adapter-Verträge vergleichen deklarierte Phasen-Capabilities mit passenden Callbacks.
+- Rule-Load-Events verwenden aufruferverwalteten Reason-Speicher.
+- `transaction.h` stellt Decision-Deklarationen für Starter-Header wieder bereit.
+- `MSCONNECTOR_ERROR_NONE` erzeugt kein Fehlerereignis.
+
+GitHub review thread resolved state: NOT VERIFIED.
+SonarCloud after-count: NOT VERIFIED.

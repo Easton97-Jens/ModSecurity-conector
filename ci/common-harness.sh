@@ -13,7 +13,8 @@ msconnector_harness_require_absolute() {
 msconnector_harness_require_relative_artifact() {
     artifact=$1
     case "$artifact" in
-        ""|/*|\\*|*../*|*..\\*|[A-Za-z]:/*|[A-Za-z]:\\*) return 1 ;;
+        ""|/*|\\*|[A-Za-z]:/*|[A-Za-z]:\\*) return 1 ;;
+        ".."|../*|..\\*|*/..|*\\..|*/../*|*/..\\*|*\\../*|*\\..\\*) return 1 ;;
         *) return 0 ;;
     esac
 }

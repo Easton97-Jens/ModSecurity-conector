@@ -128,3 +128,20 @@ SonarCloud issue retrieval: VERIFIED locally through the SonarCloud issues API f
 | AZ8fMplvXWdE1DtM8Ybq | c:S3972 | CRITICAL | CODE_SMELL | common/src/modsecurity_engine.c | 53 | Move this `if` to a new line or add the missing `else`. | Expanded compact ModSecurity facade control flow. |
 
 SonarCloud after-count: NOT VERIFIED. Local checks do not trigger a new SonarCloud analysis.
+
+## PR 27 Codex Review P2 follow-up
+
+Local follow-up fixes for the open Codex Review P2 findings remain common-only and do not change connector runtime behavior.
+
+- `common/src/decision.c`: `ALLOW` and `LOG_ONLY` decisions now return no event instead of reusing blocked event IDs.
+- `common/src/transaction_id.c`: header fallback now resolves transaction IDs from bounded `msconnector_header.value` + `value_size` slices.
+- `common/src/decision_action.c`: action derivation now maps from `msconnector_decision_kind` first, preserving drop, redirect, log-only, connection-abort, error, and unsupported actions.
+- `common/src/modsecurity_engine.c`: rules-set creation now uses a temporary pointer and keeps the old rules set when reload fails.
+- `ci/common-harness.sh`: artifact validation now rejects terminal parent-directory path segments.
+- `common/src/adapter_contract.c`: advertised phase capabilities are checked against the matching adapter callbacks.
+- `common/src/rule_event.c`: rule-load events now require caller-owned reason storage through `msconnector_rule_load_event_ex()`.
+- `common/include/msconnector/transaction.h`: transaction header compatibility includes decision declarations after transaction types are defined.
+- `common/src/error.c`: `MSCONNECTOR_ERROR_NONE` and NULL errors produce no error event.
+
+GitHub review thread resolved state: NOT VERIFIED.
+SonarCloud after-count: NOT VERIFIED.

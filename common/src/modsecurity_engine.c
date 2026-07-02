@@ -70,14 +70,27 @@ void msconnector_modsecurity_engine_cleanup(msconnector_modsecurity_engine *engi
 
 int msconnector_modsecurity_engine_create_rules(msconnector_modsecurity_engine *engine, msconnector_error *error)
 {
+    void *new_rules_set;
+    void *old_rules_set;
+
     if (engine == 0 || !engine->initialized) {
         return fail_error(error, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE, "engine is not initialized");
     }
     if (engine->ops.create_rules_set == 0) {
         return fail_error(error, MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY, "rules set creation is unsupported");
     }
-    engine->rules_set = engine->ops.create_rules_set(engine->ops.userdata, error);
-    return engine->rules_set != 0;
+
+    new_rules_set = engine->ops.create_rules_set(engine->ops.userdata, error);
+    if (new_rules_set == 0) {
+        return 0;
+    }
+
+    old_rules_set = engine->rules_set;
+    engine->rules_set = new_rules_set;
+    if (old_rules_set != 0 && engine->ops.destroy_rules_set != 0) {
+        engine->ops.destroy_rules_set(engine->ops.userdata, old_rules_set);
+    }
+    return 1;
 }
 
 int msconnector_modsecurity_transaction_init(

@@ -31,4 +31,7 @@ typedef struct msconnector_transaction_view {
 }
 #endif
 
+/* Compatibility: starter headers that include transaction.h also get decision declarations. */
+#include "msconnector/decision.h"
+
 #endif

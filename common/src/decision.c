@@ -89,8 +89,31 @@ int msconnector_decision_from_intervention(msconnector_decision *out, const msco
     else { msconnector_decision_set_deny(out, intervention->status, rule_id, reason); }
     out->phase = phase; out->log_message = intervention->log_message; return 1;
 }
+
+static const char *decision_message_id(msconnector_decision_kind kind) {
+    switch (kind) {
+    case MSCONNECTOR_DECISION_KIND_DENY:
+        return MSCONN_EVENT_REQUEST_BLOCKED;
+    case MSCONNECTOR_DECISION_KIND_REDIRECT:
+    case MSCONNECTOR_DECISION_KIND_DROP:
+    case MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT:
+        return MSCONN_EVENT_RESPONSE_BLOCKED;
+    case MSCONNECTOR_DECISION_KIND_ERROR:
+        return MSCONN_EVENT_INTERNAL_ERROR;
+    case MSCONNECTOR_DECISION_KIND_UNSUPPORTED:
+        return MSCONN_EVENT_UNSUPPORTED_CAPABILITY;
+    case MSCONNECTOR_DECISION_KIND_ALLOW:
+    case MSCONNECTOR_DECISION_KIND_LOG_ONLY:
+    default:
+        return 0;
+    }
+}
+
 int msconnector_decision_to_event(const msconnector_decision *decision, msconnector_event *event, const char *connector, const char *transaction_id) {
+    const char *message_id;
     if (decision == 0 || event == 0) { return 0; }
+    message_id = decision_message_id(decision->kind);
+    if (message_id == 0) { msconnector_event_init(event); return 0; }
     msconnector_event_init(event);
     event->meta.connector = connector; event->meta.transaction_id = transaction_id;
     event->decision.phase = decision->phase; event->decision.status = decision->status;
@@ -99,10 +122,7 @@ int msconnector_decision_to_event(const msconnector_decision *decision, msconnec
     event->http.http_status = decision->http_status;
     event->http.http_reason_phrase = msconnector_http_status_reason_phrase(decision->http_status);
     event->http.http_default_message = msconnector_http_status_default_message(decision->http_status);
-    if (decision->kind == MSCONNECTOR_DECISION_KIND_DENY) { event->meta.message_id = MSCONN_EVENT_REQUEST_BLOCKED; }
-    else if (decision->kind == MSCONNECTOR_DECISION_KIND_UNSUPPORTED) { event->meta.message_id = MSCONN_EVENT_UNSUPPORTED_CAPABILITY; }
-    else if (decision->kind == MSCONNECTOR_DECISION_KIND_ERROR) { event->meta.message_id = MSCONN_EVENT_INTERNAL_ERROR; }
-    else { event->meta.message_id = decision->disruptive ? MSCONN_EVENT_RESPONSE_BLOCKED : MSCONN_EVENT_REQUEST_BLOCKED; }
+    event->meta.message_id = message_id;
     event->meta.message = msconnector_event_default_message(event->meta.message_id);
     event->meta.level = msconnector_event_default_level(event->meta.message_id);
     event->flags.late_intervention = decision->late_intervention;
