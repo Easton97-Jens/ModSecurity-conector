@@ -1,6 +1,8 @@
+**Language:** English | [Deutsch](common-sdk.de.md)
+
 # Common connector SDK scaffolding
 
-`common/` contains connector-neutral C99 data models and helpers intended for future connector integration. These APIs do not automatically make NGINX, Apache, HAProxy, Envoy, Traefik, lighttpd, or any other connector support a feature. Each connector remains separately compiled and must explicitly map its own server APIs to these models in a later change.
+`common/` contains connector-neutral C17-oriented data models and helpers intended for future connector integration. These APIs do not automatically make NGINX, Apache, HAProxy, Envoy, Traefik, lighttpd, or any other connector support a feature. Each connector remains separately compiled and must explicitly map its own server APIs to these models in a later change.
 
 ## Modules
 
@@ -101,3 +103,34 @@ config expression callback, host request ID, configured header, then fallback ID
 Resolved IDs must be non-empty printable ASCII, must not contain CR/LF or other
 control characters, and must fit the fixed common result buffer without
 truncation.
+
+## Common-only merge-blocker infrastructure
+
+The SDK also includes connector-neutral scaffolding for adapter interfaces,
+adapter contract checks, capability-to-test mapping, JSONL event output,
+runtime artifact layout, and runtime path validation. These helpers are Common
+SDK infrastructure only. They do not start connector runtimes, do not link
+libmodsecurity, and do not change NGINX, Apache, HAProxy, Envoy, Traefik, or
+lighttpd behavior.
+
+## Header policy
+
+Header helpers perform case-insensitive lookup, trim leading optional whitespace
+for Content-Type media-type comparisons, reject garbage suffixes after the media
+type, keep Set-Cookie/Cookie/Content-Length/Host out of blind comma-combining,
+and parse duplicate Content-Length values only when they are identical. Log
+sanitizing replaces control characters; it is not redaction.
+
+## Adapter and connector contract model
+
+The adapter interface and contract helpers define what a future connector may
+provide: metadata, capabilities, phase callbacks, decisions, events, and
+artifacts. Existing connectors are not migrated by this change and must adopt the
+interface explicitly in later connector-specific work before runtime behavior can
+be claimed.
+
+## Artifact and path policy
+
+The common artifact layout defines standard names such as `result.json`,
+`decision.jsonl`, `audit.log`, and `error.log`. Runtime path joining rejects
+absolute artifact names, Windows absolute and UNC names, and parent traversal.

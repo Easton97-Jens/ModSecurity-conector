@@ -55,6 +55,12 @@ for required_header in (
     "rule_loader.h",
     "modsecurity_engine.h",
     "transaction_id.h",
+    "adapter.h",
+    "adapter_contract.h",
+    "capability_matrix.h",
+    "event_jsonl.h",
+    "artifact_layout.h",
+    "runtime_paths.h",
 ):
     if not (COMMON / "include" / "msconnector" / required_header).is_file():
         fail(f"missing common SDK header {required_header}")
@@ -116,8 +122,10 @@ if detect_text.count('"-std=c17"') > 1:
     fail("detect-c-standard.py duplicates the -std=c17 literal outside its constant")
 if detect_text.count('"-std=c2x"') > 1:
     fail("detect-c-standard.py duplicates the -std=c2x literal outside its constant")
-if "--compiler" not in detect_text or "choices=sorted(ALLOWED_COMPILER_IDS)" not in detect_text:
-    fail("detect-c-standard.py must expose only an allow-listed compiler selector")
+if "--compiler" not in detect_text or "COMPILER_ID_PATTERN" not in detect_text or "shutil.which" not in detect_text:
+    fail("detect-c-standard.py must expose only a validated compiler-id selector")
+if "gcc-\\d+" not in detect_text or "clang-\\d+" not in detect_text:
+    fail("detect-c-standard.py must support safe versioned gcc/clang compiler ids")
 if detect_text.count("subprocess.run(") != 1 or "def compiler_supports" not in detect_text:
     fail("detect-c-standard.py subprocess.run must appear only in the compiler probe helper")
 
@@ -179,8 +187,8 @@ if "msconnector_http_status_is_block_response" not in block_status_source:
 headers_source = (ROOT / "common" / "src" / "headers.c").read_text(encoding="utf-8")
 config_source = (ROOT / "common" / "src" / "config.c").read_text(encoding="utf-8")
 path_policy_source = (ROOT / "common" / "src" / "path_policy.c").read_text(encoding="utf-8")
-if "suffix_index" not in headers_source or "isspace" not in headers_source or "header->value[suffix_index] == ';'" not in headers_source:
-    fail("Content-Type matching must reject whitespace followed by garbage after the media type")
+if "value_index" not in headers_source or "is_ows" not in headers_source or "header->value[suffix_index] == ';'" not in headers_source:
+    fail("Content-Type matching must trim leading OWS and reject garbage after the media type")
 if "msconnector_block_status_is_allowed" not in config_source or "validate_block_status_value" not in config_source:
     fail("default_block_status validation must use block-status allowance metadata")
 if "merge_remote_rules_pair" not in config_source or "merge_transaction_id_pair" not in config_source:
@@ -190,6 +198,47 @@ if "is_path_separator" not in path_policy_source or "\\" not in path_policy_sour
 
 if "set-cookie" not in headers_source or "content-length" not in headers_source or "msconnector_headers_parse_content_length" not in headers_source:
     fail("headers.c must contain Set-Cookie and Content-Length duplicate-header policy")
+
+adapter_metadata_source = (ROOT / "common" / "src" / "adapter_metadata.c").read_text(encoding="utf-8")
+event_source = (ROOT / "common" / "src" / "event.c").read_text(encoding="utf-8")
+if "string_is_nonempty" not in adapter_metadata_source or "imported_path" not in adapter_metadata_source:
+    fail("adapter metadata completeness must reject empty required fields")
+if "validate_error_status_value" not in config_source or "msconnector_http_status_is_error" not in config_source:
+    fail("config validation must reject success/redirect default error and unsupported statuses")
+if "format_event_json" not in event_source or "json_bool(was_truncated)" not in event_source:
+    fail("event writer must recompute the truncation marker before final JSON output")
+for required_doc in (
+    "docs/architecture/common-sdk.de.md",
+    "docs/connectors/new-connector-contract.md",
+    "docs/connectors/new-connector-contract.de.md",
+    "docs/generated/common-sdk.md",
+    "docs/generated/common-sdk.de.md",
+    "docs/generated/directives.md",
+    "docs/generated/directives.de.md",
+    "docs/generated/capabilities.md",
+    "docs/generated/capabilities.de.md",
+    "reports/sonar/pr27-issue-reduction.de.md",
+):
+    if not (ROOT / required_doc).is_file():
+        fail(f"missing bilingual/common generated document {required_doc}")
+for required_script in (
+    "ci/common-harness.sh",
+    "ci/port_allocator.py",
+    "ci/process_helper.py",
+    "ci/generate-common-docs.py",
+    "ci/check-adapter-contracts.py",
+    "ci/check-capability-truthfulness.py",
+):
+    if not (ROOT / required_script).is_file():
+        fail(f"missing common helper script {required_script}")
+if not (ROOT / "config/testing/capability-contract.json").is_file():
+    fail("missing capability contract JSON")
+event_jsonl_source = (ROOT / "common" / "src" / "event_jsonl.c").read_text(encoding="utf-8")
+runtime_paths_source = (ROOT / "common" / "src" / "runtime_paths.c").read_text(encoding="utf-8")
+if "msconnector_event_write_json_ex" not in event_jsonl_source or "request_body" in event_jsonl_source or "response_body" in event_jsonl_source:
+    fail("event_jsonl writer must use event JSON and avoid body payload fields")
+if "msconnector_path_is_absolute" not in runtime_paths_source or "msconnector_path_has_parent_reference" not in runtime_paths_source:
+    fail("runtime path join must reject absolute and parent-traversal artifact names")
 decision_source = (ROOT / "common" / "src" / "decision.c").read_text(encoding="utf-8")
 error_source = (ROOT / "common" / "src" / "error.c").read_text(encoding="utf-8")
 rule_loader_source = (ROOT / "common" / "src" / "rule_loader.c").read_text(encoding="utf-8")
@@ -211,7 +260,6 @@ if "expr_eval" not in transaction_id_source:
     fail("transaction_id.c must support callback expression resolution")
 
 event_header = (ROOT / "common" / "include" / "msconnector" / "event.h").read_text(encoding="utf-8")
-event_source = (ROOT / "common" / "src" / "event.c").read_text(encoding="utf-8")
 if count_direct_fields(event_header, "msconnector_event") > 20:
     fail("top-level msconnector_event must not exceed 20 direct fields")
 for nested_struct in (

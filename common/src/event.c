@@ -13,6 +13,74 @@ static const char *json_bool(int value) {
     return value ? EVENT_JSON_TRUE : EVENT_JSON_FALSE;
 }
 
+
+static int format_event_json(
+    char *dst,
+    size_t dst_size,
+    const char *timestamp,
+    const char *level,
+    const char *message_id,
+    const char *message,
+    const char *event_name,
+    const char *connector,
+    const char *transaction_id,
+    const char *phase,
+    const char *status,
+    const char *action,
+    const char *requested_action,
+    const char *actual_action,
+    int http_status,
+    int original_http_status,
+    int visible_http_status,
+    const char *http_reason_phrase,
+    const char *http_default_message,
+    const char *rule_id,
+    const char *reason,
+    const char *method,
+    const char *uri,
+    const char *client_ip,
+    const char *late_intervention,
+    const char *response_started,
+    const char *headers_sent,
+    const char *body_started,
+    const char *connection_aborted,
+    const char *redacted,
+    const char *truncated_value) {
+    return snprintf(
+        dst,
+        dst_size,
+        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"headers_sent\":%s,\"body_started\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s}",
+        timestamp,
+        level,
+        message_id,
+        message,
+        event_name,
+        connector,
+        transaction_id,
+        phase,
+        status,
+        action,
+        requested_action,
+        actual_action,
+        http_status,
+        original_http_status,
+        visible_http_status,
+        http_reason_phrase,
+        http_default_message,
+        rule_id,
+        reason,
+        method,
+        uri,
+        client_ip,
+        late_intervention,
+        response_started,
+        headers_sent,
+        body_started,
+        connection_aborted,
+        redacted,
+        truncated_value);
+}
+
 static void escape_field(const char *src, char *dst, size_t dst_size, int *truncated) {
     const size_t needed = msconnector_json_escape(src, dst, dst_size);
     if ((dst_size == 0 || needed >= dst_size) && truncated != 0) {
@@ -168,10 +236,46 @@ int msconnector_event_write_json_ex(
     escape_field(event->request.uri, uri, sizeof(uri), &was_truncated);
     escape_field(event->request.client_ip, client_ip, sizeof(client_ip), &was_truncated);
 
-    written = snprintf(
+    written = format_event_json(
+        0,
+        0,
+        timestamp,
+        level,
+        message_id,
+        message,
+        event_name,
+        connector,
+        transaction_id,
+        msconnector_phase_name(event->decision.phase),
+        msconnector_status_name(event->decision.status),
+        action,
+        requested_action,
+        actual_action,
+        event->http.http_status,
+        event->http.original_http_status,
+        event->http.visible_http_status,
+        http_reason_phrase,
+        http_default_message,
+        rule_id,
+        reason,
+        method,
+        uri,
+        client_ip,
+        json_bool(event->flags.late_intervention),
+        json_bool(event->flags.response_started),
+        json_bool(event->flags.headers_sent),
+        json_bool(event->flags.body_started),
+        json_bool(event->flags.connection_aborted),
+        json_bool(event->flags.redacted),
+        json_bool(was_truncated));
+
+    if (written < 0 || (size_t)written >= dst_size) {
+        was_truncated = 1;
+    }
+
+    written = format_event_json(
         dst,
         dst_size,
-        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"headers_sent\":%s,\"body_started\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s}",
         timestamp,
         level,
         message_id,

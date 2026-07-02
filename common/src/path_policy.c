@@ -1,12 +1,20 @@
 #include "msconnector/path_policy.h"
+#include <ctype.h>
 #include <string.h>
 
 int msconnector_path_is_empty(const char *path) {
     return path == 0 || path[0] == '\0';
 }
 
+static int has_drive_absolute_prefix(const char *path) {
+    return path != 0 &&
+        isalpha((unsigned char)path[0]) &&
+        path[1] == ':' &&
+        (path[2] == '/' || path[2] == '\\');
+}
+
 int msconnector_path_is_absolute(const char *path) {
-    return path != 0 && (path[0] == '/' || (path[0] != '\0' && path[1] == ':'));
+    return path != 0 && (path[0] == '/' || path[0] == '\\' || has_drive_absolute_prefix(path));
 }
 
 static int is_path_separator(char value) {

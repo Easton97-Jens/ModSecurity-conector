@@ -65,12 +65,12 @@ static int validate_bool_option(
     return 1;
 }
 
-static int validate_http_status_value(
+static int validate_block_status_value(
     int value,
     const char *message,
     char *error,
     size_t error_len) {
-    if (value != 0 && !msconnector_http_status_is_valid(value)) {
+    if (value != 0 && !msconnector_block_status_is_allowed(value)) {
         set_error(error, error_len, message);
         return 0;
     }
@@ -78,12 +78,12 @@ static int validate_http_status_value(
     return 1;
 }
 
-static int validate_block_status_value(
+static int validate_error_status_value(
     int value,
     const char *message,
     char *error,
     size_t error_len) {
-    if (value != 0 && !msconnector_block_status_is_allowed(value)) {
+    if (value != 0 && (!msconnector_http_status_is_valid(value) || !msconnector_http_status_is_error(value))) {
         set_error(error, error_len, message);
         return 0;
     }
@@ -255,11 +255,11 @@ int msconnector_config_validate(const msconnector_config *config, char *error, s
         return 0;
     }
 
-    if (!validate_http_status_value(config->default_error_status, "invalid default error status", error, error_len)) {
+    if (!validate_error_status_value(config->default_error_status, "invalid default error status", error, error_len)) {
         return 0;
     }
 
-    if (!validate_http_status_value(config->unsupported_status, "invalid unsupported status", error, error_len)) {
+    if (!validate_error_status_value(config->unsupported_status, "invalid unsupported status", error, error_len)) {
         return 0;
     }
 

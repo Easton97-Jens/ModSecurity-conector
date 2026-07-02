@@ -41,7 +41,10 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/rule_load_stats.h"
 #include "msconnector/status.h"
 #include "msconnector/transaction.h"
+#include "msconnector/adapter.h"
+#include "msconnector/adapter_contract.h"
 #include "msconnector/adapter_metadata.h"
+#include "msconnector/artifact_layout.h"
 #include "msconnector/artifacts.h"
 #include "msconnector/body_policy.h"
 #include "msconnector/config.h"
@@ -51,15 +54,18 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/decision.h"
 #include "msconnector/error.h"
 #include "msconnector/event.h"
+#include "msconnector/event_jsonl.h"
 #include "msconnector/headers.h"
 #include "msconnector/http_status.h"
 #include "msconnector/json_escape.h"
+#include "msconnector/capability_matrix.h"
 #include "msconnector/late_intervention.h"
 #include "msconnector/modsecurity_engine.h"
 #include "msconnector/lifecycle_status.h"
 #include "msconnector/path_policy.h"
 #include "msconnector/redaction.h"
 #include "msconnector/rule_loader.h"
+#include "msconnector/runtime_paths.h"
 #include "msconnector/test_result.h"
 #include "msconnector/transaction_id.h"
 #include "msconnector/transaction_state.h"
@@ -183,6 +189,27 @@ static int fake_expr_eval(void *userdata, const msconnector_request *request, ch
     (void)request;
     if (out_len < 8U) { return 0; }
     strcpy(out, "expr-id");
+    return 1;
+}
+
+static msconnector_adapter_metadata fake_metadata;
+static msconnector_capabilities fake_capabilities;
+
+static const msconnector_adapter_metadata *fake_adapter_metadata(void *userdata) {
+    (void)userdata;
+    return &fake_metadata;
+}
+
+static const msconnector_capabilities *fake_adapter_capabilities(void *userdata) {
+    (void)userdata;
+    return &fake_capabilities;
+}
+
+static int fake_adapter_phase(void *userdata, msconnector_transaction_view *tx, msconnector_decision *decision, msconnector_error *error) {
+    (void)userdata;
+    (void)tx;
+    (void)error;
+    if (decision != 0) { msconnector_decision_set_allow(decision); }
     return 1;
 }
 
@@ -370,6 +397,24 @@ int main(void) {
         assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
         merged_config.default_block_status = 600;
         assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.default_block_status = 403;
+        merged_config.default_error_status = 500;
+        assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.default_error_status = 503;
+        assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.default_error_status = 200;
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.default_error_status = 302;
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.default_error_status = 500;
+        merged_config.unsupported_status = 501;
+        assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.unsupported_status = 500;
+        assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.unsupported_status = 200;
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.unsupported_status = 302;
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
 
         msconnector_config_init(&parent_config);
         msconnector_config_init(&child_config);
@@ -402,6 +447,8 @@ int main(void) {
         const msconnector_header exact[] = {{"Content-Type", 12, "application/json", 16}};
         const msconnector_header spaced[] = {{"Content-Type", 12, "application/json ; charset=utf-8", 32}};
         const msconnector_header uppercase[] = {{"Content-Type", 12, "APPLICATION/JSON", 16}};
+        const msconnector_header leading[] = {{"Content-Type", 12, "  application/json", 18}};
+        const msconnector_header leading_param[] = {{"Content-Type", 12, " 	 application/json ; charset=utf-8", 34}};
         const msconnector_header garbage[] = {{"Content-Type", 12, "application/json garbage", 24}};
         const msconnector_header spaced_garbage[] = {{"Content-Type", 12, "application/json    garbage", 27}};
         const msconnector_header tab_garbage[] = {{"Content-Type", 12, "application/json	garbage", 24}};
@@ -413,6 +460,8 @@ int main(void) {
         assert(msconnector_headers_content_type_matches(exact, 1, "application/json"));
         assert(msconnector_headers_content_type_matches(spaced, 1, "application/json"));
         assert(msconnector_headers_content_type_matches(uppercase, 1, "application/json"));
+        assert(msconnector_headers_content_type_matches(leading, 1, "application/json"));
+        assert(msconnector_headers_content_type_matches(leading_param, 1, "application/json"));
         assert(!msconnector_headers_content_type_matches(garbage, 1, "application/json"));
         assert(!msconnector_headers_content_type_matches(spaced_garbage, 1, "application/json"));
         assert(!msconnector_headers_content_type_matches(tab_garbage, 1, "application/json"));
@@ -456,6 +505,13 @@ int main(void) {
         msconnector_adapter_metadata metadata;
         msconnector_adapter_metadata_init(&metadata);
         assert(!msconnector_adapter_metadata_is_complete(&metadata));
+        metadata.connector_name = ""; metadata.server_family = "server"; metadata.source_kind = "imported";
+        metadata.imported_path = "common"; metadata.build_status = "build"; metadata.runtime_status = "runtime"; metadata.verification_status = "verified";
+        assert(!msconnector_adapter_metadata_is_complete(&metadata));
+        metadata.connector_name = "common";
+        assert(msconnector_adapter_metadata_is_complete(&metadata));
+        metadata.imported_path = "";
+        assert(!msconnector_adapter_metadata_is_complete(&metadata));
     }
     assert(strcmp(msconnector_build_status_name(MSCONNECTOR_BUILD_STATUS_COMPILES), "compiles") == 0);
     assert(strcmp(msconnector_runtime_status_name(MSCONNECTOR_RUNTIME_STATUS_NOT_VERIFIED), "not_verified") == 0);
@@ -470,6 +526,12 @@ int main(void) {
         assert(msconnector_test_result_passed(&result));
     }
     assert(msconnector_path_is_absolute("/tmp/result.json"));
+    assert(msconnector_path_is_absolute("\\tmp\\out"));
+    assert(msconnector_path_is_absolute("\\\\server\\share\\out"));
+    assert(msconnector_path_is_absolute("C:\\tmp\\out"));
+    assert(msconnector_path_is_absolute("C:/tmp/out"));
+    assert(!msconnector_path_is_absolute("safe/path"));
+    assert(!msconnector_path_is_absolute("safe\\path"));
     assert(msconnector_path_is_empty(""));
     assert(msconnector_path_has_parent_reference("../secret"));
     assert(msconnector_path_has_parent_reference("a/../secret"));
@@ -725,6 +787,56 @@ int main(void) {
         assert(!msconnector_event_write_json_ex(&event, small_json, sizeof(small_json), &truncated));
         assert(truncated);
         assert(small_json[sizeof(small_json) - 1U] == '\0' || strlen(small_json) < sizeof(small_json));
+    }
+    {
+        msconnector_adapter adapter;
+        msconnector_adapter_contract_result contract_result;
+        msconnector_adapter_init(&adapter);
+        assert(!msconnector_adapter_has_metadata(&adapter));
+        msconnector_adapter_metadata_init(&fake_metadata);
+        fake_metadata.connector_name = "common"; fake_metadata.server_family = "none"; fake_metadata.source_kind = "scaffold";
+        fake_metadata.imported_path = "common"; fake_metadata.build_status = "static"; fake_metadata.runtime_status = "not_integrated"; fake_metadata.verification_status = "smoke";
+        fake_capabilities.flags = MSCONNECTOR_CAPABILITY_REQUEST_HEADERS;
+        fake_capabilities.connector_name = "common"; fake_capabilities.connector_version = "0"; fake_capabilities.server_family = "none"; fake_capabilities.notes = "common only";
+        adapter.metadata = fake_adapter_metadata; adapter.capabilities = fake_adapter_capabilities; adapter.process_request_headers = fake_adapter_phase;
+        assert(msconnector_adapter_has_metadata(&adapter));
+        assert(msconnector_adapter_has_capabilities(&adapter));
+        assert(msconnector_adapter_supports_phase(&adapter, MSCONNECTOR_PHASE_REQUEST_HEADERS));
+        assert(!msconnector_adapter_supports_phase(&adapter, MSCONNECTOR_PHASE_RESPONSE_BODY));
+        msconnector_adapter_contract_result_init(&contract_result);
+        assert(msconnector_adapter_contract_validate(&adapter, &contract_result));
+        assert(contract_result.ok);
+    }
+    {
+        assert(msconnector_capability_has_required_test(MSCONNECTOR_CAPABILITY_PHASE4_HARD_ABORT));
+        assert(strcmp(msconnector_capability_required_test(MSCONNECTOR_CAPABILITY_REQUEST_HEADERS), "phase1 request header rule test") == 0);
+        assert(msconnector_capability_required_test(MSCONNECTOR_CAPABILITY_NONE) == 0);
+    }
+    {
+        msconnector_artifact_layout layout;
+        char joined[128];
+        msconnector_artifact_layout_init(&layout);
+        assert(strcmp(layout.result_json, "result.json") == 0);
+        assert(strcmp(msconnector_artifact_name_decision_jsonl(), "decision.jsonl") == 0);
+        assert(msconnector_runtime_path_join("/tmp/root", layout.decision_jsonl, joined, sizeof(joined)));
+        assert(strcmp(joined, "/tmp/root/decision.jsonl") == 0);
+        assert(!msconnector_runtime_path_join("/tmp/root", "/absolute", joined, sizeof(joined)));
+        assert(!msconnector_runtime_path_join("/tmp/root", "\\absolute", joined, sizeof(joined)));
+        assert(!msconnector_runtime_path_join("/tmp/root", "..\\secret", joined, sizeof(joined)));
+        assert(!msconnector_runtime_path_join("/tmp/root", "../secret", joined, sizeof(joined)));
+        assert(!msconnector_runtime_path_join("/tmp/root", "decision.jsonl", joined, 8));
+    }
+    {
+        msconnector_event event;
+        char line[4096];
+        int truncated = 0;
+        msconnector_event_set_phase4_hard_abort_after_200(&event, "common", "tx-jsonl", "1", "jsonl");
+        assert(msconnector_event_write_jsonl_line(&event, line, sizeof(line), &truncated));
+        assert(!truncated);
+        assert(line[strlen(line) - 1U] == '\n');
+        assert(strstr(line, "request_body") == 0);
+        assert(!msconnector_event_write_jsonl_line(&event, line, 16, &truncated));
+        assert(truncated);
     }
 
     return 0;

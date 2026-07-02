@@ -1,3 +1,5 @@
+**Language:** English | [Deutsch](pr27-issue-reduction.de.md)
+
 # PR 27 Sonar issue reduction inventory
 
 SonarCloud API query used before this cleanup:
@@ -58,5 +60,19 @@ Set-Cookie/Content-Length policy, the common decision model, common error model,
 rule-loader backend orchestration, a ModSecurity engine facade, and a
 transaction-ID resolver. These modules are common SDK scaffolding only and do not
 change connector runtime behavior.
+
+SonarCloud after-count: NOT VERIFIED.
+
+## Common SDK merge-blocker completion
+
+Local fixes added for Windows absolute/UNC path rejection, safe versioned
+compiler IDs, empty adapter metadata fields, leading OWS Content-Type matching,
+event truncation-marker recomputation, bilingual documentation/report companions,
+and error/unsupported status validation.
+
+Common-only infrastructure added: adapter interface, adapter contract foundation,
+capability-to-test matrix, JSONL event writer, runtime artifact layout, runtime
+path joining, common harness helpers, generated common docs, and new connector
+contract documentation.
 
 SonarCloud after-count: NOT VERIFIED.
