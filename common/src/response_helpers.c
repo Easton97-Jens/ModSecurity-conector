@@ -1,6 +1,7 @@
 #include "msconnector/response_helpers.h"
 #include "msconnector/headers.h"
 #include "msconnector/http_status.h"
+#include "msconnector/resource_limits.h"
 #include <string.h>
 
 static int valid_header_name(const msconnector_header *header) {
@@ -16,6 +17,9 @@ int msconnector_response_validate(const msconnector_response *response) {
     for (size_t i = 0; i < response->header_count; ++i) { if (!valid_header_name(&response->headers[i])) { return 0; } }
     if (response->body.size > 0U && response->body.data == 0) { return 0; }
     return 1;
+}
+int msconnector_response_validate_with_limits(const msconnector_response *response, const msconnector_resource_limits *limits) {
+    return msconnector_response_validate(response) && msconnector_resource_limits_headers_ok(response->headers, response->header_count, limits) && msconnector_resource_limits_body_ok(response->body.size, limits->max_response_body_bytes);
 }
 int msconnector_response_has_header(const msconnector_response *response, const char *name) { return response != 0 && msconnector_headers_find_first(response->headers, response->header_count, name) != 0; }
 const char *msconnector_response_header_value(const msconnector_response *response, const char *name) {

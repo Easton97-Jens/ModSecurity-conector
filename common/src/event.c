@@ -2,6 +2,7 @@
 #include "msconnector/http_status.h"
 #include "msconnector/json_escape.h"
 #include "msconnector/transaction_state.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -59,6 +60,9 @@ typedef struct msconnector_event_json_parts {
     const char *text[EVENT_JSON_TEXT_COUNT];
     int statuses[EVENT_JSON_STATUS_COUNT];
     const char *flags[EVENT_JSON_FLAG_COUNT];
+    unsigned long sequence;
+    uint64_t previous_hash;
+    uint64_t event_hash;
 } msconnector_event_json_parts;
 
 static int format_event_json(
@@ -68,7 +72,7 @@ static int format_event_json(
     return snprintf(
         dst,
         dst_size,
-        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"headers_sent\":%s,\"body_started\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s}",
+        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"headers_sent\":%s,\"body_started\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
         parts->text[EVENT_JSON_TIMESTAMP],
         parts->text[EVENT_JSON_LEVEL],
         parts->text[EVENT_JSON_MESSAGE_ID],
@@ -97,7 +101,10 @@ static int format_event_json(
         parts->flags[EVENT_JSON_BODY_STARTED],
         parts->flags[EVENT_JSON_CONNECTION_ABORTED],
         parts->flags[EVENT_JSON_REDACTED],
-        parts->flags[EVENT_JSON_TRUNCATED]);
+        parts->flags[EVENT_JSON_TRUNCATED],
+        parts->sequence,
+        parts->previous_hash,
+        parts->event_hash);
 }
 
 
@@ -192,6 +199,9 @@ void msconnector_event_init(msconnector_event *event) {
     event->flags.connection_aborted = 0;
     event->flags.redacted = 0;
     event->flags.truncated = 0;
+    event->integrity.sequence = 0UL;
+    event->integrity.previous_hash = 0U;
+    event->integrity.event_hash = 0U;
 }
 
 const char *msconnector_event_status_name(const msconnector_event *event) {
@@ -286,6 +296,9 @@ int msconnector_event_write_json_ex(
     parts.flags[EVENT_JSON_CONNECTION_ABORTED] = json_bool(event->flags.connection_aborted);
     parts.flags[EVENT_JSON_REDACTED] = json_bool(event->flags.redacted);
     parts.flags[EVENT_JSON_TRUNCATED] = json_bool(was_truncated);
+    parts.sequence = event->integrity.sequence;
+    parts.previous_hash = event->integrity.previous_hash;
+    parts.event_hash = event->integrity.event_hash;
 
     written = format_event_json(0, 0, &parts);
 

@@ -1,5 +1,6 @@
 #include "msconnector/request_helpers.h"
 #include "msconnector/headers.h"
+#include "msconnector/resource_limits.h"
 #include <string.h>
 
 static int nonempty(const char *value) { return value != 0 && value[0] != '\0'; }
@@ -15,6 +16,9 @@ int msconnector_request_validate(const msconnector_request *request) {
     for (size_t i = 0; i < request->header_count; ++i) { if (!valid_header_name(&request->headers[i])) { return 0; } }
     if (request->body.size > 0U && request->body.data == 0) { return 0; }
     return 1;
+}
+int msconnector_request_validate_with_limits(const msconnector_request *request, const msconnector_resource_limits *limits) {
+    return msconnector_request_validate(request) && msconnector_resource_limits_headers_ok(request->headers, request->header_count, limits) && msconnector_resource_limits_body_ok(request->body.size, limits->max_request_body_bytes);
 }
 int msconnector_request_has_header(const msconnector_request *request, const char *name) { return request != 0 && msconnector_headers_find_first(request->headers, request->header_count, name) != 0; }
 const char *msconnector_request_header_value(const msconnector_request *request, const char *name) {
