@@ -3,8 +3,22 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 BUILD_ROOT="${BUILD_ROOT:-${TMPDIR:-/var/tmp}/ModSecurity-conector-verified/build}"
-case "$BUILD_ROOT" in /*) ;; *) echo "BLOCKED: memory_safety BUILD_ROOT must be absolute"; exit 77;; esac
-case "$(CDPATH= cd "$BUILD_ROOT" 2>/dev/null && pwd 2>/dev/null || printf '%s' "$BUILD_ROOT")" in "$REPO_ROOT"|"$REPO_ROOT"/*) echo "BLOCKED: memory_safety BUILD_ROOT inside checkout"; exit 77;; esac
+case "$BUILD_ROOT" in
+    /*)
+        ;;
+    *)
+        echo "BLOCKED: memory_safety BUILD_ROOT must be absolute"
+        exit 77
+        ;;
+esac
+case "$(CDPATH= cd "$BUILD_ROOT" 2>/dev/null && pwd 2>/dev/null || printf '%s' "$BUILD_ROOT")" in
+    "$REPO_ROOT"|"$REPO_ROOT"/*)
+        echo "BLOCKED: memory_safety BUILD_ROOT inside checkout"
+        exit 77
+        ;;
+    *)
+        ;;
+esac
 CC_BIN="${CC:-cc}"
 command -v "$CC_BIN" >/dev/null 2>&1 || { echo "BLOCKED: memory_safety missing compiler: $CC_BIN"; exit 77; }
 OUT="$BUILD_ROOT/common-memory-safety"; mkdir -p "$OUT"

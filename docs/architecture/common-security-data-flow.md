@@ -1,3 +1,5 @@
+**Language:** English | [Deutsch](common-security-data-flow.de.md)
+
 # Common security data-flow contract
 
 This document describes connector-neutral Common SDK scaffolding only. It does not claim production runtime, CRS, full-matrix, or connector capability until a connector is explicitly migrated.

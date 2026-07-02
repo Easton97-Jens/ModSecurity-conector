@@ -1,3 +1,5 @@
+**Sprache:** [English](common-security-data-flow.md) | Deutsch
+
 # Common-Sicherheitsvertrag für Datenflüsse
 
 Dieses Dokument beschreibt nur connector-neutrales Common-SDK-Scaffolding. Es behauptet keine Production-, Runtime-, CRS-, Full-Matrix- oder Connector-Fähigkeit, bis ein Connector ausdrücklich migriert wurde.

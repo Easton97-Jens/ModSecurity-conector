@@ -2,9 +2,14 @@
 
 static void set_error(msconnector_error *error, msconnector_error_code code, const char *message) { msconnector_error_set(error, code, message, "common/dos_guard"); }
 static int bounded_string_ok(const char *value, size_t max) {
-    size_t i;
-    if (value == 0) { return 1; }
-    for (i = 0U; i <= max; ++i) { if (value[i] == '\0') { return 1; } }
+    if (value == 0) {
+        return 1;
+    }
+    for (size_t i = 0U; i <= max; ++i) {
+        if (value[i] == '\0') {
+            return 1;
+        }
+    }
     return 0;
 }
 
