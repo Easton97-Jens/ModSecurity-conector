@@ -15,6 +15,8 @@ const msconnector_header *msconnector_headers_find_first(const msconnector_heade
 const msconnector_header *msconnector_headers_find_last(const msconnector_header *headers, size_t header_count, const char *name);
 size_t msconnector_headers_count_name(const msconnector_header *headers, size_t header_count, const char *name);
 const char *msconnector_headers_find_value(const msconnector_header *headers, size_t header_count, const char *name);
+int msconnector_headers_find_value_slice(const msconnector_header *headers, size_t header_count, const char *name, const char **value, size_t *value_size);
+int msconnector_headers_copy_value(const msconnector_header *headers, size_t header_count, const char *name, char *dst, size_t dst_size, int *truncated);
 int msconnector_headers_content_type_matches(const msconnector_header *headers, size_t header_count, const char *content_type);
 int msconnector_header_is_set_cookie_name(const char *name, size_t name_size);
 int msconnector_header_is_cookie_name(const char *name, size_t name_size);

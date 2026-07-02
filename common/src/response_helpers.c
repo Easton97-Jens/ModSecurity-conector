@@ -20,6 +20,11 @@ int msconnector_response_validate(const msconnector_response *response) {
 int msconnector_response_has_header(const msconnector_response *response, const char *name) { return msconnector_response_header_value(response, name) != 0; }
 const char *msconnector_response_header_value(const msconnector_response *response, const char *name) { return response == 0 ? 0 : msconnector_headers_find_value(response->headers, response->header_count, name); }
 const char *msconnector_response_content_type(const msconnector_response *response) { return msconnector_response_header_value(response, "content-type"); }
+int msconnector_response_content_type_slice(const msconnector_response *response, const char **value, size_t *value_size) {
+    if (value != 0) { *value = 0; }
+    if (value_size != 0) { *value_size = 0; }
+    return response != 0 && msconnector_headers_find_value_slice(response->headers, response->header_count, "content-type", value, value_size);
+}
 size_t msconnector_response_content_length(const msconnector_response *response, int *status) {
     size_t out = 0; int parsed = response == 0 ? -1 : msconnector_headers_parse_content_length(response->headers, response->header_count, &out);
     if (status != 0) { *status = parsed; }

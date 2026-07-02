@@ -37,6 +37,32 @@ const char *msconnector_headers_find_value(const msconnector_header *headers, si
     const msconnector_header *header = msconnector_headers_find(headers, header_count, name);
     return header == 0 ? 0 : header->value;
 }
+int msconnector_headers_find_value_slice(const msconnector_header *headers, size_t header_count, const char *name, const char **value, size_t *value_size) {
+    const msconnector_header *header = msconnector_headers_find(headers, header_count, name);
+    if (value != 0) { *value = 0; }
+    if (value_size != 0) { *value_size = 0; }
+    if (header == 0 || header->value == 0) { return 0; }
+    if (value != 0) { *value = header->value; }
+    if (value_size != 0) { *value_size = header->value_size; }
+    return 1;
+}
+int msconnector_headers_copy_value(const msconnector_header *headers, size_t header_count, const char *name, char *dst, size_t dst_size, int *truncated) {
+    const char *value = 0;
+    size_t value_size = 0;
+    if (truncated != 0) { *truncated = 0; }
+    if (dst != 0 && dst_size > 0U) { dst[0] = '\0'; }
+    if (!msconnector_headers_find_value_slice(headers, header_count, name, &value, &value_size)) { return 0; }
+    if (dst == 0 || dst_size == 0U) { if (truncated != 0) { *truncated = 1; } return 0; }
+    if (value_size >= dst_size) {
+        memcpy(dst, value, dst_size - 1U);
+        dst[dst_size - 1U] = '\0';
+        if (truncated != 0) { *truncated = 1; }
+        return 0;
+    }
+    memcpy(dst, value, value_size);
+    dst[value_size] = '\0';
+    return 1;
+}
 int msconnector_header_is_set_cookie_name(const char *name, size_t name_size) { return msconnector_header_name_is(name, name_size, "set-cookie"); }
 int msconnector_header_is_cookie_name(const char *name, size_t name_size) { return msconnector_header_name_is(name, name_size, "cookie"); }
 int msconnector_header_is_content_length_name(const char *name, size_t name_size) { return msconnector_header_name_is(name, name_size, "content-length"); }

@@ -46,3 +46,19 @@ Die lokalen Folgekorrekturen bleiben ausschließlich im Common SDK und ändern k
 
 GitHub review thread resolved state: NOT VERIFIED.
 SonarCloud after-count: NOT VERIFIED.
+
+## PR-27-Folgekorrektur für Starter-Kompatibilität aus Codex Review
+
+Die lokalen Korrekturen bleiben ausschließlich im Common SDK und übernehmen das
+Common SDK nicht in Connector-Laufzeiten.
+
+- `common/src/transaction.c`: Kompatibilitäts-Konstruktoren für Decisions werden nun aus dem Transaction-Objekt gelinkt, das Starter-Builds bereits verwenden.
+- `common/src/adapter_contract.c`: deklarierte Phasen-Capabilities verlangen weiterhin passende Adapter-Callbacks, ohne Nicht-Phasen-Capabilities zu übererzwingen.
+- `common/include/msconnector/transaction.h`: Decision-Deklarationen bleiben für Header verfügbar, die nur `transaction.h` einbinden.
+- `common/src/error.c`: NULL-Errors und `MSCONNECTOR_ERROR_NONE` erzeugen kein Internal-Error-Event.
+- `common/src/headers.c`: begrenzte Header-Value-Slice-/Copy-Helfer wurden für Pointer-plus-Length-Werte ergänzt; Request-/Response-Content-Type-Slice-Helfer verwenden diese APIs.
+- `common/src/rule_loader.c`: unvollständige Remote-Rule-Key/URL-Paare werden vor Inline- oder Datei-Backend-Aufrufen abgelehnt.
+- `common/src/transaction_id.c`: Expression-Callback-Ausgaben werden vor der Validierung geleert und begrenzt geprüft; nicht terminierte volle Puffer werden sicher abgelehnt.
+
+GitHub review thread resolved state: NOT VERIFIED.
+SonarCloud after-count: NOT VERIFIED.

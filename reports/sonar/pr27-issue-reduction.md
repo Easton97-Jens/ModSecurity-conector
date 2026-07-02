@@ -145,3 +145,19 @@ Local follow-up fixes for the open Codex Review P2 findings remain common-only a
 
 GitHub review thread resolved state: NOT VERIFIED.
 SonarCloud after-count: NOT VERIFIED.
+
+## PR 27 Codex Review starter-compatibility follow-up
+
+Local common-only fixes addressed the latest open Codex Review findings without
+adopting the Common SDK in any connector runtime.
+
+- `common/src/transaction.c`: compatibility decision constructors are now linked from the transaction object used by starter builds that include `transaction.h`.
+- `common/src/adapter_contract.c`: advertised phase capabilities continue to require their matching adapter callbacks while non-phase capabilities are not over-enforced.
+- `common/include/msconnector/transaction.h`: decision declarations remain available to headers that include only `transaction.h`.
+- `common/src/error.c`: NULL errors and `MSCONNECTOR_ERROR_NONE` return no event rather than an internal-error event.
+- `common/src/headers.c`: bounded header value slice/copy helpers were added for pointer+length header values, and request/response Content-Type slice helpers use those bounded APIs.
+- `common/src/rule_loader.c`: incomplete remote rule key/url pairs are rejected before inline or file backend calls can mutate stats or rule state.
+- `common/src/transaction_id.c`: expression callback output is cleared and bounded before validation so non-terminated full buffers are rejected safely.
+
+GitHub review thread resolved state: NOT VERIFIED.
+SonarCloud after-count: NOT VERIFIED.

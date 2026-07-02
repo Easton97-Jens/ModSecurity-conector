@@ -19,6 +19,11 @@ int msconnector_request_validate(const msconnector_request *request) {
 int msconnector_request_has_header(const msconnector_request *request, const char *name) { return msconnector_request_header_value(request, name) != 0; }
 const char *msconnector_request_header_value(const msconnector_request *request, const char *name) { return request == 0 ? 0 : msconnector_headers_find_value(request->headers, request->header_count, name); }
 const char *msconnector_request_content_type(const msconnector_request *request) { return msconnector_request_header_value(request, "content-type"); }
+int msconnector_request_content_type_slice(const msconnector_request *request, const char **value, size_t *value_size) {
+    if (value != 0) { *value = 0; }
+    if (value_size != 0) { *value_size = 0; }
+    return request != 0 && msconnector_headers_find_value_slice(request->headers, request->header_count, "content-type", value, value_size);
+}
 size_t msconnector_request_content_length(const msconnector_request *request, int *status) {
     size_t out = 0; int parsed = request == 0 ? -1 : msconnector_headers_parse_content_length(request->headers, request->header_count, &out);
     if (status != 0) { *status = parsed; }

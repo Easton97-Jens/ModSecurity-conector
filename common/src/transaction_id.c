@@ -15,6 +15,15 @@ static int validate_n(const char *value, size_t value_size) {
     return 1;
 }
 
+
+static int bounded_cstr_len(const char *value, size_t max_size, size_t *out_size) {
+    if (value == 0 || out_size == 0) { return 0; }
+    for (size_t index = 0; index < max_size; ++index) {
+        if (value[index] == '\0') { *out_size = index; return 1; }
+    }
+    return 0;
+}
+
 static int copy_n(const char *value, size_t value_size, char *out, size_t out_len) {
     if (out != 0 && out_len > 0U) { out[0] = '\0'; }
     if (!validate_n(value, value_size) || out == 0 || out_len == 0U || value_size >= out_len) { return 0; }
@@ -47,8 +56,10 @@ int msconnector_transaction_id_resolve(const msconnector_transaction_id_context 
     if (ctx->config != 0 && ctx->config->transaction_id != 0) { return use_value(out, MSCONNECTOR_TRANSACTION_ID_SOURCE_STATIC, ctx->config->transaction_id, error); }
     if (ctx->config != 0 && ctx->config->transaction_id_expr != 0) {
         if (ctx->expr_eval == 0) { return fail_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "transaction id expression callback is required"); }
+        size_t expr_size = 0;
+        memset(out->value, 0, sizeof(out->value));
         if (!ctx->expr_eval(ctx->expr_userdata, ctx->request, out->value, sizeof(out->value))) { return fail_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "transaction id expression failed"); }
-        if (!msconnector_transaction_id_validate(out->value)) { return fail_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "invalid transaction id expression result"); }
+        if (!bounded_cstr_len(out->value, sizeof(out->value), &expr_size) || !validate_n(out->value, expr_size)) { return fail_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "invalid transaction id expression result"); }
         out->source = MSCONNECTOR_TRANSACTION_ID_SOURCE_EXPR; return 1;
     }
     if (ctx->host_request_id != 0) { return use_value(out, MSCONNECTOR_TRANSACTION_ID_SOURCE_HOST, ctx->host_request_id, error); }

@@ -128,8 +128,3 @@ int msconnector_decision_to_event(const msconnector_decision *decision, msconnec
     event->flags.late_intervention = decision->late_intervention;
     return 1;
 }
-msconnector_decision msconnector_decision_make(enum msconnector_status status, msconnector_intervention intervention, const char *rule_id, const char *reason) {
-    msconnector_decision decision; msconnector_decision_from_intervention(&decision, &intervention, MSCONNECTOR_PHASE_CONNECTION, rule_id, reason); decision.status = status; return decision;
-}
-msconnector_decision msconnector_decision_allow(const char *rule_id, const char *reason) { msconnector_decision decision; msconnector_decision_set_allow(&decision); decision.rule_id = rule_id; decision.reason = reason; return decision; }
-msconnector_decision msconnector_decision_block(int http_status, const char *rule_id, const char *reason) { msconnector_decision decision; msconnector_decision_set_deny(&decision, http_status, rule_id, reason); return decision; }

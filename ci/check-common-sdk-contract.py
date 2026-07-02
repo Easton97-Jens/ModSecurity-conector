@@ -378,4 +378,26 @@ if '#include "msconnector/decision.h"' not in transaction_header:
 if "MSCONNECTOR_ERROR_NONE" not in error_source or "error == 0" not in error_source or "return 0" not in error_source:
     fail("error_to_event must handle MSCONNECTOR_ERROR_NONE without emitting an error event")
 
+transaction_source = (ROOT / "common" / "src" / "transaction.c").read_text(encoding="utf-8")
+request_helpers_header = (ROOT / "common" / "include" / "msconnector" / "request_helpers.h").read_text(encoding="utf-8")
+response_helpers_header = (ROOT / "common" / "include" / "msconnector" / "response_helpers.h").read_text(encoding="utf-8")
+request_helpers_source = (ROOT / "common" / "src" / "request_helpers.c").read_text(encoding="utf-8")
+response_helpers_source = (ROOT / "common" / "src" / "response_helpers.c").read_text(encoding="utf-8")
+if "msconnector_decision_allow" not in transaction_source or "msconnector_decision_block" not in transaction_source:
+    fail("transaction.c must keep decision compatibility constructors linkable for starter builds")
+if "msconnector_decision_allow" in decision_source or "msconnector_decision_block" in decision_source:
+    fail("decision compatibility constructors must not require linking decision.c for starter builds")
+if "msconnector_headers_find_value_slice" not in headers_source or "msconnector_headers_copy_value" not in headers_source:
+    fail("headers helpers must expose bounded value slice/copy APIs for pointer+length header values")
+if "msconnector_request_content_type_slice" not in request_helpers_header or "msconnector_headers_find_value_slice" not in request_helpers_source:
+    fail("request content-type helper must expose bounded header value slices")
+if "msconnector_response_content_type_slice" not in response_helpers_header or "msconnector_headers_find_value_slice" not in response_helpers_source:
+    fail("response content-type helper must expose bounded header value slices")
+remote_pair_index = rule_loader_source.find("incomplete remote rules pair")
+inline_load_index = rule_loader_source.find("rules_inline")
+if remote_pair_index == -1 or inline_load_index == -1 or remote_pair_index > inline_load_index:
+    fail("rule_loader_load_config must validate remote key/url pairing before inline/file mutations")
+if "bounded_cstr_len" not in transaction_id_source or "memset(out->value" not in transaction_id_source:
+    fail("transaction ID expression callback results must be bounded before validation")
+
 print("common-sdk-contract: pass")

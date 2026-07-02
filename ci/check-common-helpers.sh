@@ -13,6 +13,8 @@ MSCONNECTOR_CFLAGS="${MSCONNECTOR_CFLAGS:--std=$MSCONNECTOR_C_STD -Wall -Wextra 
 OUT_DIR="$BUILD_ROOT/common-helper-smoke"
 SMOKE_C="$OUT_DIR/common_helper_smoke.c"
 SMOKE_BIN="$OUT_DIR/common_helper_smoke"
+STARTER_C="$OUT_DIR/common_transaction_constructor_smoke.c"
+STARTER_BIN="$OUT_DIR/common_transaction_constructor_smoke"
 
 case "$BUILD_ROOT" in
     /*) ;;
@@ -207,6 +209,13 @@ static int fake_expr_eval(void *userdata, const msconnector_request *request, ch
     (void)request;
     if (out_len < 8U) { return 0; }
     strcpy(out, "expr-id");
+    return 1;
+}
+
+static int fake_expr_full_no_nul(void *userdata, const msconnector_request *request, char *out, size_t out_len) {
+    (void)userdata;
+    (void)request;
+    memset(out, 'A', out_len);
     return 1;
 }
 
@@ -594,6 +603,20 @@ int main(void) {
         assert(!truncated);
         assert(msconnector_header_sanitize_value_for_log("abcdef", 6, sanitized, 4, &truncated) == 6U);
         assert(truncated);
+        {
+            const msconnector_header sliced[] = {{"Content-Type", 12, "application/jsonXXX", 16}};
+            const char *slice = 0;
+            size_t slice_size = 0;
+            char copied[32];
+            assert(msconnector_headers_find_value_slice(sliced, 1, "content-type", &slice, &slice_size));
+            assert(slice_size == 16U);
+            assert(memcmp(slice, "application/json", 16U) == 0);
+            assert(msconnector_headers_copy_value(sliced, 1, "content-type", copied, sizeof(copied), &truncated));
+            assert(strcmp(copied, "application/json") == 0);
+            assert(!truncated);
+            assert(!msconnector_headers_copy_value(sliced, 1, "content-type", copied, 8, &truncated));
+            assert(truncated);
+        }
     }
     {
         msconnector_event event;
@@ -705,6 +728,23 @@ int main(void) {
         assert(state.inline_calls >= 2);
         assert(state.file_calls >= 2);
         assert(state.remote_calls >= 2);
+        msconnector_rule_loader_init(&loader, &state, &backend);
+        state.inline_calls = 0;
+        state.file_calls = 0;
+        state.remote_calls = 0;
+        msconnector_config_init(&config);
+        config.rules_inline = "inline";
+        config.rules_file = "rules.conf";
+        config.rules_remote_key = "key";
+        config.rules_remote_url = 0;
+        assert(!msconnector_rule_loader_load_config(&loader, &config, &error));
+        stats = msconnector_rule_loader_stats(&loader);
+        assert(stats->inline_rules == 0);
+        assert(stats->file_rules == 0);
+        assert(stats->remote_rules == 0);
+        assert(state.inline_calls == 0);
+        assert(state.file_calls == 0);
+        assert(state.remote_calls == 0);
     }
     {
         fake_backend_state state = {0};
@@ -781,6 +821,8 @@ int main(void) {
         ctx.expr_eval = fake_expr_eval;
         assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
         assert(strcmp(result.value, "expr-id") == 0);
+        ctx.expr_eval = fake_expr_full_no_nul;
+        assert(!msconnector_transaction_id_resolve(&ctx, &result, &error));
         ctx.expr_eval = 0;
         assert(!msconnector_transaction_id_resolve(&ctx, &result, &error));
         config.transaction_id_expr = 0;
@@ -958,6 +1000,13 @@ int main(void) {
         assert(msconnector_request_validate(&request));
         assert(msconnector_request_has_header(&request, "content-type"));
         assert(strcmp(msconnector_request_content_type(&request), "application/json") == 0);
+        {
+            const char *content_type = 0;
+            size_t content_type_size = 0;
+            assert(msconnector_request_content_type_slice(&request, &content_type, &content_type_size));
+            assert(content_type_size == 16U);
+            assert(memcmp(content_type, "application/json", 16U) == 0);
+        }
         assert(msconnector_request_content_length(&request, &cl_status) == 123U && cl_status == 1);
         request.headers = 0; request.header_count = 1;
         assert(!msconnector_request_validate(&request));
@@ -967,6 +1016,13 @@ int main(void) {
         assert(msconnector_response_validate(&response));
         assert(msconnector_response_has_header(&response, "CONTENT-LENGTH"));
         assert(strcmp(msconnector_response_content_type(&response), "application/json") == 0);
+        {
+            const char *content_type = 0;
+            size_t content_type_size = 0;
+            assert(msconnector_response_content_type_slice(&response, &content_type, &content_type_size));
+            assert(content_type_size == 16U);
+            assert(memcmp(content_type, "application/json", 16U) == 0);
+        }
         assert(msconnector_response_content_length(&response, &cl_status) == 123U && cl_status == 1);
         response.status = 99;
         assert(!msconnector_response_validate(&response));
@@ -1072,4 +1128,24 @@ EOF
     -o "$SMOKE_BIN"
 
 "$SMOKE_BIN"
+
+cat > "$STARTER_C" <<'EOF'
+#include "msconnector/transaction.h"
+#include <string.h>
+
+int main(void) {
+    msconnector_intervention intervention = msconnector_intervention_make(1, 403, 0, "blocked");
+    msconnector_decision allow_decision = msconnector_decision_allow("1", "allow");
+    msconnector_decision block_decision = msconnector_decision_block(403, "2", "block");
+    msconnector_decision made_decision = msconnector_decision_make(MSCONNECTOR_STATUS_BLOCKED, intervention, "3", "made");
+    return allow_decision.status == MSCONNECTOR_STATUS_OK &&
+        block_decision.status == MSCONNECTOR_STATUS_BLOCKED &&
+        made_decision.intervention.status == 403 &&
+        strcmp(block_decision.reason, "block") == 0 ? 0 : 1;
+}
+EOF
+
+"$CC_BIN" $MSCONNECTOR_CFLAGS     -I "$REPO_ROOT/common/include"     "$STARTER_C"     "$REPO_ROOT/common/src/transaction.c"     "$REPO_ROOT/common/src/intervention.c"     -o "$STARTER_BIN"
+"$STARTER_BIN"
+
 echo "common_helper_smoke: pass output=$OUT_DIR"
