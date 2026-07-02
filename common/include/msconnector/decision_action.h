@@ -1,6 +1,6 @@
 #ifndef MSCONNECTOR_DECISION_ACTION_H
 #define MSCONNECTOR_DECISION_ACTION_H
-#include "msconnector/transaction.h"
+#include "msconnector/decision.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

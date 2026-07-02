@@ -66,7 +66,15 @@ int msconnector_error_to_event(const msconnector_error *error, msconnector_event
     http_status = msconnector_error_http_status(code);
     msconnector_event_init(event);
     event->meta.connector = connector; event->meta.transaction_id = transaction_id;
-    event->meta.message_id = code == MSCONNECTOR_ERROR_RULE_PARSE_FAILED ? MSCONN_EVENT_RULE_PARSE_ERROR : (code == MSCONNECTOR_ERROR_INVALID_CONFIG ? MSCONN_EVENT_CONFIG_ERROR : (msconnector_error_status(code) == MSCONNECTOR_STATUS_UNSUPPORTED ? MSCONN_EVENT_UNSUPPORTED_CAPABILITY : MSCONN_EVENT_INTERNAL_ERROR));
+    if (code == MSCONNECTOR_ERROR_RULE_PARSE_FAILED) {
+        event->meta.message_id = MSCONN_EVENT_RULE_PARSE_ERROR;
+    } else if (code == MSCONNECTOR_ERROR_INVALID_CONFIG) {
+        event->meta.message_id = MSCONN_EVENT_CONFIG_ERROR;
+    } else if (msconnector_error_status(code) == MSCONNECTOR_STATUS_UNSUPPORTED) {
+        event->meta.message_id = MSCONN_EVENT_UNSUPPORTED_CAPABILITY;
+    } else {
+        event->meta.message_id = MSCONN_EVENT_INTERNAL_ERROR;
+    }
     event->meta.message = error != 0 && error->message != 0 ? error->message : msconnector_error_default_message(code);
     event->meta.level = msconnector_event_default_level(event->meta.message_id);
     event->decision.status = msconnector_error_status(code); event->decision.action = "error"; event->decision.reason = event->meta.message;

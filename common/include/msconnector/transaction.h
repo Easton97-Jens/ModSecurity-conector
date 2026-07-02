@@ -27,9 +27,6 @@ typedef struct msconnector_transaction_view {
     msconnector_intervention intervention;
 } msconnector_transaction_view;
 
-#include "msconnector/decision.h"
-
-
 #ifdef __cplusplus
 }
 #endif

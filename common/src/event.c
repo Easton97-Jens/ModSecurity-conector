@@ -14,72 +14,92 @@ static const char *json_bool(int value) {
 }
 
 
+enum msconnector_event_json_text_index {
+    EVENT_JSON_TIMESTAMP = 0,
+    EVENT_JSON_LEVEL,
+    EVENT_JSON_MESSAGE_ID,
+    EVENT_JSON_MESSAGE,
+    EVENT_JSON_EVENT_NAME,
+    EVENT_JSON_CONNECTOR,
+    EVENT_JSON_TRANSACTION_ID,
+    EVENT_JSON_PHASE,
+    EVENT_JSON_STATUS,
+    EVENT_JSON_ACTION,
+    EVENT_JSON_REQUESTED_ACTION,
+    EVENT_JSON_ACTUAL_ACTION,
+    EVENT_JSON_HTTP_REASON_PHRASE,
+    EVENT_JSON_HTTP_DEFAULT_MESSAGE,
+    EVENT_JSON_RULE_ID,
+    EVENT_JSON_REASON,
+    EVENT_JSON_METHOD,
+    EVENT_JSON_URI,
+    EVENT_JSON_CLIENT_IP,
+    EVENT_JSON_TEXT_COUNT
+};
+
+enum msconnector_event_json_status_index {
+    EVENT_JSON_HTTP_STATUS = 0,
+    EVENT_JSON_ORIGINAL_HTTP_STATUS,
+    EVENT_JSON_VISIBLE_HTTP_STATUS,
+    EVENT_JSON_STATUS_COUNT
+};
+
+enum msconnector_event_json_flag_index {
+    EVENT_JSON_LATE_INTERVENTION = 0,
+    EVENT_JSON_RESPONSE_STARTED,
+    EVENT_JSON_HEADERS_SENT,
+    EVENT_JSON_BODY_STARTED,
+    EVENT_JSON_CONNECTION_ABORTED,
+    EVENT_JSON_REDACTED,
+    EVENT_JSON_TRUNCATED,
+    EVENT_JSON_FLAG_COUNT
+};
+
+typedef struct msconnector_event_json_parts {
+    const char *text[EVENT_JSON_TEXT_COUNT];
+    int statuses[EVENT_JSON_STATUS_COUNT];
+    const char *flags[EVENT_JSON_FLAG_COUNT];
+} msconnector_event_json_parts;
+
 static int format_event_json(
     char *dst,
     size_t dst_size,
-    const char *timestamp,
-    const char *level,
-    const char *message_id,
-    const char *message,
-    const char *event_name,
-    const char *connector,
-    const char *transaction_id,
-    const char *phase,
-    const char *status,
-    const char *action,
-    const char *requested_action,
-    const char *actual_action,
-    int http_status,
-    int original_http_status,
-    int visible_http_status,
-    const char *http_reason_phrase,
-    const char *http_default_message,
-    const char *rule_id,
-    const char *reason,
-    const char *method,
-    const char *uri,
-    const char *client_ip,
-    const char *late_intervention,
-    const char *response_started,
-    const char *headers_sent,
-    const char *body_started,
-    const char *connection_aborted,
-    const char *redacted,
-    const char *truncated_value) {
+    const msconnector_event_json_parts *parts) {
     return snprintf(
         dst,
         dst_size,
         "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"headers_sent\":%s,\"body_started\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s}",
-        timestamp,
-        level,
-        message_id,
-        message,
-        event_name,
-        connector,
-        transaction_id,
-        phase,
-        status,
-        action,
-        requested_action,
-        actual_action,
-        http_status,
-        original_http_status,
-        visible_http_status,
-        http_reason_phrase,
-        http_default_message,
-        rule_id,
-        reason,
-        method,
-        uri,
-        client_ip,
-        late_intervention,
-        response_started,
-        headers_sent,
-        body_started,
-        connection_aborted,
-        redacted,
-        truncated_value);
+        parts->text[EVENT_JSON_TIMESTAMP],
+        parts->text[EVENT_JSON_LEVEL],
+        parts->text[EVENT_JSON_MESSAGE_ID],
+        parts->text[EVENT_JSON_MESSAGE],
+        parts->text[EVENT_JSON_EVENT_NAME],
+        parts->text[EVENT_JSON_CONNECTOR],
+        parts->text[EVENT_JSON_TRANSACTION_ID],
+        parts->text[EVENT_JSON_PHASE],
+        parts->text[EVENT_JSON_STATUS],
+        parts->text[EVENT_JSON_ACTION],
+        parts->text[EVENT_JSON_REQUESTED_ACTION],
+        parts->text[EVENT_JSON_ACTUAL_ACTION],
+        parts->statuses[EVENT_JSON_HTTP_STATUS],
+        parts->statuses[EVENT_JSON_ORIGINAL_HTTP_STATUS],
+        parts->statuses[EVENT_JSON_VISIBLE_HTTP_STATUS],
+        parts->text[EVENT_JSON_HTTP_REASON_PHRASE],
+        parts->text[EVENT_JSON_HTTP_DEFAULT_MESSAGE],
+        parts->text[EVENT_JSON_RULE_ID],
+        parts->text[EVENT_JSON_REASON],
+        parts->text[EVENT_JSON_METHOD],
+        parts->text[EVENT_JSON_URI],
+        parts->text[EVENT_JSON_CLIENT_IP],
+        parts->flags[EVENT_JSON_LATE_INTERVENTION],
+        parts->flags[EVENT_JSON_RESPONSE_STARTED],
+        parts->flags[EVENT_JSON_HEADERS_SENT],
+        parts->flags[EVENT_JSON_BODY_STARTED],
+        parts->flags[EVENT_JSON_CONNECTION_ABORTED],
+        parts->flags[EVENT_JSON_REDACTED],
+        parts->flags[EVENT_JSON_TRUNCATED]);
 }
+
 
 static void escape_field(const char *src, char *dst, size_t dst_size, int *truncated) {
     const size_t needed = msconnector_json_escape(src, dst, dst_size);
@@ -204,6 +224,7 @@ int msconnector_event_write_json_ex(
     char method[64];
     char uri[EVENT_TEXT_SIZE];
     char client_ip[64];
+    msconnector_event_json_parts parts;
     int was_truncated;
     int written;
 
@@ -236,75 +257,44 @@ int msconnector_event_write_json_ex(
     escape_field(event->request.uri, uri, sizeof(uri), &was_truncated);
     escape_field(event->request.client_ip, client_ip, sizeof(client_ip), &was_truncated);
 
-    written = format_event_json(
-        0,
-        0,
-        timestamp,
-        level,
-        message_id,
-        message,
-        event_name,
-        connector,
-        transaction_id,
-        msconnector_phase_name(event->decision.phase),
-        msconnector_status_name(event->decision.status),
-        action,
-        requested_action,
-        actual_action,
-        event->http.http_status,
-        event->http.original_http_status,
-        event->http.visible_http_status,
-        http_reason_phrase,
-        http_default_message,
-        rule_id,
-        reason,
-        method,
-        uri,
-        client_ip,
-        json_bool(event->flags.late_intervention),
-        json_bool(event->flags.response_started),
-        json_bool(event->flags.headers_sent),
-        json_bool(event->flags.body_started),
-        json_bool(event->flags.connection_aborted),
-        json_bool(event->flags.redacted),
-        json_bool(was_truncated));
+    parts.text[EVENT_JSON_TIMESTAMP] = timestamp;
+    parts.text[EVENT_JSON_LEVEL] = level;
+    parts.text[EVENT_JSON_MESSAGE_ID] = message_id;
+    parts.text[EVENT_JSON_MESSAGE] = message;
+    parts.text[EVENT_JSON_EVENT_NAME] = event_name;
+    parts.text[EVENT_JSON_CONNECTOR] = connector;
+    parts.text[EVENT_JSON_TRANSACTION_ID] = transaction_id;
+    parts.text[EVENT_JSON_PHASE] = msconnector_phase_name(event->decision.phase);
+    parts.text[EVENT_JSON_STATUS] = msconnector_status_name(event->decision.status);
+    parts.text[EVENT_JSON_ACTION] = action;
+    parts.text[EVENT_JSON_REQUESTED_ACTION] = requested_action;
+    parts.text[EVENT_JSON_ACTUAL_ACTION] = actual_action;
+    parts.statuses[EVENT_JSON_HTTP_STATUS] = event->http.http_status;
+    parts.statuses[EVENT_JSON_ORIGINAL_HTTP_STATUS] = event->http.original_http_status;
+    parts.statuses[EVENT_JSON_VISIBLE_HTTP_STATUS] = event->http.visible_http_status;
+    parts.text[EVENT_JSON_HTTP_REASON_PHRASE] = http_reason_phrase;
+    parts.text[EVENT_JSON_HTTP_DEFAULT_MESSAGE] = http_default_message;
+    parts.text[EVENT_JSON_RULE_ID] = rule_id;
+    parts.text[EVENT_JSON_REASON] = reason;
+    parts.text[EVENT_JSON_METHOD] = method;
+    parts.text[EVENT_JSON_URI] = uri;
+    parts.text[EVENT_JSON_CLIENT_IP] = client_ip;
+    parts.flags[EVENT_JSON_LATE_INTERVENTION] = json_bool(event->flags.late_intervention);
+    parts.flags[EVENT_JSON_RESPONSE_STARTED] = json_bool(event->flags.response_started);
+    parts.flags[EVENT_JSON_HEADERS_SENT] = json_bool(event->flags.headers_sent);
+    parts.flags[EVENT_JSON_BODY_STARTED] = json_bool(event->flags.body_started);
+    parts.flags[EVENT_JSON_CONNECTION_ABORTED] = json_bool(event->flags.connection_aborted);
+    parts.flags[EVENT_JSON_REDACTED] = json_bool(event->flags.redacted);
+    parts.flags[EVENT_JSON_TRUNCATED] = json_bool(was_truncated);
+
+    written = format_event_json(0, 0, &parts);
 
     if (written < 0 || (size_t)written >= dst_size) {
         was_truncated = 1;
     }
 
-    written = format_event_json(
-        dst,
-        dst_size,
-        timestamp,
-        level,
-        message_id,
-        message,
-        event_name,
-        connector,
-        transaction_id,
-        msconnector_phase_name(event->decision.phase),
-        msconnector_status_name(event->decision.status),
-        action,
-        requested_action,
-        actual_action,
-        event->http.http_status,
-        event->http.original_http_status,
-        event->http.visible_http_status,
-        http_reason_phrase,
-        http_default_message,
-        rule_id,
-        reason,
-        method,
-        uri,
-        client_ip,
-        json_bool(event->flags.late_intervention),
-        json_bool(event->flags.response_started),
-        json_bool(event->flags.headers_sent),
-        json_bool(event->flags.body_started),
-        json_bool(event->flags.connection_aborted),
-        json_bool(event->flags.redacted),
-        json_bool(was_truncated));
+    parts.flags[EVENT_JSON_TRUNCATED] = json_bool(was_truncated);
+    written = format_event_json(dst, dst_size, &parts);
 
     if (written < 0 || (size_t)written >= dst_size) {
         was_truncated = 1;

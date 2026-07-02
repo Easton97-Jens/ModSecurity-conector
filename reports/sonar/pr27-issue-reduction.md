@@ -85,3 +85,46 @@ report skeletons, origin governance, build contracts, C++ wrappers, limits,
 rule-ID extraction, log sanitizing, and body-snippet redaction.
 
 SonarCloud after-count: NOT VERIFIED.
+
+## PR 27 SonarCloud and Codex review cleanup
+
+SonarCloud issue retrieval: VERIFIED locally through the SonarCloud issues API for pull request 27 on 2026-07-02.
+
+| Issue key | Rule | Severity | Type | File | Line | Message | Local fix |
+| --- | --- | --- | --- | --- | ---: | --- | --- |
+| AZ8h0PV7RDWH5g0oIri2 | c:S1659 | MINOR | CODE_SMELL | common/src/connector_manifest.c | 14 | Define each identifier in a dedicated statement. | Split combined local declarations. |
+| AZ8h0PV7RDWH5g0oIri0 | c:S3972 | CRITICAL | CODE_SMELL | common/src/connector_manifest.c | 15 | Move this `if` to a new line or add the missing `else`. | Expanded compact statements into explicit blocks. |
+| AZ8h0PV7RDWH5g0oIri1 | c:S3972 | CRITICAL | CODE_SMELL | common/src/connector_manifest.c | 19 | Move this `if` to a new line or add the missing `else`. | Expanded compact statements into explicit blocks. |
+| AZ8h0PUFRDWH5g0oIrit | c:S3972 | CRITICAL | CODE_SMELL | common/src/log_sanitize.c | 5 | Move this `if` to a new line or add the missing `else`. | Expanded compact sanitizer control flow. |
+| AZ8h0PUFRDWH5g0oIriu | c:S3972 | CRITICAL | CODE_SMELL | common/src/log_sanitize.c | 5 | Move this `if` to a new line or add the missing `else`. | Expanded compact sanitizer control flow. |
+| AZ8h0PUFRDWH5g0oIriv | c:S2681 | MAJOR | CODE_SMELL | common/src/log_sanitize.c | 6 | This statement will not be executed conditionally. | Split loop body into explicit conditional blocks. |
+| AZ8h0PUFRDWH5g0oIriw | c:S3972 | CRITICAL | CODE_SMELL | common/src/log_sanitize.c | 10 | Move this `if` to a new line or add the missing `else`. | Expanded redaction helper control flow. |
+| AZ8h0PUFRDWH5g0oIrix | c:S1066 | MAJOR | CODE_SMELL | common/src/log_sanitize.c | 13 | Merge this `if` statement with the enclosing one. | Merged truncation condition. |
+| AZ8h0PQORDWH5g0oIrio | c:S3972 | CRITICAL | CODE_SMELL | common/src/rule_id.c | 6 | Move this `if` to a new line or add the missing `else`. | Expanded validation loop control flow. |
+| AZ8h0PQORDWH5g0oIrip | c:S3358 | MAJOR | CODE_SMELL | common/src/rule_id.c | 14 | Extract this nested conditional operator into an independent statement. | Replaced nested conditional expression with explicit helper logic. |
+| AZ8h0PT1RDWH5g0oIris | c:S1659 | MINOR | CODE_SMELL | common/src/runtime_report.c | 9 | Define each identifier in a dedicated statement. | Split combined declarations. |
+| AZ8h0PT1RDWH5g0oIriq | c:S3972 | CRITICAL | CODE_SMELL | common/src/runtime_report.c | 10 | Move this `if` to a new line or add the missing `else`. | Expanded compact statements into explicit blocks. |
+| AZ8h0PT1RDWH5g0oIrir | c:S3972 | CRITICAL | CODE_SMELL | common/src/runtime_report.c | 14 | Move this `if` to a new line or add the missing `else`. | Expanded compact statements into explicit blocks. |
+| AZ8h0PUYRDWH5g0oIriz | c:S1659 | MINOR | CODE_SMELL | common/src/test_result_json.c | 7 | Define each identifier in a dedicated statement. | Split combined declarations. |
+| AZ8h0PUYRDWH5g0oIriy | c:S3972 | CRITICAL | CODE_SMELL | common/src/test_result_json.c | 8 | Move this `if` to a new line or add the missing `else`. | Expanded compact statements into explicit blocks. |
+| AZ8hZiJnK0SfOljMWPbQ | c:S107 | MAJOR | CODE_SMELL | common/src/event.c | 17 | This function has 31 parameters, which is greater than the 7 authorized. | Replaced the long formatter parameter list with grouped JSON parts. |
+| AZ8hZiFPK0SfOljMWPbH | shelldre:S7679 | MAJOR | CODE_SMELL | ci/common-harness.sh | 5 | Assign this positional parameter to a local variable. | Assigned positional parameter before use. |
+| AZ8hZiFPK0SfOljMWPbI | shelldre:S7679 | MAJOR | CODE_SMELL | ci/common-harness.sh | 13 | Assign this positional parameter to a local variable. | Assigned positional parameter before use. |
+| AZ8hZiFPK0SfOljMWPbJ | shelldre:S7679 | MAJOR | CODE_SMELL | ci/common-harness.sh | 20 | Assign this positional parameter to a local variable. | Assigned positional parameters before use. |
+| AZ8hZiFPK0SfOljMWPbK | shelldre:S7679 | MAJOR | CODE_SMELL | ci/common-harness.sh | 21 | Assign this positional parameter to a local variable. | Assigned positional parameters before use. |
+| AZ8hZiFPK0SfOljMWPbL | shelldre:S7679 | MAJOR | CODE_SMELL | ci/common-harness.sh | 21 | Assign this positional parameter to a local variable. | Assigned positional parameters before use. |
+| AZ8hZiFPK0SfOljMWPbM | shelldre:S7682 | MAJOR | CODE_SMELL | ci/common-harness.sh | 26 | Add an explicit return statement at the end of the function. | Added explicit returns to status helpers. |
+| AZ8hZiFPK0SfOljMWPbN | shelldre:S7682 | MAJOR | CODE_SMELL | ci/common-harness.sh | 27 | Add an explicit return statement at the end of the function. | Added explicit returns to status helpers. |
+| AZ8hZiFPK0SfOljMWPbO | shelldre:S7682 | MAJOR | CODE_SMELL | ci/common-harness.sh | 28 | Add explicit return statement at the end of the function. | Added explicit returns to status helpers. |
+| AZ8hZiFPK0SfOljMWPbP | shelldre:S7682 | MAJOR | CODE_SMELL | ci/common-harness.sh | 29 | Add an explicit return statement at the end of the function. | Added explicit returns to status helpers. |
+| AZ8fMphbXWdE1DtM8Ybj | c:S1659 | MINOR | CODE_SMELL | common/src/headers.c | 62 | Define each identifier in a dedicated statement. | Split combined declarations. |
+| AZ8fMpmSXWdE1DtM8Ybr | c:S954 | MAJOR | CODE_SMELL | common/include/msconnector/transaction.h | 30 | Move this `#include` directive to the top of the file. | Removed the late include and included the needed decision header directly where used. |
+| AZ8fMplZXWdE1DtM8Ybk | c:S3358 | MAJOR | CODE_SMELL | common/src/error.c | 69 | Extract this nested conditional operator into an independent statement. | Replaced nested conditional expression with explicit branch selection. |
+| AZ8fMplZXWdE1DtM8Ybl | c:S3358 | MAJOR | CODE_SMELL | common/src/error.c | 69 | Extract this nested conditional operator into an independent statement. | Replaced nested conditional expression with explicit branch selection. |
+| AZ8fMplvXWdE1DtM8Ybm | c:S995 | MINOR | CODE_SMELL | common/src/modsecurity_engine.c | 5 | Make the type of this parameter a pointer-to-const. | Made the readiness helper transaction parameter const. |
+| AZ8fMplvXWdE1DtM8Ybn | c:S3972 | CRITICAL | CODE_SMELL | common/src/modsecurity_engine.c | 37 | Move this `if` to a new line or add the missing `else`. | Expanded compact ModSecurity facade control flow. |
+| AZ8fMplvXWdE1DtM8Ybo | c:S3972 | CRITICAL | CODE_SMELL | common/src/modsecurity_engine.c | 43 | Move this `if` to a new line or add the missing `else`. | Expanded compact ModSecurity facade control flow. |
+| AZ8fMplvXWdE1DtM8Ybp | c:S3972 | CRITICAL | CODE_SMELL | common/src/modsecurity_engine.c | 53 | Move this `if` to a new line or add the missing `else`. | Expanded compact ModSecurity facade control flow. |
+| AZ8fMplvXWdE1DtM8Ybq | c:S3972 | CRITICAL | CODE_SMELL | common/src/modsecurity_engine.c | 53 | Move this `if` to a new line or add the missing `else`. | Expanded compact ModSecurity facade control flow. |
+
+SonarCloud after-count: NOT VERIFIED. Local checks do not trigger a new SonarCloud analysis.

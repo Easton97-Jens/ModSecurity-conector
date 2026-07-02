@@ -59,7 +59,8 @@ int msconnector_headers_content_type_matches(const msconnector_header *headers, 
     return suffix_index == header->value_size || header->value[suffix_index] == ';';
 }
 static int parse_decimal(const char *value, size_t size, size_t *out) {
-    size_t index = 0, result = 0;
+    size_t index = 0;
+    size_t result = 0;
     while (index < size && isspace((unsigned char)value[index])) { ++index; }
     if (index == size || value[index] == '+' || value[index] == '-') { return 0; }
     for (; index < size && isdigit((unsigned char)value[index]); ++index) {
@@ -72,7 +73,8 @@ static int parse_decimal(const char *value, size_t size, size_t *out) {
     *out = result; return 1;
 }
 int msconnector_headers_parse_content_length(const msconnector_header *headers, size_t header_count, size_t *out) {
-    int seen = 0; size_t parsed = 0;
+    int seen = 0;
+    size_t parsed = 0;
     if (headers == 0) { return 0; }
     for (size_t index = 0; index < header_count; ++index) {
         size_t current = 0;
