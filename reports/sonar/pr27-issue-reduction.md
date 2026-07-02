@@ -167,3 +167,14 @@ SonarCloud after-count: NOT VERIFIED.
 - `common/include/msconnector/transaction.h`: fixed include-order issue by moving shared phase declarations to `common/include/msconnector/phase.h`, making `decision.h` include `phase.h`, and keeping `decision.h` in the top include block of `transaction.h` so starter headers still see `msconnector_decision` declarations.
 - `common/src/rule_event.c`: fixed pointer-to-const issue by changing only the legacy disabled `msconnector_rule_load_event()` wrapper parameter to `const msconnector_event *`; `msconnector_rule_load_event_ex()` still accepts a mutable event pointer because it populates the event.
 - SonarCloud after-count: NOT VERIFIED.
+
+## Current Codex Review hardening fixes
+
+- `common/src/json_escape.c`: changed JSON escaping to write complete escape sequences only, avoiding partial `\`, `\n`, or `\u00XX` fragments when a field is truncated.
+- `common/src/modsecurity_engine.c`: transaction cleanup now clears `native_transaction` even when no backend `free_transaction` callback exists.
+- `common/src/decision.c`: blocked event IDs are selected from the decision phase so response-phase blocks use response-blocked metadata.
+- `common/src/rule_loader.c`: remote rule key/url pairs are checked for NULL and empty-string incompleteness before inline/file/remote backend mutation.
+- `ci/common-harness.sh`: under-root checks reject parent-directory path segments before accepting a root-prefix match.
+- `common/include/msconnector/request.hpp`: restored C++ wrapper aliases for request starter compatibility.
+- `common/src/headers.c`, `common/src/request_helpers.c`, and `common/src/response_helpers.c`: bounded value slice/copy helpers remain the safe path, and raw Content-Type helpers no longer expose bounded slices as C strings.
+- SonarCloud after-count: NOT VERIFIED.

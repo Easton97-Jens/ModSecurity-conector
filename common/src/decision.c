@@ -90,14 +90,21 @@ int msconnector_decision_from_intervention(msconnector_decision *out, const msco
     out->phase = phase; out->log_message = intervention->log_message; return 1;
 }
 
-static const char *decision_message_id(msconnector_decision_kind kind) {
-    switch (kind) {
+static int response_phase(enum msconnector_phase phase) {
+    return phase == MSCONNECTOR_PHASE_RESPONSE_HEADERS || phase == MSCONNECTOR_PHASE_RESPONSE_BODY;
+}
+
+static const char *blocked_message_id(const msconnector_decision *decision) {
+    return response_phase(decision->phase) ? MSCONN_EVENT_RESPONSE_BLOCKED : MSCONN_EVENT_REQUEST_BLOCKED;
+}
+
+static const char *decision_message_id(const msconnector_decision *decision) {
+    switch (decision->kind) {
     case MSCONNECTOR_DECISION_KIND_DENY:
-        return MSCONN_EVENT_REQUEST_BLOCKED;
     case MSCONNECTOR_DECISION_KIND_REDIRECT:
     case MSCONNECTOR_DECISION_KIND_DROP:
     case MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT:
-        return MSCONN_EVENT_RESPONSE_BLOCKED;
+        return blocked_message_id(decision);
     case MSCONNECTOR_DECISION_KIND_ERROR:
         return MSCONN_EVENT_INTERNAL_ERROR;
     case MSCONNECTOR_DECISION_KIND_UNSUPPORTED:
@@ -112,7 +119,7 @@ static const char *decision_message_id(msconnector_decision_kind kind) {
 int msconnector_decision_to_event(const msconnector_decision *decision, msconnector_event *event, const char *connector, const char *transaction_id) {
     const char *message_id;
     if (decision == 0 || event == 0) { return 0; }
-    message_id = decision_message_id(decision->kind);
+    message_id = decision_message_id(decision);
     if (message_id == 0) { msconnector_event_init(event); return 0; }
     msconnector_event_init(event);
     event->meta.connector = connector; event->meta.transaction_id = transaction_id;

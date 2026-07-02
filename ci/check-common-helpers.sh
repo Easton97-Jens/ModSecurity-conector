@@ -15,6 +15,8 @@ SMOKE_C="$OUT_DIR/common_helper_smoke.c"
 SMOKE_BIN="$OUT_DIR/common_helper_smoke"
 STARTER_C="$OUT_DIR/common_transaction_constructor_smoke.c"
 STARTER_BIN="$OUT_DIR/common_transaction_constructor_smoke"
+CXX_SMOKE_CPP="$OUT_DIR/common_cpp_wrapper_smoke.cpp"
+CXX_SMOKE_OBJ="$OUT_DIR/common_cpp_wrapper_smoke.o"
 
 case "$BUILD_ROOT" in
     /*) ;;
@@ -513,8 +515,16 @@ int main(void) {
     assert(strcmp(msconnector_late_intervention_action_name(MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY), "log_only") == 0);
     {
         char escaped[32];
+        char tiny_escape[2];
+        char partial_escape[3];
         assert(msconnector_json_escape("a\"b", escaped, sizeof(escaped)) == 4);
         assert(strcmp(escaped, "a\\\"b") == 0);
+        assert(msconnector_json_escape("\"", tiny_escape, sizeof(tiny_escape)) == 2);
+        assert(strcmp(tiny_escape, "") == 0);
+        assert(msconnector_json_escape("a\"", partial_escape, sizeof(partial_escape)) == 3);
+        assert(strcmp(partial_escape, "a") == 0);
+        assert(msconnector_json_escape("\001", tiny_escape, sizeof(tiny_escape)) == 6);
+        assert(strcmp(tiny_escape, "") == 0);
     }
     {
         char redacted[16];
@@ -597,7 +607,10 @@ int main(void) {
         assert(content_length == 42U);
         assert(msconnector_headers_parse_content_length(conflicting, 2, &content_length) == -1);
         assert(msconnector_headers_parse_content_length(invalid_cl, 1, &content_length) == -1);
-        assert(strcmp(msconnector_headers_host(headers, 6), "example.test") == 0);
+        assert(msconnector_headers_host(headers, 6) == 0);
+        assert(!msconnector_headers_copy_value(headers, 6, "host", sanitized, sizeof(sanitized), &truncated));
+        assert(strcmp(sanitized, "example") == 0);
+        assert(truncated);
         assert(msconnector_header_sanitize_value_for_log("a\r\nb", 4, sanitized, sizeof(sanitized), &truncated) == 4U);
         assert(strcmp(sanitized, "a  b") == 0);
         assert(!truncated);
@@ -653,6 +666,16 @@ int main(void) {
         msconnector_decision_set_deny(&model_decision, 403, "1", "deny");
         assert(msconnector_decision_to_event(&model_decision, &event, "common", "tx-decision"));
         assert(strcmp(event.meta.message_id, MSCONN_EVENT_REQUEST_BLOCKED) == 0);
+        model_decision.phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+        assert(msconnector_decision_to_event(&model_decision, &event, "common", "tx-decision"));
+        assert(strcmp(event.meta.message_id, MSCONN_EVENT_REQUEST_BLOCKED) == 0);
+        model_decision.phase = MSCONNECTOR_PHASE_RESPONSE_HEADERS;
+        assert(msconnector_decision_to_event(&model_decision, &event, "common", "tx-decision"));
+        assert(strcmp(event.meta.message_id, MSCONN_EVENT_RESPONSE_BLOCKED) == 0);
+        model_decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+        assert(msconnector_decision_to_event(&model_decision, &event, "common", "tx-decision"));
+        assert(strcmp(event.meta.message_id, MSCONN_EVENT_RESPONSE_BLOCKED) == 0);
+        assert(strcmp(event.meta.message_id, MSCONN_EVENT_REQUEST_BLOCKED) != 0);
         assert(msconnector_decision_action_from_decision(&model_decision) == MSCONNECTOR_DECISION_ACTION_DENY);
         msconnector_decision_set_drop(&model_decision, "3", "drop");
         assert(msconnector_decision_action_from_decision(&model_decision) == MSCONNECTOR_DECISION_ACTION_DROP);
@@ -745,6 +768,23 @@ int main(void) {
         assert(state.inline_calls == 0);
         assert(state.file_calls == 0);
         assert(state.remote_calls == 0);
+        msconnector_rule_loader_init(&loader, &state, &backend);
+        state.inline_calls = 0;
+        state.file_calls = 0;
+        state.remote_calls = 0;
+        msconnector_config_init(&config);
+        config.rules_inline = "inline";
+        config.rules_file = "rules.conf";
+        config.rules_remote_key = "";
+        config.rules_remote_url = "url";
+        assert(!msconnector_rule_loader_load_config(&loader, &config, &error));
+        stats = msconnector_rule_loader_stats(&loader);
+        assert(stats->inline_rules == 0);
+        assert(stats->file_rules == 0);
+        assert(stats->remote_rules == 0);
+        assert(state.inline_calls == 0);
+        assert(state.file_calls == 0);
+        assert(state.remote_calls == 0);
     }
     {
         fake_backend_state state = {0};
@@ -789,6 +829,14 @@ int main(void) {
         assert(msconnector_modsecurity_process_logging(&tx, &error));
         assert(msconnector_transaction_state_phase_processed(&tx.state, MSCONNECTOR_PHASE_LOGGING));
         msconnector_modsecurity_transaction_cleanup(&tx);
+        assert(tx.native_transaction == 0);
+        assert(!msconnector_modsecurity_process_request_headers(&tx, 0, &engine_decision, &error));
+        assert(msconnector_modsecurity_transaction_init(&tx, &engine, "tx-engine-no-free", &error));
+        ops.free_transaction = 0;
+        engine.ops.free_transaction = 0;
+        msconnector_modsecurity_transaction_cleanup(&tx);
+        assert(tx.native_transaction == 0);
+        assert(!msconnector_modsecurity_process_request_headers(&tx, 0, &engine_decision, &error));
         msconnector_modsecurity_transaction_cleanup(&tx);
         msconnector_modsecurity_engine_cleanup(&engine);
         msconnector_modsecurity_engine_cleanup(&engine);
@@ -999,13 +1047,25 @@ int main(void) {
         request.method = "GET"; request.uri = "/"; request.headers = headers; request.header_count = 2;
         assert(msconnector_request_validate(&request));
         assert(msconnector_request_has_header(&request, "content-type"));
-        assert(strcmp(msconnector_request_content_type(&request), "application/json") == 0);
+        assert(msconnector_request_content_type(&request) == 0);
         {
             const char *content_type = 0;
             size_t content_type_size = 0;
             assert(msconnector_request_content_type_slice(&request, &content_type, &content_type_size));
             assert(content_type_size == 16U);
             assert(memcmp(content_type, "application/json", 16U) == 0);
+        }
+        {
+            const msconnector_header sliced_headers[] = {{"Content-Type", 12, "text/plainXXX", 10}};
+            const char *content_type = 0;
+            size_t content_type_size = 0;
+            request.headers = sliced_headers;
+            request.header_count = 1;
+            assert(msconnector_request_content_type_slice(&request, &content_type, &content_type_size));
+            assert(content_type_size == 10U);
+            assert(memcmp(content_type, "text/plain", 10U) == 0);
+            request.headers = headers;
+            request.header_count = 2;
         }
         assert(msconnector_request_content_length(&request, &cl_status) == 123U && cl_status == 1);
         request.headers = 0; request.header_count = 1;
@@ -1015,7 +1075,7 @@ int main(void) {
         response.status = 200; response.headers = headers; response.header_count = 2;
         assert(msconnector_response_validate(&response));
         assert(msconnector_response_has_header(&response, "CONTENT-LENGTH"));
-        assert(strcmp(msconnector_response_content_type(&response), "application/json") == 0);
+        assert(msconnector_response_content_type(&response) == 0);
         {
             const char *content_type = 0;
             size_t content_type_size = 0;
@@ -1147,5 +1207,55 @@ EOF
 
 "$CC_BIN" $MSCONNECTOR_CFLAGS     -I "$REPO_ROOT/common/include"     "$STARTER_C"     "$REPO_ROOT/common/src/transaction.c"     "$REPO_ROOT/common/src/intervention.c"     -o "$STARTER_BIN"
 "$STARTER_BIN"
+
+. "$REPO_ROOT/ci/common-harness.sh"
+msconnector_harness_require_under_root /tmp/run /tmp/run/logs/result.json
+! msconnector_harness_require_under_root /tmp/run /tmp/run/../outside/file
+! msconnector_harness_require_under_root /tmp/run /tmp/run\..\outside\file
+msconnector_harness_require_relative_artifact logs/result.json
+msconnector_harness_require_relative_artifact folder..name/file
+! msconnector_harness_require_relative_artifact ..
+! msconnector_harness_require_relative_artifact logs/..
+! msconnector_harness_require_relative_artifact logs\..\secret
+
+if command -v "${CXX:-c++}" >/dev/null 2>&1; then
+    cat > "$CXX_SMOKE_CPP" <<'EOF'
+#include "msconnector/request.hpp"
+#include "msconnector/response.hpp"
+#include "msconnector/transaction.hpp"
+#include "msconnector/status.hpp"
+#include "msconnector/capabilities.hpp"
+#include "msconnector/origin.hpp"
+#include "msconnector/logging.hpp"
+
+int main() {
+    msconnector::Request request = {};
+    msconnector::Header header = {};
+    msconnector::Bytes bytes = {};
+    msconnector::Endpoint endpoint = {};
+    msconnector::Response response = {};
+    msconnector::TransactionView tx = {};
+    msconnector::Decision decision = msconnector_decision_allow("1", "ok");
+    msconnector::Status status = MSCONNECTOR_STATUS_OK;
+    msconnector::Capabilities capabilities = {};
+    msconnector::Origin origin = {};
+    msconnector::LogRecord record = {};
+    (void)header;
+    (void)bytes;
+    (void)endpoint;
+    (void)response;
+    (void)tx;
+    (void)decision;
+    (void)capabilities;
+    (void)origin;
+    (void)record;
+    msconnector::request_init(&request);
+    return msconnector::status_name(status) == 0 ? 1 : 0;
+}
+EOF
+    "${CXX:-c++}" -std=c++20 -Wall -Wextra -Werror -I "$REPO_ROOT/common/include" -c "$CXX_SMOKE_CPP" -o "$CXX_SMOKE_OBJ"
+else
+    echo "SKIPPED: optional C++ wrapper smoke — C++ compiler not available"
+fi
 
 echo "common_helper_smoke: pass output=$OUT_DIR"

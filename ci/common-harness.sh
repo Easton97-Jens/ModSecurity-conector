@@ -19,9 +19,20 @@ msconnector_harness_require_relative_artifact() {
     esac
 }
 
+msconnector_harness_has_parent_segment() {
+    candidate=$1
+    case "$candidate" in
+        ".."|../*|..\\*|*/..|*\\..|*/../*|*/..\\*|*\\../*|*\\..\\*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 msconnector_harness_require_under_root() {
     root=$1
     path=$2
+    if msconnector_harness_has_parent_segment "$path"; then
+        return 1
+    fi
     case "$path" in
         "$root"/*|"$root"\\*) return 0 ;;
         *) return 1 ;;

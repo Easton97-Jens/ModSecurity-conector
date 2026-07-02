@@ -30,12 +30,20 @@ int msconnector_rule_loader_add_remote(msconnector_rule_loader *loader, const ch
     if (!loader->backend.add_remote(loader->backend.userdata, loader->rules_set, key, url, error)) { return 0; }
     msconnector_rule_load_stats_add_remote(&loader->stats, 1); return 1;
 }
+static int remote_pair_requested(const msconnector_config *config) {
+    return !empty(config->rules_remote_key) || !empty(config->rules_remote_url);
+}
+
+static int remote_pair_complete(const msconnector_config *config) {
+    return !empty(config->rules_remote_key) && !empty(config->rules_remote_url);
+}
+
 int msconnector_rule_loader_load_config(msconnector_rule_loader *loader, const msconnector_config *config, msconnector_error *error) {
     if (config == 0) { return fail_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "config is required"); }
-    if ((config->rules_remote_key == 0) != (config->rules_remote_url == 0)) { return fail_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "incomplete remote rules pair"); }
+    if (remote_pair_requested(config) && !remote_pair_complete(config)) { return fail_error(error, MSCONNECTOR_ERROR_INVALID_CONFIG, "incomplete remote rules pair"); }
     if (config->rules_inline != 0 && !msconnector_rule_loader_add_inline(loader, config->rules_inline, error)) { return 0; }
     if (config->rules_file != 0 && !msconnector_rule_loader_add_file(loader, config->rules_file, error)) { return 0; }
-    if (config->rules_remote_key != 0 && !msconnector_rule_loader_add_remote(loader, config->rules_remote_key, config->rules_remote_url, error)) { return 0; }
+    if (remote_pair_complete(config) && !msconnector_rule_loader_add_remote(loader, config->rules_remote_key, config->rules_remote_url, error)) { return 0; }
     return 1;
 }
 const msconnector_rule_load_stats *msconnector_rule_loader_stats(const msconnector_rule_loader *loader) { return loader == 0 ? 0 : &loader->stats; }

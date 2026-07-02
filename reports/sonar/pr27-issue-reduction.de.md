@@ -68,3 +68,14 @@ SonarCloud after-count: NOT VERIFIED.
 - `common/include/msconnector/transaction.h`: Include-Reihenfolge korrigiert, indem gemeinsame Phase-Deklarationen nach `common/include/msconnector/phase.h` verschoben wurden. `decision.h` bindet nun `phase.h` ein, und `transaction.h` bindet `decision.h` im oberen Include-Block ein, damit Starter-Header weiterhin `msconnector_decision`-Deklarationen sehen.
 - `common/src/rule_event.c`: Pointer-to-const-Hinweis korrigiert, indem nur der alte deaktivierte Wrapper `msconnector_rule_load_event()` einen Parameter `const msconnector_event *` erhält; `msconnector_rule_load_event_ex()` behält den veränderbaren Event-Zeiger, weil die Funktion das Event befüllt.
 - SonarCloud-Nachzählung: NOT VERIFIED.
+
+## Aktuelle Codex-Review-Härtungen
+
+- `common/src/json_escape.c`: JSON-Escaping schreibt nur noch vollständige Escape-Sequenzen und vermeidet teilweise `\`, `\n`- oder `\u00XX`-Fragmente bei abgeschnittenen Feldern.
+- `common/src/modsecurity_engine.c`: Transaktions-Cleanup setzt `native_transaction` auch dann zurück, wenn kein Backend-Callback `free_transaction` vorhanden ist.
+- `common/src/decision.c`: Blockierungs-Event-IDs werden aus der Entscheidungsphase gewählt, sodass Response-Phasen Response-Blocked-Metadaten verwenden.
+- `common/src/rule_loader.c`: Remote-Regel-Key/URL-Paare werden vor Inline-/Datei-/Remote-Backend-Mutationen auf NULL und leere unvollständige Werte geprüft.
+- `ci/common-harness.sh`: Under-Root-Prüfungen verwerfen Parent-Directory-Segmente, bevor ein Root-Präfix akzeptiert wird.
+- `common/include/msconnector/request.hpp`: C++-Wrapper-Aliase für Starter-Kompatibilität wurden wiederhergestellt.
+- `common/src/headers.c`, `common/src/request_helpers.c` und `common/src/response_helpers.c`: Begrenzte Slice-/Copy-Helfer bleiben der sichere Pfad; rohe Content-Type-Helfer geben keine begrenzten Slices als C-Strings mehr zurück.
+- SonarCloud-Nachzählung: NOT VERIFIED.

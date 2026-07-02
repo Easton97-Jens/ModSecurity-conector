@@ -416,4 +416,27 @@ if remote_pair_index == -1 or inline_load_index == -1 or remote_pair_index > inl
 if "bounded_cstr_len" not in transaction_id_source or "memset(out->value" not in transaction_id_source:
     fail("transaction ID expression callback results must be bounded before validation")
 
+# Current PR 27 review hardening checks.
+json_escape_source = (ROOT / "common" / "src" / "json_escape.c").read_text(encoding="utf-8")
+if "append_json_bytes" not in json_escape_source or "*position + value_size < dst_size" not in json_escape_source:
+    fail("json_escape must avoid writing partial JSON escape sequences")
+if "terminate_at_current" not in json_escape_source:
+    fail("json_escape must terminate safely when an escape sequence does not fit")
+if "tx->native_transaction = 0" not in engine_source:
+    fail("modsecurity transaction cleanup must clear native_transaction even without a free callback")
+if "response_phase" not in decision_source or "MSCONN_EVENT_RESPONSE_BLOCKED" not in decision_source or "MSCONN_EVENT_REQUEST_BLOCKED" not in decision_source:
+    fail("decision_to_event must choose blocked event IDs from decision phase")
+if "remote_pair_requested" not in rule_loader_source or "remote_pair_complete" not in rule_loader_source or "empty(config->rules_remote_key)" not in rule_loader_source:
+    fail("rule_loader_load_config must reject empty incomplete remote rule fields before mutation")
+if "msconnector_harness_has_parent_segment" not in harness_source or "if msconnector_harness_has_parent_segment" not in harness_source:
+    fail("common-harness under-root checks must reject parent traversal before prefix acceptance")
+request_hpp = (ROOT / "common" / "include" / "msconnector" / "request.hpp").read_text(encoding="utf-8")
+for alias in ("using Bytes = msconnector_bytes", "using Header = msconnector_header", "using Endpoint = msconnector_endpoint", "using Request = msconnector_request"):
+    if alias not in request_hpp:
+        fail("request.hpp must preserve C++ wrapper aliases")
+if "msconnector_request_content_type(const msconnector_request *request)" not in request_helpers_source or "return 0" not in request_helpers_source:
+    fail("request raw content-type helper must not expose bounded slices as C strings")
+if "msconnector_response_content_type(const msconnector_response *response)" not in response_helpers_source or "return 0" not in response_helpers_source:
+    fail("response raw content-type helper must not expose bounded slices as C strings")
+
 print("common-sdk-contract: pass")

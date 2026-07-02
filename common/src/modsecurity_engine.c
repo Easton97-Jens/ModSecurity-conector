@@ -121,10 +121,13 @@ int msconnector_modsecurity_transaction_init(
 
 void msconnector_modsecurity_transaction_cleanup(msconnector_modsecurity_transaction *tx)
 {
-    if (tx != 0 && tx->engine != 0 && tx->native_transaction != 0 && tx->engine->ops.free_transaction != 0) {
-        tx->engine->ops.free_transaction(tx->engine->ops.userdata, tx->native_transaction);
-        tx->native_transaction = 0;
+    if (tx == 0) {
+        return;
     }
+    if (tx->engine != 0 && tx->native_transaction != 0 && tx->engine->ops.free_transaction != 0) {
+        tx->engine->ops.free_transaction(tx->engine->ops.userdata, tx->native_transaction);
+    }
+    tx->native_transaction = 0;
 }
 
 static int call_request(
