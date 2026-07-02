@@ -23,6 +23,7 @@ enum msconnector_bool_option {
 };
 
 enum msconnector_phase4_mode {
+    MSCONNECTOR_PHASE4_MODE_UNSET = -1,
     MSCONNECTOR_PHASE4_MODE_MINIMAL = 0,
     MSCONNECTOR_PHASE4_MODE_SAFE = 1,
     MSCONNECTOR_PHASE4_MODE_STRICT = 2

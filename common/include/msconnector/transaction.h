@@ -1,7 +1,9 @@
 #ifndef MSCONNECTOR_TRANSACTION_H
 #define MSCONNECTOR_TRANSACTION_H
 
+#include "msconnector/decision.h"
 #include "msconnector/intervention.h"
+#include "msconnector/phase.h"
 #include "msconnector/request.h"
 #include "msconnector/response.h"
 #include "msconnector/status.h"
@@ -10,15 +12,6 @@
 extern "C" {
 #endif
 
-enum msconnector_phase {
-    MSCONNECTOR_PHASE_CONNECTION = 0,
-    MSCONNECTOR_PHASE_URI = 1,
-    MSCONNECTOR_PHASE_REQUEST_HEADERS = 2,
-    MSCONNECTOR_PHASE_REQUEST_BODY = 3,
-    MSCONNECTOR_PHASE_RESPONSE_HEADERS = 4,
-    MSCONNECTOR_PHASE_RESPONSE_BODY = 5,
-    MSCONNECTOR_PHASE_LOGGING = 6
-};
 
 typedef struct msconnector_transaction_view {
     const char *transaction_id;
@@ -27,28 +20,9 @@ typedef struct msconnector_transaction_view {
     msconnector_intervention intervention;
 } msconnector_transaction_view;
 
-typedef struct msconnector_decision {
-    enum msconnector_status status;
-    msconnector_intervention intervention;
-    const char *rule_id;
-    const char *reason;
-} msconnector_decision;
-
-msconnector_decision msconnector_decision_make(
-    enum msconnector_status status,
-    msconnector_intervention intervention,
-    const char *rule_id,
-    const char *reason);
-msconnector_decision msconnector_decision_allow(
-    const char *rule_id,
-    const char *reason);
-msconnector_decision msconnector_decision_block(
-    int http_status,
-    const char *rule_id,
-    const char *reason);
-
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif
