@@ -1,13 +1,11 @@
 #ifndef MSCONNECTOR_TRANSACTION_HPP
 #define MSCONNECTOR_TRANSACTION_HPP
-
-#include "msconnector/intervention.hpp"
 #include "msconnector/transaction.h"
-
+#include "msconnector/transaction_state.h"
 namespace msconnector {
-using Phase = msconnector_phase;
 using TransactionView = msconnector_transaction_view;
+using TransactionState = msconnector_transaction_state;
 using Decision = msconnector_decision;
+inline const char *phase_name(msconnector_phase phase) noexcept { return msconnector_phase_name(phase); }
 }
-
 #endif

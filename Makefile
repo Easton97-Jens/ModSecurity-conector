@@ -1,4 +1,7 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+MSCONNECTOR_C_STD ?= c17
+MSCONNECTOR_CFLAGS ?= -std=$(MSCONNECTOR_C_STD) -Wall -Wextra -Werror
+MSCONNECTOR_COMPILER_ID ?= $(notdir $(firstword $(CC)))
 FRAMEWORK_PYTHON := $(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON))
 VERIFIED_RUN_PARENT ?= $(if $(RUNNER_TEMP),$(RUNNER_TEMP),$(if $(TMPDIR),$(TMPDIR),/var/tmp))
 VERIFIED_RUN_ROOT ?= $(VERIFIED_RUN_PARENT)/ModSecurity-conector-verified
@@ -626,18 +629,39 @@ probe-response-body: check-framework prepare-runtime-components
 connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
-.PHONY: check-common-helpers check-block-status-generator
+.PHONY: check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-block-status-generator
 check-block-status-generator:
 	$(PYTHON) ci/check-block-status-generator.py
 
 check-common-helpers:
-	sh ci/check-common-helpers.sh
+	MSCONNECTOR_C_STD="$(MSCONNECTOR_C_STD)" MSCONNECTOR_CFLAGS="$(MSCONNECTOR_CFLAGS)" sh ci/check-common-helpers.sh
+
+check-common-helpers-c17:
+	$(MAKE) check-common-helpers MSCONNECTOR_C_STD=c17
+
+check-common-helpers-c23:
+	@flag="$$(python3 ci/detect-c-standard.py --profile c23 --compiler "$(MSCONNECTOR_COMPILER_ID)")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional C23 check — compiler does not support c23 or c2x"; exit 0; fi; exit "$$rc"; }; \
+	$(MAKE) check-common-helpers CC="$(MSCONNECTOR_COMPILER_ID)" MSCONNECTOR_C_STD=c23 MSCONNECTOR_CFLAGS="$$flag -Wall -Wextra -Werror"
+
+check-common-helpers-future-c:
+	@flag="$$(python3 ci/detect-c-standard.py --profile c2y --compiler "$(MSCONNECTOR_COMPILER_ID)")" || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: optional future C check — compiler does not support c2y or gnu2y"; exit 0; fi; exit "$$rc"; }; \
+	$(MAKE) check-common-helpers CC="$(MSCONNECTOR_COMPILER_ID)" MSCONNECTOR_C_STD=c2y MSCONNECTOR_CFLAGS="$$flag -Wall -Wextra -Werror"
+
+check-common-helpers-c20:
+	@echo "SKIPPED: c20 is not a C standard mode; use c23/c2x for C or c++20 for C++."
+
+check-common-helpers-c26:
+	@echo "SKIPPED: c26 is not a C standard mode; use c2y/gnu2y for future C or c++26 for C++."
+
+check-common-sdk-contract:
+	$(PYTHON) ci/check-common-sdk-contract.py
 
 lint: check-framework
 	sh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile "$(FRAMEWORK_ROOT)"/tests/normalizers/*.py "$(FRAMEWORK_ROOT)"/tests/runners/*.py "$(FRAMEWORK_ROOT)"/ci/*.py
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile ci/*.py
+	$(MAKE) check-common-sdk-contract
 	$(MAKE) check-framework-fixture-syntax
 	$(MAKE) report-governance
 	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
