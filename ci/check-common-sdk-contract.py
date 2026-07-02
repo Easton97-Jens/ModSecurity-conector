@@ -439,4 +439,18 @@ if "msconnector_request_content_type(const msconnector_request *request)" not in
 if "msconnector_response_content_type(const msconnector_response *response)" not in response_helpers_source or "return 0" not in response_helpers_source:
     fail("response raw content-type helper must not expose bounded slices as C strings")
 
+# PR 29 review hardening checks.
+late_intervention_source = (ROOT / "common" / "src" / "late_intervention.c").read_text(encoding="utf-8")
+transaction_source = (ROOT / "common" / "src" / "transaction.c").read_text(encoding="utf-8")
+if "ch > 126U" not in transaction_id_source:
+    fail("transaction ID validation must reject non-ASCII bytes above 126")
+if "remote_pair_requested" not in config_source or "remote_pair_complete" not in config_source or "string_empty(config->rules_remote_key)" not in config_source:
+    fail("config validation must reject empty remote rule key/url mismatches")
+if "if (response_headers_committed || response_body_started)" not in late_intervention_source or "if (strict_mode)" not in late_intervention_source:
+    fail("strict late intervention must be gated on response output having begun")
+if "kind_from_status" not in transaction_source or "MSCONNECTOR_STATUS_BLOCKED" not in transaction_source or "MSCONNECTOR_DECISION_KIND_ERROR" not in transaction_source:
+    fail("compatibility decision constructors must preserve blocked/error status kinds")
+if '{302, "Found", "Redirect response", MSCONNECTOR_HTTP_STATUS_CLASS_REDIRECTION, 0}' not in http_status_source:
+    fail("HTTP status metadata must include non-blocking 302 Found")
+
 print("common-sdk-contract: pass")

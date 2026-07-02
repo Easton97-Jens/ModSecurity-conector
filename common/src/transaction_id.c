@@ -10,7 +10,7 @@ static int validate_n(const char *value, size_t value_size) {
     if (isspace((unsigned char)value[0]) || isspace((unsigned char)value[value_size - 1U])) { return 0; }
     for (size_t index = 0; index < value_size; ++index) {
         unsigned char ch = (unsigned char)value[index];
-        if (ch < 32U || ch == 127U) { return 0; }
+        if (ch < 32U || ch == 127U || ch > 126U) { return 0; }
     }
     return 1;
 }

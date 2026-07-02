@@ -221,6 +221,16 @@ static int fake_expr_full_no_nul(void *userdata, const msconnector_request *requ
     return 1;
 }
 
+static int fake_expr_non_ascii(void *userdata, const msconnector_request *request, char *out, size_t out_len) {
+    (void)userdata;
+    (void)request;
+    if (out_len < 3U) { return 0; }
+    out[0] = (char)0xc3;
+    out[1] = (char)0xa9;
+    out[2] = '\0';
+    return 1;
+}
+
 static msconnector_adapter_metadata fake_metadata;
 static msconnector_capabilities fake_capabilities;
 
@@ -444,6 +454,25 @@ int main(void) {
         assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
         merged_config.unsupported_status = 302;
         assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.unsupported_status = 501;
+        merged_config.rules_remote_key = "";
+        merged_config.rules_remote_url = "";
+        assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.rules_remote_key = "";
+        merged_config.rules_remote_url = "https://example.test/rules.conf";
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.rules_remote_key = "key";
+        merged_config.rules_remote_url = "";
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.rules_remote_key = 0;
+        merged_config.rules_remote_url = "https://example.test/rules.conf";
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.rules_remote_key = "key";
+        merged_config.rules_remote_url = 0;
+        assert(!msconnector_config_validate(&merged_config, error, sizeof(error)));
+        merged_config.rules_remote_key = "key";
+        merged_config.rules_remote_url = "https://example.test/rules.conf";
+        assert(msconnector_config_validate(&merged_config, error, sizeof(error)));
 
         msconnector_config_init(&parent_config);
         msconnector_config_init(&child_config);
@@ -513,6 +542,15 @@ int main(void) {
     assert(strcmp(msconnector_decision_action_name(MSCONNECTOR_DECISION_ACTION_DENY), "deny") == 0);
     assert(msconnector_decision_action_is_disruptive(MSCONNECTOR_DECISION_ACTION_DENY));
     assert(strcmp(msconnector_late_intervention_action_name(MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY), "log_only") == 0);
+    {
+        msconnector_late_intervention_policy late_policy;
+        msconnector_late_intervention_policy_init(&late_policy);
+        assert(msconnector_late_intervention_resolve(&late_policy, 0, 0, 1) == MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE);
+        assert(msconnector_late_intervention_resolve(&late_policy, 1, 0, 1) == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION);
+        assert(msconnector_late_intervention_resolve(&late_policy, 0, 1, 1) == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION);
+        assert(msconnector_late_intervention_resolve(&late_policy, 0, 0, 0) == MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE);
+        assert(msconnector_late_intervention_resolve(&late_policy, 1, 0, 0) == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY);
+    }
     {
         char escaped[32];
         char tiny_escape[2];
@@ -651,6 +689,9 @@ int main(void) {
         msconnector_decision_set_redirect(&model_decision, 302, "https://example.test/", "2", "redirect");
         assert(msconnector_decision_is_redirect(&model_decision));
         assert(strcmp(model_decision.redirect_url, "https://example.test/") == 0);
+        assert(msconnector_decision_to_event(&model_decision, &event, "common", "tx-decision"));
+        assert(strcmp(event.http.http_reason_phrase, "Found") == 0);
+        assert(strcmp(event.http.http_default_message, "Redirect response") == 0);
         msconnector_decision_set_drop(&model_decision, "3", "drop");
         assert(msconnector_decision_is_drop(&model_decision));
         msconnector_decision_set_connection_abort(&model_decision, "4", "abort");
@@ -864,12 +905,20 @@ int main(void) {
         config.transaction_id = "static-id";
         assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
         assert(result.source == MSCONNECTOR_TRANSACTION_ID_SOURCE_STATIC);
+        config.transaction_id = "abc_DEF-123.:";
+        assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
+        config.transaction_id = "badid";
+        assert(!msconnector_transaction_id_resolve(&ctx, &result, &error));
+        config.transaction_id = "badÃ©id";
+        assert(!msconnector_transaction_id_resolve(&ctx, &result, &error));
         config.transaction_id = 0;
         config.transaction_id_expr = "expr";
         ctx.expr_eval = fake_expr_eval;
         assert(msconnector_transaction_id_resolve(&ctx, &result, &error));
         assert(strcmp(result.value, "expr-id") == 0);
         ctx.expr_eval = fake_expr_full_no_nul;
+        assert(!msconnector_transaction_id_resolve(&ctx, &result, &error));
+        ctx.expr_eval = fake_expr_non_ascii;
         assert(!msconnector_transaction_id_resolve(&ctx, &result, &error));
         ctx.expr_eval = 0;
         assert(!msconnector_transaction_id_resolve(&ctx, &result, &error));
@@ -934,6 +983,10 @@ int main(void) {
         assert(strcmp(msconnector_http_status_reason_phrase(200), "OK") == 0);
         assert(strcmp(msconnector_http_status_default_message(200), "Request succeeded") == 0);
         assert(!msconnector_http_status_is_block_response(200));
+        assert(strcmp(msconnector_http_status_reason_phrase(302), "Found") == 0);
+        assert(strcmp(msconnector_http_status_default_message(302), "Redirect response") == 0);
+        assert(!msconnector_http_status_is_error(302));
+        assert(!msconnector_http_status_is_block_response(302));
         assert(msconnector_event_write_json_ex(&event, json, sizeof(json), &truncated));
         assert(!truncated);
         assert(strstr(json, "\"message_id\":\"MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200\"") != 0);
@@ -1197,10 +1250,17 @@ int main(void) {
     msconnector_intervention intervention = msconnector_intervention_make(1, 403, 0, "blocked");
     msconnector_decision allow_decision = msconnector_decision_allow("1", "allow");
     msconnector_decision block_decision = msconnector_decision_block(403, "2", "block");
+    msconnector_intervention none = msconnector_intervention_none();
     msconnector_decision made_decision = msconnector_decision_make(MSCONNECTOR_STATUS_BLOCKED, intervention, "3", "made");
+    msconnector_decision blocked_none = msconnector_decision_make(MSCONNECTOR_STATUS_BLOCKED, none, "4", "blocked-none");
+    msconnector_decision error_none = msconnector_decision_make(MSCONNECTOR_STATUS_ERROR, none, "5", "error-none");
+    msconnector_decision ok_none = msconnector_decision_make(MSCONNECTOR_STATUS_OK, none, "6", "ok-none");
     return allow_decision.status == MSCONNECTOR_STATUS_OK &&
         block_decision.status == MSCONNECTOR_STATUS_BLOCKED &&
         made_decision.intervention.status == 403 &&
+        blocked_none.kind == MSCONNECTOR_DECISION_KIND_DENY &&
+        error_none.kind == MSCONNECTOR_DECISION_KIND_ERROR &&
+        ok_none.kind == MSCONNECTOR_DECISION_KIND_ALLOW &&
         strcmp(block_decision.reason, "block") == 0 ? 0 : 1;
 }
 EOF

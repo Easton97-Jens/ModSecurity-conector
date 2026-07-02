@@ -36,11 +36,10 @@ msconnector_late_intervention_action msconnector_late_intervention_resolve(
         policy = &fallback_policy;
     }
 
-    if (strict_mode) {
-        return policy->strict_action;
-    }
-
     if (response_headers_committed || response_body_started) {
+        if (strict_mode) {
+            return policy->strict_action;
+        }
         return policy->default_action;
     }
 

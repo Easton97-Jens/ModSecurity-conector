@@ -1,5 +1,20 @@
 #include "msconnector/transaction.h"
 
+static msconnector_decision_kind kind_from_status(enum msconnector_status status)
+{
+    switch (status) {
+    case MSCONNECTOR_STATUS_BLOCKED:
+        return MSCONNECTOR_DECISION_KIND_DENY;
+    case MSCONNECTOR_STATUS_ERROR:
+        return MSCONNECTOR_DECISION_KIND_ERROR;
+    case MSCONNECTOR_STATUS_UNSUPPORTED:
+        return MSCONNECTOR_DECISION_KIND_UNSUPPORTED;
+    case MSCONNECTOR_STATUS_OK:
+    default:
+        return MSCONNECTOR_DECISION_KIND_ALLOW;
+    }
+}
+
 static void decision_constructor_init(msconnector_decision *decision)
 {
     if (decision == 0) {
@@ -28,6 +43,7 @@ msconnector_decision msconnector_decision_make(
 
     decision_constructor_init(&decision);
     decision.status = status;
+    decision.kind = kind_from_status(status);
     decision.phase = MSCONNECTOR_PHASE_CONNECTION;
     decision.rule_id = rule_id;
     decision.reason = reason;
@@ -39,6 +55,8 @@ msconnector_decision msconnector_decision_make(
         decision.disruptive = 1;
         decision.http_status = intervention.status;
         decision.redirect_url = intervention.redirect_url;
+    } else if (status == MSCONNECTOR_STATUS_BLOCKED || status == MSCONNECTOR_STATUS_ERROR) {
+        decision.disruptive = 1;
     }
     return decision;
 }

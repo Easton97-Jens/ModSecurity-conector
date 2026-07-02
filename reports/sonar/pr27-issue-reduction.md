@@ -178,3 +178,12 @@ SonarCloud after-count: NOT VERIFIED.
 - `common/include/msconnector/request.hpp`: restored C++ wrapper aliases for request starter compatibility.
 - `common/src/headers.c`, `common/src/request_helpers.c`, and `common/src/response_helpers.c`: bounded value slice/copy helpers remain the safe path, and raw Content-Type helpers no longer expose bounded slices as C strings.
 - SonarCloud after-count: NOT VERIFIED.
+
+## PR 29 Common SDK review fixes
+
+- `common/src/transaction_id.c`: transaction ID validation now rejects non-ASCII bytes above printable ASCII while keeping bounded header and expression validation.
+- `common/src/config.c`: config validation now treats NULL and empty remote rule fields consistently, rejecting incomplete key/url pairs before rule loading.
+- `common/src/late_intervention.c`: strict late-intervention abort only applies after headers are committed or the response body has started; clean deny remains possible before output begins.
+- `common/src/transaction.c`: compatibility decision constructors now derive decision kind from status when the intervention is non-disruptive, avoiding `ALLOW` kind for blocked/error status.
+- `common/src/http_status.c`: added non-blocking metadata for HTTP `302 Found` so redirect decision events have accurate status text.
+- SonarCloud after-count: NOT VERIFIED.

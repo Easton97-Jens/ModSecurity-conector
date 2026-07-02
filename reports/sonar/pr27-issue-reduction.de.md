@@ -79,3 +79,12 @@ SonarCloud after-count: NOT VERIFIED.
 - `common/include/msconnector/request.hpp`: C++-Wrapper-Aliase für Starter-Kompatibilität wurden wiederhergestellt.
 - `common/src/headers.c`, `common/src/request_helpers.c` und `common/src/response_helpers.c`: Begrenzte Slice-/Copy-Helfer bleiben der sichere Pfad; rohe Content-Type-Helfer geben keine begrenzten Slices als C-Strings mehr zurück.
 - SonarCloud-Nachzählung: NOT VERIFIED.
+
+## PR-29-Common-SDK-Review-Korrekturen
+
+- `common/src/transaction_id.c`: Transaktions-ID-Validierung verwirft nun Nicht-ASCII-Bytes oberhalb des druckbaren ASCII-Bereichs und behält begrenzte Header-/Expression-Prüfung bei.
+- `common/src/config.c`: Konfigurationsvalidierung behandelt NULL und leere Remote-Regel-Felder konsistent und verwirft unvollständige Key/URL-Paare vor dem Rule Loading.
+- `common/src/late_intervention.c`: Strikter Late-Intervention-Abbruch greift nur, nachdem Header gesendet wurden oder der Response-Body gestartet ist; vor Ausgabebeginn bleibt ein sauberer Deny möglich.
+- `common/src/transaction.c`: Kompatibilitäts-Konstruktoren leiten die Entscheidungsart aus dem Status ab, wenn die Intervention nicht disruptiv ist, sodass BLOCKED/ERROR nicht als ALLOW verbleibt.
+- `common/src/http_status.c`: Nicht-blockierende Metadaten für HTTP `302 Found` wurden ergänzt, damit Redirect-Events korrekten Statustext haben.
+- SonarCloud-Nachzählung: NOT VERIFIED.
