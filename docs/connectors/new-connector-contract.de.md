@@ -10,3 +10,11 @@ wird.
 Dieses Dokument ist nur ein Vertragsleitfaden. Es migriert keinen bestehenden
 Connector und behauptet kein Laufzeitverhalten, keine Capability-Unterstützung
 und keine Produktionsreife.
+
+## Erwartungen an das Common-Paket
+
+Zukünftige Connector-Adoption soll Host-Requests/-Responses über die Common
+Request-/Response-Helfer abbilden, Manifeste und Origin-Governance offenlegen,
+die Build-Contract-Target-Begriffe verwenden, wenn sie übernommen werden, und
+Runtime-Reports wahrheitsgemäß halten. Kein bestehender Connector wird durch
+diese reine Dokumentationsaktualisierung übernommen.

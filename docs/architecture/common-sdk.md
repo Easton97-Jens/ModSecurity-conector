@@ -134,3 +134,14 @@ be claimed.
 The common artifact layout defines standard names such as `result.json`,
 `decision.jsonl`, `audit.log`, and `error.log`. Runtime path joining rejects
 absolute artifact names, Windows absolute and UNC names, and parent traversal.
+
+## Remaining package helpers
+
+The common SDK package now also includes config parser helpers, request and
+response validation helpers, rule collection merge helpers, rule error/event
+helpers, test-result JSON, connector manifests, runtime report skeletons, origin
+governance, build-contract targets, C++ header-only wrappers, central resource
+limits, rule-ID extraction, log sanitizing, and body-snippet redaction. These are
+connector-neutral scaffolding only and do not migrate or verify any connector.
+They do not add a real libmodsecurity binding and do not claim production or
+full-matrix readiness.

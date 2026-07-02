@@ -47,6 +47,20 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/artifact_layout.h"
 #include "msconnector/artifacts.h"
 #include "msconnector/body_policy.h"
+#include "msconnector/build_contract.h"
+#include "msconnector/config_parser.h"
+#include "msconnector/connector_manifest.h"
+#include "msconnector/limits.h"
+#include "msconnector/log_sanitize.h"
+#include "msconnector/origin_governance.h"
+#include "msconnector/request_helpers.h"
+#include "msconnector/response_helpers.h"
+#include "msconnector/rule_error.h"
+#include "msconnector/rule_event.h"
+#include "msconnector/rule_id.h"
+#include "msconnector/rule_merge.h"
+#include "msconnector/runtime_report.h"
+#include "msconnector/test_result_json.h"
 #include "msconnector/config.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/directive_spec.h"
@@ -836,6 +850,127 @@ int main(void) {
         assert(line[strlen(line) - 1U] == '\n');
         assert(strstr(line, "request_body") == 0);
         assert(!msconnector_event_write_jsonl_line(&event, line, 16, &truncated));
+        assert(truncated);
+    }
+
+    {
+        enum msconnector_bool_option bool_value;
+        enum msconnector_phase4_mode mode_value;
+        size_t parsed_size = 0;
+        int parsed_status = 0;
+        assert(msconnector_parse_bool("ON", &bool_value) && bool_value == MSCONNECTOR_BOOL_ON);
+        assert(msconnector_parse_bool("no", &bool_value) && bool_value == MSCONNECTOR_BOOL_OFF);
+        assert(!msconnector_parse_bool("on garbage", &bool_value));
+        assert(msconnector_parse_phase4_mode("strict", &mode_value) && mode_value == MSCONNECTOR_PHASE4_MODE_STRICT);
+        assert(!msconnector_parse_phase4_mode("unsafe", &mode_value));
+        assert(msconnector_parse_size("128", &parsed_size) && parsed_size == 128U);
+        assert(!msconnector_parse_size("0", &parsed_size));
+        assert(!msconnector_parse_size("1.5", &parsed_size));
+        assert(msconnector_parse_http_status("403", &parsed_status) && parsed_status == 403);
+        assert(!msconnector_parse_http_status("99", &parsed_status));
+        assert(!msconnector_parse_http_status("600", &parsed_status));
+        assert(msconnector_validate_content_type_token("application/json"));
+        assert(!msconnector_validate_content_type_token("application/json; charset=utf-8"));
+        assert(!msconnector_validate_content_type_token("application json"));
+    }
+    {
+        msconnector_request request;
+        msconnector_response response;
+        msconnector_header headers[] = {{"Content-Type", 12, "application/json", 16}, {"Content-Length", 14, "123", 3}};
+        int cl_status = 0;
+        msconnector_request_init(&request);
+        assert(!msconnector_request_validate(&request));
+        request.method = "GET"; request.uri = "/"; request.headers = headers; request.header_count = 2;
+        assert(msconnector_request_validate(&request));
+        assert(msconnector_request_has_header(&request, "content-type"));
+        assert(strcmp(msconnector_request_content_type(&request), "application/json") == 0);
+        assert(msconnector_request_content_length(&request, &cl_status) == 123U && cl_status == 1);
+        request.headers = 0; request.header_count = 1;
+        assert(!msconnector_request_validate(&request));
+        msconnector_response_init(&response);
+        assert(msconnector_response_validate(&response));
+        response.status = 200; response.headers = headers; response.header_count = 2;
+        assert(msconnector_response_validate(&response));
+        assert(msconnector_response_has_header(&response, "CONTENT-LENGTH"));
+        assert(strcmp(msconnector_response_content_type(&response), "application/json") == 0);
+        assert(msconnector_response_content_length(&response, &cl_status) == 123U && cl_status == 1);
+        response.status = 99;
+        assert(!msconnector_response_validate(&response));
+    }
+    {
+        msconnector_rule_collection parent_rules, child_rules, merged_rules;
+        msconnector_error rule_error;
+        msconnector_event rule_event;
+        msconnector_test_result json_result;
+        char json[1024];
+        int truncated = 0;
+        msconnector_rule_collection_init(&parent_rules);
+        parent_rules.inline_rules = "parent"; parent_rules.rules_remote_key = "key"; parent_rules.rules_remote_url = "url";
+        msconnector_rule_collection_init(&child_rules);
+        child_rules.rules_file = "child.conf";
+        assert(msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
+        assert(strcmp(merged_rules.inline_rules, "parent") == 0);
+        assert(strcmp(merged_rules.rules_file, "child.conf") == 0);
+        child_rules.rules_remote_key = "child-key"; child_rules.rules_remote_url = 0;
+        assert(!msconnector_rule_collection_merge(&merged_rules, &parent_rules, &child_rules));
+        msconnector_rule_error_set_parse_failed(&rule_error, "rules.conf");
+        assert(rule_error.code == MSCONNECTOR_ERROR_RULE_PARSE_FAILED);
+        assert(msconnector_rule_error_event(&rule_error, &rule_event, "common", "tx-rule"));
+        assert(msconnector_event_write_json(&rule_event, json, sizeof(json)));
+        msconnector_rule_error_clear(&rule_error);
+        assert(rule_error.code == MSCONNECTOR_ERROR_NONE);
+        assert(msconnector_rule_load_event(&rule_stats, &rule_event, "common", "tx-rule"));
+        assert(msconnector_event_write_json(&rule_event, json, sizeof(json)));
+        assert(strstr(json, "request_body") == 0);
+        msconnector_test_result_init(&json_result);
+        json_result.connector = "common"; json_result.case_name = "json"; json_result.status = MSCONNECTOR_STATUS_OK; json_result.expected_http_status = 200; json_result.actual_http_status = 200; json_result.reason = "escaped \"reason\"";
+        assert(msconnector_test_result_write_json(&json_result, json, sizeof(json), &truncated));
+        assert(!truncated);
+        assert(strstr(json, "\"case\"") != 0);
+        assert(!msconnector_test_result_write_json(&json_result, json, 8, &truncated));
+        assert(truncated);
+    }
+    {
+        msconnector_adapter_metadata metadata;
+        msconnector_connector_manifest manifest;
+        msconnector_runtime_report report;
+        msconnector_origin_governance governance;
+        char json[1024];
+        int truncated = 0;
+        msconnector_adapter_metadata_init(&metadata);
+        metadata.connector_name = "common"; metadata.server_family = "none"; metadata.source_kind = "scaffold"; metadata.imported_path = "common"; metadata.build_status = "static"; metadata.runtime_status = "not_integrated"; metadata.verification_status = "smoke";
+        metadata.capabilities.flags = MSCONNECTOR_CAPABILITY_REQUEST_HEADERS; metadata.origin.source_repository = "repo"; metadata.origin.source_branch = "branch"; metadata.origin.source_commit = "commit"; metadata.origin.source_describe = "describe"; metadata.origin.license = "Apache-2.0";
+        msconnector_connector_manifest_init(&manifest);
+        assert(msconnector_connector_manifest_from_metadata(&manifest, &metadata));
+        assert(msconnector_connector_manifest_write_json(&manifest, json, sizeof(json), &truncated));
+        msconnector_runtime_report_init(&report);
+        report.connector = "common"; report.case_name = "case"; report.status = MSCONNECTOR_STATUS_OK; report.capability = "request-headers"; report.artifact_result_json = "result.json"; report.artifact_decision_jsonl = "decision.jsonl"; report.reason = "static skeleton";
+        assert(msconnector_runtime_report_write_json(&report, json, sizeof(json), &truncated));
+        msconnector_origin_governance_init(&governance);
+        assert(msconnector_origin_governance_from_metadata(&governance, &metadata));
+        assert(msconnector_origin_governance_is_complete(&governance));
+    }
+    {
+        char out[128];
+        int truncated = 0;
+        const unsigned char body[] = {'s','e','c','r','e','t'};
+        assert(msconnector_build_contract_target_count() == 7U);
+        assert(msconnector_build_contract_target_is_standard("smoke"));
+        assert(!msconnector_build_contract_target_is_standard("deploy"));
+        assert(msconnector_limit_header_count() > 0U);
+        assert(msconnector_limit_transaction_id_length() >= 128U);
+        assert(msconnector_limit_log_message_length() >= 256U);
+        assert(msconnector_rule_id_validate("123"));
+        assert(msconnector_rule_id_extract_from_message("[id \"123\"]", out, sizeof(out)) == 1);
+        assert(strcmp(out, "123") == 0);
+        assert(msconnector_rule_id_extract_from_message("no id", out, sizeof(out)) == 0);
+        assert(!msconnector_rule_id_validate("bad\nid"));
+        assert(msconnector_sanitize_log_message("a\r\nb", 4, out, sizeof(out), &truncated) == 4U);
+        assert(strcmp(out, "a  b") == 0);
+        assert(msconnector_redact_body_snippet(body, sizeof(body), out, sizeof(out), &truncated) > 0U);
+        assert(strstr(out, "6 bytes") != 0);
+        assert(strstr(out, "secret") == 0);
+        assert(msconnector_redact_body_snippet(body, sizeof(body), out, 8, &truncated) > 0U);
         assert(truncated);
     }
 

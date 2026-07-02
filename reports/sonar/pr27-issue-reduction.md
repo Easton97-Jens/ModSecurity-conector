@@ -76,3 +76,12 @@ path joining, common harness helpers, generated common docs, and new connector
 contract documentation.
 
 SonarCloud after-count: NOT VERIFIED.
+
+## Common SDK package completion
+
+Added local common-only helpers for config parsing, request/response validation,
+rule merge/error/event modeling, test-result JSON, connector manifests, runtime
+report skeletons, origin governance, build contracts, C++ wrappers, limits,
+rule-ID extraction, log sanitizing, and body-snippet redaction.
+
+SonarCloud after-count: NOT VERIFIED.

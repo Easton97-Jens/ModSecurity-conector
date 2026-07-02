@@ -61,11 +61,63 @@ for required_header in (
     "event_jsonl.h",
     "artifact_layout.h",
     "runtime_paths.h",
+    "config_parser.h",
+    "request_helpers.h",
+    "response_helpers.h",
+    "rule_merge.h",
+    "rule_error.h",
+    "rule_event.h",
+    "test_result_json.h",
+    "connector_manifest.h",
+    "runtime_report.h",
+    "origin_governance.h",
+    "build_contract.h",
+    "limits.h",
+    "rule_id.h",
+    "log_sanitize.h",
 ):
     if not (COMMON / "include" / "msconnector" / required_header).is_file():
         fail(f"missing common SDK header {required_header}")
     if not (COMMON / "src" / required_header.replace(".h", ".c")).is_file():
         fail(f"missing common SDK source {required_header.replace('.h', '.c')}")
+
+
+for required_wrapper in (
+    "request.hpp",
+    "response.hpp",
+    "transaction.hpp",
+    "status.hpp",
+    "capabilities.hpp",
+    "origin.hpp",
+    "logging.hpp",
+):
+    wrapper = COMMON / "include" / "msconnector" / required_wrapper
+    if not wrapper.is_file():
+        fail(f"missing C++ wrapper {required_wrapper}")
+    wrapper_text = wrapper.read_text(encoding="utf-8")
+    if "namespace msconnector" not in wrapper_text or "#include" not in wrapper_text:
+        fail(f"C++ wrapper {required_wrapper} must be lightweight and include the C header")
+
+for required_script in (
+    "ci/check-origin-governance.py",
+    "ci/check-build-contracts.py",
+    "ci/generate-connector-contract-report.py",
+):
+    if not (ROOT / required_script).is_file():
+        fail(f"missing common package script {required_script}")
+
+for required_doc in (
+    "docs/generated/connector-contract.md",
+    "docs/generated/connector-contract.de.md",
+    "docs/generated/origin-governance.md",
+    "docs/generated/origin-governance.de.md",
+):
+    if not (ROOT / required_doc).is_file():
+        fail(f"missing generated common package doc {required_doc}")
+
+log_sanitize_source = (ROOT / "common" / "src" / "log_sanitize.c").read_text(encoding="utf-8")
+if "redacted body" not in log_sanitize_source or "src;" not in log_sanitize_source:
+    fail("body-snippet redaction must not copy payload bytes")
 
 for root in SEARCH_ROOTS:
     for path in root.rglob("*"):
