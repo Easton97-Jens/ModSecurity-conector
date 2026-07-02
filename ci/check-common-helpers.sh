@@ -87,6 +87,11 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/test_result.h"
 #include "msconnector/transaction_id.h"
 #include "msconnector/transaction_state.h"
+#include "msconnector/resource_limits.h"
+#include "msconnector/memory.h"
+#include "msconnector/flow_guard.h"
+#include "msconnector/integrity_event.h"
+#include "msconnector/dos_guard.h"
 
 #include <assert.h>
 #include <string.h>
@@ -340,6 +345,88 @@ int main(void) {
     assert(msconnector_http_status_classify(599) == MSCONNECTOR_HTTP_STATUS_CLASS_SERVER_ERROR);
     assert(msconnector_http_status_classify(99) == MSCONNECTOR_HTTP_STATUS_CLASS_UNKNOWN);
     assert(msconnector_http_status_classify(600) == MSCONNECTOR_HTTP_STATUS_CLASS_UNKNOWN);
+    {
+        msconnector_resource_limits limits;
+        msconnector_header headers[2] = {{"x", 1U, "v", 1U}, {"y", 1U, "value", 5U}};
+        msconnector_request request;
+        msconnector_response response;
+        msconnector_error error;
+        msconnector_allocator allocator;
+        msconnector_flow_guard guard;
+        msconnector_event event;
+        char json[2048];
+        void *allocation = 0;
+        uint64_t hash;
+        unsigned long sequence;
+        int truncated = 0;
+
+        msconnector_resource_limits_init(&limits);
+        limits.max_header_count = 1U;
+        assert(!msconnector_resource_limits_headers_ok(headers, 2U, &limits));
+        limits.max_header_count = 2U;
+        limits.max_header_value_size = 2U;
+        assert(!msconnector_resource_limits_headers_ok(headers, 2U, &limits));
+        limits.max_header_value_size = 8U;
+        assert(msconnector_resource_limits_headers_ok(headers, 2U, &limits));
+        assert(!msconnector_resource_limits_body_ok(9U, 8U));
+
+        msconnector_request_init(&request);
+        request.method = "GET";
+        request.uri = "/";
+        request.headers = headers;
+        request.header_count = 2U;
+        request.body.size = 9U;
+        limits.max_request_body_bytes = 8U;
+        assert(!msconnector_dos_guard_check_request(&request, &limits, &error));
+        assert(error.code == MSCONNECTOR_ERROR_BODY_TOO_LARGE);
+        request.body.size = 0U;
+        limits.max_request_body_bytes = 8U;
+        assert(msconnector_dos_guard_check_request(&request, &limits, &error));
+
+        msconnector_response_init(&response);
+        response.headers = headers;
+        response.header_count = 2U;
+        response.body.size = 9U;
+        limits.max_response_body_bytes = 8U;
+        assert(!msconnector_dos_guard_check_response(&response, &limits, &error));
+
+        msconnector_allocator_init(&allocator, 8U);
+        assert(!msconnector_alloc_checked(&allocator, 9U, &allocation));
+        assert(msconnector_alloc_checked(&allocator, 4U, &allocation));
+        assert(allocator.bytes_allocated == 4U);
+        msconnector_free_checked(&allocator, &allocation, 4U);
+        assert(allocation == 0);
+        assert(allocator.bytes_allocated == 0U);
+        msconnector_free_checked(&allocator, &allocation, 4U);
+        assert(allocation == 0);
+        assert(allocator.bytes_allocated == 0U);
+
+        msconnector_flow_guard_init(&guard, "tx-1");
+        assert(msconnector_flow_guard_mark_validated(&guard, MSCONNECTOR_PHASE_CONNECTION) == MSCONNECTOR_FLOW_GUARD_OK);
+        assert(msconnector_flow_guard_mark_validated(&guard, MSCONNECTOR_PHASE_REQUEST_HEADERS) == MSCONNECTOR_FLOW_GUARD_PHASE_ORDER);
+        assert(msconnector_flow_guard_mark_validated(&guard, MSCONNECTOR_PHASE_URI) == MSCONNECTOR_FLOW_GUARD_OK);
+        assert(msconnector_flow_guard_mark_validated(&guard, MSCONNECTOR_PHASE_URI) == MSCONNECTOR_FLOW_GUARD_DUPLICATE_MUTATION);
+        assert(msconnector_flow_guard_next_sequence(&guard, &sequence) == MSCONNECTOR_FLOW_GUARD_OK);
+        assert(sequence == 1UL);
+
+        msconnector_event_init(&event);
+        event.meta.transaction_id = "tx-1";
+        event.decision.phase = MSCONNECTOR_PHASE_URI;
+        event.request.uri = "/safe";
+        event.integrity.sequence = sequence;
+        event.integrity.previous_hash = 0U;
+        event.integrity.event_hash = msconnector_integrity_event_hash(&event, event.integrity.previous_hash);
+        hash = event.integrity.event_hash;
+        assert(msconnector_integrity_event_chain_verify(0U, hash, &event));
+        event.request.uri = "/tampered";
+        assert(!msconnector_integrity_event_chain_verify(0U, hash, &event));
+        event.request.uri = "/safe";
+        assert(msconnector_event_write_jsonl_line(&event, json, sizeof(json), &truncated));
+        assert(strstr(json, "request_body") == 0);
+        assert(strstr(json, "response_body") == 0);
+        assert(strstr(json, "body_payload") == 0);
+    }
+
     assert(msconnector_http_status_is_error(500));
     assert(!msconnector_http_status_is_block_response(299));
     assert(!msconnector_http_status_is_block_response(99));

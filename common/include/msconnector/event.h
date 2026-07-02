@@ -4,6 +4,7 @@
 #include "msconnector/status.h"
 #include "msconnector/transaction.h"
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,6 +88,12 @@ typedef struct msconnector_event_request {
  * connector may classify a future event record; they do not imply runtime
  * integration in any existing connector.
  */
+typedef struct msconnector_event_integrity {
+    unsigned long sequence;
+    uint64_t previous_hash;
+    uint64_t event_hash;
+} msconnector_event_integrity;
+
 typedef struct msconnector_event_flags {
     int late_intervention;
     int response_started;
@@ -110,6 +117,7 @@ typedef struct msconnector_event {
     msconnector_event_http http;
     msconnector_event_request request;
     msconnector_event_flags flags;
+    msconnector_event_integrity integrity;
 } msconnector_event;
 
 void msconnector_event_init(msconnector_event *event);

@@ -15,6 +15,9 @@ const char *msconnector_error_code_name(msconnector_error_code code) {
     case MSCONNECTOR_ERROR_UNSUPPORTED_PHASE: return "unsupported_phase";
     case MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY: return "unsupported_capability";
     case MSCONNECTOR_ERROR_BODY_TOO_LARGE: return "body_too_large";
+    case MSCONNECTOR_ERROR_HEADER_TOO_LARGE: return "header_too_large";
+    case MSCONNECTOR_ERROR_EVENT_TOO_LARGE: return "event_too_large";
+    case MSCONNECTOR_ERROR_LOG_MESSAGE_TOO_LARGE: return "log_message_too_large";
     case MSCONNECTOR_ERROR_HOST_API_FAILURE: return "host_api_failure";
     case MSCONNECTOR_ERROR_MODSECURITY_FAILURE: return "modsecurity_failure";
     case MSCONNECTOR_ERROR_TIMEOUT: return "timeout";
@@ -33,6 +36,9 @@ const char *msconnector_error_default_message(msconnector_error_code code) {
     case MSCONNECTOR_ERROR_UNSUPPORTED_PHASE: return "Unsupported transaction phase";
     case MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY: return "Requested capability is not implemented";
     case MSCONNECTOR_ERROR_BODY_TOO_LARGE: return "Body is too large";
+    case MSCONNECTOR_ERROR_HEADER_TOO_LARGE: return "Header data is too large";
+    case MSCONNECTOR_ERROR_EVENT_TOO_LARGE: return "Event JSON is too large";
+    case MSCONNECTOR_ERROR_LOG_MESSAGE_TOO_LARGE: return "Log message is too large";
     case MSCONNECTOR_ERROR_HOST_API_FAILURE: return "Host API failure";
     case MSCONNECTOR_ERROR_MODSECURITY_FAILURE: return "ModSecurity failure";
     case MSCONNECTOR_ERROR_TIMEOUT: return "Operation timed out";
@@ -52,7 +58,10 @@ int msconnector_error_http_status(msconnector_error_code code) {
     case MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE: return 503;
     case MSCONNECTOR_ERROR_UNSUPPORTED_PHASE:
     case MSCONNECTOR_ERROR_UNSUPPORTED_CAPABILITY: return MSCONNECTOR_DEFAULT_UNSUPPORTED_STATUS;
-    case MSCONNECTOR_ERROR_BODY_TOO_LARGE: return 413;
+    case MSCONNECTOR_ERROR_BODY_TOO_LARGE:
+    case MSCONNECTOR_ERROR_HEADER_TOO_LARGE:
+    case MSCONNECTOR_ERROR_EVENT_TOO_LARGE:
+    case MSCONNECTOR_ERROR_LOG_MESSAGE_TOO_LARGE: return 413;
     case MSCONNECTOR_ERROR_TIMEOUT: return 504;
     default: return MSCONNECTOR_DEFAULT_ERROR_STATUS;
     }
