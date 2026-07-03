@@ -31,9 +31,12 @@ int msconnector_crs_config_validate(const msconnector_crs_config *cfg, char *err
         if (!empty(cfg->setup_conf_path) || !empty(cfg->rules_dir) || cfg->include_recommended_setup) { set_error(error, error_len, "disabled has paths"); return 0; }
         return 1;
     }
-    if (cfg->mode == MSCONNECTOR_CRS_EXTERNAL_PATH || cfg->mode == MSCONNECTOR_CRS_BUNDLED_PATH) {
-        if (empty(cfg->setup_conf_path) && empty(cfg->rules_dir)) { set_error(error, error_len, "missing crs path"); return 0; }
-    }
-    if (cfg->mode == MSCONNECTOR_CRS_TEST_FIXTURE && empty(cfg->setup_conf_path) && empty(cfg->rules_dir) && empty(cfg->preamble_inline)) { set_error(error, error_len, "missing fixture rules"); return 0; }
+    if ((cfg->mode == MSCONNECTOR_CRS_EXTERNAL_PATH || cfg->mode == MSCONNECTOR_CRS_BUNDLED_PATH) &&
+        empty(cfg->setup_conf_path) &&
+        empty(cfg->rules_dir)) { set_error(error, error_len, "missing crs path"); return 0; }
+    if (cfg->mode == MSCONNECTOR_CRS_TEST_FIXTURE &&
+        empty(cfg->setup_conf_path) &&
+        empty(cfg->rules_dir) &&
+        empty(cfg->preamble_inline)) { set_error(error, error_len, "missing fixture rules"); return 0; }
     return 1;
 }

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Check global directive spec/adapter parity without enforcing connector adoption."""
 from pathlib import Path
-import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,25 +30,110 @@ POLICY_FOR_TYPE = {
     "MSCONNECTOR_DIRECTIVE_VALUE_SIZE": {"MSCONNECTOR_DIRECTIVE_ARG_ONE"},
 }
 
+
+def parse_quoted_macro_definitions(text: str) -> dict[str, str]:
+    macros: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("#define "):
+            continue
+
+        parts = line.split(None, 2)
+        if len(parts) != 3:
+            continue
+
+        name = parts[1]
+        raw_value = parts[2].strip()
+        if not name.startswith("MSCONNECTOR_DIRECTIVE_"):
+            continue
+        if len(raw_value) < 2 or not raw_value.startswith('"'):
+            continue
+
+        end = raw_value.find('"', 1)
+        if end == -1:
+            continue
+
+        macros[name] = raw_value[1:end]
+    return macros
+
+
+def fields_from_initializer_line(raw_line: str) -> list[str]:
+    line = raw_line.strip().strip("{} ,")
+    if not line:
+        return []
+    return [field.strip() for field in line.split(",")]
+
+
+def collect_initializer_entries(text: str) -> list[str]:
+    entries: list[str] = []
+    current: list[str] = []
+    collecting = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not collecting and not line.startswith("{"):
+            continue
+        collecting = True
+        current.append(line)
+        if "}" in line:
+            entries.append(" ".join(current))
+            current = []
+            collecting = False
+    return entries
+
+
+def parse_specs(text: str, macros: dict[str, str]) -> dict[str, str]:
+    specs: dict[str, str] = {}
+    for entry in collect_initializer_entries(text):
+        if "MSCONNECTOR_DIRECTIVE_" not in entry:
+            continue
+        if "MSCONNECTOR_DIRECTIVE_VALUE_" not in entry:
+            continue
+
+        fields = fields_from_initializer_line(entry)
+        if len(fields) < 2:
+            continue
+
+        directive_macro = fields[0]
+        value_type = fields[1]
+        if directive_macro in macros and value_type.startswith("MSCONNECTOR_DIRECTIVE_VALUE_"):
+            specs[macros[directive_macro]] = value_type
+    return specs
+
+
+def parse_adapter_entries(text: str, macros: dict[str, str]) -> list[tuple[str, str, str]]:
+    entries: list[tuple[str, str, str]] = []
+    for entry in collect_initializer_entries(text):
+        if "MSCONNECTOR_DIRECTIVE_SCOPE_" not in entry:
+            continue
+        if "MSCONNECTOR_DIRECTIVE_ARG_" not in entry:
+            continue
+
+        fields = fields_from_initializer_line(entry)
+        if len(fields) < 4:
+            continue
+
+        offset = 1 if fields[0] == "0" else 0
+        if len(fields) <= offset + 3:
+            continue
+
+        canonical_macro = fields[offset]
+        host_macro = fields[offset + 1]
+        policy = fields[offset + 3]
+        canonical = macros.get(canonical_macro, canonical_macro)
+        host = macros.get(host_macro, host_macro)
+        entries.append((canonical, host, policy))
+    return entries
+
+
 missing_files = [p for p in (SPEC_H, SPEC_C, ADAPTER_H, ADAPTER_C) if not p.exists()]
 if missing_files:
     for path in missing_files:
         print(f"missing directive file: {path.relative_to(ROOT)}")
     sys.exit(1)
 
-macros = dict(re.findall(r'#define\s+(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)\s+"([^"]+)"', DIRECTIVES_H.read_text()))
-spec_text = SPEC_C.read_text()
-adapter_text = ADAPTER_C.read_text()
-
-specs = {}
-for macro, value_type in re.findall(r'\{\s*(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)\s*,\s*(MSCONNECTOR_DIRECTIVE_VALUE_[A-Z]+)', spec_text):
-    if macro in macros:
-        specs[macros[macro]] = value_type
-
-entries = []
-for match in re.finditer(r'\{[^{}]*?(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)\s*,\s*(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)\s*,\s*MSCONNECTOR_DIRECTIVE_SCOPE_[A-Z]+\s*,\s*(MSCONNECTOR_DIRECTIVE_ARG_[A-Z_]+)', adapter_text):
-    canonical_macro, host_macro, policy = match.groups()
-    entries.append((macros.get(canonical_macro, canonical_macro), macros.get(host_macro, host_macro), policy))
+macros = parse_quoted_macro_definitions(DIRECTIVES_H.read_text())
+specs = parse_specs(SPEC_C.read_text(), macros)
+entries = parse_adapter_entries(ADAPTER_C.read_text(), macros)
 
 ok = True
 canonicals = [entry[0] for entry in entries]

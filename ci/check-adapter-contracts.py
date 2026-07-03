@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Check global common adapter contracts for new connectors."""
 from pathlib import Path
-import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +20,54 @@ SOURCES = [
     "decision.c", "event.c", "event_jsonl.c", "capabilities.c",
 ]
 SERVER_TOKENS = ["ngx_", "httpd", "apr_", "haproxy", "envoy", "lighttpd", "traefik"]
-SERVER_INCLUDES = re.compile(r'#\s*include\s+[<"]([^>"]*(?:nginx|ngx_|httpd|http_config|apr_|haproxy|envoy|lighttpd|traefik)[^>"]*)[>"]')
+SERVER_INCLUDE_TOKENS = (
+    "nginx",
+    "ngx_",
+    "httpd",
+    "http_config",
+    "apr_",
+    "haproxy",
+    "envoy",
+    "lighttpd",
+    "traefik",
+)
+
+
+def extract_include_target(line: str) -> str:
+    stripped = line.strip()
+    if not stripped.startswith("#"):
+        return ""
+
+    rest = stripped[1:].lstrip()
+    if not rest.startswith("include"):
+        return ""
+
+    rest = rest[len("include"):].lstrip()
+    if not rest:
+        return ""
+
+    opener = rest[0]
+    if opener == "<":
+        closer = ">"
+    elif opener == '"':
+        closer = '"'
+    else:
+        return ""
+
+    end = rest.find(closer, 1)
+    if end == -1:
+        return ""
+
+    return rest[1:end]
+
+
+def contains_server_include(text: str) -> str:
+    for line in text.splitlines():
+        target = extract_include_target(line).lower()
+        if target and any(token in target for token in SERVER_INCLUDE_TOKENS):
+            return target
+    return ""
+
 
 ok = True
 for name in HEADERS:
@@ -57,9 +103,9 @@ for rel in ("common/include/msconnector/request_mapper_contract.h", "common/incl
 
 for path in list((ROOT / "common/include/msconnector").glob("*.h")) + list((ROOT / "common/src").glob("*.c")):
     text = path.read_text(errors="ignore")
-    match = SERVER_INCLUDES.search(text)
-    if match:
-        print(f"server-specific include in common: {path.relative_to(ROOT)}: {match.group(1)}")
+    target = contains_server_include(text)
+    if target:
+        print(f"server-specific include in common: {path.relative_to(ROOT)}: {target}")
         ok = False
 
 print("adapter-contracts: common contracts present; connector runtime adoption not claimed")
