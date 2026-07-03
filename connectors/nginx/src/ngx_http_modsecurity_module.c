@@ -568,6 +568,9 @@ ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len)
     if (len == 0 || len >= sizeof(token)) return NGX_ERROR;
     ngx_memcpy(token, s, len);
     token[len] = '\0';
+    if (ngx_strchr(token, '*') != NULL) {
+        return NGX_ERROR;
+    }
     return msconnector_validate_content_type_token(token) ? NGX_OK : NGX_ERROR;
 }
 
@@ -598,7 +601,7 @@ ngx_http_modsecurity_phase4_push_content_type(ngx_conf_t *cf, ngx_http_modsecuri
 
     ngx_strlow(line, line, end - line);
     if (ngx_http_modsecurity_phase4_validate_content_type(line, end - line) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid content-type entry in modsecurity_phase4_content_types_file \"%V\": \"%s\"", path, line);
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid content-type entry in modsecurity_phase4_content_types_file \"%V\": \"%s\" (wildcard content types are not supported for modsecurity_phase4_content_types_file)", path, line);
         return NGX_ERROR;
     }
 

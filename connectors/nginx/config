@@ -141,6 +141,7 @@ if test -n "$ngx_module_link"; then
             $ngx_addon_dir/../../common/src/response_mapper_contract.c \
             $ngx_addon_dir/../../common/src/headers.c \
             $ngx_addon_dir/../../common/src/event.c \
+            $ngx_addon_dir/../../common/src/transaction_state.c \
             $ngx_addon_dir/../../common/src/event_jsonl.c \
             $ngx_addon_dir/../../common/src/json_escape.c \
             $ngx_addon_dir/../../common/src/rule_id.c \
@@ -196,6 +197,7 @@ else
 	    $ngx_addon_dir/../../common/src/response_mapper_contract.c \
 	    $ngx_addon_dir/../../common/src/headers.c \
 	    $ngx_addon_dir/../../common/src/event.c \
+	    $ngx_addon_dir/../../common/src/transaction_state.c \
 	    $ngx_addon_dir/../../common/src/event_jsonl.c \
 	    $ngx_addon_dir/../../common/src/json_escape.c \
 	    $ngx_addon_dir/../../common/src/rule_id.c \

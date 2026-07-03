@@ -18,4 +18,6 @@ if sh.exists():
  check('-Wno-error' not in txt, 'script does not disable -Werror')
  check('-std=c17' in txt or 'c17' in txt, 'C17 is mandatory')
  check('c23' in txt and 'c2y' in txt and 'SKIPPED' in txt and 'exit 77' in txt, 'optional C23/future-C skip behavior is present')
+ check('MODSECURITY_NGINX_SOURCE_DIR' in txt, 'script honors MODSECURITY_NGINX_SOURCE_DIR fallback')
+ check('common/src/transaction_state.c' in txt, 'script compiles transaction_state.c with event.c')
 sys.exit(0 if ok else 1)

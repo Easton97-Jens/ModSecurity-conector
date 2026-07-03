@@ -33,7 +33,7 @@ static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_reques
 static void ngx_http_modsecurity_common_json(ngx_pool_t *pool, ngx_str_t *src, ngx_str_t *dst);
 static void ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id);
 static ngx_str_t ngx_http_modsecurity_normalize_content_type(ngx_pool_t *pool, ngx_str_t in);
-static ngx_str_t ngx_http_modsecurity_sanitize_intervention(ngx_pool_t *pool, ngx_str_t in);
+static ngx_str_t ngx_http_modsecurity_redact_intervention(ngx_pool_t *pool, ngx_str_t in);
 
 /* XXX: check behaviour on few body filters installed */
 ngx_int_t
@@ -302,7 +302,7 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     if (ctx) {
         raw_log = ctx->last_intervention_log;
         ngx_http_modsecurity_common_rule(r->pool, &raw_log, &erule);
-        slog = ngx_http_modsecurity_sanitize_intervention(r->pool, raw_log);
+        slog = ngx_http_modsecurity_redact_intervention(r->pool, raw_log);
         ngx_http_modsecurity_common_json(r->pool, &slog, &elog);
     } else {
         raw_log.len = 0; raw_log.data = (u_char *)"";
@@ -358,22 +358,49 @@ ngx_http_modsecurity_normalize_content_type(ngx_pool_t *pool, ngx_str_t in)
 }
 
 static ngx_str_t
-ngx_http_modsecurity_sanitize_intervention(ngx_pool_t *pool, ngx_str_t in)
+ngx_http_modsecurity_redact_intervention(ngx_pool_t *pool, ngx_str_t in)
 {
-    static ngx_str_t redacted = { sizeof("redacted") - 1, (u_char *) "redacted" };
+    static ngx_str_t redacted = { sizeof("id:- msg:- operator:- truncated:false") - 1,
+        (u_char *) "id:- msg:- operator:- truncated:false" };
     ngx_str_t out = redacted;
-    int truncated = 0;
+    char *message;
+    const char *id_state;
+    const char *msg_state;
+    const char *operator_state;
+    const char *truncated_state = "false";
+    size_t len;
 
     if (in.data == NULL || in.len == 0) {
         return redacted;
     }
-    out.data = ngx_pnalloc(pool, in.len + 1U);
+
+    len = in.len;
+    if (len > 4096U) {
+        len = 4096U;
+        truncated_state = "true";
+    }
+
+    message = ngx_pnalloc(pool, len + 1U);
+    if (message == NULL) {
+        return redacted;
+    }
+    ngx_memcpy(message, in.data, len);
+    message[len] = '\0';
+
+    id_state = (ngx_strstr((u_char *)message, "id \"") != NULL ||
+        ngx_strstr((u_char *)message, "[id \"") != NULL) ? "present" : "-";
+    msg_state = (ngx_strstr((u_char *)message, "msg \"") != NULL ||
+        ngx_strstr((u_char *)message, "[msg \"") != NULL) ? "present" : "-";
+    operator_state = (ngx_strstr((u_char *)message, "Operator") != NULL) ? "present" : "-";
+
+    out.data = ngx_pnalloc(pool, sizeof("id:present msg:present operator:present truncated:true"));
     if (out.data == NULL) {
         return redacted;
     }
-    out.len = msconnector_sanitize_log_message((const char *)in.data, in.len,
-        (char *)out.data, in.len + 1U, &truncated);
-    (void)truncated;
+    out.len = ngx_snprintf(out.data,
+        sizeof("id:present msg:present operator:present truncated:true"),
+        "id:%s msg:%s operator:%s truncated:%s",
+        id_state, msg_state, operator_state, truncated_state) - out.data;
     return out;
 }
 
