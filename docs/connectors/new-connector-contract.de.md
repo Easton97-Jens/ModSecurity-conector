@@ -18,3 +18,14 @@ Request-/Response-Helfer abbilden, Manifeste und Origin-Governance offenlegen,
 die Build-Contract-Target-Begriffe verwenden, wenn sie übernommen werden, und
 Runtime-Reports wahrheitsgemäß halten. Kein bestehender Connector wird durch
 diese reine Dokumentationsaktualisierung übernommen.
+
+## Directive-, Mapper- und CRS-Setup-Contracts
+
+Neue Connectoren sollten die globalen Common-Contracts nutzen, bevor sie Runtime-Claims formulieren:
+
+- Host-Direktiven aus dem connector-neutralen `directive_adapter`-Modell registrieren; konkrete Server-Typen wie `ngx_command_t` und Apache `command_rec` bleiben im Connector.
+- Request-Mapper von Host-Requests wie `ngx_http_request_t`, Apache `request_rec` oder entsprechenden APIs nach `msconnector_request` implementieren und das Ergebnis gegen `request_mapper_contract` validieren.
+- Response-Mapper nach `msconnector_response` implementieren und gegen `response_mapper_contract` validieren; dieser Contract loggt keine Body-Payloads.
+- CRS-/Ruleset-Setup mit der `crs`-Konfiguration nur als Setup-Konvention beschreiben. Eine gültige CRS-Konfiguration ist kein CRS-PASS-Claim.
+
+Dieser Leitfaden verlangt und behauptet keine Adoption durch bestehende NGINX-, Apache-, HAProxy-, Envoy-, lighttpd- oder Traefik-Runtimes. Host-spezifische Request-Chains, APR-Pools, Bucket Brigades, Server-Hooks, Filter und Body-Puffer bleiben Connector-Eigentum.
