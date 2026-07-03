@@ -145,3 +145,16 @@ limits, rule-ID extraction, log sanitizing, and body-snippet redaction. These ar
 connector-neutral scaffolding only and do not migrate or verify any connector.
 They do not add a real libmodsecurity binding and do not claim production or
 full-matrix readiness.
+
+## Global adapter contracts for new connectors
+
+Common now also exposes connector-neutral contracts for future host adapters:
+
+- `directive_adapter`: a deterministic directive adapter catalog derived from `directive_spec`. It gives future adapters canonical names, host-visible names, scopes, and argument policies without generating host directive types.
+- `request_mapper_contract`: the minimum request fields and limits that a host mapper must satisfy when it converts a server request into `msconnector_request`.
+- `response_mapper_contract`: the equivalent response-output contract for `msconnector_response`, including HTTP status validation and header/body limits.
+- `crs`: a neutral CRS/ruleset setup convention for disabled, external path, bundled path, and test fixture configurations.
+
+These contracts are global SDK surface only. They do not migrate NGINX, Apache, HAProxy, Envoy, lighttpd, or Traefik runtime code, and they do not claim CRS runtime verification, production readiness, or full-matrix coverage.
+
+Host-specific APIs stay in connector-owned code. Examples include `ngx_command_t`, `ngx_http_request_t`, `ngx_chain_t`, Apache `command_rec`, Apache `request_rec`, APR pools, bucket brigades, and server hooks/filters. NGINX and Apache can later implement thin mappers on top of these contracts, but this SDK layer does not assert that they already do.

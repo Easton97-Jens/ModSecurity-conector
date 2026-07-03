@@ -68,6 +68,10 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/config.h"
 #include "msconnector/decision_action.h"
 #include "msconnector/directive_spec.h"
+#include "msconnector/directive_adapter.h"
+#include "msconnector/request_mapper_contract.h"
+#include "msconnector/response_mapper_contract.h"
+#include "msconnector/crs.h"
 #include "msconnector/directives.h"
 #include "msconnector/decision.h"
 #include "msconnector/error.h"
@@ -587,6 +591,31 @@ int main(void) {
     }
     assert(msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_MODSECURITY) != 0);
     assert(msconnector_directive_spec_count() > 0);
+    assert(msconnector_directive_adapter_count() > 0);
+    assert(msconnector_directive_adapter_find(MSCONNECTOR_DIRECTIVE_MODSECURITY) != 0);
+    assert(msconnector_directive_adapter_validate_all(0, 0));
+    {
+        char mapper_error[64];
+        msconnector_request_mapper_contract request_contract;
+        msconnector_request mapped_request = {0};
+        msconnector_response_mapper_contract response_contract;
+        msconnector_response mapped_response = {0};
+        msconnector_crs_config crs_config;
+        msconnector_request_mapper_contract_init(&request_contract);
+        assert(msconnector_request_mapper_contract_validate(&request_contract, mapper_error, sizeof(mapper_error)));
+        mapped_request.method = "GET";
+        mapped_request.uri = "/";
+        assert(msconnector_request_mapper_validate_output(&request_contract, &mapped_request, mapper_error, sizeof(mapper_error)));
+        msconnector_response_mapper_contract_init(&response_contract);
+        assert(msconnector_response_mapper_contract_validate(&response_contract, mapper_error, sizeof(mapper_error)));
+        mapped_response.status = 200;
+        assert(msconnector_response_mapper_validate_output(&response_contract, &mapped_response, mapper_error, sizeof(mapper_error)));
+        mapped_response.status = 99;
+        assert(!msconnector_response_mapper_validate_output(&response_contract, &mapped_response, mapper_error, sizeof(mapper_error)));
+        msconnector_crs_config_init(&crs_config);
+        assert(msconnector_crs_config_validate(&crs_config, mapper_error, sizeof(mapper_error)));
+        assert(strcmp(msconnector_crs_mode_name(MSCONNECTOR_CRS_DISABLED), "disabled") == 0);
+    }
     {
         const msconnector_header headers[] = {{"Content-Type", 12, "application/json; charset=utf-8", 31}};
         const msconnector_header exact[] = {{"Content-Type", 12, "application/json", 16}};
