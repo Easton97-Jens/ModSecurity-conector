@@ -1,0 +1,157 @@
+#!/bin/sh
+set -eu
+
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+PROFILE=${APACHE_C_STD_PROFILE:-all}
+CC_BIN=${CC:-cc}
+OUT=${APACHE_C_STANDARDS_OUT:-/var/tmp/ModSecurity-conector-verified/build/apache-c-standards}
+
+blocked() {
+    echo "BLOCKED: apache_c_standards $*"
+    exit 77
+}
+
+if ! command -v "$CC_BIN" >/dev/null 2>&1; then
+    blocked "missing compiler: $CC_BIN"
+fi
+
+APXS_BIN=${APXS:-}
+if [ -z "$APXS_BIN" ]; then
+    APXS_BIN=$(command -v apxs 2>/dev/null || command -v apxs2 2>/dev/null || true)
+fi
+if [ -z "$APXS_BIN" ]; then
+    blocked "missing apxs/apxs2"
+fi
+
+APXS_CFLAGS=$($APXS_BIN -q CFLAGS 2>/dev/null || true)
+APXS_INCLUDEDIR=$($APXS_BIN -q INCLUDEDIR 2>/dev/null || true)
+APXS_INCLUDES=$($APXS_BIN -q INCLUDES 2>/dev/null || true)
+APR_INCLUDES=""
+if command -v apr-1-config >/dev/null 2>&1; then
+    APR_INCLUDES="$(apr-1-config --includes 2>/dev/null || true) $(apr-1-config --cppflags 2>/dev/null || true)"
+elif command -v apr-2-config >/dev/null 2>&1; then
+    APR_INCLUDES="$(apr-2-config --includes 2>/dev/null || true) $(apr-2-config --cppflags 2>/dev/null || true)"
+fi
+
+MODSECURITY_INCLUDE=${MODSECURITY_INCLUDE:-${V3INCLUDE:-}}
+MODSECURITY_INCLUDE_FLAG=""
+if [ -n "$MODSECURITY_INCLUDE" ]; then
+    MODSECURITY_INCLUDE_FLAG="-I$MODSECURITY_INCLUDE"
+fi
+
+APXS_INCLUDEDIR_FLAG=""
+if [ -n "$APXS_INCLUDEDIR" ]; then
+    APXS_INCLUDEDIR_FLAG="-I$APXS_INCLUDEDIR"
+fi
+
+INCLUDES="-I$REPO_ROOT/common/include -I$REPO_ROOT/connectors/apache/src $APXS_INCLUDEDIR_FLAG $APXS_INCLUDES $APR_INCLUDES $MODSECURITY_INCLUDE_FLAG"
+
+mkdir -p "$OUT"
+
+HEADER_PROBE="$OUT/header-probe.c"
+cat > "$HEADER_PROBE" <<'EOF'
+#include "httpd.h"
+#include "http_config.h"
+#include "apr_tables.h"
+#include <modsecurity/modsecurity.h>
+int main(void) { return 0; }
+EOF
+if ! "$CC_BIN" -std=c17 $APXS_CFLAGS $INCLUDES -c "$HEADER_PROBE" -o "$OUT/header-probe.o" >/dev/null 2>"$OUT/header-probe.err"; then
+    cat "$OUT/header-probe.err"
+    blocked "missing Apache/APR/libmodsecurity headers"
+fi
+
+APACHE_SOURCES="
+connectors/apache/src/msc_apache_mapper.c
+connectors/apache/src/msc_config.c
+connectors/apache/src/msc_filters.c
+"
+COMMON_SOURCES="
+common/src/config.c
+common/src/config_parser.c
+common/src/directive_spec.c
+common/src/directive_adapter.c
+common/src/request_helpers.c
+common/src/response_helpers.c
+common/src/request_mapper_contract.c
+common/src/response_mapper_contract.c
+common/src/headers.c
+common/src/event.c
+common/src/event_jsonl.c
+common/src/json_escape.c
+common/src/rule_id.c
+common/src/log_sanitize.c
+common/src/redaction.c
+common/src/resource_limits.c
+common/src/dos_guard.c
+common/src/error.c
+common/src/status.c
+common/src/body_policy.c
+common/src/block_statuses.c
+common/src/http_status.c
+common/src/transaction_state.c
+common/src/limits.c
+common/src/crs.c
+"
+SOURCES="$APACHE_SOURCES $COMMON_SOURCES"
+
+object_name() {
+    path=$1
+    echo "$path" | sed 's#[/.]#_#g'
+}
+
+compile_profile() {
+    label=$1
+    flags=$2
+    for rel in $SOURCES; do
+        src="$REPO_ROOT/$rel"
+        obj="$OUT/$(object_name "$rel").$label.o"
+        if ! "$CC_BIN" $flags $APXS_CFLAGS $INCLUDES -c "$src" -o "$obj" >"$obj.out" 2>"$obj.err"; then
+            cat "$obj.out"
+            cat "$obj.err"
+            echo "FAIL: apache_c_standards $label compile failed: $rel"
+            exit 1
+        fi
+    done
+    echo "PASS: apache_c_standards $label compile"
+}
+
+compile_optional() {
+    profile=$1
+    label=$2
+    skip_message=$3
+    set +e
+    detected=$(python3 "$REPO_ROOT/ci/detect-c-standard.py" --profile "$profile" --compiler "$CC_BIN" 2>"$OUT/detect-$profile.err")
+    rc=$?
+    set -e
+    if [ "$rc" -eq 77 ]; then
+        echo "$skip_message"
+        return 0
+    fi
+    if [ "$rc" -ne 0 ]; then
+        cat "$OUT/detect-$profile.err"
+        exit "$rc"
+    fi
+    compile_profile "$label" "$detected -Wall -Wextra -Werror"
+}
+
+case "$PROFILE" in
+    c17)
+        compile_profile c17 "-std=c17 -Wall -Wextra -Werror"
+        ;;
+    c23)
+        compile_optional c23 c23 "SKIPPED: optional Apache C23 check — compiler does not support c23/c2x"
+        ;;
+    c2y|future-c)
+        compile_optional c2y c2y "SKIPPED: optional Apache future-C check — compiler does not support c2y/gnu2y"
+        ;;
+    all)
+        compile_profile c17 "-std=c17 -Wall -Wextra -Werror"
+        compile_optional c23 c23 "SKIPPED: optional Apache C23 check — compiler does not support c23/c2x"
+        compile_optional c2y c2y "SKIPPED: optional Apache future-C check — compiler does not support c2y/gnu2y"
+        ;;
+    *)
+        echo "usage: APACHE_C_STD_PROFILE={all|c17|c23|c2y} sh ci/check-apache-c-standards.sh" >&2
+        exit 2
+        ;;
+esac

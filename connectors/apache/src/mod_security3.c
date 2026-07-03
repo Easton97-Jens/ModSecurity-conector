@@ -11,6 +11,18 @@
  */
 msc_global *msc_apache;
 
+static apr_status_t msc_module_cleanup(void *data);
+static int hook_connection_early(conn_rec *conn);
+static int msc_hook_pre_config(apr_pool_t *mp, apr_pool_t *mp_log,
+    apr_pool_t *mp_temp);
+static int msc_hook_post_config(apr_pool_t *mp, apr_pool_t *mp_log,
+    apr_pool_t *mp_temp, server_rec *s);
+static int hook_request_late(request_rec *r);
+static int hook_request_early(request_rec *r);
+static int hook_log_transaction(request_rec *r);
+static void hook_insert_filter(request_rec *r);
+static int process_request_headers(request_rec *r, msc_t *msr);
+
 
 void modsecurity_log_cb(void *log, const void* data)
 {
@@ -25,7 +37,7 @@ void modsecurity_log_cb(void *log, const void* data)
     if (r->per_dir_config != NULL) {
         conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
                 &security3_module);
-        if (conf != NULL && conf->use_error_log == MSCONNECTOR_BOOL_OFF) {
+        if (conf != NULL && conf->common_config.use_error_log == MSCONNECTOR_BOOL_OFF) {
             return;
         }
     }
@@ -158,7 +170,7 @@ static msc_t *create_tx_context(request_rec *r) {
     z = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
 
-    if (z == NULL || z->msc_state != MSCONNECTOR_BOOL_ON) {
+    if (z == NULL || z->common_config.enable != MSCONNECTOR_BOOL_ON) {
         return NULL;
     }
 
@@ -177,8 +189,9 @@ static msc_t *create_tx_context(request_rec *r) {
                 "modsecurity_transaction_id_expr: %s", expr_error);
             transaction_id = NULL;
         }
-    } else if (z->transaction_id != NULL && z->transaction_id[0] != '\0') {
-        transaction_id = z->transaction_id;
+    } else if (z->common_config.transaction_id != NULL
+        && z->common_config.transaction_id[0] != '\0') {
+        transaction_id = z->common_config.transaction_id;
     }
 
     if (transaction_id == NULL || transaction_id[0] == '\0') {

@@ -50,6 +50,7 @@ enum msconnector_event_json_flag_index {
     EVENT_JSON_RESPONSE_STARTED,
     EVENT_JSON_HEADERS_SENT,
     EVENT_JSON_BODY_STARTED,
+    EVENT_JSON_BODY_TRUNCATED,
     EVENT_JSON_CONNECTION_ABORTED,
     EVENT_JSON_REDACTED,
     EVENT_JSON_TRUNCATED,
@@ -72,7 +73,7 @@ static int format_event_json(
     return snprintf(
         dst,
         dst_size,
-        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"headers_sent\":%s,\"body_started\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
+        "{\"timestamp\":\"%s\",\"level\":\"%s\",\"message_id\":\"%s\",\"message\":\"%s\",\"event\":\"%s\",\"connector\":\"%s\",\"transaction_id\":\"%s\",\"phase\":\"%s\",\"status\":\"%s\",\"action\":\"%s\",\"requested_action\":\"%s\",\"actual_action\":\"%s\",\"http_status\":%d,\"original_http_status\":%d,\"visible_http_status\":%d,\"http_reason_phrase\":\"%s\",\"http_default_message\":\"%s\",\"rule_id\":\"%s\",\"reason\":\"%s\",\"method\":\"%s\",\"uri\":\"%s\",\"client_ip\":\"%s\",\"late_intervention\":%s,\"response_started\":%s,\"headers_sent\":%s,\"body_started\":%s,\"body_truncated\":%s,\"connection_aborted\":%s,\"redacted\":%s,\"truncated\":%s,\"sequence\":%lu,\"previous_event_hash\":%" PRIu64 ",\"event_hash\":%" PRIu64 "}",
         parts->text[EVENT_JSON_TIMESTAMP],
         parts->text[EVENT_JSON_LEVEL],
         parts->text[EVENT_JSON_MESSAGE_ID],
@@ -99,6 +100,7 @@ static int format_event_json(
         parts->flags[EVENT_JSON_RESPONSE_STARTED],
         parts->flags[EVENT_JSON_HEADERS_SENT],
         parts->flags[EVENT_JSON_BODY_STARTED],
+        parts->flags[EVENT_JSON_BODY_TRUNCATED],
         parts->flags[EVENT_JSON_CONNECTION_ABORTED],
         parts->flags[EVENT_JSON_REDACTED],
         parts->flags[EVENT_JSON_TRUNCATED],
@@ -196,6 +198,7 @@ void msconnector_event_init(msconnector_event *event) {
     event->flags.response_started = 0;
     event->flags.headers_sent = 0;
     event->flags.body_started = 0;
+    event->flags.body_truncated = 0;
     event->flags.connection_aborted = 0;
     event->flags.redacted = 0;
     event->flags.truncated = 0;
@@ -293,6 +296,7 @@ int msconnector_event_write_json_ex(
     parts.flags[EVENT_JSON_RESPONSE_STARTED] = json_bool(event->flags.response_started);
     parts.flags[EVENT_JSON_HEADERS_SENT] = json_bool(event->flags.headers_sent);
     parts.flags[EVENT_JSON_BODY_STARTED] = json_bool(event->flags.body_started);
+    parts.flags[EVENT_JSON_BODY_TRUNCATED] = json_bool(event->flags.body_truncated);
     parts.flags[EVENT_JSON_CONNECTION_ABORTED] = json_bool(event->flags.connection_aborted);
     parts.flags[EVENT_JSON_REDACTED] = json_bool(event->flags.redacted);
     parts.flags[EVENT_JSON_TRUNCATED] = json_bool(was_truncated);

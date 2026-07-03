@@ -166,3 +166,27 @@ Check APXS/Apache ABI mismatch, missing headers, missing shared libraries, wrong
 - [examples/apache/README.md](examples/apache/README.md)
 - `connectors/apache/docs/build.md`
 - `connectors/apache/docs/validation.md`
+
+## Apache Common-Adoption C Standards Smoke
+
+The Apache Common-adoption layer has a compile-only standards smoke check:
+
+- `make check-apache-c17` is mandatory and compiles the Apache adoption files
+  plus the Common sources they consume with `-std=c17 -Wall -Wextra -Werror`.
+- `make check-apache-c23` and `make check-apache-future-c` are optional; they
+  use `ci/detect-c-standard.py` and skip when the compiler does not support the
+  requested C mode.
+- `make check-apache-c-standards` runs C17 plus the optional C23/future-C
+  profiles.
+
+The check requires APXS (`apxs` or `apxs2`) and Apache/APR/libmodsecurity
+headers. If those build headers are unavailable, the check reports `BLOCKED`
+and exits with code `77`. This is compile/structure evidence for the
+Apache/Common adoption boundary only; it is not production, CRS, full-matrix, or
+runtime verification evidence.
+
+The APXS wrapper also appends the Common SDK source files needed by the Apache
+adoption layer to avoid unresolved `msconnector_*` symbols during module builds.
+`make lint` calls `check-apache-c17-lint`, which skips only when the Apache C17
+compile is `BLOCKED` with exit code `77`; direct `make check-apache-c17` remains
+hard-fail/hard-pass.

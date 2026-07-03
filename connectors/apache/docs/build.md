@@ -43,3 +43,30 @@ and summarized in:
 
 Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
 documented/reported as runtime evidence only.
+
+## Common-Adoption C Standard Checks
+
+The Apache/Common-adoption compile layer is checked independently from an Apache
+runtime start:
+
+- `make check-apache-c17` is the mandatory C17 smoke.
+- `make check-apache-c23` is optional and skips when the compiler lacks c23/c2x.
+- `make check-apache-future-c` is optional and skips when the compiler lacks
+  c2y/gnu2y.
+- `make check-apache-c-standards` runs the mandatory and optional profiles.
+
+The check discovers APXS through `APXS`, `apxs`, or `apxs2`, adds APR flags from
+`apr-1-config`/`apr-2-config` when available, and compiles only objects. It does
+not link libmodsecurity or start httpd. Missing APXS or Apache/APR/
+libmodsecurity headers are reported as `BLOCKED` with exit code `77`. This is
+compile/structure evidence only and does not claim production readiness, CRS
+coverage, full-matrix coverage, or runtime verification.
+
+## APXS Common SDK object inclusion
+
+The APXS wrapper appends the Common SDK C sources required by the Apache
+adoption layer to the module compile command. This keeps the build path
+Apache-owned while ensuring calls such as Common config merge/validation,
+mapper-contract validation, event JSONL writing, rule-id extraction, resource
+limits, and HTTP-status helpers are compiled into the Apache module. The wrapper
+continues to add `common/include` and does not add Apache types to Common.

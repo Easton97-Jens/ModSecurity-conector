@@ -105,3 +105,20 @@ automatic runtime promotion, and RESPONSE_BODY remains non-promoted.
 
 See `docs/connectors/directive-parity.md` and
 `connectors/apache/harness/README.md`.
+
+## Common SDK adoption boundary
+
+The Apache connector now embeds `msconnector_config` for connector-neutral
+configuration values, uses Common directive names/parser helpers for the
+adopted directives, and includes Apache-owned request/response mapper facades
+that validate `request_rec`-derived metadata against the Common mapper
+contracts. Phase-4 metadata events are written through the Common metadata-only
+`msconnector_event` JSONL path; request and response body payloads are not
+written to those event records.
+
+Apache-specific code remains in the Apache connector: `command_rec`
+registration, `request_rec` access, hooks, filters, APR pools, bucket brigades,
+APLOG logging, return-code mapping, and APXS/autotools build inputs.
+
+This Common SDK adoption does not claim production readiness, CRS coverage,
+full-matrix coverage, or new runtime verification behavior.
