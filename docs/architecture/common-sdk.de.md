@@ -48,3 +48,13 @@ Common stellt jetzt auch connector-neutrale Contracts für zukünftige Host-Adap
 Diese Contracts sind nur globale SDK-Oberfläche. Sie migrieren keine NGINX-, Apache-, HAProxy-, Envoy-, lighttpd- oder Traefik-Runtime und behaupten keine CRS-Runtime-Verifikation, Produktionsreife oder Full-Matrix-Abdeckung.
 
 Host-spezifische APIs bleiben im Connector-Code. Beispiele sind `ngx_command_t`, `ngx_http_request_t`, `ngx_chain_t`, Apache `command_rec`, Apache `request_rec`, APR-Pools, Bucket Brigades und Server-Hooks/-Filter. NGINX und Apache können später dünne Mapper auf diesen Contracts implementieren; diese SDK-Schicht behauptet aber nicht, dass sie das bereits tun.
+
+## Apache-Adoptionsgrenze
+
+Apache nutzt jetzt das Common SDK für die übernommene semantische Schicht:
+eingebettetes `msconnector_config`, Common-Parser, Directive-Spec/Adapter-
+Lookup, Request-/Response-Mapper-Contracts und metadata-only Event-JSONL-
+Primitive. Apache behält Apache-Server-APIs wie `request_rec`, `command_rec`,
+Hooks, Filter, APR-Pools, Bucket Brigades, APLOG, Return-Codes und APXS-
+Buildlogik. Das ist keine Aussage zu Produktionsreife, CRS, Full-Matrix oder
+Runtime-Verifikation.

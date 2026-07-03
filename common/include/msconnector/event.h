@@ -99,6 +99,7 @@ typedef struct msconnector_event_flags {
     int response_started;
     int headers_sent;
     int body_started;
+    int body_truncated;
     int connection_aborted;
     int redacted;
     int truncated;

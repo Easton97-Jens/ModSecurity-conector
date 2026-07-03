@@ -36,6 +36,7 @@
 #include "http_request.h"
 
 #include "msc_filters.h"
+#include "msconnector/config.h"
 #include "msconnector/rule_load_stats.h"
 
 #ifndef _SRC_APACHE_HTTP_MODSECURITY__
@@ -72,15 +73,9 @@ typedef struct
 typedef struct
 {
     void *rules_set;
-    int msc_state;
-    int use_error_log;
-    const char *transaction_id;
+    msconnector_config common_config;
     ap_expr_info_t *transaction_id_expr;
-    int phase4_mode;
-    const char *phase4_content_types_file;
     apr_array_header_t *phase4_content_types;
-    const char *phase4_log_path;
-    apr_size_t phase4_body_limit;
     msconnector_rule_load_stats rule_load_stats;
     char *name_for_debug;
 } msc_conf_t;
@@ -99,27 +94,5 @@ int process_intervention (Transaction *t, request_rec *r);
 
 int msc_apache_init(apr_pool_t *pool);
 int msc_apache_cleanup();
-static apr_status_t msc_module_cleanup(void *data);
-
-
-/*
-
-static int hook_connection_early(conn_rec *conn);
-
-static int msc_hook_pre_config(apr_pool_t *mp, apr_pool_t *mp_log,
-    apr_pool_t *mp_temp);
-static int msc_hook_post_config(apr_pool_t *mp, apr_pool_t *mp_log,
-    apr_pool_t *mp_temp, server_rec *s);
-
-static int hook_request_late(request_rec *r);
-static int hook_request_early(request_rec *r);
-static int hook_log_transaction(request_rec *r);
-
-static void hook_insert_filter(request_rec *r);
-*/
-/*
-*/
-
-static int process_request_headers(request_rec *r, msc_t *msr);
 
 #endif /*  _SRC_APACHE_HTTP_MODSECURITY__ */
