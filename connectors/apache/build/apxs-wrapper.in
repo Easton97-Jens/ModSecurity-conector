@@ -25,4 +25,4 @@ if test -n "$MSCONNECTOR_COMMON_INC"; then
     MSCONNECTOR_COMMON_OPT_I="-I $MSCONNECTOR_COMMON_INC"
 fi
 
-exec @APXS@ -Wc,-fPIC -Wc,-O0 -a -c -I @V3INCLUDE@ $MSCONNECTOR_COMMON_OPT_I -L @V3LIB@ -lmodsecurity src/mod_security3.c src/msc_config.c src/msc_filters.c src/msc_utils.c
+exec @APXS@ -Wc,-fPIC -Wc,-O0 -a -c -I @V3INCLUDE@ $MSCONNECTOR_COMMON_OPT_I -L @V3LIB@ -lmodsecurity src/mod_security3.c src/msc_config.c src/msc_filters.c src/msc_utils.c src/msc_apache_mapper.c

@@ -29,3 +29,11 @@ Neue Connectoren sollten die globalen Common-Contracts nutzen, bevor sie Runtime
 - CRS-/Ruleset-Setup mit der `crs`-Konfiguration nur als Setup-Konvention beschreiben. Eine gültige CRS-Konfiguration ist kein CRS-PASS-Claim.
 
 Dieser Leitfaden verlangt und behauptet keine Adoption durch bestehende NGINX-, Apache-, HAProxy-, Envoy-, lighttpd- oder Traefik-Runtimes. Host-spezifische Request-Chains, APR-Pools, Bucket Brigades, Server-Hooks, Filter und Body-Puffer bleiben Connector-Eigentum.
+
+## Hinweis zum bestehenden Apache-Connector
+
+Der Apache-Connector ist ein Beispiel für beginnende Adapter-Adoption: Common
+besitzt semantische Konfiguration, Direktiven, Mapper-Contracts und Events,
+während Apache-eigener Code Apache-API-Zugriffe sowie Filter-/Hook-Mechanik
+behält. Dieser Hinweis ist keine Aussage zu Produktionsreife, CRS, Full-Matrix
+oder Runtime-Verifikation.

@@ -2,6 +2,7 @@
 """Check global directive spec/adapter parity without enforcing connector adoption."""
 from pathlib import Path
 import sys
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_H = ROOT / "common/include/msconnector/directive_spec.h"
@@ -9,6 +10,7 @@ SPEC_C = ROOT / "common/src/directive_spec.c"
 ADAPTER_H = ROOT / "common/include/msconnector/directive_adapter.h"
 ADAPTER_C = ROOT / "common/src/directive_adapter.c"
 DIRECTIVES_H = ROOT / "common/include/msconnector/directives.h"
+APACHE_CONFIG_C = ROOT / "connectors/apache/src/msc_config.c"
 KNOWN = [
     "modsecurity",
     "modsecurity_rules",
@@ -56,6 +58,13 @@ def parse_quoted_macro_definitions(text: str) -> dict[str, str]:
         macros[name] = raw_value[1:end]
     return macros
 
+
+
+def parse_apache_directive_macros(text: str) -> set[str]:
+    macros: set[str] = set()
+    for match in re.finditer(r"AP_INIT_[A-Z0-9_]+\(\s*(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)", text, re.MULTILINE):
+        macros.add(match.group(1))
+    return macros
 
 def fields_from_initializer_line(raw_line: str) -> list[str]:
     line = raw_line.strip().strip("{} ,")
@@ -125,7 +134,7 @@ def parse_adapter_entries(text: str, macros: dict[str, str]) -> list[tuple[str, 
     return entries
 
 
-missing_files = [p for p in (SPEC_H, SPEC_C, ADAPTER_H, ADAPTER_C) if not p.exists()]
+missing_files = [p for p in (SPEC_H, SPEC_C, ADAPTER_H, ADAPTER_C, APACHE_CONFIG_C) if not p.exists()]
 if missing_files:
     for path in missing_files:
         print(f"missing directive file: {path.relative_to(ROOT)}")
@@ -160,7 +169,19 @@ for name in KNOWN:
         print(f"known directive missing: {name}")
         ok = False
 
-print("connector directive adoption: not enforced in this check")
+apache_directives = {macros.get(macro, macro) for macro in parse_apache_directive_macros(APACHE_CONFIG_C.read_text())}
+for name in sorted(apache_directives):
+    if name not in specs:
+        print(f"apache directive missing common spec: {name}")
+        ok = False
+    if name not in canonicals:
+        print(f"apache directive missing common adapter: {name}")
+        ok = False
+for raw in re.findall(r'AP_INIT_[A-Z0-9_]+\(\s*"([^"]+)"', APACHE_CONFIG_C.read_text()):
+    print(f"apache directive uses local string literal instead of common macro: {raw}")
+    ok = False
+
+print("connector directive adoption: Apache directive names checked against common macros/specs/adapters")
 if not ok:
     sys.exit(1)
 print("directive-parity: common directive spec/adapter parity present")

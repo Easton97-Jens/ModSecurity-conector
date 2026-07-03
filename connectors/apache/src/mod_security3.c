@@ -25,7 +25,7 @@ void modsecurity_log_cb(void *log, const void* data)
     if (r->per_dir_config != NULL) {
         conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
                 &security3_module);
-        if (conf != NULL && conf->use_error_log == MSCONNECTOR_BOOL_OFF) {
+        if (conf != NULL && conf->common_config.use_error_log == MSCONNECTOR_BOOL_OFF) {
             return;
         }
     }
@@ -158,7 +158,7 @@ static msc_t *create_tx_context(request_rec *r) {
     z = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
             &security3_module);
 
-    if (z == NULL || z->msc_state != MSCONNECTOR_BOOL_ON) {
+    if (z == NULL || z->common_config.enable != MSCONNECTOR_BOOL_ON) {
         return NULL;
     }
 
@@ -177,8 +177,9 @@ static msc_t *create_tx_context(request_rec *r) {
                 "modsecurity_transaction_id_expr: %s", expr_error);
             transaction_id = NULL;
         }
-    } else if (z->transaction_id != NULL && z->transaction_id[0] != '\0') {
-        transaction_id = z->transaction_id;
+    } else if (z->common_config.transaction_id != NULL
+        && z->common_config.transaction_id[0] != '\0') {
+        transaction_id = z->common_config.transaction_id;
     }
 
     if (transaction_id == NULL || transaction_id[0] == '\0') {

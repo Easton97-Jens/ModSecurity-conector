@@ -2,11 +2,20 @@
 #include "mod_security3.h"
 #include "msc_config.h"
 #include "msc_filters.h"
+#include "msconnector/config.h"
+#include "msconnector/config_parser.h"
+#include "msconnector/directive_adapter.h"
 #include "msconnector/directives.h"
 #include "msconnector/options.h"
 
 #include <stdlib.h>
+#include <string.h>
 
+
+static const msconnector_directive_adapter_entry *apache_directive_adapter(const char *name)
+{
+    return msconnector_directive_adapter_find(name);
+}
 
 const command_rec module_directives[] =
 {
@@ -106,16 +115,9 @@ static const char *msc_config_modsec_state(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    (void)apache_directive_adapter(MSCONNECTOR_DIRECTIVE_MODSECURITY);
 
-    if (strcasecmp(p1, "On") == 0)
-    {
-        cnf->msc_state = MSCONNECTOR_BOOL_ON;
-    }
-    else if (strcasecmp(p1, "Off") == 0)
-    {
-        cnf->msc_state = MSCONNECTOR_BOOL_OFF;
-    }
-    else
+    if (!msconnector_parse_bool(p1, &cnf->common_config.enable))
     {
         return "ModSecurity state must be either 'On' or 'Off'";
     }
@@ -202,7 +204,7 @@ static const char *msc_config_transaction_id(cmd_parms *cmd, void *_cnf,
         return "modsecurity_transaction_id and modsecurity_transaction_id_expr are mutually exclusive";
     }
 
-    cnf->transaction_id = apr_pstrdup(cmd->pool, p1);
+    cnf->common_config.transaction_id = apr_pstrdup(cmd->pool, p1);
     return NULL;
 }
 
@@ -219,7 +221,7 @@ static const char *msc_config_transaction_id_expr(cmd_parms *cmd, void *_cnf,
         return "modsecurity_transaction_id_expr must not be empty";
     }
 
-    if (cnf->transaction_id != NULL)
+    if (cnf->common_config.transaction_id != NULL)
     {
         return "modsecurity_transaction_id and modsecurity_transaction_id_expr are mutually exclusive";
     }
@@ -233,6 +235,7 @@ static const char *msc_config_transaction_id_expr(cmd_parms *cmd, void *_cnf,
     }
 
     cnf->transaction_id_expr = expr;
+    cnf->common_config.transaction_id_expr = p1;
     return NULL;
 }
 
@@ -241,20 +244,14 @@ static const char *msc_config_use_error_log(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    enum msconnector_bool_option parsed;
 
-    if (strcasecmp(p1, "on") == 0)
-    {
-        cnf->use_error_log = MSCONNECTOR_BOOL_ON;
-    }
-    else if (strcasecmp(p1, "off") == 0)
-    {
-        cnf->use_error_log = MSCONNECTOR_BOOL_OFF;
-    }
-    else
+    if (!msconnector_parse_bool(p1, &parsed))
     {
         return "modsecurity_use_error_log must be either 'on' or 'off'";
     }
 
+    cnf->common_config.use_error_log = parsed;
     return NULL;
 }
 
@@ -263,24 +260,14 @@ static const char *msc_config_phase4_mode(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    enum msconnector_phase4_mode parsed;
 
-    if (strcasecmp(p1, "minimal") == 0)
-    {
-        cnf->phase4_mode = MSCONNECTOR_PHASE4_MODE_MINIMAL;
-    }
-    else if (strcasecmp(p1, "safe") == 0)
-    {
-        cnf->phase4_mode = MSCONNECTOR_PHASE4_MODE_SAFE;
-    }
-    else if (strcasecmp(p1, "strict") == 0)
-    {
-        cnf->phase4_mode = MSCONNECTOR_PHASE4_MODE_STRICT;
-    }
-    else
+    if (!msconnector_parse_phase4_mode(p1, &parsed))
     {
         return "modsecurity_phase4_mode must be minimal, safe, or strict";
     }
 
+    cnf->common_config.phase4_mode = parsed;
     return NULL;
 }
 
@@ -298,7 +285,7 @@ static const char *msc_config_phase4_content_types_file(cmd_parms *cmd,
         return "modsecurity_phase4_content_types_file must not be empty";
     }
 
-    cnf->phase4_content_types_file = apr_pstrdup(cmd->pool, p1);
+    cnf->common_config.phase4_content_types_file = apr_pstrdup(cmd->pool, p1);
     cnf->phase4_content_types = apr_array_make(cmd->pool, 8,
         sizeof(const char *));
     if (cnf->phase4_content_types == NULL)
@@ -365,7 +352,7 @@ static const char *msc_config_phase4_log(cmd_parms *cmd, void *_cnf,
         return "modsecurity_phase4_log must not be empty";
     }
 
-    cnf->phase4_log_path = apr_pstrdup(cmd->pool, p1);
+    cnf->common_config.phase4_log_path = apr_pstrdup(cmd->pool, p1);
     return NULL;
 }
 
@@ -374,23 +361,17 @@ static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
-    char *end = NULL;
-    unsigned long value;
+    size_t value;
 
-    if (p1 == NULL || p1[0] == '\0')
-    {
-        return "modsecurity_phase4_body_limit must not be empty";
-    }
-
-    value = strtoul(p1, &end, 10);
-    if (end == p1 || *end != '\0' || value == 0)
+    if (!msconnector_parse_size(p1, &value) || value == 0U)
     {
         return "modsecurity_phase4_body_limit must be a positive integer";
     }
 
-    cnf->phase4_body_limit = (apr_size_t)value;
+    cnf->common_config.phase4_body_limit = value;
     return NULL;
 }
+
 
 
 void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
@@ -408,15 +389,9 @@ void *msc_hook_create_config_directory(apr_pool_t *mp, char *path)
 #endif
 
     cnf->rules_set = msc_create_rules_set();
-    cnf->msc_state = MSCONNECTOR_BOOL_UNSET;
-    cnf->use_error_log = MSCONNECTOR_BOOL_UNSET;
-    cnf->transaction_id = NULL;
+    msconnector_config_init(&cnf->common_config);
     cnf->transaction_id_expr = NULL;
-    cnf->phase4_mode = -1;
-    cnf->phase4_content_types_file = NULL;
     cnf->phase4_content_types = NULL;
-    cnf->phase4_log_path = NULL;
-    cnf->phase4_body_limit = 0;
     msconnector_rule_load_stats_init(&cnf->rule_load_stats);
     if (cnf->rules_set == NULL)
     {
@@ -504,111 +479,34 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
 #endif
     }
 
-    if (cnf_c != NULL && cnf_c->msc_state != MSCONNECTOR_BOOL_UNSET)
+    if (!msconnector_config_merge(&cnf_new->common_config,
+        cnf_p != NULL ? &cnf_p->common_config : NULL,
+        cnf_c != NULL ? &cnf_c->common_config : NULL))
     {
-        cnf_new->msc_state = cnf_c->msc_state;
-    }
-    else if (cnf_p != NULL && cnf_p->msc_state != MSCONNECTOR_BOOL_UNSET)
-    {
-        cnf_new->msc_state = cnf_p->msc_state;
-    }
-    else
-    {
-        cnf_new->msc_state = MSCONNECTOR_DEFAULT_ENABLE;
-    }
-
-    if (cnf_c != NULL && cnf_c->use_error_log != MSCONNECTOR_BOOL_UNSET)
-    {
-        cnf_new->use_error_log = cnf_c->use_error_log;
-    }
-    else if (cnf_p != NULL && cnf_p->use_error_log != MSCONNECTOR_BOOL_UNSET)
-    {
-        cnf_new->use_error_log = cnf_p->use_error_log;
-    }
-    else
-    {
-        cnf_new->use_error_log = MSCONNECTOR_DEFAULT_USE_ERROR_LOG;
+        char error[256];
+        (void)msconnector_config_validate(&cnf_new->common_config,
+            error, sizeof(error));
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_NOERRNO, 0, mp,
+            "ModSecurity: Common config merge failed: %s", error);
+        return NULL;
     }
 
     if (cnf_c != NULL && cnf_c->transaction_id_expr != NULL)
     {
         cnf_new->transaction_id_expr = cnf_c->transaction_id_expr;
-        cnf_new->transaction_id = NULL;
-    }
-    else if (cnf_c != NULL && cnf_c->transaction_id != NULL)
-    {
-        cnf_new->transaction_id = apr_pstrdup(mp, cnf_c->transaction_id);
-        cnf_new->transaction_id_expr = NULL;
     }
     else if (cnf_p != NULL && cnf_p->transaction_id_expr != NULL)
     {
         cnf_new->transaction_id_expr = cnf_p->transaction_id_expr;
-        cnf_new->transaction_id = NULL;
-    }
-    else if (cnf_p != NULL && cnf_p->transaction_id != NULL)
-    {
-        cnf_new->transaction_id = apr_pstrdup(mp, cnf_p->transaction_id);
-        cnf_new->transaction_id_expr = NULL;
-    }
-    else
-    {
-        cnf_new->transaction_id = NULL;
-        cnf_new->transaction_id_expr = NULL;
-    }
-
-    if (cnf_c != NULL && cnf_c->phase4_mode != -1)
-    {
-        cnf_new->phase4_mode = cnf_c->phase4_mode;
-    }
-    else if (cnf_p != NULL && cnf_p->phase4_mode != -1)
-    {
-        cnf_new->phase4_mode = cnf_p->phase4_mode;
-    }
-    else
-    {
-        cnf_new->phase4_mode = MSCONNECTOR_DEFAULT_PHASE4_MODE;
     }
 
     if (cnf_c != NULL && cnf_c->phase4_content_types != NULL)
     {
         cnf_new->phase4_content_types = cnf_c->phase4_content_types;
-        cnf_new->phase4_content_types_file = cnf_c->phase4_content_types_file;
     }
     else if (cnf_p != NULL && cnf_p->phase4_content_types != NULL)
     {
         cnf_new->phase4_content_types = cnf_p->phase4_content_types;
-        cnf_new->phase4_content_types_file = cnf_p->phase4_content_types_file;
-    }
-    else
-    {
-        cnf_new->phase4_content_types = NULL;
-        cnf_new->phase4_content_types_file = NULL;
-    }
-
-    if (cnf_c != NULL && cnf_c->phase4_log_path != NULL)
-    {
-        cnf_new->phase4_log_path = apr_pstrdup(mp, cnf_c->phase4_log_path);
-    }
-    else if (cnf_p != NULL && cnf_p->phase4_log_path != NULL)
-    {
-        cnf_new->phase4_log_path = apr_pstrdup(mp, cnf_p->phase4_log_path);
-    }
-    else
-    {
-        cnf_new->phase4_log_path = NULL;
-    }
-
-    if (cnf_c != NULL && cnf_c->phase4_body_limit > 0)
-    {
-        cnf_new->phase4_body_limit = cnf_c->phase4_body_limit;
-    }
-    else if (cnf_p != NULL && cnf_p->phase4_body_limit > 0)
-    {
-        cnf_new->phase4_body_limit = cnf_p->phase4_body_limit;
-    }
-    else
-    {
-        cnf_new->phase4_body_limit = MSCONNECTOR_DEFAULT_PHASE4_BODY_LIMIT;
     }
 
     if (cnf_p != NULL)

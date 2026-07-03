@@ -27,3 +27,10 @@ New connectors should consume the global common contracts before making runtime 
 - Describe CRS/ruleset setup with `crs` configuration only as a setup convention. A valid CRS config is not a CRS PASS claim.
 
 This guide does not require or assert adoption by existing NGINX, Apache, HAProxy, Envoy, lighttpd, or Traefik runtimes. Host-specific request chains, APR pools, bucket brigades, server hooks, filters, and body buffers remain connector-owned.
+
+## Existing Apache connector note
+
+The Apache connector is an example of a host-specific adapter beginning this
+adoption: Common owns semantic config/directives/mapper contracts/events, while
+Apache-owned code keeps Apache API access and filter/hook mechanics. This note
+is not a production, CRS, full-matrix, or runtime verification claim.

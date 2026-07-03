@@ -1,7 +1,10 @@
 
 #include "msc_filters.h"
 #include "msc_utils.h"
+#include "msconnector/event.h"
+#include "msconnector/event_jsonl.h"
 #include "msconnector/options.h"
+#include "msconnector/rule_id.h"
 
 #include <apr_file_io.h>
 #include <string.h>
@@ -192,97 +195,16 @@ static int apache_phase4_in_scope(msc_conf_t *conf, request_rec *r)
 }
 
 
-static const char *apache_json_escape(apr_pool_t *pool, const char *value)
-{
-    const unsigned char *src;
-    char *out;
-    char *dst;
-    apr_size_t extra = 0;
-    apr_size_t value_len = 0;
-
-    if (value == NULL)
-    {
-        return "";
-    }
-
-    for (src = (const unsigned char *)value; *src != '\0'; src++)
-    {
-        value_len++;
-        if (*src < 0x20 || *src == '"' || *src == '\\')
-        {
-            extra++;
-        }
-    }
-
-    out = apr_palloc(pool, value_len + extra + 1);
-    if (out == NULL)
-    {
-        return "";
-    }
-
-    dst = out;
-    for (src = (const unsigned char *)value; *src != '\0'; src++)
-    {
-        if (*src == '"' || *src == '\\')
-        {
-            *dst++ = '\\';
-            *dst++ = (char)*src;
-        }
-        else if (*src < 0x20)
-        {
-            *dst++ = ' ';
-        }
-        else
-        {
-            *dst++ = (char)*src;
-        }
-    }
-    *dst = '\0';
-
-    return out;
-}
-
-
-static const char *apache_phase4_rule_id(apr_pool_t *pool, const char *log)
-{
-    const char *id;
-    const char *start;
-    const char *end;
-
-    if (log == NULL)
-    {
-        return "";
-    }
-
-    id = strstr(log, "id \"");
-    if (id == NULL)
-    {
-        return "";
-    }
-
-    start = id + 4;
-    end = start;
-    while (*end >= '0' && *end <= '9')
-    {
-        end++;
-    }
-    if (end == start)
-    {
-        return "";
-    }
-
-    return apr_pstrndup(pool, start, end - start);
-}
-
-
 static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     const char *wanted, const char *actual, const char *reason)
 {
     msc_conf_t *conf;
     apr_file_t *file = NULL;
-    const char *content_type;
-    const char *transport = "http_status";
     apr_status_t rc;
+    msconnector_event event;
+    char line[4096];
+    char rule_id[64];
+    int truncated = 0;
 
     if (msr == NULL || r == NULL || r->per_dir_config == NULL)
     {
@@ -291,62 +213,56 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
 
     conf = (msc_conf_t *)ap_get_module_config(r->per_dir_config,
         &security3_module);
-    if (conf == NULL || conf->phase4_log_path == NULL)
+    if (conf == NULL || conf->common_config.phase4_log_path == NULL)
     {
         return;
     }
 
-    if (msr->phase4_strict_abort)
-    {
-        transport = "connection_aborted";
-    }
-
-    rc = apr_file_open(&file, conf->phase4_log_path,
+    rc = apr_file_open(&file, conf->common_config.phase4_log_path,
         APR_WRITE | APR_CREATE | APR_APPEND, APR_OS_DEFAULT, r->pool);
     if (rc != APR_SUCCESS)
     {
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, rc, r,
             "ModSecurity: failed to open phase4 log %s",
-            conf->phase4_log_path);
+            conf->common_config.phase4_log_path);
         return;
     }
 
-    content_type = apache_normalized_content_type(r->pool,
-        apache_response_content_type(r));
+    rule_id[0] = '\0';
+    (void)msconnector_rule_id_extract_from_message(msr->last_intervention_log,
+        rule_id, sizeof(rule_id));
 
-    apr_file_printf(file,
-        "{\"event\":\"phase4_intervention\",\"phase\":4,"
-        "\"uri\":\"%s\",\"method\":\"%s\",\"response_status\":%d,"
-        "\"waf_status\":%d,\"content_type\":\"%s\","
-        "\"response_headers_seen\":%s,\"response_body_seen\":%s,"
-        "\"response_body_truncated\":%s,\"response_committed\":%s,"
-        "\"intervention\":%s,\"strict_abort\":%s,"
-        "\"observed_transport_result\":\"%s\",\"mode\":\"%s\","
-        "\"wanted_action\":\"%s\",\"actual_action\":\"%s\","
-        "\"reason\":\"%s\",\"body_bytes_seen\":%" APR_SIZE_T_FMT ","
-        "\"body_bytes_inspected\":%" APR_SIZE_T_FMT ","
-        "\"intervention_log\":\"%s\",\"rule_id\":\"%s\"}\n",
-        apache_json_escape(r->pool, r->unparsed_uri),
-        apache_json_escape(r->pool, r->method),
-        r->status,
-        msr->last_intervention_status,
-        apache_json_escape(r->pool, content_type),
-        msr->response_headers_seen ? "true" : "false",
-        msr->response_body_seen ? "true" : "false",
-        msr->response_body_truncated ? "true" : "false",
-        msr->response_committed ? "true" : "false",
-        msr->phase4_intervention ? "true" : "false",
-        msr->phase4_strict_abort ? "true" : "false",
-        transport,
-        apache_phase4_mode_name(conf->phase4_mode),
-        wanted,
-        actual,
-        reason,
-        msr->response_body_bytes_seen,
-        msr->response_body_bytes_inspected,
-        apache_json_escape(r->pool, msr->last_intervention_log),
-        apache_json_escape(r->pool, apache_phase4_rule_id(r->pool,
-            msr->last_intervention_log)));
+    msconnector_event_init(&event);
+    event.meta.event = MSCONN_EVENT_PHASE4_LATE_INTERVENTION;
+    event.meta.connector = MSC_APACHE_CONNECTOR;
+    event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event.decision.action = actual;
+    event.decision.requested_action = wanted;
+    event.decision.actual_action = actual;
+    event.decision.rule_id = rule_id;
+    event.decision.reason = reason;
+    event.http.http_status = msr->last_intervention_status;
+    event.http.original_http_status = r->status;
+    event.http.visible_http_status = r->status;
+    event.request.method = r->method;
+    event.request.uri = r->unparsed_uri;
+    event.flags.late_intervention = 1;
+    event.flags.response_started = msr->response_committed;
+    event.flags.headers_sent = msr->response_headers_seen;
+    event.flags.body_started = msr->response_body_seen;
+    event.flags.connection_aborted = msr->phase4_strict_abort;
+    event.flags.truncated = msr->response_body_truncated;
+
+    if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
+        &truncated))
+    {
+        apr_file_puts(line, file);
+    }
+    else
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ModSecurity: failed to serialize common phase4 event");
+    }
 
     apr_file_close(file);
 }
@@ -382,8 +298,8 @@ static apr_status_t apache_phase4_buffer_bucket(ap_filter_t *f,
     {
         msr->response_body_seen = 1;
         msr->response_body_bytes_seen += len;
-        remaining = conf->phase4_body_limit > msr->response_body_bytes_inspected
-            ? conf->phase4_body_limit - msr->response_body_bytes_inspected
+        remaining = conf->common_config.phase4_body_limit > msr->response_body_bytes_inspected
+            ? conf->common_config.phase4_body_limit - msr->response_body_bytes_inspected
             : 0;
         if (remaining > 0)
         {
@@ -532,7 +448,7 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
                 msr->response_committed = 1;
                 return ap_pass_brigade(f->next, msr->response_brigade);
             }
-            if (conf->phase4_mode == MSCONNECTOR_PHASE4_MODE_MINIMAL)
+            if (conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_MINIMAL)
             {
                 apache_phase4_log_event(msr, r, "deny", "log_only",
                     "phase4_mode_minimal");
