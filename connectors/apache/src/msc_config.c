@@ -502,6 +502,10 @@ void *msc_hook_merge_config_directory(apr_pool_t *mp, void *parent,
     {
         cnf_new->transaction_id_expr = cnf_c->transaction_id_expr;
     }
+    else if (cnf_new->common_config.transaction_id != NULL)
+    {
+        cnf_new->transaction_id_expr = NULL;
+    }
     else if (cnf_p != NULL && cnf_p->transaction_id_expr != NULL)
     {
         cnf_new->transaction_id_expr = cnf_p->transaction_id_expr;

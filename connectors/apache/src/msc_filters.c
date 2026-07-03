@@ -189,7 +189,7 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     msconnector_event event;
     char line[4096];
     char rule_id[64];
-    int truncated = 0;
+    int json_truncated = 0;
 
     if (msr == NULL || r == NULL || r->per_dir_config == NULL)
     {
@@ -221,6 +221,7 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     event.meta.event = MSCONN_EVENT_PHASE4_LATE_INTERVENTION;
     event.meta.connector = MSC_APACHE_CONNECTOR;
     event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
     event.decision.action = actual;
     event.decision.requested_action = wanted;
     event.decision.actual_action = actual;
@@ -236,10 +237,10 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     event.flags.headers_sent = msr->response_headers_seen;
     event.flags.body_started = msr->response_body_seen;
     event.flags.connection_aborted = msr->phase4_strict_abort;
-    event.flags.truncated = msr->response_body_truncated;
+    event.flags.body_truncated = msr->response_body_truncated;
 
     if (msconnector_event_write_jsonl_line(&event, line, sizeof(line),
-        &truncated))
+        &json_truncated))
     {
         apr_file_puts(line, file);
     }

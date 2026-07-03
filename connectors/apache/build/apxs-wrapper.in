@@ -20,9 +20,47 @@ if test -z "$MSCONNECTOR_COMMON_INC" && test -d "../../common/include"; then
     MSCONNECTOR_COMMON_INC="../../common/include"
 fi
 
+if test -z "$MSCONNECTOR_COMMON_SRC" && test -n "$CONNECTOR_ROOT" && test -d "$CONNECTOR_ROOT/common/src"; then
+    MSCONNECTOR_COMMON_SRC="$CONNECTOR_ROOT/common/src"
+fi
+
+if test -z "$MSCONNECTOR_COMMON_SRC" && test -d "../../common/src"; then
+    MSCONNECTOR_COMMON_SRC="../../common/src"
+fi
+
+MSCONNECTOR_COMMON_SOURCES=
+if test -n "$MSCONNECTOR_COMMON_SRC"; then
+    MSCONNECTOR_COMMON_SOURCES="
+$MSCONNECTOR_COMMON_SRC/config.c
+$MSCONNECTOR_COMMON_SRC/config_parser.c
+$MSCONNECTOR_COMMON_SRC/directive_spec.c
+$MSCONNECTOR_COMMON_SRC/directive_adapter.c
+$MSCONNECTOR_COMMON_SRC/request_helpers.c
+$MSCONNECTOR_COMMON_SRC/response_helpers.c
+$MSCONNECTOR_COMMON_SRC/request_mapper_contract.c
+$MSCONNECTOR_COMMON_SRC/response_mapper_contract.c
+$MSCONNECTOR_COMMON_SRC/headers.c
+$MSCONNECTOR_COMMON_SRC/event.c
+$MSCONNECTOR_COMMON_SRC/event_jsonl.c
+$MSCONNECTOR_COMMON_SRC/json_escape.c
+$MSCONNECTOR_COMMON_SRC/rule_id.c
+$MSCONNECTOR_COMMON_SRC/log_sanitize.c
+$MSCONNECTOR_COMMON_SRC/redaction.c
+$MSCONNECTOR_COMMON_SRC/resource_limits.c
+$MSCONNECTOR_COMMON_SRC/dos_guard.c
+$MSCONNECTOR_COMMON_SRC/error.c
+$MSCONNECTOR_COMMON_SRC/status.c
+$MSCONNECTOR_COMMON_SRC/body_policy.c
+$MSCONNECTOR_COMMON_SRC/block_statuses.c
+$MSCONNECTOR_COMMON_SRC/http_status.c
+$MSCONNECTOR_COMMON_SRC/transaction_state.c
+$MSCONNECTOR_COMMON_SRC/limits.c
+$MSCONNECTOR_COMMON_SRC/crs.c"
+fi
+
 MSCONNECTOR_COMMON_OPT_I=
 if test -n "$MSCONNECTOR_COMMON_INC"; then
     MSCONNECTOR_COMMON_OPT_I="-I $MSCONNECTOR_COMMON_INC"
 fi
 
-exec @APXS@ -Wc,-fPIC -Wc,-O0 -a -c -I @V3INCLUDE@ $MSCONNECTOR_COMMON_OPT_I -L @V3LIB@ -lmodsecurity src/mod_security3.c src/msc_config.c src/msc_filters.c src/msc_utils.c src/msc_apache_mapper.c
+exec @APXS@ -Wc,-fPIC -Wc,-O0 -a -c -I @V3INCLUDE@ $MSCONNECTOR_COMMON_OPT_I -L @V3LIB@ -lmodsecurity src/mod_security3.c src/msc_config.c src/msc_filters.c src/msc_utils.c src/msc_apache_mapper.c $MSCONNECTOR_COMMON_SOURCES

@@ -7,36 +7,107 @@
 
 #include <string.h>
 
-static int copy_apr_headers(apr_pool_t *pool, const apr_table_t *table,
-    msconnector_header **headers, size_t *header_count)
+static size_t apr_header_count(const apr_table_t *table)
+{
+    const apr_array_header_t *arr;
+
+    if (table == NULL)
+    {
+        return 0U;
+    }
+
+    arr = apr_table_elts(table);
+    return arr != NULL && arr->nelts > 0 ? (size_t)arr->nelts : 0U;
+}
+
+static void copy_apr_header_table(const apr_table_t *table,
+    msconnector_header *headers, size_t *offset)
 {
     const apr_array_header_t *arr;
     const apr_table_entry_t *te;
     int i;
 
-    *headers = NULL;
-    *header_count = 0;
     if (table == NULL)
     {
-        return 1;
+        return;
     }
 
     arr = apr_table_elts(table);
     te = (const apr_table_entry_t *)arr->elts;
-    *headers = apr_pcalloc(pool, sizeof(msconnector_header) * (size_t)arr->nelts);
-    if (*headers == NULL && arr->nelts > 0)
+    for (i = 0; i < arr->nelts; i++)
+    {
+        headers[*offset].name = te[i].key;
+        headers[*offset].name_size = te[i].key != NULL ? strlen(te[i].key) : 0U;
+        headers[*offset].value = te[i].val;
+        headers[*offset].value_size = te[i].val != NULL ? strlen(te[i].val) : 0U;
+        (*offset)++;
+    }
+}
+
+static int copy_apr_headers(apr_pool_t *pool, const apr_table_t *table,
+    msconnector_header **headers, size_t *header_count)
+{
+    size_t offset = 0U;
+
+    *headers = NULL;
+    *header_count = apr_header_count(table);
+    if (*header_count == 0U)
+    {
+        return 1;
+    }
+
+    *headers = apr_pcalloc(pool, sizeof(msconnector_header) * *header_count);
+    if (*headers == NULL)
     {
         return 0;
     }
 
-    for (i = 0; i < arr->nelts; i++)
+    copy_apr_header_table(table, *headers, &offset);
+    return offset == *header_count;
+}
+
+static int copy_apr_response_headers(apr_pool_t *pool, const request_rec *r,
+    msconnector_header **headers, size_t *header_count)
+{
+    size_t offset = 0U;
+    size_t capacity;
+
+    *headers = NULL;
+    *header_count = 0U;
+    if (r == NULL)
     {
-        (*headers)[i].name = te[i].key;
-        (*headers)[i].name_size = te[i].key != NULL ? strlen(te[i].key) : 0U;
-        (*headers)[i].value = te[i].val;
-        (*headers)[i].value_size = te[i].val != NULL ? strlen(te[i].val) : 0U;
+        return 0;
     }
-    *header_count = (size_t)arr->nelts;
+
+    capacity = apr_header_count(r->headers_out)
+        + apr_header_count(r->err_headers_out) + 1U;
+    if (capacity == 0U)
+    {
+        return 1;
+    }
+
+    *headers = apr_pcalloc(pool, sizeof(msconnector_header) * capacity);
+    if (*headers == NULL)
+    {
+        return 0;
+    }
+
+    copy_apr_header_table(r->err_headers_out, *headers, &offset);
+    copy_apr_header_table(r->headers_out, *headers, &offset);
+    *header_count = offset;
+
+    if (r->content_type != NULL && r->content_type[0] != '\0'
+        && msconnector_headers_find(*headers, *header_count,
+            "Content-Type") == NULL)
+    {
+        (*headers)[offset].name = "Content-Type";
+        (*headers)[offset].name_size = strlen("Content-Type");
+        (*headers)[offset].value = r->content_type;
+        (*headers)[offset].value_size = strlen(r->content_type);
+        offset++;
+        *header_count = offset;
+    }
+
     return 1;
 }
 
@@ -115,7 +186,7 @@ int msc_apache_map_response(request_rec *r,
         return 0;
     }
 
-    if (!copy_apr_headers(r->pool, r->headers_out, &headers, &header_count))
+    if (!copy_apr_response_headers(r->pool, r, &headers, &header_count))
     {
         return 0;
     }

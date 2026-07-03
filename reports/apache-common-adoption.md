@@ -41,3 +41,20 @@ Apache/Common-adoption compile compatibility is checked by
 
 This is compile/structure evidence for the Apache/Common adoption layer only. It
 is not production, CRS, full-matrix, or runtime verification evidence.
+
+## Review follow-up fixes
+
+- Apache APXS build path now appends the Common SDK source list used by the
+  Apache adoption layer, so non-inline `msconnector_*` calls are built into the
+  module rather than left as unresolved symbols.
+- Directory merge now keeps a child static `modsecurity_transaction_id` ahead of
+  any parent compiled `modsecurity_transaction_id_expr`; only a child expression
+  or the absence of a merged static ID can inherit an expression pointer.
+- `make lint` uses `check-apache-c17-lint`, which treats Apache C17
+  `BLOCKED`/exit-77 header discovery as a lint skip while preserving
+  `make check-apache-c17` as the hard compile check.
+- Phase-4 intervention events set a non-OK Common status and record body
+  truncation with metadata separate from JSON serialization truncation.
+- The Apache response mapper includes `err_headers_out`, `headers_out`, and a
+  synthetic `Content-Type` from `request_rec.content_type` only when no
+  Content-Type header is already mapped.

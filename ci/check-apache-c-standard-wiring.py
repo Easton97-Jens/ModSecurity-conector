@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check Makefile and script wiring for Apache C-standard smoke checks."""
 from pathlib import Path
+import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,7 @@ else:
 make_text = MAKEFILE.read_text(encoding="utf-8")
 for target in (
     "check-apache-c17",
+    "check-apache-c17-lint",
     "check-apache-c23",
     "check-apache-future-c",
     "check-apache-c-standards",
@@ -38,11 +40,12 @@ for target in (
     else:
         fail(f"Makefile contains {target}")
 
-lint_block = make_text.split("lint:", 1)[1].split("\n\n", 1)[0] if "lint:" in make_text else ""
-if "$(MAKE) check-apache-c17" in lint_block:
-    pass_("lint invokes check-apache-c17")
+lint_match = re.search(r"^lint:.*?(?=^\S|\Z)", make_text, re.MULTILINE | re.DOTALL)
+lint_block = lint_match.group(0) if lint_match is not None else ""
+if "$(MAKE) check-apache-c17-lint" in lint_block:
+    pass_("lint invokes check-apache-c17-lint")
 else:
-    fail("lint invokes check-apache-c17")
+    fail("lint invokes check-apache-c17-lint")
 
 if "-Wno-error" in script_text:
     fail("Apache C standards check must not use -Wno-error")

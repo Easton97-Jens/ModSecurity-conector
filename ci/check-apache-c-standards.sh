@@ -87,12 +87,17 @@ common/src/dos_guard.c
 common/src/error.c
 common/src/status.c
 common/src/body_policy.c
+common/src/block_statuses.c
+common/src/http_status.c
+common/src/transaction_state.c
+common/src/limits.c
 common/src/crs.c
 "
 SOURCES="$APACHE_SOURCES $COMMON_SOURCES"
 
 object_name() {
-    echo "$1" | sed 's#[/.]#_#g'
+    path=$1
+    echo "$path" | sed 's#[/.]#_#g'
 }
 
 compile_profile() {

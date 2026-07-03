@@ -67,3 +67,11 @@ they consume as objects through APXS/APR include discovery. Missing APXS or
 Apache/APR/libmodsecurity headers is a `BLOCKED` condition with exit code `77`.
 This remains compile/structure evidence only and does not change Apache runtime,
 production, CRS, or full-matrix claims.
+
+## Review-fix boundaries
+
+The response mapper now mirrors Apache response metadata from `err_headers_out`,
+`headers_out`, and `content_type` into the Common response model without merging
+multi-value headers or adding body payloads. Phase-4 intervention events use a
+non-OK Common status and keep body truncation as metadata separate from JSON
+writer truncation. These fixes do not expand runtime claims.

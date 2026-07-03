@@ -33,12 +33,17 @@ checks.append(("int msc_apache_map_request" in mapper_h + mapper_c and "request_
 checks.append(("msconnector_request_mapper_contract" in mapper_h + mapper_c and "msconnector_request_mapper_validate_output" in mapper_c, "Request mapper uses Common contract validation"))
 checks.append(("int msc_apache_map_response" in mapper_h + mapper_c and "msconnector_response_mapper_contract" in mapper_h + mapper_c, "Apache response mapper is present"))
 checks.append(("msconnector_response_mapper_validate_output" in mapper_c, "Response mapper uses Common contract validation"))
+checks.append(("copy_apr_response_headers" in mapper_c and "err_headers_out" in mapper_c and "r->content_type" in mapper_c, "Response mapper includes err_headers_out and synthesized Content-Type"))
 checks.append(("msconnector_headers_host" in mapper_c, "Apache mapper uses Common header helper"))
 checks.append(("msconnector_event_write_jsonl_line" in filters_c and "msconnector_event_init" in filters_c, "Apache event JSONL uses Common event primitives"))
+checks.append(("event.decision.status = MSCONNECTOR_STATUS_BLOCKED" in filters_c, "Phase4 intervention events set a non-OK status"))
+checks.append(("body_truncated" in filters_c and "json_truncated" in filters_c and "event.flags.truncated = msr->body_truncated" not in filters_c, "Response body truncation is separate from JSON serialization truncation"))
 checks.append(("msconnector_rule_id_extract_from_message" in filters_c, "Apache rule-id extraction uses Common helper"))
 checks.append(("apache_json_escape" not in apache_text, "Duplicate Apache JSON escape helper is removed"))
 checks.append(("apache_phase4_rule_id" not in apache_text, "Duplicate Apache rule-id helper is removed"))
 checks.append(("char *end = NULL" not in config_c and "strtoul" not in config_c, "Duplicate Apache size parser is removed"))
+checks.append(("else if (cnf_new->common_config.transaction_id != NULL)" in config_c and "cnf_new->transaction_id_expr = NULL" in config_c, "Child static transaction IDs override parent expressions"))
+checks.append(("MSCONNECTOR_COMMON_SOURCES" in (ROOT / "connectors/apache/build/apxs-wrapper.in").read_text(encoding="utf-8") and "common/src" in (ROOT / "connectors/apache/build/apxs-wrapper.in").read_text(encoding="utf-8"), "Apache APXS wrapper links Common SDK sources"))
 for field in ["msc_state", "use_error_log;", "const char *transaction_id;", "int phase4_mode;", "const char *phase4_log_path;", "apr_size_t phase4_body_limit;"]:
     checks.append((field not in config_h, f"Duplicate config field removed: {field}"))
 

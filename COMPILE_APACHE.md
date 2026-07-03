@@ -184,3 +184,9 @@ headers. If those build headers are unavailable, the check reports `BLOCKED`
 and exits with code `77`. This is compile/structure evidence for the
 Apache/Common adoption boundary only; it is not production, CRS, full-matrix, or
 runtime verification evidence.
+
+The APXS wrapper also appends the Common SDK source files needed by the Apache
+adoption layer to avoid unresolved `msconnector_*` symbols during module builds.
+`make lint` calls `check-apache-c17-lint`, which skips only when the Apache C17
+compile is `BLOCKED` with exit code `77`; direct `make check-apache-c17` remains
+hard-fail/hard-pass.

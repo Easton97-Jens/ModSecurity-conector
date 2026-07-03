@@ -61,3 +61,12 @@ not link libmodsecurity or start httpd. Missing APXS or Apache/APR/
 libmodsecurity headers are reported as `BLOCKED` with exit code `77`. This is
 compile/structure evidence only and does not claim production readiness, CRS
 coverage, full-matrix coverage, or runtime verification.
+
+## APXS Common SDK object inclusion
+
+The APXS wrapper appends the Common SDK C sources required by the Apache
+adoption layer to the module compile command. This keeps the build path
+Apache-owned while ensuring calls such as Common config merge/validation,
+mapper-contract validation, event JSONL writing, rule-id extraction, resource
+limits, and HTTP-status helpers are compiled into the Apache module. The wrapper
+continues to add `common/include` and does not add Apache types to Common.
