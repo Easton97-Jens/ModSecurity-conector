@@ -646,7 +646,7 @@ check-apache-c17:
 	APACHE_C_STD_PROFILE=c17 sh ci/check-apache-c-standards.sh
 
 check-apache-c17-lint:
-	@$(MAKE) check-apache-c17 || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
+	@APACHE_C_STD_PROFILE=c17 sh ci/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
 
 check-apache-c23:
 	APACHE_C_STD_PROFILE=c23 sh ci/check-apache-c-standards.sh

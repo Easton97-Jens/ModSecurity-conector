@@ -229,13 +229,20 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     event.decision.reason = reason;
     event.http.http_status = msr->last_intervention_status;
     event.http.original_http_status = r->status;
-    event.http.visible_http_status = r->status;
+    if (strcmp(reason, "buffered_before_commit") == 0)
+    {
+        event.http.visible_http_status = msr->last_intervention_status;
+    }
+    else
+    {
+        event.http.visible_http_status = r->status;
+    }
     event.request.method = r->method;
     event.request.uri = r->unparsed_uri;
-    event.flags.late_intervention = 1;
+    event.flags.late_intervention = msr->response_committed;
     event.flags.response_started = msr->response_committed;
-    event.flags.headers_sent = msr->response_headers_seen;
-    event.flags.body_started = msr->response_body_seen;
+    event.flags.headers_sent = msr->response_committed;
+    event.flags.body_started = msr->response_committed;
     event.flags.connection_aborted = msr->phase4_strict_abort;
     event.flags.body_truncated = msr->response_body_truncated;
 
@@ -254,6 +261,10 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
     }
     else
     {
+        apr_file_puts(
+            "{\"event\":\"phase4_intervention\",\"phase\":\"response_body\","
+            "\"status\":\"error\",\"reason\":\"event serialization failed\"}\n",
+            file);
         ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
             "ModSecurity: failed to serialize common phase4 event");
     }
