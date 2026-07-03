@@ -82,7 +82,15 @@ int msc_apache_map_request(request_rec *r,
     out->client.port = r->connection->remote_addr != NULL ? r->connection->remote_addr->port : 0;
 #else
     out->client.address = r->useragent_ip != NULL ? r->useragent_ip : r->connection->client_ip;
-    out->client.port = r->useragent_addr != NULL ? r->useragent_addr->port : (r->connection->client_addr != NULL ? r->connection->client_addr->port : 0);
+    out->client.port = 0;
+    if (r->useragent_addr != NULL)
+    {
+        out->client.port = r->useragent_addr->port;
+    }
+    else if (r->connection->client_addr != NULL)
+    {
+        out->client.port = r->connection->client_addr->port;
+    }
 #endif
     out->server.address = r->server != NULL ? r->server->server_hostname : NULL;
     out->server.port = r->server != NULL ? (int)r->server->port : 0;
