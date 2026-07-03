@@ -21,6 +21,10 @@
 #include "ddebug.h"
 
 #include "ngx_http_modsecurity_common.h"
+#include "msconnector/config.h"
+#include "msconnector/config_parser.h"
+#include "msconnector/directive_adapter.h"
+#include "msconnector/directive_spec.h"
 #include "msconnector/directives.h"
 #include "msconnector/options.h"
 #include "stdio.h"
@@ -45,6 +49,7 @@ static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *c
 static char *ngx_http_modsecurity_phase4_set_default_content_types(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf);
 static char *ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf, ngx_str_t *path);
 static ngx_int_t ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len);
+static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 /*
  * PCRE malloc/free workaround, based on
@@ -188,7 +193,7 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
     }
 
     // logging to nginx error log can be disable by setting `modsecurity_use_error_log` to off
-    if (mcf->use_error_log) {
+    if (mcf->common_config.use_error_log == MSCONNECTOR_BOOL_ON) {
         log = intervention.log;
         if (intervention.log == NULL) {
           log = "(no log message was specified)";
@@ -496,6 +501,10 @@ char *ngx_conf_set_transaction_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
     }
 
     *mcf->transaction_id = cv;
+    mcf->common_config.transaction_id_expr = ngx_str_to_char(value[1], cf->pool);
+    if (mcf->common_config.transaction_id_expr == (char *)-1) {
+        return NGX_CONF_ERROR;
+    }
 
     return NGX_CONF_OK;
 }
@@ -505,10 +514,16 @@ ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_modsecurity_conf_t *mcf = conf;
     ngx_str_t *value = cf->args->elts;
-    if (ngx_strcmp(value[1].data, "minimal") == 0) mcf->phase4_mode = NGX_HTTP_MODSEC_PHASE4_MODE_MINIMAL;
-    else if (ngx_strcmp(value[1].data, "safe") == 0) mcf->phase4_mode = NGX_HTTP_MODSEC_PHASE4_MODE_SAFE;
-    else if (ngx_strcmp(value[1].data, "strict") == 0) mcf->phase4_mode = NGX_HTTP_MODSEC_PHASE4_MODE_STRICT;
-    else return "invalid value for modsecurity_phase4_mode (expected minimal|safe|strict)";
+    char *mode = ngx_str_to_char(value[1], cf->pool);
+    enum msconnector_phase4_mode parsed;
+    if (mode == (char *)-1 || mode == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    if (!msconnector_parse_phase4_mode(mode, &parsed)) {
+        return "invalid value for modsecurity_phase4_mode (expected minimal|safe|strict)";
+    }
+    mcf->common_config.phase4_mode = parsed;
+    mcf->phase4_mode = (ngx_uint_t) parsed;
     return NGX_CONF_OK;
 }
 
@@ -518,6 +533,10 @@ ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void 
     ngx_http_modsecurity_conf_t *mcf = conf;
     ngx_str_t *value = cf->args->elts;
     mcf->phase4_content_types_file = value[1];
+    mcf->common_config.phase4_content_types_file = ngx_str_to_char(value[1], cf->pool);
+    if (mcf->common_config.phase4_content_types_file == (char *)-1) {
+        return NGX_CONF_ERROR;
+    }
     return ngx_http_modsecurity_phase4_load_content_types_file(cf, mcf, &value[1]);
 }
 
@@ -527,6 +546,10 @@ ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_http_modsecurity_conf_t *mcf = conf;
     ngx_str_t *value = cf->args->elts;
     mcf->phase4_log_path = value[1];
+    mcf->common_config.phase4_log_path = ngx_str_to_char(value[1], cf->pool);
+    if (mcf->common_config.phase4_log_path == (char *)-1) {
+        return NGX_CONF_ERROR;
+    }
     mcf->phase4_log_file = ngx_conf_open_file(cf->cycle, &mcf->phase4_log_path);
     if (mcf->phase4_log_file == NULL) {
         return NGX_CONF_ERROR;
@@ -539,17 +562,13 @@ ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len)
 {
     size_t i;
     size_t slash = (size_t)-1;
-    if (len == 0 || ngx_strchr(s, '*') != NULL) return NGX_ERROR;
-    for (i = 0; i < len; i++) {
-        u_char c = s[i];
-        if (c == '/') {
-            if (slash != (size_t)-1 || i == 0 || i + 1 >= len) return NGX_ERROR;
-            slash = i;
-            continue;
-        }
-        if (!(isalnum((unsigned char)c) || c == '-' || c == '.' || c == '_' || c == '+')) return NGX_ERROR;
-    }
-    return (slash != (size_t)-1) ? NGX_OK : NGX_ERROR;
+    char token[256];
+    (void)i;
+    (void)slash;
+    if (len == 0 || len >= sizeof(token)) return NGX_ERROR;
+    ngx_memcpy(token, s, len);
+    token[len] = '\0';
+    return msconnector_validate_content_type_token(token) ? NGX_OK : NGX_ERROR;
 }
 
 static char *
@@ -684,11 +703,38 @@ ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_mod
 }
 
 
+static char *
+ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_modsecurity_conf_t *mcf = conf;
+    ngx_str_t *value = cf->args->elts;
+    char *flag = ngx_str_to_char(value[1], cf->pool);
+    enum msconnector_bool_option parsed;
+    char *rc;
+
+    if (flag == (char *)-1 || flag == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    if (!msconnector_parse_bool(flag, &parsed)) {
+        return "invalid boolean value";
+    }
+    rc = ngx_conf_set_flag_slot(cf, cmd, conf);
+    if (rc != NGX_CONF_OK) {
+        return rc;
+    }
+    if (cmd->offset == offsetof(ngx_http_modsecurity_conf_t, enable)) {
+        mcf->common_config.enable = parsed;
+    } else if (cmd->offset == offsetof(ngx_http_modsecurity_conf_t, use_error_log)) {
+        mcf->common_config.use_error_log = parsed;
+    }
+    return NGX_CONF_OK;
+}
+
 static ngx_command_t ngx_http_modsecurity_commands[] =  {
   {
     ngx_string(MSCONNECTOR_DIRECTIVE_MODSECURITY),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
-    ngx_conf_set_flag_slot,
+    ngx_conf_set_common_flag_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
     offsetof(ngx_http_modsecurity_conf_t, enable),
     NULL
@@ -752,7 +798,7 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
   {
     ngx_string(MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
-    ngx_conf_set_flag_slot,
+    ngx_conf_set_common_flag_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
     offsetof(ngx_http_modsecurity_conf_t, use_error_log),
     NULL
@@ -951,6 +997,7 @@ ngx_http_modsecurity_create_conf(ngx_conf_t *cf)
      *     conf->transaction_id = NULL;
      */
 
+    msconnector_config_init(&conf->common_config);
     conf->enable = NGX_CONF_UNSET;
     conf->rules_set = msc_create_rules_set();
     conf->pool = cf->pool;
@@ -1000,10 +1047,18 @@ ngx_http_modsecurity_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     dd("                  state - parent: '%d' child: '%d'",
         (int) c->enable, (int) p->enable);
 
-    ngx_conf_merge_value(c->enable, p->enable, MSCONNECTOR_DEFAULT_ENABLE);
+    if (!msconnector_config_merge(&c->common_config, &p->common_config, &c->common_config)) {
+        return "invalid common ModSecurity configuration";
+    }
+    msconnector_config_apply_defaults(&c->common_config);
+    if (!msconnector_config_validate(&c->common_config, NULL, 0)) {
+        return "invalid common ModSecurity configuration";
+    }
+
+    ngx_conf_merge_value(c->enable, p->enable, c->common_config.enable);
     ngx_conf_merge_ptr_value(c->transaction_id, p->transaction_id, NULL);
-    ngx_conf_merge_value(c->use_error_log, p->use_error_log, MSCONNECTOR_DEFAULT_USE_ERROR_LOG);
-    ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, MSCONNECTOR_DEFAULT_PHASE4_MODE);
+    ngx_conf_merge_value(c->use_error_log, p->use_error_log, c->common_config.use_error_log);
+    ngx_conf_merge_uint_value(c->phase4_mode, p->phase4_mode, (ngx_uint_t) c->common_config.phase4_mode);
     ngx_conf_merge_ptr_value(c->phase4_log_file, p->phase4_log_file, NULL);
     ngx_conf_merge_ptr_value(c->phase4_content_types, p->phase4_content_types, NULL);
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)

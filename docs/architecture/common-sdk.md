@@ -168,3 +168,13 @@ Apache still owns Apache server APIs such as `request_rec`, `command_rec`,
 hooks, filters, APR pools, bucket brigades, APLOG, return codes, and APXS
 build glue. This is not a production, CRS, full-matrix, or runtime verification
 claim.
+
+## NGINX adoption boundary
+
+NGINX now consumes the Common SDK for shared configuration defaults/merge/validate,
+directive catalog contracts, mapper contracts, header helpers, event/limit-facing
+helpers, and compile-only C17 checks where wired. NGINX-specific APIs stay in the
+NGINX connector: `ngx_command_t`, `ngx_http_request_t`, `ngx_chain_t`,
+`ngx_buf_t`, filters, pools, return codes, and build glue. The NGINX C17 check is
+blocked with exit 77 when NGINX/libmodsecurity headers are absent; C23/future-C
+checks are optional and do not imply runtime verification.

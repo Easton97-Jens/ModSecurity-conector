@@ -58,3 +58,13 @@ Primitive. Apache behält Apache-Server-APIs wie `request_rec`, `command_rec`,
 Hooks, Filter, APR-Pools, Bucket Brigades, APLOG, Return-Codes und APXS-
 Buildlogik. Das ist keine Aussage zu Produktionsreife, CRS, Full-Matrix oder
 Runtime-Verifikation.
+
+## NGINX-Adoptionsgrenze
+
+NGINX nutzt das Common SDK jetzt für gemeinsame Config-Defaults/Merge/Validate,
+Direktiven-Kataloge, Mapper-Verträge, Header-Helfer, Event-/Limit-nahe Helfer und
+reine C17-Compile-Checks, soweit verdrahtet. NGINX-spezifische APIs bleiben im
+NGINX-Connector: `ngx_command_t`, `ngx_http_request_t`, `ngx_chain_t`,
+`ngx_buf_t`, Filter, Pools, Return-Codes und Build-Glue. Fehlende NGINX- oder
+libmodsecurity-Header blockieren den C17-Check mit Exit 77; C23/future-C sind
+optional und keine Runtime-Verifikation.

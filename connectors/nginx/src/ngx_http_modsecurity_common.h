@@ -25,6 +25,7 @@
 #include <modsecurity/modsecurity.h>
 #include <modsecurity/transaction.h>
 
+#include "msconnector/config.h"
 #include "msconnector/rule_load_stats.h"
 
 
@@ -72,10 +73,6 @@
 
 #define MODSECURITY_NGINX_WHOAMI "ModSecurity-nginx v" \
     MODSECURITY_NGINX_VERSION
-
-#define NGX_HTTP_MODSEC_PHASE4_MODE_MINIMAL 0
-#define NGX_HTTP_MODSEC_PHASE4_MODE_SAFE 1
-#define NGX_HTTP_MODSEC_PHASE4_MODE_STRICT 2
 
 typedef struct {
     ngx_str_t name;
@@ -157,6 +154,10 @@ typedef struct {
     ngx_flag_t                 sanity_checks_enabled;
 #endif
 
+    msconnector_config        common_config;
+
+    /* NGINX-owned transitional fields: retained for ngx_conf merge/runtime glue and
+     * synchronized into common_config for connector-neutral semantics. */
     ngx_http_complex_value_t  *transaction_id;
     ngx_uint_t                 phase4_mode;
     ngx_array_t               *phase4_content_types;

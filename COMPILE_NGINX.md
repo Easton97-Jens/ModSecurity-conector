@@ -165,3 +165,14 @@ Check NGINX module ABI mismatch, missing headers, missing shared libraries, wron
 - [examples/nginx/README.md](examples/nginx/README.md)
 - `connectors/nginx/docs/build.md`
 - `connectors/nginx/docs/validation.md`
+
+## Common SDK adoption compile checks
+
+The NGINX connector now has compile-only/structure checks for its Common SDK
+adoption layer. `make check-nginx-c17` compiles adoption-relevant NGINX and
+Common objects with C17 (`-Wall -Wextra -Werror`) when local NGINX and
+libmodsecurity headers are available. `make check-nginx-c23` and
+`make check-nginx-future-c` are optional compiler capability checks. Missing
+NGINX/libmodsecurity headers are reported as `BLOCKED` with exit 77 rather than
+as runtime evidence. This is compile/structure evidence only and is not a
+production, CRS, full-matrix, or runtime verification claim.
