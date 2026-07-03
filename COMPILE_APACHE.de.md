@@ -211,3 +211,22 @@ Evidence.
 - [examples/apache/README.de.md](examples/apache/README.de.md)
 - `connectors/apache/docs/build.md`
 - `connectors/apache/docs/validation.md`
+
+## Apache-Common-Adoption-C-Standard-Smoke
+
+Die Apache-Common-Adoption-Schicht hat einen reinen Compile-Standards-Smoke:
+
+- `make check-apache-c17` ist verpflichtend und kompiliert die Apache-
+  Adoption-Dateien sowie die genutzten Common-Quellen mit
+  `-std=c17 -Wall -Wextra -Werror`.
+- `make check-apache-c23` und `make check-apache-future-c` sind optional; sie
+  nutzen `ci/detect-c-standard.py` und werden übersprungen, wenn der Compiler
+  den angeforderten C-Modus nicht unterstützt.
+- `make check-apache-c-standards` führt C17 sowie die optionalen C23-/future-C-
+  Profile aus.
+
+Der Check benötigt APXS (`apxs` oder `apxs2`) und Apache-/APR-/libmodsecurity-
+Header. Wenn diese Build-Header fehlen, meldet der Check `BLOCKED` und beendet
+sich mit Exit-Code `77`. Das ist nur Compile-/Structure-Evidence für die
+Apache/Common-Adoption-Grenze; es ist keine Produktions-, CRS-, Full-Matrix-
+oder Runtime-Verifikation.

@@ -11,6 +11,18 @@
  */
 msc_global *msc_apache;
 
+static apr_status_t msc_module_cleanup(void *data);
+static int hook_connection_early(conn_rec *conn);
+static int msc_hook_pre_config(apr_pool_t *mp, apr_pool_t *mp_log,
+    apr_pool_t *mp_temp);
+static int msc_hook_post_config(apr_pool_t *mp, apr_pool_t *mp_log,
+    apr_pool_t *mp_temp, server_rec *s);
+static int hook_request_late(request_rec *r);
+static int hook_request_early(request_rec *r);
+static int hook_log_transaction(request_rec *r);
+static void hook_insert_filter(request_rec *r);
+static int process_request_headers(request_rec *r, msc_t *msr);
+
 
 void modsecurity_log_cb(void *log, const void* data)
 {

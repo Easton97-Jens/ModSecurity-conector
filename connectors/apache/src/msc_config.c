@@ -115,6 +115,7 @@ static const char *msc_config_modsec_state(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    (void)cmd;
     (void)apache_directive_adapter(MSCONNECTOR_DIRECTIVE_MODSECURITY);
 
     if (!msconnector_parse_bool(p1, &cnf->common_config.enable))
@@ -130,6 +131,7 @@ static const char *msc_config_load_rules(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    (void)cmd;
     const char *error = NULL;
     int ret;
 
@@ -151,6 +153,7 @@ static const char *msc_config_load_rules_file(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    (void)cmd;
     const char *error = NULL;
     int ret;
 
@@ -172,6 +175,7 @@ static const char *msc_config_load_rules_remote(cmd_parms *cmd, void *_cnf,
     const char *p1, const char *p2)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    (void)cmd;
     const char *error = NULL;
     int ret;
 
@@ -244,6 +248,7 @@ static const char *msc_config_use_error_log(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    (void)cmd;
     enum msconnector_bool_option parsed;
 
     if (!msconnector_parse_bool(p1, &parsed))
@@ -260,6 +265,7 @@ static const char *msc_config_phase4_mode(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    (void)cmd;
     enum msconnector_phase4_mode parsed;
 
     if (!msconnector_parse_phase4_mode(p1, &parsed))
@@ -361,6 +367,7 @@ static const char *msc_config_phase4_body_limit(cmd_parms *cmd, void *_cnf,
     const char *p1)
 {
     msc_conf_t *cnf = (msc_conf_t *) _cnf;
+    (void)cmd;
     size_t value;
 
     if (!msconnector_parse_size(p1, &value) || value == 0U)

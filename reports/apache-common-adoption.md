@@ -25,3 +25,19 @@ This report records the pre-change duplicate scan and the resulting Apache/Commo
 | Phase-4 event JSON string formatting | `msconnector_event` and `msconnector_event_write_jsonl_line` | replaced | Common owns metadata-only event JSONL shape; no body payload is written. |
 | APR pools, bucket brigades, filters, hooks, APLOG, return codes | none | kept because Apache-specific | These are host server integration primitives and must not enter Common. |
 | libmodsecurity `RulesSet` loading calls | `msconnector_rule_load_stats` | kept as thin adapter | Native rule loading is Apache/libmodsecurity integration; stats use Common structures. |
+
+## C standard smoke coverage
+
+Apache/Common-adoption compile compatibility is checked by
+`ci/check-apache-c-standards.sh` and the Makefile targets
+`check-apache-c17`, `check-apache-c23`, `check-apache-future-c`, and
+`check-apache-c-standards`.
+
+- C17 is mandatory and uses `-std=c17 -Wall -Wextra -Werror`.
+- C23 and future-C are optional and skip when `ci/detect-c-standard.py` reports
+  that the compiler lacks the requested mode.
+- Missing APXS or Apache/APR/libmodsecurity headers is reported as `BLOCKED`
+  with exit code `77`.
+
+This is compile/structure evidence for the Apache/Common adoption layer only. It
+is not production, CRS, full-matrix, or runtime verification evidence.

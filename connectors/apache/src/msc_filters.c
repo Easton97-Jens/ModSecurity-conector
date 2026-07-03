@@ -46,7 +46,6 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
         apr_bucket *pbktOut;
         const char *data;
         apr_size_t len;
-        apr_size_t n;
         int it;
 
         if (APR_BUCKET_IS_EOS(pbktIn))
@@ -62,7 +61,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
             return ret;
         }
 
-        msc_append_request_body(msr->t, data, len);
+        msc_append_request_body(msr->t, (const unsigned char *)data, len);
         it = process_intervention(msr->t, r);
         if (it != N_INTERVENTION_STATUS)
         {
@@ -79,20 +78,6 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
     }
     return APR_SUCCESS;
 }
-
-static const char *apache_phase4_mode_name(int mode)
-{
-    if (mode == MSCONNECTOR_PHASE4_MODE_MINIMAL)
-    {
-        return "minimal";
-    }
-    if (mode == MSCONNECTOR_PHASE4_MODE_STRICT)
-    {
-        return "strict";
-    }
-    return "safe";
-}
-
 
 static const char *apache_response_content_type(request_rec *r)
 {
@@ -304,7 +289,7 @@ static apr_status_t apache_phase4_buffer_bucket(ap_filter_t *f,
         if (remaining > 0)
         {
             apr_size_t inspect_len = len < remaining ? len : remaining;
-            msc_append_response_body(msr->t, data, inspect_len);
+            msc_append_response_body(msr->t, (const unsigned char *)data, inspect_len);
             msr->response_body_bytes_inspected += inspect_len;
         }
         if (len > remaining)
@@ -379,7 +364,8 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         {
             const char *key = te[i].key;
             const char *val = te[i].val;
-            msc_add_response_header(msr->t, key, val);
+            msc_add_response_header(msr->t, (const unsigned char *)key,
+                (const unsigned char *)val);
         }
 
         arr = apr_table_elts(r->headers_out);
@@ -388,13 +374,16 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in)
         {
             const char *key = te[i].key;
             const char *val = te[i].val;
-            msc_add_response_header(msr->t, key, val);
+            msc_add_response_header(msr->t, (const unsigned char *)key,
+                (const unsigned char *)val);
         }
 
         content_type = apache_response_content_type(r);
         if (content_type != NULL && content_type[0] != '\0')
         {
-            msc_add_response_header(msr->t, "Content-Type", content_type);
+            msc_add_response_header(msr->t,
+                (const unsigned char *)"Content-Type",
+                (const unsigned char *)content_type);
         }
         msc_process_response_headers(msr->t, r->status, "HTTP 1.1");
         msr->response_headers_seen = 1;
