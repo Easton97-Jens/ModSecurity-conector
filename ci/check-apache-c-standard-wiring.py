@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Check Makefile and script wiring for Apache C-standard smoke checks."""
 from pathlib import Path
-import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,13 +9,36 @@ SCRIPT = ROOT / "ci/check-apache-c-standards.sh"
 
 ok = True
 
+
 def fail(message: str) -> None:
     global ok
     print(f"FAIL: {message}")
     ok = False
 
+
 def pass_(message: str) -> None:
     print(f"PASS: {message}")
+
+
+def makefile_has_target(text: str, target: str) -> bool:
+    prefix = f"{target}:"
+    return any(line.startswith(prefix) for line in text.splitlines())
+
+
+def makefile_target_body(text: str, target: str) -> list[str]:
+    lines = text.splitlines()
+    body: list[str] = []
+    in_target = False
+    for line in lines:
+        if line.startswith(f"{target}:"):
+            in_target = True
+            continue
+        if in_target and line and not line.startswith("\t") and not line.startswith(" "):
+            break
+        if in_target:
+            body.append(line)
+    return body
+
 
 if not SCRIPT.exists():
     fail("ci/check-apache-c-standards.sh exists")
@@ -35,14 +57,13 @@ for target in (
     "check-apache-c20",
     "check-apache-c26",
 ):
-    if f"{target}:" in make_text:
+    if makefile_has_target(make_text, target):
         pass_(f"Makefile contains {target}")
     else:
         fail(f"Makefile contains {target}")
 
-lint_match = re.search(r"^lint:.*?(?=^\S|\Z)", make_text, re.MULTILINE | re.DOTALL)
-lint_block = lint_match.group(0) if lint_match is not None else ""
-if "$(MAKE) check-apache-c17-lint" in lint_block:
+lint_body = makefile_target_body(make_text, "lint")
+if any("$(MAKE) check-apache-c17-lint" in line for line in lint_body):
     pass_("lint invokes check-apache-c17-lint")
 else:
     fail("lint invokes check-apache-c17-lint")

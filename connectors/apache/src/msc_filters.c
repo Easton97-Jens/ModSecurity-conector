@@ -218,7 +218,7 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
         rule_id, sizeof(rule_id));
 
     msconnector_event_init(&event);
-    event.meta.event = MSCONN_EVENT_PHASE4_LATE_INTERVENTION;
+    event.meta.event = "phase4_intervention";
     event.meta.connector = MSC_APACHE_CONNECTOR;
     event.decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
     event.decision.status = MSCONNECTOR_STATUS_BLOCKED;
@@ -243,6 +243,14 @@ static void apache_phase4_log_event(msc_t *msr, request_rec *r,
         &json_truncated))
     {
         apr_file_puts(line, file);
+    }
+    else if (json_truncated)
+    {
+        apr_file_puts(
+            "{\"event\":\"phase4_intervention\",\"phase\":\"response_body\","
+            "\"status\":\"blocked\",\"reason\":\"event serialization truncated\","
+            "\"truncated\":true}\n",
+            file);
     }
     else
     {

@@ -37,6 +37,8 @@ checks.append(("copy_apr_response_headers" in mapper_c and "err_headers_out" in 
 checks.append(("msconnector_headers_host" in mapper_c, "Apache mapper uses Common header helper"))
 checks.append(("msconnector_event_write_jsonl_line" in filters_c and "msconnector_event_init" in filters_c, "Apache event JSONL uses Common event primitives"))
 checks.append(("event.decision.status = MSCONNECTOR_STATUS_BLOCKED" in filters_c, "Phase4 intervention events set a non-OK status"))
+checks.append(("event.meta.event = \"phase4_intervention\"" in filters_c, "Phase4 event key remains report-compatible"))
+checks.append(("event serialization truncated" in filters_c and "apr_file_puts" in filters_c, "Truncated Phase4 events use a bounded fallback line"))
 checks.append(("body_truncated" in filters_c and "json_truncated" in filters_c and "event.flags.truncated = msr->body_truncated" not in filters_c, "Response body truncation is separate from JSON serialization truncation"))
 checks.append(("msconnector_rule_id_extract_from_message" in filters_c, "Apache rule-id extraction uses Common helper"))
 checks.append(("apache_json_escape" not in apache_text, "Duplicate Apache JSON escape helper is removed"))
