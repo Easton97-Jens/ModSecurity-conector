@@ -22,6 +22,7 @@
 #include "ddebug.h"
 
 #include "ngx_http_modsecurity_common.h"
+#include "ngx_http_modsecurity_mapper.h"
 #include "msconnector/json_escape.h"
 #include "msconnector/log_sanitize.h"
 #include "msconnector/rule_id.h"
@@ -71,6 +72,20 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
     if (ctx->intervention_triggered) {
         return ngx_http_next_body_filter(r, in);
+    }
+
+    {
+        msconnector_response_mapper_contract contract;
+        msconnector_response mapped_response;
+        char mapper_error[128];
+
+        msconnector_response_mapper_contract_init(&contract);
+        if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
+                &mapped_response, mapper_error, sizeof(mapper_error))) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "modsecurity response-body mapper validation failed: %s", mapper_error);
+            return NGX_ERROR;
+        }
     }
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)

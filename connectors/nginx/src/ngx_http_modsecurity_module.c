@@ -49,6 +49,8 @@ static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *c
 static char *ngx_http_modsecurity_phase4_set_default_content_types(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf);
 static char *ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf, ngx_str_t *path);
 static ngx_int_t ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len);
+static ngx_int_t ngx_http_modsecurity_is_mime_char(unsigned char c);
+static ngx_int_t ngx_http_modsecurity_validate_strict_mime_token(const char *token);
 static char *ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 /*
@@ -372,6 +374,7 @@ ngx_http_modsecurity_get_module_ctx(ngx_http_request_t *r)
 char *
 ngx_conf_set_rules(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    (void)cmd;
     int                                res;
     char                              *rules;
     ngx_str_t                         *value;
@@ -406,6 +409,7 @@ ngx_conf_set_rules(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 char *
 ngx_conf_set_rules_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    (void)cmd;
     int                                res;
     char                              *rules_set;
     ngx_str_t                         *value;
@@ -440,6 +444,7 @@ ngx_conf_set_rules_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 char *
 ngx_conf_set_rules_remote(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    (void)cmd;
     int                                res;
     ngx_str_t                         *value;
     const char                        *error;
@@ -477,6 +482,7 @@ ngx_conf_set_rules_remote(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
 char *ngx_conf_set_transaction_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
+    (void)cmd;
     ngx_str_t                         *value;
     ngx_http_complex_value_t           cv;
     ngx_http_compile_complex_value_t   ccv;
@@ -512,6 +518,7 @@ char *ngx_conf_set_transaction_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
 static char *
 ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    (void)cmd;
     ngx_http_modsecurity_conf_t *mcf = conf;
     ngx_str_t *value = cf->args->elts;
     char *mode = ngx_str_to_char(value[1], cf->pool);
@@ -530,6 +537,7 @@ ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *
 ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    (void)cmd;
     ngx_http_modsecurity_conf_t *mcf = conf;
     ngx_str_t *value = cf->args->elts;
     mcf->phase4_content_types_file = value[1];
@@ -543,6 +551,7 @@ ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void 
 static char *
 ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    (void)cmd;
     ngx_http_modsecurity_conf_t *mcf = conf;
     ngx_str_t *value = cf->args->elts;
     mcf->phase4_log_path = value[1];
@@ -558,20 +567,57 @@ ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 static ngx_int_t
+ngx_http_modsecurity_is_mime_char(unsigned char c)
+{
+    return ((c >= 'a' && c <= 'z') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') ||
+            c == '-' || c == '.' || c == '_' || c == '+') ? NGX_OK : NGX_ERROR;
+}
+
+static ngx_int_t
+ngx_http_modsecurity_validate_strict_mime_token(const char *token)
+{
+    size_t index;
+    size_t slash = (size_t)-1;
+
+    if (token == NULL || token[0] == '\0') {
+        return NGX_ERROR;
+    }
+
+    for (index = 0; token[index] != '\0'; index++) {
+        unsigned char c = (unsigned char) token[index];
+        if (c == '/') {
+            if (slash != (size_t)-1 || index == 0) {
+                return NGX_ERROR;
+            }
+            slash = index;
+            continue;
+        }
+        if (c == '*' || ngx_http_modsecurity_is_mime_char(c) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    }
+
+    if (slash == (size_t)-1 || token[slash + 1] == '\0') {
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+static ngx_int_t
 ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len)
 {
-    size_t i;
-    size_t slash = (size_t)-1;
     char token[256];
-    (void)i;
-    (void)slash;
+
     if (len == 0 || len >= sizeof(token)) return NGX_ERROR;
     ngx_memcpy(token, s, len);
     token[len] = '\0';
-    if (ngx_strchr(token, '*') != NULL) {
+    if (!msconnector_validate_content_type_token(token)) {
         return NGX_ERROR;
     }
-    return msconnector_validate_content_type_token(token) ? NGX_OK : NGX_ERROR;
+    return ngx_http_modsecurity_validate_strict_mime_token(token);
 }
 
 static char *
