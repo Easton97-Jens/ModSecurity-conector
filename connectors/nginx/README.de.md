@@ -13,3 +13,5 @@ Die C17-Prüfung ist hart, benötigt aber lokale NGINX- und libmodsecurity-Heade
 fehlen diese Header, meldet der Check `BLOCKED` mit Exit 77. C23/future-C sind
 optionale Compiler-Smokes. Diese Checks sind keine Production-, CRS-,
 Full-Matrix- oder Runtime-Verifikation.
+
+NGINX-Common-SDK-Modul-Builds mit kopiertem Connector-Quellbaum müssen `MSCONNECTOR_COMMON_SRC` (oder `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) auf den Common-Source-Root des Repositories setzen; `MSCONNECTOR_COMMON_INC` bleibt der Common-Include-Root. Ohne diese Variable wird nur auf `$ngx_addon_dir/../../common/src` zurückgefallen, wenn dieser Pfad existiert.

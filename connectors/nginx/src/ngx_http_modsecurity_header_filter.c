@@ -458,6 +458,7 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
             return ngx_http_filter_finalize_request(r,
                 &ngx_http_modsecurity_module, NGX_HTTP_INTERNAL_SERVER_ERROR);
         }
+        ctx->common_response_validated = 1;
     }
 
 /* XXX: can it happen ?  already processed i mean */

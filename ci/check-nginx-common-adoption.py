@@ -30,7 +30,8 @@ checks = [
 ('ngx_http_modsecurity_pool_strndup' in mapper_c and 'out->method = ngx_http_modsecurity_pool_strndup' in mapper_c and 'out->uri = ngx_http_modsecurity_pool_strndup' in mapper_c, 'NGINX request mapper NUL-terminates request string fields'),
 ('Content-Type' in mapper_c and 'Content-Length' in mapper_c and 'msconnector_headers_find_first' in mapper_c, 'NGINX response mapper preserves synthetic special headers'),
 ('ngx_http_modsecurity_redact_intervention' in body_c and 'id:%s msg:%s operator:%s truncated:%s' in body_c, 'NGINX phase4 intervention log uses metadata-only redaction summary'),
-('common/src/event.c' in nginx_config and 'common/src/transaction_state.c' in nginx_config, 'NGINX build links transaction_state.c with event.c'),
+('MSCONNECTOR_COMMON_SRC' in nginx_config and '$MSCONNECTOR_COMMON_SRC/event.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/transaction_state.c' in nginx_config, 'NGINX build uses stable Common source root and links transaction_state.c with event.c'),
+('common_response_validated' in common_h and 'if (!ctx->common_response_validated)' in body_c and 'ctx->common_response_validated = 1' in body_c, 'NGINX response mapper validation is gated once per response in body path'),
 ]
 claims = ['production verified','runtime verified','full-matrix verified','crs verified']
 text = '\n'.join((ROOT/p).read_text(errors='ignore') for p in ['connectors/nginx/README.md','connectors/nginx/docs/architecture.md'] if (ROOT/p).exists()).lower()

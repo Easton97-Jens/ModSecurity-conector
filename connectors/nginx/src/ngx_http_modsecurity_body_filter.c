@@ -74,7 +74,7 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         return ngx_http_next_body_filter(r, in);
     }
 
-    {
+    if (!ctx->common_response_validated) {
         msconnector_response_mapper_contract contract;
         msconnector_response mapped_response;
         char mapper_error[128];
@@ -86,6 +86,7 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                 "modsecurity response-body mapper validation failed: %s", mapper_error);
             return NGX_ERROR;
         }
+        ctx->common_response_validated = 1;
     }
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)

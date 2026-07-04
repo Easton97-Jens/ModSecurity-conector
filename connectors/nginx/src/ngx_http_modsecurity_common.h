@@ -111,6 +111,7 @@ typedef struct {
     unsigned phase4_processed:1;
     unsigned phase4_intervention:1;
     unsigned phase4_strict_abort:1;
+    unsigned common_response_validated:1;
     size_t response_body_bytes_seen;
     ngx_str_t last_intervention_log;
     ngx_int_t last_intervention_status;

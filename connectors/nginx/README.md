@@ -126,3 +126,5 @@ module build glue. The C17 check is compile-only and reports `BLOCKED`/exit 77
 when NGINX or libmodsecurity headers are unavailable; optional C23/future-C
 checks depend on compiler support. No production, CRS, full-matrix, or runtime
 verification is claimed here.
+
+NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. If unset, the config only falls back to `$ngx_addon_dir/../../common/src` when that path exists.

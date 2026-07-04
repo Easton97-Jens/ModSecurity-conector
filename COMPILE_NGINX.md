@@ -176,3 +176,5 @@ libmodsecurity headers are available. `make check-nginx-c23` and
 NGINX/libmodsecurity headers are reported as `BLOCKED` with exit 77 rather than
 as runtime evidence. This is compile/structure evidence only and is not a
 production, CRS, full-matrix, or runtime verification claim.
+
+NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. If unset, the config only falls back to `$ngx_addon_dir/../../common/src` when that path exists.
