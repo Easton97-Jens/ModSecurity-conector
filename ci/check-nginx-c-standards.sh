@@ -16,10 +16,24 @@ if [ -n "$NGINX_SOURCE_DIR" ] && [ -d "$NGINX_SOURCE_DIR" ]; then
 fi
 for d in /usr/include/nginx /usr/local/include/nginx; do [ -d "$d" ] && { incs="$incs -I$d"; found_nginx=1; }; done
 [ "$found_nginx" = 1 ] || { echo "BLOCKED: nginx_c_standards missing nginx headers/source"; exit 77; }
+MODSECURITY_INCLUDE=${MODSECURITY_INCLUDE:-${MODSECURITY_INCLUDE_DIR:-${MODSECURITY_INC:-${V3INCLUDE:-}}}}
+MODSECURITY_INCLUDE_FLAG=
+MODSECURITY_INCLUDE_PATH=
+case "$MODSECURITY_INCLUDE" in
+  -I*) MODSECURITY_INCLUDE_FLAG="$MODSECURITY_INCLUDE"; MODSECURITY_INCLUDE_PATH=${MODSECURITY_INCLUDE#-I} ;;
+  "") MODSECURITY_INCLUDE_FLAG=""; MODSECURITY_INCLUDE_PATH="" ;;
+  *) MODSECURITY_INCLUDE_FLAG="-I$MODSECURITY_INCLUDE"; MODSECURITY_INCLUDE_PATH="$MODSECURITY_INCLUDE" ;;
+esac
 found_modsec=0
-for d in ${MODSECURITY_INCLUDE:-} ${V3INCLUDE:-} /usr/include /usr/local/include; do
-  [ -n "$d" ] && [ -f "$d/modsecurity/modsecurity.h" ] && { incs="$incs -I$d"; found_modsec=1; break; }
-done
+if [ -n "$MODSECURITY_INCLUDE_PATH" ] && [ -f "$MODSECURITY_INCLUDE_PATH/modsecurity/modsecurity.h" ]; then
+  incs="$incs $MODSECURITY_INCLUDE_FLAG"
+  found_modsec=1
+fi
+if [ "$found_modsec" != 1 ]; then
+  for d in /usr/include /usr/local/include; do
+    [ -f "$d/modsecurity/modsecurity.h" ] && { incs="$incs -I$d"; found_modsec=1; break; }
+  done
+fi
 [ "$found_modsec" = 1 ] || { echo "BLOCKED: nginx_c_standards missing libmodsecurity headers"; exit 77; }
 compile_profile() {
   prof=$1

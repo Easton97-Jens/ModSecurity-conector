@@ -46,6 +46,7 @@ static void ngx_http_modsecurity_cleanup_rules(void *data);
 static char *ngx_conf_set_phase4_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_content_types_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_conf_set_phase4_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static char *ngx_conf_set_phase4_body_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_http_modsecurity_phase4_set_default_content_types(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf);
 static char *ngx_http_modsecurity_phase4_load_content_types_file(ngx_conf_t *cf, ngx_http_modsecurity_conf_t *mcf, ngx_str_t *path);
 static ngx_int_t ngx_http_modsecurity_phase4_validate_content_type(u_char *s, size_t len);
@@ -779,6 +780,25 @@ ngx_conf_set_common_flag_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
+static char *
+ngx_conf_set_phase4_body_limit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    (void)cmd;
+    ngx_http_modsecurity_conf_t *mcf = conf;
+    ngx_str_t *value = cf->args->elts;
+    char *limit = ngx_str_to_char(value[1], cf->pool);
+    size_t parsed = 0U;
+
+    if (limit == (char *)-1 || limit == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    if (!msconnector_parse_size(limit, &parsed)) {
+        return "invalid value for modsecurity_phase4_body_limit";
+    }
+    mcf->common_config.phase4_body_limit = parsed;
+    return NGX_CONF_OK;
+}
+
 static ngx_command_t ngx_http_modsecurity_commands[] =  {
   {
     ngx_string(MSCONNECTOR_DIRECTIVE_MODSECURITY),
@@ -821,6 +841,14 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     NULL
   },
   {
+    ngx_string(MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR),
+    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
+    ngx_conf_set_transaction_id,
+    NGX_HTTP_LOC_CONF_OFFSET,
+    0,
+    NULL
+  },
+  {
     ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_MODE),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_phase4_mode,
@@ -840,6 +868,14 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
     ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_LOG),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
     ngx_conf_set_phase4_log,
+    NGX_HTTP_LOC_CONF_OFFSET,
+    0,
+    NULL
+  },
+  {
+    ngx_string(MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT),
+    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+    ngx_conf_set_phase4_body_limit,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
     NULL

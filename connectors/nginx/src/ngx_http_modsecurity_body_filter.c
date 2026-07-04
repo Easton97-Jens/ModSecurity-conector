@@ -24,6 +24,7 @@
 #include "ngx_http_modsecurity_common.h"
 #include "ngx_http_modsecurity_mapper.h"
 #include "msconnector/json_escape.h"
+#include "msconnector/limits.h"
 #include "msconnector/log_sanitize.h"
 #include "msconnector/rule_id.h"
 
@@ -449,8 +450,10 @@ ngx_http_modsecurity_common_json(ngx_pool_t *pool, ngx_str_t *src, ngx_str_t *ds
 static void
 ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id)
 {
-    char extracted[128];
+    char extracted[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
+    int rule_id_result;
 
+    extracted[0] = '\0';
     rule_id->data = (u_char *)"";
     rule_id->len = 0;
     if (intervention == NULL || intervention->data == NULL) {
@@ -462,7 +465,8 @@ ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_
     }
     ngx_memcpy(message, intervention->data, intervention->len);
     message[intervention->len] = '\0';
-    if (!msconnector_rule_id_extract_from_message(message, extracted, sizeof(extracted))) {
+    rule_id_result = msconnector_rule_id_extract_from_message(message, extracted, sizeof(extracted));
+    if (rule_id_result <= 0) {
         return;
     }
     rule_id->len = ngx_strlen(extracted);

@@ -20,6 +20,7 @@ if sh.exists():
  check('c23' in txt and 'c2y' in txt and 'SKIPPED' in txt and 'exit 77' in txt, 'optional C23/future-C skip behavior is present')
  check('NGINX_SOURCE_DIR=${NGINX_SOURCE_DIR:-${NGINX_SRC:-${MODSECURITY_NGINX_SOURCE_DIR:-}}}' in txt, 'script honors NGINX_SOURCE_DIR, NGINX_SRC, then MODSECURITY_NGINX_SOURCE_DIR fallback')
  check('common/src/transaction_state.c' in txt, 'script compiles transaction_state.c with event.c')
+ check('MODSECURITY_INCLUDE_DIR' in txt and 'MODSECURITY_INC' in txt and 'MODSECURITY_INCLUDE_FLAG' in txt, 'script honors MODSECURITY_INCLUDE_DIR/MODSECURITY_INC include roots and -I flags')
  cfg=(ROOT/'connectors/nginx/config').read_text()
  check('MSCONNECTOR_COMMON_SRC' in cfg and '$MSCONNECTOR_COMMON_SRC/event.c' in cfg and '$MSCONNECTOR_COMMON_SRC/transaction_state.c' in cfg, 'nginx config uses stable Common source root and keeps event/transaction_state together')
 sys.exit(0 if ok else 1)

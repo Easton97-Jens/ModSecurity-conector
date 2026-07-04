@@ -25,6 +25,8 @@ KNOWN = [
     "modsecurity_phase4_log",
     "modsecurity_phase4_body_limit",
 ]
+NGINX_DIRECTIVE_NOT_APPLICABLE: dict[str, str] = {}
+
 POLICY_FOR_TYPE = {
     "MSCONNECTOR_DIRECTIVE_VALUE_BOOL": {"MSCONNECTOR_DIRECTIVE_ARG_ONE"},
     "MSCONNECTOR_DIRECTIVE_VALUE_STRING": {"MSCONNECTOR_DIRECTIVE_ARG_ONE"},
@@ -187,6 +189,15 @@ for raw in re.findall(r'AP_INIT_[A-Z0-9_]+\(\s*"([^"]+)"', APACHE_CONFIG_C.read_
 
 nginx_text = NGINX_MODULE_C.read_text()
 nginx_directives = {macros.get(macro, macro) for macro in parse_nginx_directive_macros(nginx_text)}
+expected_nginx_directives = set(KNOWN) - set(NGINX_DIRECTIVE_NOT_APPLICABLE)
+for name in sorted(expected_nginx_directives):
+    if name not in nginx_directives:
+        print(f"nginx directive missing from registration: {name}")
+        ok = False
+for name in sorted(NGINX_DIRECTIVE_NOT_APPLICABLE):
+    if name in nginx_directives:
+        print(f"nginx directive marked not applicable but registered: {name}")
+        ok = False
 for name in sorted(nginx_directives):
     if name not in specs:
         print(f"nginx directive missing common spec: {name}")
