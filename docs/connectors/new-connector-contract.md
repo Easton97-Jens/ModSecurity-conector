@@ -47,3 +47,14 @@ coverage.
 ## HAProxy adoption note
 
 The HAProxy connector is expected to consume the Common SDK for connector-neutral semantics: configuration, directive specs/adapters, primitive parsers, mapper contracts, event JSONL, redaction, resource limits, guards, CRS setup contracts, artifact/test-result contracts, and status/error mapping. HAProxy-specific SPOE/SPOP protocol code, HAProxy cfg glue, runtime process handling, frame parsing, socket handling, and build integration remain adapter-owned. C17 compile evidence is structural only and must not be described as production, CRS, full-matrix, or runtime verification.
+
+## Starter/not_verified connector rule
+
+A starter connector may add thin adapter mappers to Common SDK request/response/config contracts, but it must keep metadata at `runtime_status=not_verified` and `verification_status=connector-gap` until runtime evidence exists. Do not log body payloads. Do not add server-specific types to `common/`. Keep host API glue, runtime lifecycle, build glue, and protocol/frame handling in the connector tree.
+
+## Generic mapper adoption
+
+Starter connectors should prefer the connector-neutral generic mapper helper when their local source can be expressed as `msconnector_generic_request_source` or `msconnector_generic_response_source`. Local files should stay thin adapters and must not duplicate Common validation, body metadata assignment, or ownership cleanup logic. This does not imply runtime verification.
+The remaining starter connectors now avoid connector-local mapper source copies by aliasing their map entry points to the connector-neutral generic mapper; this keeps validation and body metadata assignment in one Common implementation only.
+
+Generic mapper callers must pass `hostname` as a NUL-terminated string when it is set; header value slices are never exposed as C-string hostnames. Nonzero body sizes require non-NULL body data and remain metadata-only unless the caller owns safe body bytes.

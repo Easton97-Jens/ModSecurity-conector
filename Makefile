@@ -629,7 +629,29 @@ probe-response-body: check-framework prepare-runtime-components
 connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
-.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-block-status-generator
+.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator
+
+check-remaining-connectors-common-adoption:
+	$(PYTHON) ci/check-remaining-connectors-common-adoption.py
+
+check-remaining-connectors-c-standard-wiring:
+	$(PYTHON) ci/check-remaining-connectors-c-standard-wiring.py
+
+check-remaining-connectors-c-standards:
+	sh ci/check-remaining-connectors-c-standards.sh
+
+check-remaining-connectors-c17:
+	CONNECTOR_C_STD_PROFILE=c17 sh ci/check-remaining-connectors-c-standards.sh
+
+check-remaining-connectors-c17-lint:
+	@CONNECTOR_C_STD_PROFILE=c17 sh ci/check-remaining-connectors-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: remaining connector C17 check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
+
+check-remaining-connectors-c23:
+	CONNECTOR_C_STD_PROFILE=c23 sh ci/check-remaining-connectors-c-standards.sh
+
+check-remaining-connectors-future-c:
+	CONNECTOR_C_STD_PROFILE=c2y sh ci/check-remaining-connectors-c-standards.sh
+
 check-block-status-generator:
 	$(PYTHON) ci/check-block-status-generator.py
 
@@ -765,6 +787,9 @@ lint: check-framework
 	$(MAKE) check-haproxy-common-adoption
 	$(MAKE) check-haproxy-c-standard-wiring
 	$(MAKE) check-haproxy-c17-lint
+	$(MAKE) check-remaining-connectors-common-adoption
+	$(MAKE) check-remaining-connectors-c-standard-wiring
+	$(MAKE) check-remaining-connectors-c17-lint
 	$(MAKE) check-common-sdk-contract
 	$(MAKE) check-common-security-contract
 	$(MAKE) check-common-memory-safety

@@ -1,7 +1,7 @@
 {
   "connector": "envoy",
   "status": "bridge-starter",
-  "runtime_status": "not-verified",
+  "runtime_status": "not_verified",
   "upstream_source": {
     "repository": "not selected",
     "branch": "not selected",
@@ -45,13 +45,20 @@
       "path": "connectors/envoy/src/envoy_bridge_main.c",
       "kind": "repository-local bridge self-test CLI",
       "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_modsecurity_mapper.h",
+      "kind": "repository-local Common SDK generic mapper alias header",
+      "upstream_origin": "none"
     }
   ],
   "claims": {
     "envoy_api_used": false,
     "bridge_self_test_implemented": true,
     "libmodsecurity_adapter_implemented": false,
-    "runtime_verified": false,
-    "response_body_blocking_verified": false
-  }
+    "response_body_blocking_verified": false,
+    "runtime_status": "not_verified",
+    "verification_status": "connector-gap"
+  },
+  "verification_status": "connector-gap"
 }

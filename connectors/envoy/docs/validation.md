@@ -142,6 +142,10 @@ allowed request, HTTP 403 for the secondary probe, and an actual CRS rule
 ID/message extracted from evidence. If CRS, libmodsecurity, and Envoy are
 available but the secondary probe is not blocked, the result is FAIL.
 
+## Runtime status distinction
+
+Connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap`. Generated per-run `result.json` files may differ: local starter-smoke PASS can report `runtime_verified: true` and `runtime_status: verified`; no-local-binary or missing runtime cases can report `status: BLOCKED`, `runtime_verified: false`, and `runtime_status: blocked`. These per-run fields do not mean production, CRS, RESPONSE_BODY, or full-matrix verification.
+
 ## Common Result Schema
 
 `make smoke-envoy` now uses the shared smoke-result writer in
@@ -159,7 +163,7 @@ Current expected result without a local binary:
 - Integration mode: `ext_authz`
 - Status: `BLOCKED`
 - Exit code: 77
-- Runtime verified: `false`
+- Runtime status: generated no-local-binary or missing-runtime `result.json` files may report `runtime_status: blocked`; connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap`.
 - Evidence root: `$VERIFIED_RUN_ROOT/envoy-smoke/`, falling back to
   `$BUILD_ROOT/results/envoy-smoke/`
 - Binary environment variable: `ENVOY_BIN`
@@ -175,13 +179,14 @@ Current expected result without a local binary:
 
 Expected PASS result with a local binary:
 
-- Runtime verified: `true`
+- Runtime status: generated local starter PASS `result.json` files may use `runtime_verified` because the starter smoke completed successfully; connector metadata remains `not_verified` / `connector-gap` until real Envoy runtime evidence exists.
 - Allowed request status: `200`
 - Blocked request status: `403`
 - Resolved runtime binary: local path from `ENVOY_BIN` or a common.sh-managed
   lookup root
 - Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
   `crs_complete=true`, `response_body_verified=true`
+- This local starter PASS status is not a production, CRS, RESPONSE_BODY, or full-matrix verification claim.
 
 Expected targeted ModSecurity PASS result with local Envoy and local
 libmodsecurity:
@@ -195,6 +200,7 @@ libmodsecurity:
 - Decision log path: `$ENVOY_LOG_ROOT/modsecurity-decision.log`
 - Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
   `crs_complete=true`, `response_body_verified=true`
+- This local starter PASS status is not a production, CRS, RESPONSE_BODY, or full-matrix verification claim.
 
 Expected request-body PASS result with local Envoy and local libmodsecurity:
 

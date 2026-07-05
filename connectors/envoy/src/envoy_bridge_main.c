@@ -10,12 +10,12 @@ static int print_self_test_result(void) {
         msconnector_envoy_adapter_metadata_get();
 
     if (rc == 0) {
-        printf("envoy_bridge_self_test: pass connector=%s mode=bridge-starter runtime=not-verified\n",
-            metadata->capabilities.connector_name);
+        printf("envoy_bridge_self_test: pass connector=%s mode=bridge-starter runtime=%s\n",
+            metadata->capabilities.connector_name, metadata->runtime_status);
         return 0;
     }
-    printf("envoy_bridge_self_test: fail connector=%s mode=bridge-starter runtime=not-verified\n",
-        metadata->capabilities.connector_name);
+    printf("envoy_bridge_self_test: fail connector=%s mode=bridge-starter runtime=%s\n",
+        metadata->capabilities.connector_name, metadata->runtime_status);
     return 1;
 }
 
