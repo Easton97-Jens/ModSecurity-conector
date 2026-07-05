@@ -131,6 +131,8 @@ if "hostname must be NUL-terminated" not in generic_header:
     fail("generic mapper header must document NUL-terminated hostname requirement")
 if "body.size > 0U && src->body.data == 0" not in generic_source:
     fail("generic mapper must reject nonzero body sizes with null body data")
+if "msconnector_generic_config_init" in generic_source and "msconnector_config_apply_defaults(config)" in generic_source:
+    fail("generic init must not apply defaults before merge/finalization")
 
 log_sanitize_source = (ROOT / "common" / "src" / "log_sanitize.c").read_text(encoding="utf-8")
 if "redacted body" not in log_sanitize_source or "src;" not in log_sanitize_source:

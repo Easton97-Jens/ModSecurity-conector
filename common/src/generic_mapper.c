@@ -7,7 +7,6 @@
 
 void msconnector_generic_config_init(msconnector_config *config) {
     msconnector_config_init(config);
-    msconnector_config_apply_defaults(config);
 }
 
 static void set_mapper_error(char *error, size_t error_len, const char *message) {

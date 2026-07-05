@@ -4,9 +4,26 @@ set -eu
 profile="${CONNECTOR_C_STD_PROFILE:-c17}"
 cc="${CC:-cc}"
 repo_root=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
+
+command -v "$cc" >/dev/null 2>&1 || {
+  echo "BLOCKED: remaining_connectors_c_standards missing C compiler: $cc"
+  exit 77
+}
+
 case "$profile" in
-  c17) std=c17 ;;
-  c23) std=c2x ;;
+  c17)
+    std=c17
+    ;;
+  c23)
+    if "$cc" -std=c23 -E -x c /dev/null >/dev/null 2>&1; then
+      std=c23
+    elif "$cc" -std=c2x -E -x c /dev/null >/dev/null 2>&1; then
+      std=c2x
+    else
+      echo "BLOCKED: remaining_connectors_c_standards compiler lacks c23/c2x"
+      exit 77
+    fi
+    ;;
   c2y|future-c)
     if "$cc" -std=c2y -E -x c /dev/null >/dev/null 2>&1; then
       std=c2y
@@ -43,12 +60,6 @@ compile_one() {
     return 0
   fi
   cat "$obj.err" >&2
-  case "$profile" in
-    c23|c2y|future-c)
-      echo "BLOCKED: remaining_connectors_c_standards compiler/header profile $profile failed for $src"
-      return 77
-      ;;
-  esac
   echo "FAIL: remaining connectors C standard check failed ($profile): $src" >&2
   return "$rc"
 }
