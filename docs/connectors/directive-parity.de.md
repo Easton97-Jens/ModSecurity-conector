@@ -22,7 +22,7 @@ Die im Code vorhandene Direktive fördert allein nicht das vollständige Verhalt
 | `modsecurity_phase4_mode` | Unterstützt | Unterstützt | Nicht anwendbar | Begrenzte Phase-4-Kontrolle. Dies fördert nicht die vollständige RESPONSE_BODY-Unterstützung. |
 | `modsecurity_phase4_content_types_file` | Unterstützt | Unterstützt | Nicht anwendbar | Begrenzte Zulassungsliste für Antwortinhaltstypen. |
 | `modsecurity_phase4_log` | Unterstützt | Unterstützt | Nicht anwendbar | JSONL Phase 4 decision/evidence-Protokoll für Apache/NGINX. |
-| `modsecurity_phase4_body_limit` | Unterstützt | Nicht unterstützt | Nicht anwendbar | Antwortpuffer des Apache-Connectors gebunden. NGINX verwendet stattdessen libmodsecurity-Grenzwerte und strikte Abbruchkontrollen. |
+| `modsecurity_phase4_body_limit` | Unterstützt | Unterstützt | Nicht anwendbar | Begrenztes Phase-4-Body-Inspektionslimit. NGINX registriert die Direktive, mappt sie in die Common-Konfiguration und übergibt nach dem konfigurierten Limit keine weiteren Response-Bytes an ModSecurity; dies ist keine vollständige RESPONSE_BODY-Förderung. |
 | `filter spoe engine modsecurity` | Nicht anwendbar | Nicht anwendbar | Unterstützt | HAProxy SPOE-Einstiegspunkt. |
 | `http-request send-spoe-group` | Nicht anwendbar | Nicht anwendbar | Unterstützt | Sendet den Nachweis der Requestsphasen 1/2 an `haproxy-modsecurity-spoa`. |
 | `http-response send-spoe-group` | Nicht anwendbar | Nicht anwendbar | Unterstützt | Sendet Antwortheader und begrenzte Evidence für den Response Body. |
@@ -69,11 +69,10 @@ Der NGINX-Connector registriert derzeit:
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
 - `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_body_limit <bytes>`
 
 NGINX `modsecurity_transaction_id` verwendet einen komplexen NGINX-Wert und kann ihn auswerten
-Variablen pro Anfrage. Verwendung von Apache-Ausdruckstransaktions-IDs
-Stattdessen `modsecurity_transaction_id_expr`. Die Unterstützung für NGINX Phase 4 ist begrenzt
-strikter AbbruchEvidence und keine vollständige RESPONSE_BODY-Förderung.
+Variablen pro Anfrage. Die Apache-Ausdrucksdirektive `modsecurity_transaction_id_expr` wird für NGINX nicht registriert. Die NGINX-Phase-4-Unterstützung ist begrenzt: Das Body-Limit steuert, wie viele Response-Bytes an ModSecurity übergeben werden, und schreibt Truncation-Metadaten; dies ist keine vollständige RESPONSE_BODY-Förderung.
 
 ## HAProxy-Konfigurationsoberfläche
 

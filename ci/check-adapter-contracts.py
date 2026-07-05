@@ -8,6 +8,7 @@ HEADERS = [
     "adapter.h", "adapter_contract.h", "adapter_metadata.h", "config.h",
     "directive_spec.h", "directive_adapter.h", "request.h",
     "request_mapper_contract.h", "response.h", "response_mapper_contract.h",
+    "generic_mapper.h",
     "decision.h", "event.h", "event_jsonl.h", "capabilities.h",
     "body_policy.h", "resource_limits.h", "dos_guard.h", "flow_guard.h",
     "integrity_event.h", "crs.h",
@@ -16,7 +17,8 @@ SOURCES = [
     "adapter.c", "adapter_contract.c", "adapter_metadata.c", "config.c",
     "directive_spec.c", "directive_adapter.c", "body_policy.c",
     "resource_limits.c", "dos_guard.c", "flow_guard.c", "integrity_event.c",
-    "request_mapper_contract.c", "response_mapper_contract.c", "crs.c",
+    "request_mapper_contract.c", "response_mapper_contract.c",
+    "generic_mapper.c", "crs.c",
     "decision.c", "event.c", "event_jsonl.c", "capabilities.c",
 ]
 SERVER_TOKENS = ["ngx_", "httpd", "apr_", "haproxy", "envoy", "lighttpd", "traefik"]

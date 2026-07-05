@@ -168,3 +168,28 @@ Apache still owns Apache server APIs such as `request_rec`, `command_rec`,
 hooks, filters, APR pools, bucket brigades, APLOG, return codes, and APXS
 build glue. This is not a production, CRS, full-matrix, or runtime verification
 claim.
+
+## NGINX adoption boundary
+
+NGINX now consumes the Common SDK for shared configuration defaults/merge/validate,
+directive catalog contracts, mapper contracts, header helpers, event/limit-facing
+helpers, and compile-only C17 checks where wired. NGINX-specific APIs stay in the
+NGINX connector: `ngx_command_t`, `ngx_http_request_t`, `ngx_chain_t`,
+`ngx_buf_t`, filters, pools, return codes, and build glue. The NGINX C17 check is
+blocked with exit 77 when NGINX/libmodsecurity headers are absent; C23/future-C
+checks are optional and do not imply runtime verification.
+
+## HAProxy adoption note
+
+The HAProxy connector is expected to consume the Common SDK for connector-neutral semantics: configuration, directive specs/adapters, primitive parsers, mapper contracts, event JSONL, redaction, resource limits, guards, CRS setup contracts, artifact/test-result contracts, and status/error mapping. HAProxy-specific SPOE/SPOP protocol code, HAProxy cfg glue, runtime process handling, frame parsing, socket handling, and build integration remain adapter-owned. C17 compile evidence is structural only and must not be described as production, CRS, full-matrix, or runtime verification.
+
+## Remaining connector starter adoption
+
+Envoy, Traefik, and lighttpd now carry connector-local Common SDK mapper scaffolding for `msconnector_config`, `msconnector_request`, and `msconnector_response`. This is a structure/compile contract only. Host API glue, runtime lifecycle, build glue, protocol/frame handling, event artifact callsites, and libmodsecurity transaction ownership remain connector-specific work. These connectors must remain `not_verified` / `connector-gap` until runtime evidence exists.
+
+## Generic mapper helper
+
+The Common SDK includes `msconnector_generic_map_request()` and `msconnector_generic_map_response()` for starter connectors that already have connector-neutral request and response fields. Envoy, Traefik, and lighttpd use this helper through thin local adapters. The helper does not take ownership of headers or body bytes, does not log body payloads, and does not change their `not_verified` / `connector-gap` status.
+The remaining starter connectors now avoid connector-local mapper source copies by aliasing their map entry points to the connector-neutral generic mapper; this keeps validation and body metadata assignment in one Common implementation only.
+
+Generic mapper callers must pass `hostname` as a NUL-terminated string when it is set; header value slices are never exposed as C-string hostnames. Nonzero body sizes require non-NULL body data and remain metadata-only unless the caller owns safe body bytes.

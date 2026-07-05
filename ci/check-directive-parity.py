@@ -11,6 +11,7 @@ ADAPTER_H = ROOT / "common/include/msconnector/directive_adapter.h"
 ADAPTER_C = ROOT / "common/src/directive_adapter.c"
 DIRECTIVES_H = ROOT / "common/include/msconnector/directives.h"
 APACHE_CONFIG_C = ROOT / "connectors/apache/src/msc_config.c"
+NGINX_MODULE_C = ROOT / "connectors/nginx/src/ngx_http_modsecurity_module.c"
 KNOWN = [
     "modsecurity",
     "modsecurity_rules",
@@ -24,6 +25,10 @@ KNOWN = [
     "modsecurity_phase4_log",
     "modsecurity_phase4_body_limit",
 ]
+NGINX_DIRECTIVE_NOT_APPLICABLE: dict[str, str] = {
+    "modsecurity_transaction_id_expr": "Apache expression syntax is not supported by NGINX; use modsecurity_transaction_id with NGINX variables instead.",
+}
+
 POLICY_FOR_TYPE = {
     "MSCONNECTOR_DIRECTIVE_VALUE_BOOL": {"MSCONNECTOR_DIRECTIVE_ARG_ONE"},
     "MSCONNECTOR_DIRECTIVE_VALUE_STRING": {"MSCONNECTOR_DIRECTIVE_ARG_ONE"},
@@ -65,6 +70,9 @@ def parse_apache_directive_macros(text: str) -> set[str]:
     for match in re.finditer(r"AP_INIT_[A-Z0-9_]+\(\s*(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)", text, re.MULTILINE):
         macros.add(match.group(1))
     return macros
+
+def parse_nginx_directive_macros(text: str) -> set[str]:
+    return set(re.findall(r"ngx_string\(\s*(MSCONNECTOR_DIRECTIVE_[A-Z0-9_]+)\s*\)", text))
 
 def fields_from_initializer_line(raw_line: str) -> list[str]:
     line = raw_line.strip().strip("{} ,")
@@ -134,7 +142,7 @@ def parse_adapter_entries(text: str, macros: dict[str, str]) -> list[tuple[str, 
     return entries
 
 
-missing_files = [p for p in (SPEC_H, SPEC_C, ADAPTER_H, ADAPTER_C, APACHE_CONFIG_C) if not p.exists()]
+missing_files = [p for p in (SPEC_H, SPEC_C, ADAPTER_H, ADAPTER_C, APACHE_CONFIG_C, NGINX_MODULE_C) if not p.exists()]
 if missing_files:
     for path in missing_files:
         print(f"missing directive file: {path.relative_to(ROOT)}")
@@ -181,7 +189,30 @@ for raw in re.findall(r'AP_INIT_[A-Z0-9_]+\(\s*"([^"]+)"', APACHE_CONFIG_C.read_
     print(f"apache directive uses local string literal instead of common macro: {raw}")
     ok = False
 
-print("connector directive adoption: Apache directive names checked against common macros/specs/adapters")
+nginx_text = NGINX_MODULE_C.read_text()
+nginx_directives = {macros.get(macro, macro) for macro in parse_nginx_directive_macros(nginx_text)}
+expected_nginx_directives = set(KNOWN) - set(NGINX_DIRECTIVE_NOT_APPLICABLE)
+for name in sorted(expected_nginx_directives):
+    if name not in nginx_directives:
+        print(f"nginx directive missing from registration: {name}")
+        ok = False
+for name in sorted(NGINX_DIRECTIVE_NOT_APPLICABLE):
+    if name in nginx_directives:
+        print(f"nginx directive marked not applicable but registered: {name}")
+        ok = False
+for name in sorted(nginx_directives):
+    if name not in specs:
+        print(f"nginx directive missing common spec: {name}")
+        ok = False
+    if name not in canonicals:
+        print(f"nginx directive missing common adapter: {name}")
+        ok = False
+for raw in re.findall(r'ngx_string\(\s*"([^"]+)"', nginx_text):
+    if raw in macros.values():
+        print(f"nginx directive uses local string literal instead of common macro: {raw}")
+        ok = False
+
+print("connector directive adoption: Apache and NGINX directive names checked against common macros/specs/adapters")
 if not ok:
     sys.exit(1)
 print("directive-parity: common directive spec/adapter parity present")

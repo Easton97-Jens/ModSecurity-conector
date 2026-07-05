@@ -125,3 +125,9 @@ Unsupported or currently unmaterializable rows are documented as
 documented as `BLOCKED`. `RESPONSE_BODY` rows stay non-promoted unless a future
 implementation proves full-body guarantees beyond the current bounded
 experimental path.
+
+## Common SDK adoption boundary
+
+The HAProxy adoption layer embeds/maps `msconnector_config` and uses Common directive specs/adapters, parser primitives, mapper contracts, header helpers, event JSONL helpers, rule-id/log-sanitizing primitives, and global guard structures where implemented. HAProxy-specific SPOE/SPOP protocol handling, cfg glue, process lifecycle, socket/runtime handling, frame parsing, return/action encoding, logging transport, and build glue remain local.
+
+C17 compile evidence is available through `make check-haproxy-c17`; optional C23/future-C checks depend on compiler support. Missing HAProxy/libmodsecurity headers are reported as `BLOCKED` with exit 77. This is not a production, CRS, full-matrix, or runtime-verification claim.

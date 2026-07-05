@@ -151,6 +151,10 @@ allowed request, HTTP 403 for the secondary probe, and an actual CRS rule
 ID/message extracted from evidence. If CRS, libmodsecurity, and Lighttpd are
 available but the secondary probe is not blocked, the result is FAIL.
 
+## Runtime status distinction
+
+Connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap`. Generated per-run `result.json` files may differ: local starter-smoke PASS can report `runtime_verified: true` and `runtime_status: verified`; no-local-binary or missing runtime cases can report `status: BLOCKED`, `runtime_verified: false`, and `runtime_status: blocked`. These per-run fields do not mean production, CRS, RESPONSE_BODY, or full-matrix verification.
+
 ## Common Result Schema
 
 `make smoke-lighttpd` now uses the shared smoke-result writer in
@@ -168,7 +172,7 @@ Current expected result without a local binary:
 - Integration mode: `sidecar_proxy`
 - Status: `BLOCKED`
 - Exit code: 77
-- Runtime verified: `false`
+- Runtime status: generated no-local-binary or missing-runtime `result.json` files may report `runtime_status: blocked`; connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap`.
 - Evidence root: `$VERIFIED_RUN_ROOT/lighttpd-smoke/`, falling back to
   `$BUILD_ROOT/results/lighttpd-smoke/`
 - Binary environment variable: `LIGHTTPD_BIN`
@@ -187,7 +191,7 @@ Current expected result with a local binary and successful simple sidecar smoke:
 - Integration mode: `sidecar_proxy`
 - Status: `PASS`
 - Exit code: 0
-- Runtime verified: `true`
+- Runtime status: generated local starter PASS `result.json` files may use `runtime_verified: true` and `runtime_status: verified` for that single local starter execution; connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap` until real lighttpd connector runtime evidence exists.
 - `lighttpd_binary_verified=true`
 - `lighttpd_http_verified=true`
 - `sidecar_proxy_verified=true`
@@ -195,6 +199,7 @@ Current expected result with a local binary and successful simple sidecar smoke:
 - Blocked request status: `403`
 - `production_ready=false`, `full_matrix_ready=false`, `crs_complete=false`,
   and `response_body_verified=false`
+- This local starter PASS status is not production, CRS, RESPONSE_BODY, or full-matrix verification.
 
 Current expected result with a local binary and successful targeted
 libmodsecurity smoke:
@@ -203,7 +208,7 @@ libmodsecurity smoke:
 - Decision backend: `libmodsecurity`
 - Status: `PASS`
 - Exit code: `0`
-- Runtime verified: `true`
+- Runtime status: generated local starter PASS `result.json` files may use `runtime_verified: true` and `runtime_status: verified` for that single local starter execution; connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap` until real lighttpd connector runtime evidence exists.
 - `lighttpd_binary_verified=true`
 - `lighttpd_http_verified=true`
 - `sidecar_proxy_verified=true`
@@ -243,7 +248,7 @@ Current expected result with a local binary and successful minimal CRS smoke:
 - Integration mode: `sidecar_proxy`
 - Decision backend: `libmodsecurity`
 - Ruleset: `crs`
-- Runtime verified: `true`
+- Runtime status: generated local starter PASS `result.json` files may use `runtime_verified: true` and `runtime_status: verified` for that single local starter execution; connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap` until real lighttpd connector runtime evidence exists.
 - `lighttpd_binary_verified=true`
 - `lighttpd_http_verified=true`
 - `sidecar_proxy_verified=true`
@@ -262,7 +267,7 @@ Current expected result with a local binary and successful secondary CRS smoke:
 - Decision backend: `libmodsecurity`
 - Ruleset: `crs`
 - CRS smoke case: `secondary`
-- Runtime verified: `true`
+- Runtime status: generated local starter PASS `result.json` files may use `runtime_verified: true` and `runtime_status: verified` for that single local starter execution; connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap` until real lighttpd connector runtime evidence exists.
 - `lighttpd_binary_verified=true`
 - `lighttpd_http_verified=true`
 - `sidecar_proxy_verified=true`

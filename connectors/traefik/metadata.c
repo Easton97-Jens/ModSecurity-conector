@@ -20,7 +20,8 @@ static const msconnector_traefik_adapter_metadata traefik_metadata = {
     "repo-owned decision-service-starter",
     "none",
     "decision-service-starter",
-    "not-verified"
+    "not_verified",
+    "connector-gap"
 };
 
 msconnector_origin msconnector_traefik_adapter_origin(void) {

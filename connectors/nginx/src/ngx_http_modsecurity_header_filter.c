@@ -21,6 +21,7 @@
 #include "ddebug.h"
 
 #include "ngx_http_modsecurity_common.h"
+#include "ngx_http_modsecurity_mapper.h"
 
 static ngx_http_output_header_filter_pt ngx_http_next_header_filter;
 
@@ -144,6 +145,7 @@ ngx_http_modsecurity_store_ctx_header(ngx_http_request_t *r, ngx_str_t *name, ng
 static ngx_int_t
 ngx_http_modsecurity_resolv_header_server(ngx_http_request_t *r, ngx_str_t name, off_t offset)
 {
+    (void)offset;
     static char ngx_http_server_full_string[] = NGINX_VER;
     static char ngx_http_server_string[] = "nginx";
 
@@ -183,6 +185,7 @@ ngx_http_modsecurity_resolv_header_server(ngx_http_request_t *r, ngx_str_t name,
 static ngx_int_t
 ngx_http_modsecurity_resolv_header_date(ngx_http_request_t *r, ngx_str_t name, off_t offset)
 {
+    (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_str_t date;
 
@@ -212,6 +215,7 @@ ngx_http_modsecurity_resolv_header_date(ngx_http_request_t *r, ngx_str_t name, o
 static ngx_int_t
 ngx_http_modsecurity_resolv_header_content_length(ngx_http_request_t *r, ngx_str_t name, off_t offset)
 {
+    (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_str_t value;
     char buf[NGX_INT64_LEN+2];
@@ -241,6 +245,7 @@ ngx_http_modsecurity_resolv_header_content_length(ngx_http_request_t *r, ngx_str
 static ngx_int_t
 ngx_http_modsecurity_resolv_header_content_type(ngx_http_request_t *r, ngx_str_t name, off_t offset)
 {
+    (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
 
     ctx = ngx_http_modsecurity_get_module_ctx(r);
@@ -266,6 +271,7 @@ ngx_http_modsecurity_resolv_header_content_type(ngx_http_request_t *r, ngx_str_t
 static ngx_int_t
 ngx_http_modsecurity_resolv_header_last_modified(ngx_http_request_t *r, ngx_str_t name, off_t offset)
 {
+    (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     u_char buf[1024], *p;
     ngx_str_t value;
@@ -296,6 +302,7 @@ ngx_http_modsecurity_resolv_header_last_modified(ngx_http_request_t *r, ngx_str_
 static ngx_int_t
 ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t name, off_t offset)
 {
+    (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_core_loc_conf_t *clcf = NULL;
     char *connection = NULL;
@@ -348,6 +355,7 @@ ngx_http_modsecurity_resolv_header_connection(ngx_http_request_t *r, ngx_str_t n
 static ngx_int_t
 ngx_http_modsecurity_resolv_header_transfer_encoding(ngx_http_request_t *r, ngx_str_t name, off_t offset)
 {
+    (void)offset;
     ngx_http_modsecurity_ctx_t *ctx = NULL;
 
     if (r->chunked) {
@@ -372,6 +380,7 @@ ngx_http_modsecurity_resolv_header_transfer_encoding(ngx_http_request_t *r, ngx_
 static ngx_int_t
 ngx_http_modsecurity_resolv_header_vary(ngx_http_request_t *r, ngx_str_t name, off_t offset)
 {
+    (void)offset;
 #if (NGX_HTTP_GZIP)
     ngx_http_modsecurity_ctx_t *ctx = NULL;
     ngx_http_core_loc_conf_t *clcf = NULL;
@@ -434,6 +443,20 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
 
     if (ctx->intervention_triggered) {
         return ngx_http_next_header_filter(r);
+    }
+
+    {
+        msconnector_response_mapper_contract contract;
+        msconnector_response mapped_response;
+        char mapper_error[128];
+
+        msconnector_response_mapper_contract_init(&contract);
+        if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
+                &mapped_response, mapper_error, sizeof(mapper_error))) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "modsecurity common response mapper validation skipped: %s", mapper_error);
+        }
+        ctx->common_response_validated = 1;
     }
 
 /* XXX: can it happen ?  already processed i mean */

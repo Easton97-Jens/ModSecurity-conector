@@ -47,9 +47,12 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
 - `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_body_limit <bytes>`
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
-per-request variables. The Phase 4 directives are bounded runtime controls.
+per-request variables. Apache-style `modsecurity_transaction_id_expr` is not
+registered for NGINX; use `modsecurity_transaction_id` with NGINX variables
+instead. The Phase 4 directives are bounded runtime controls.
 Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
 documented/reported as runtime evidence only.
 
@@ -114,3 +117,17 @@ automatic runtime promotion, and RESPONSE_BODY remains non-promoted.
 
 See `docs/connectors/directive-parity.md` for the current Apache/NGINX
 directive matrix.
+
+## Common SDK adoption scope
+
+NGINX now maps connector-neutral semantics through `common/` for configuration,
+directive names/specs/adapters, request/response mapper contracts, header
+helpers, event/limit-facing contracts, and C-standard checks where implemented.
+NGINX-specific API ownership remains in `ngx_command_t`, `ngx_http_request_t`,
+`ngx_chain_t`/`ngx_buf_t`, access/header/body filters, pools, return codes, and
+module build glue. The C17 check is compile-only and reports `BLOCKED`/exit 77
+when NGINX or libmodsecurity headers are unavailable; optional C23/future-C
+checks depend on compiler support. No production, CRS, full-matrix, or runtime
+verification is claimed here.
+
+NGINX Common SDK module builds that use a copied connector source tree must set `MSCONNECTOR_COMMON_SRC` (or `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) to the repository Common source root; `MSCONNECTOR_COMMON_INC` remains the Common include root. If unset, the config only falls back to `$ngx_addon_dir/../../common/src` when that path exists.

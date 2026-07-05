@@ -43,3 +43,9 @@ There is no synthetic matrix writer. Generated HAProxy reports consume live
 runtime summaries and the runtime validation snapshot. Full-body guarantees,
 arbitrary dynamic disruptive status mapping, and long-running production
 hardening remain open before promotion beyond partial status.
+
+## Common SDK adoption layer
+
+HAProxy now treats Common as the owner for reusable semantics: config defaults/merge/validation, directive specifications, primitive option parsers, request/response mapper contracts, header/content helpers, event JSONL generation, rule-id extraction, log sanitizing/redaction, resource limits, DoS guard, flow guard, integrity events, rule-loading stats, CRS setup contracts, and test/artifact contracts where applicable.
+
+HAProxy-owned code remains limited to SPOE/SPOP protocol handling, generated HAProxy cfg fragments, SPOA runtime loop/socket handling, HAProxy process lifecycle, frame parsing, return/action encoding, logging transport, and build glue. The C17 standard check compiles the adoption-relevant C objects without starting HAProxy and reports `BLOCKED`/77 when required external headers are absent.

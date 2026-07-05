@@ -207,3 +207,9 @@ RESPONSE_BODY-Annahmen außerhalb belegter Evidence.
 - [examples/haproxy/README.de.md](examples/haproxy/README.de.md)
 - `connectors/haproxy/docs/build.md`
 - `connectors/haproxy/docs/validation.md`
+
+## Common-SDK-Adoption-C-Prüfungen
+
+HAProxy führt Config-, Direktiven-/Optionssemantik, Request-/Response-Mapper-Contracts, Event-JSONL-Helfer und globale Limits jetzt über das Common SDK, soweit diese Adoption-Schicht diese Pfade umsetzt. HAProxy-spezifisch bleiben SPOE/SPOP, generierte HAProxy-Konfigurationsfragmente, Prozess-Lifecycle, Frame-Parsing, Socket-Handling und Build-Glue.
+
+`make check-haproxy-c17` ist die harte C17-Compile-Prüfung. `make check-haproxy-c23` und `make check-haproxy-future-c` sind optionale, compilerabhängige Prüfungen. Fehlen HAProxy- oder libmodsecurity-Header, meldet der direkte Check `BLOCKED` und beendet sich mit 77; der Lint-Wrapper behandelt dies als Skip. Dies ist nur Compile-/Struktur-Evidence und keine Production-, CRS-, Full-Matrix- oder Runtime-Verification.

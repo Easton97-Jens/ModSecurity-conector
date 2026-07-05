@@ -167,3 +167,9 @@ Check missing headers, missing shared libraries, wrong HAProxy SPOE config, wron
 - [examples/haproxy/README.md](examples/haproxy/README.md)
 - `connectors/haproxy/docs/build.md`
 - `connectors/haproxy/docs/validation.md`
+
+## Common SDK adoption C checks
+
+HAProxy now routes config, directive option semantics, request/response mapper contracts, event JSONL helpers, and global limits through the Common SDK where this adoption layer implements those paths. HAProxy-specific SPOE/SPOP handling, generated HAProxy configuration glue, process lifecycle, frame parsing, socket handling, and build glue remain connector-owned.
+
+Run `make check-haproxy-c17` for the hard C17 compile check. Run `make check-haproxy-c23` and `make check-haproxy-future-c` for optional compiler-dependent checks. If HAProxy or libmodsecurity headers are unavailable, the direct check reports `BLOCKED` and exits 77; the lint wrapper skips that blocked condition. This is compile/structure evidence only and does not claim production, CRS, full-matrix, or runtime verification.

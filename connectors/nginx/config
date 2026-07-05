@@ -26,6 +26,23 @@ if test -n "$MSCONNECTOR_COMMON_INC"; then
     ngx_msconnector_common_opt_I="-I$MSCONNECTOR_COMMON_INC"
 fi
 
+
+if test -z "$MSCONNECTOR_COMMON_SRC"; then
+    if test -n "$CONNECTOR_COMMON_SRC"; then
+        MSCONNECTOR_COMMON_SRC="$CONNECTOR_COMMON_SRC"
+    elif test -n "$COMMON_SRC_ROOT"; then
+        MSCONNECTOR_COMMON_SRC="$COMMON_SRC_ROOT"
+    else
+        ngx_msconnector_common_src_candidate="$ngx_addon_dir/../../common/src"
+        if test -d "$ngx_msconnector_common_src_candidate"; then
+            MSCONNECTOR_COMMON_SRC="$ngx_msconnector_common_src_candidate"
+        else
+            echo "ngx_http_modsecurity: missing Common source root; set MSCONNECTOR_COMMON_SRC" >&2
+            exit 1
+        fi
+    fi
+fi
+
 YAJL_EXTRA=
 if test -n "$YAJL_LIB"; then
     YAJL_EXTRA="-L$YAJL_LIB -lyajl"
@@ -130,9 +147,35 @@ if test -n "$ngx_module_link"; then
             $ngx_addon_dir/src/ngx_http_modsecurity_header_filter.c \
             $ngx_addon_dir/src/ngx_http_modsecurity_body_filter.c \
             $ngx_addon_dir/src/ngx_http_modsecurity_log.c \
+            $ngx_addon_dir/src/ngx_http_modsecurity_mapper.c \
+            $MSCONNECTOR_COMMON_SRC/config.c \
+            $MSCONNECTOR_COMMON_SRC/config_parser.c \
+            $MSCONNECTOR_COMMON_SRC/directive_spec.c \
+            $MSCONNECTOR_COMMON_SRC/directive_adapter.c \
+            $MSCONNECTOR_COMMON_SRC/request_helpers.c \
+            $MSCONNECTOR_COMMON_SRC/response_helpers.c \
+            $MSCONNECTOR_COMMON_SRC/request_mapper_contract.c \
+            $MSCONNECTOR_COMMON_SRC/response_mapper_contract.c \
+            $MSCONNECTOR_COMMON_SRC/headers.c \
+            $MSCONNECTOR_COMMON_SRC/event.c \
+            $MSCONNECTOR_COMMON_SRC/transaction_state.c \
+            $MSCONNECTOR_COMMON_SRC/event_jsonl.c \
+            $MSCONNECTOR_COMMON_SRC/json_escape.c \
+            $MSCONNECTOR_COMMON_SRC/rule_id.c \
+            $MSCONNECTOR_COMMON_SRC/log_sanitize.c \
+            $MSCONNECTOR_COMMON_SRC/redaction.c \
+            $MSCONNECTOR_COMMON_SRC/resource_limits.c \
+            $MSCONNECTOR_COMMON_SRC/dos_guard.c \
+            $MSCONNECTOR_COMMON_SRC/error.c \
+            $MSCONNECTOR_COMMON_SRC/status.c \
+            $MSCONNECTOR_COMMON_SRC/body_policy.c \
+            $MSCONNECTOR_COMMON_SRC/block_statuses.c \
+            $MSCONNECTOR_COMMON_SRC/http_status.c \
+            $MSCONNECTOR_COMMON_SRC/crs.c \
             "
 	ngx_module_deps="$ngx_addon_dir/src/ddebug.h \
             $ngx_addon_dir/src/ngx_http_modsecurity_common.h \
+            $ngx_addon_dir/src/ngx_http_modsecurity_mapper.h \
             "
         ngx_module_libs="$ngx_feature_libs"
         ngx_module_incs="$ngx_feature_path $MSCONNECTOR_COMMON_INC"
@@ -160,12 +203,38 @@ else
 	    $ngx_addon_dir/src/ngx_http_modsecurity_header_filter.c \
 	    $ngx_addon_dir/src/ngx_http_modsecurity_body_filter.c \
 	    $ngx_addon_dir/src/ngx_http_modsecurity_log.c \
+	    $ngx_addon_dir/src/ngx_http_modsecurity_mapper.c \
+	    $MSCONNECTOR_COMMON_SRC/config.c \
+	    $MSCONNECTOR_COMMON_SRC/config_parser.c \
+	    $MSCONNECTOR_COMMON_SRC/directive_spec.c \
+	    $MSCONNECTOR_COMMON_SRC/directive_adapter.c \
+	    $MSCONNECTOR_COMMON_SRC/request_helpers.c \
+	    $MSCONNECTOR_COMMON_SRC/response_helpers.c \
+	    $MSCONNECTOR_COMMON_SRC/request_mapper_contract.c \
+	    $MSCONNECTOR_COMMON_SRC/response_mapper_contract.c \
+	    $MSCONNECTOR_COMMON_SRC/headers.c \
+	    $MSCONNECTOR_COMMON_SRC/event.c \
+	    $MSCONNECTOR_COMMON_SRC/transaction_state.c \
+	    $MSCONNECTOR_COMMON_SRC/event_jsonl.c \
+	    $MSCONNECTOR_COMMON_SRC/json_escape.c \
+	    $MSCONNECTOR_COMMON_SRC/rule_id.c \
+	    $MSCONNECTOR_COMMON_SRC/log_sanitize.c \
+	    $MSCONNECTOR_COMMON_SRC/redaction.c \
+	    $MSCONNECTOR_COMMON_SRC/resource_limits.c \
+	    $MSCONNECTOR_COMMON_SRC/dos_guard.c \
+	    $MSCONNECTOR_COMMON_SRC/error.c \
+	    $MSCONNECTOR_COMMON_SRC/status.c \
+	    $MSCONNECTOR_COMMON_SRC/body_policy.c \
+	    $MSCONNECTOR_COMMON_SRC/block_statuses.c \
+	    $MSCONNECTOR_COMMON_SRC/http_status.c \
+	    $MSCONNECTOR_COMMON_SRC/crs.c \
 	    "
 
 	NGX_ADDON_DEPS="\
 	    $NGX_ADDON_DEPS \
 	    $ngx_addon_dir/src/ddebug.h \
 	    $ngx_addon_dir/src/ngx_http_modsecurity_common.h \
+	    $ngx_addon_dir/src/ngx_http_modsecurity_mapper.h \
 	    "
 fi
 

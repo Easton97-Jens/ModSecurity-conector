@@ -21,6 +21,7 @@
 #include "ddebug.h"
 
 #include "ngx_http_modsecurity_common.h"
+#include "ngx_http_modsecurity_mapper.h"
 
 void
 ngx_http_modsecurity_request_read(ngx_http_request_t *r)
@@ -89,6 +90,19 @@ ngx_http_modsecurity_access_handler(ngx_http_request_t *r)
         if (ctx == NULL) {
             dd("ctx still null; Nothing we can do, returning an error.");
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        {
+            msconnector_request_mapper_contract contract;
+            msconnector_request mapped_request;
+            char mapper_error[128];
+
+            msconnector_request_mapper_contract_init(&contract);
+            if (!ngx_http_modsecurity_map_request(r, &contract, &mapped_request,
+                    mapper_error, sizeof(mapper_error))) {
+                ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                    "modsecurity common request mapper validation skipped: %s", mapper_error);
+            }
         }
 
         /**

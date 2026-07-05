@@ -10,7 +10,7 @@ msconnector_capabilities msconnector_lighttpd_bridge_starter_capabilities(void) 
     msconnector_capabilities capabilities;
     capabilities.flags = MSCONNECTOR_CAPABILITY_NONE;
     capabilities.connector_name = "lighttpd bridge starter";
-    capabilities.connector_version = "not-runtime-verified";
+    capabilities.connector_version = "not_verified";
     capabilities.server_family = "lighttpd";
     capabilities.notes = "local decision-service bridge starter only; no lighttpd traffic, FastCGI/SCGI protocol, or libmodsecurity runtime integration";
     return capabilities;

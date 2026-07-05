@@ -1,7 +1,7 @@
 {
   "connector": "traefik",
   "status": "decision-service-starter",
-  "runtime_status": "not-verified",
+  "runtime_status": "not_verified",
   "upstream": {
     "traefik_source": "not selected",
     "traefik_version": "not selected",
@@ -41,12 +41,12 @@
     {
       "path": "connectors/traefik/src/traefik_decision_service_main.c",
       "purpose": "local decision-service starter CLI and self-test entry point"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_modsecurity_mapper.h",
+      "purpose": "Common SDK generic mapper alias header; no runtime claim"
     }
   ],
-  "runtime_evidence": {
-    "no_crs": "not run",
-    "with_crs": "not run",
-    "response_body_blocking": "not verified",
-    "decision_service_self_test": "pass (local only)"
-  }
+  "verification_status": "connector-gap",
+  "starter_evidence_note": "local decision-service self-test is starter-only; not runtime evidence"
 }

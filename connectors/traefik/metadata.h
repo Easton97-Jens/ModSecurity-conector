@@ -15,6 +15,7 @@ typedef struct msconnector_traefik_adapter_metadata {
     const char *imported_path;
     const char *build_status;
     const char *runtime_status;
+    const char *verification_status;
 } msconnector_traefik_adapter_metadata;
 
 msconnector_origin msconnector_traefik_adapter_origin(void);

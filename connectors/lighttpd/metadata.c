@@ -12,7 +12,8 @@ static const msconnector_lighttpd_adapter_metadata lighttpd_metadata = {
     "bridge-starter",
     "connectors/lighttpd",
     "bridge-starter",
-    "not-verified",
+    "not_verified",
+    "connector-gap",
     "decision-service bridge starter; native lighttpd module and FastCGI/SCGI runtime integration deferred"
 };
 
