@@ -5,3 +5,4 @@ Ein Starter-Connector darf d√ºnne Adapter-Mapper auf die Common-SDK-Contracts f√
 ## Generic mapper adoption
 
 Starter connectors should prefer the connector-neutral generic mapper helper when their local source can be expressed as `msconnector_generic_request_source` or `msconnector_generic_response_source`. Local files should stay thin adapters and must not duplicate header mapping, Host fallback, Common validation, or ownership cleanup logic. This does not imply runtime verification.
+The remaining starter connectors now avoid connector-local mapper source copies by aliasing their map entry points to the connector-neutral generic mapper; this keeps duplicated Host lookup, validation, and body metadata assignment in one Common implementation only.

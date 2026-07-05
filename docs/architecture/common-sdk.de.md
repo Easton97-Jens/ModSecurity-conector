@@ -5,3 +5,4 @@ Envoy, Traefik und lighttpd besitzen lokale Common-SDK-Mapper-Gerüste für `msc
 ## Generic mapper helper
 
 The Common SDK includes `msconnector_generic_map_request()` and `msconnector_generic_map_response()` for starter connectors that already have connector-neutral request and response fields. Envoy, Traefik, and lighttpd use this helper through thin local adapters. The helper does not take ownership of headers or body bytes, does not log body payloads, and does not change their `not_verified` / `connector-gap` status.
+The remaining starter connectors now avoid connector-local mapper source copies by aliasing their map entry points to the connector-neutral generic mapper; this keeps duplicated Host lookup, validation, and body metadata assignment in one Common implementation only.

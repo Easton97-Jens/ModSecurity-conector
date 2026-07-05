@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "msconnector/config.h"
 #include "msconnector/request.h"
 #include "msconnector/request_mapper_contract.h"
 #include "msconnector/response.h"
@@ -31,6 +32,8 @@ typedef struct msconnector_generic_response_source {
     size_t header_count;
     msconnector_bytes body;
 } msconnector_generic_response_source;
+
+void msconnector_generic_config_init(msconnector_config *config);
 
 int msconnector_generic_map_request(
     const msconnector_generic_request_source *src,

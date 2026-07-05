@@ -6,6 +6,11 @@
 #include "msconnector/request_helpers.h"
 #include "msconnector/response_helpers.h"
 
+void msconnector_generic_config_init(msconnector_config *config) {
+    msconnector_config_init(config);
+    msconnector_config_apply_defaults(config);
+}
+
 static void set_mapper_error(char *error, size_t error_len, const char *message) {
     if (error != 0 && error_len > 0U) {
         snprintf(error, error_len, "%s", message);

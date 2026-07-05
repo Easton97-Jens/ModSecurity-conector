@@ -7,8 +7,8 @@ This report covers Envoy, Traefik, lighttpd, and the repository template starter
 - Connector: `connectors/envoy`
 - Current status: bridge starter; native Envoy SDK and runtime lifecycle are absent.
 - Common config mapping: `envoy_modsecurity_config_init()` initializes `msconnector_config`, applies defaults, and leaves directive parsing to future Envoy glue.
-- Request mapper status: thin adapter over `msconnector_generic_map_request`; `envoy_modsecurity_map_request()` and owned wrapper map starter request fields to `msconnector_request` with Host-preferred hostname fallback.
-- Response mapper status: thin adapter over `msconnector_generic_map_response`; `envoy_modsecurity_map_response()` and owned wrapper map starter response metadata to `msconnector_response`; body payloads are not logged.
+- Request mapper status: header alias to `msconnector_generic_map_request`; the duplicated Envoy mapper source was removed and Host fallback lives in Common.
+- Response mapper status: header alias to `msconnector_generic_map_response`; the duplicated Envoy mapper source was removed and body payloads are not logged.
 - Decision/event status: existing decision starter uses Common decision/intervention types; event JSONL remains connector-gap until a runtime callsite exists.
 - C17 check status: covered by `check-remaining-connectors-c17`; missing source/header inputs return Exit 77.
 - Runtime verification status: `runtime_status=not_verified`, `verification_status=connector-gap`.
@@ -21,8 +21,8 @@ This report covers Envoy, Traefik, lighttpd, and the repository template starter
 - Connector: `connectors/traefik`
 - Current status: decision-service starter; no Traefik plugin/runtime traffic integration.
 - Common config mapping: `traefik_modsecurity_config_init()` initializes and defaults `msconnector_config`.
-- Request mapper status: thin adapter over `msconnector_generic_map_request`; `traefik_modsecurity_map_request()` maps starter fixture fields to `msconnector_request` and validates the contract.
-- Response mapper status: thin adapter over `msconnector_generic_map_response`; `traefik_modsecurity_map_response()` maps starter response fields to `msconnector_response` and validates the contract.
+- Request mapper status: header alias to `msconnector_generic_map_request`; the duplicated Traefik mapper source was removed and validation lives in Common.
+- Response mapper status: header alias to `msconnector_generic_map_response`; the duplicated Traefik mapper source was removed and validation lives in Common.
 - Decision/event status: existing starter uses Common decision/intervention types; JSONL/event output is documented as connector-gap.
 - C17 check status: covered by `check-remaining-connectors-c17`; missing source/header inputs return Exit 77.
 - Runtime verification status: `runtime_status=not_verified`, `verification_status=connector-gap`.
@@ -35,8 +35,8 @@ This report covers Envoy, Traefik, lighttpd, and the repository template starter
 - Connector: `connectors/lighttpd`
 - Current status: decision-service bridge starter; native module and FastCGI/SCGI integration are deferred.
 - Common config mapping: `lighttpd_modsecurity_config_init()` initializes and defaults `msconnector_config`.
-- Request mapper status: thin adapter over `msconnector_generic_map_request`; `lighttpd_modsecurity_map_request()` maps starter fixture fields to `msconnector_request` and validates the contract.
-- Response mapper status: thin adapter over `msconnector_generic_map_response`; `lighttpd_modsecurity_map_response()` maps starter response fields to `msconnector_response` and validates the contract.
+- Request mapper status: header alias to `msconnector_generic_map_request`; the duplicated lighttpd mapper source was removed and validation lives in Common.
+- Response mapper status: header alias to `msconnector_generic_map_response`; the duplicated lighttpd mapper source was removed and validation lives in Common.
 - Decision/event status: starter uses Common decision/intervention types; event/test-result artifact output is connector-gap.
 - C17 check status: covered by `check-remaining-connectors-c17`; missing source/header inputs return Exit 77.
 - Runtime verification status: `runtime_status=not_verified`, `verification_status=connector-gap`.
