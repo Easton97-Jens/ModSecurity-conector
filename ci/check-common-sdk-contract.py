@@ -131,6 +131,8 @@ if "hostname must be NUL-terminated" not in generic_header:
     fail("generic mapper header must document NUL-terminated hostname requirement")
 if "body.size > 0U && src->body.data == 0" not in generic_source:
     fail("generic mapper must reject nonzero body sizes with null body data")
+if "header_count > 0U && src->headers == 0" not in generic_source:
+    fail("generic mapper must reject nonzero header counts with null header arrays")
 if "msconnector_generic_config_init" in generic_source and "msconnector_config_apply_defaults(config)" in generic_source:
     fail("generic init must not apply defaults before merge/finalization")
 

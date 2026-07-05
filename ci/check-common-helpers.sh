@@ -421,9 +421,15 @@ int main(void) {
             msconnector_response_mapper_contract_init(&response_contract);
             generic_request.method = "POST";
             generic_request.uri = "/";
+            generic_request.header_count = 1U;
+            assert(!msconnector_generic_map_request(&generic_request, &request_contract, &mapped_request, 0, 0));
+            generic_request.header_count = 0U;
             generic_request.body.size = 1U;
             assert(!msconnector_generic_map_request(&generic_request, &request_contract, &mapped_request, 0, 0));
             generic_response.status = 200;
+            generic_response.header_count = 1U;
+            assert(!msconnector_generic_map_response(&generic_response, &response_contract, &mapped_response, 0, 0));
+            generic_response.header_count = 0U;
             generic_response.body.size = 1U;
             assert(!msconnector_generic_map_response(&generic_response, &response_contract, &mapped_response, 0, 0));
         }

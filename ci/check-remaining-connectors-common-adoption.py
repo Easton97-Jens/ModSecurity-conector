@@ -41,9 +41,22 @@ if 'msconnector_generic_map_request' not in common or 'msconnector_generic_map_r
     errors.append('common generic mapper implementation missing')
 for c in connectors:
     source_map=(root/'connectors'/c/'SOURCE_MAP.json').read_text(errors='ignore')
+    source_map_lower=source_map.lower()
     expected=f'connectors/{c}/src/{c}_modsecurity_mapper.h'
     if expected not in source_map:
         errors.append(f'{c}: mapper header missing from SOURCE_MAP.json')
+    if 'connector-gap' not in source_map or ('not_verified' not in source_map and 'not-verified' not in source_map):
+        errors.append(f'{c}: SOURCE_MAP.json missing not_verified/connector-gap status')
+    forbidden_source_map_terms=[
+        'runtime-smoke','runtime_smoke','runtime-verified','runtime_verified',
+        'sidecar_proxy_local_smoke','sidecar_proxy-local-smoke',
+        'sidecar-runtime-smoke','bridge-starter-plus-sidecar-runtime-smoke',
+        'production-ready','security-verified','crs-verified','full-matrix',
+        'response-body-verified'
+    ]
+    for term in forbidden_source_map_terms:
+        if term in source_map_lower:
+            errors.append(f'{c}: stale source-map runtime claim: {term}')
 for doc in ['reports/remaining-connectors-common-adoption.md','reports/remaining-connectors-common-adoption.de.md']:
     if not (root/doc).is_file(): errors.append(f'missing {doc}')
 if errors:

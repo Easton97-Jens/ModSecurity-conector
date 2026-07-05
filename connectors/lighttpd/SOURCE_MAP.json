@@ -1,7 +1,7 @@
 {
   "connector": "lighttpd",
-  "status": "bridge-starter-plus-sidecar-runtime-smoke",
-  "runtime_status": "sidecar_proxy-local-smoke",
+  "status": "bridge-starter",
+  "runtime_status": "not_verified",
   "upstream": {
     "selected": true,
     "repository": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
@@ -74,5 +74,7 @@
     "audit log evidence",
     "native-module lighttpd headers or SDK/source tree if a native module path is selected later",
     "FastCGI or SCGI protocol adapter if a bridge path is selected later"
-  ]
+  ],
+  "verification_status": "connector-gap",
+  "starter_evidence_note": "historical sidecar smoke entries are starter-only; not runtime evidence"
 }

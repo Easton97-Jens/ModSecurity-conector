@@ -26,6 +26,10 @@ int msconnector_generic_map_request(
         return 0;
     }
 
+    if (src->header_count > 0U && src->headers == 0) {
+        set_mapper_error(error, error_len, "request headers are required when header count is nonzero");
+        return 0;
+    }
     if (src->body.size > 0U && src->body.data == 0) {
         set_mapper_error(error, error_len, "request body data is required when body size is nonzero");
         return 0;
@@ -60,6 +64,10 @@ int msconnector_generic_map_response(
         return 0;
     }
 
+    if (src->header_count > 0U && src->headers == 0) {
+        set_mapper_error(error, error_len, "response headers are required when header count is nonzero");
+        return 0;
+    }
     if (src->body.size > 0U && src->body.data == 0) {
         set_mapper_error(error, error_len, "response body data is required when body size is nonzero");
         return 0;
