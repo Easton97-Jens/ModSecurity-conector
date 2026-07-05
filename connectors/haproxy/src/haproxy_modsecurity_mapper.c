@@ -1,0 +1,140 @@
+#include "haproxy_modsecurity_mapper.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "msconnector/headers.h"
+#include "msconnector/request_helpers.h"
+#include "msconnector/response_helpers.h"
+
+static void haproxy_mapper_error(char *error, size_t error_len, const char *message) {
+    if (error != 0 && error_len > 0U) {
+        snprintf(error, error_len, "%s", message != 0 ? message : "haproxy mapper error");
+    }
+}
+
+static size_t haproxy_cstr_size(const char *value) {
+    return value != 0 ? strlen(value) : 0U;
+}
+
+static int haproxy_headers_to_common(
+        const haproxy_modsecurity_header *src,
+        unsigned int header_count,
+        msconnector_header **headers_out,
+        size_t *header_count_out,
+        char *error,
+        size_t error_len) {
+    msconnector_header *headers;
+    unsigned int i;
+
+    if (headers_out == 0 || header_count_out == 0) {
+        haproxy_mapper_error(error, error_len, "missing header mapper output");
+        return -1;
+    }
+    *headers_out = 0;
+    *header_count_out = 0U;
+    if (header_count == 0U) {
+        return 0;
+    }
+    if (src == 0) {
+        haproxy_mapper_error(error, error_len, "header count provided without headers");
+        return -1;
+    }
+    headers = (msconnector_header *)calloc((size_t)header_count, sizeof(*headers));
+    if (headers == 0) {
+        haproxy_mapper_error(error, error_len, "failed to allocate common headers");
+        return -1;
+    }
+    for (i = 0U; i < header_count; ++i) {
+        headers[i].name = src[i].name;
+        headers[i].name_size = haproxy_cstr_size(src[i].name);
+        headers[i].value = src[i].value != 0 ? src[i].value : "";
+        headers[i].value_size = haproxy_cstr_size(headers[i].value);
+    }
+    *headers_out = headers;
+    *header_count_out = (size_t)header_count;
+    return 0;
+}
+
+int haproxy_modsecurity_map_request(
+        const haproxy_modsecurity_request *src,
+        const msconnector_request_mapper_contract *contract,
+        msconnector_request *out,
+        char *error,
+        size_t error_len) {
+    msconnector_header *headers = 0;
+    size_t header_count = 0U;
+    const char *host;
+    int rc;
+
+    if (src == 0 || out == 0) {
+        haproxy_mapper_error(error, error_len, "missing request mapper input");
+        return -1;
+    }
+    msconnector_request_init(out);
+    if (haproxy_headers_to_common(src->headers, src->header_count, &headers,
+            &header_count, error, error_len) != 0) {
+        return -1;
+    }
+    out->method = src->method;
+    out->uri = src->uri;
+    out->http_version = "1.1";
+    out->client.address = src->client_ip;
+    out->client.port = src->client_port;
+    out->server.address = src->server_ip;
+    out->server.port = src->server_port;
+    out->headers = headers;
+    out->header_count = header_count;
+    host = msconnector_headers_host(out->headers, out->header_count);
+    out->hostname = host != 0 ? host : src->server_ip;
+    if (src->body != 0 && src->body_len > 0U) {
+        out->body.data = src->body;
+        out->body.size = (size_t)src->body_len;
+    }
+    rc = msconnector_request_mapper_validate_output(contract, out, error, error_len);
+    if (rc != 0) {
+        free(headers);
+        out->headers = 0;
+        out->header_count = 0U;
+        return -1;
+    }
+    return 0;
+}
+
+int haproxy_modsecurity_map_response(
+        const haproxy_modsecurity_response *src,
+        const msconnector_response_mapper_contract *contract,
+        msconnector_response *out,
+        char *error,
+        size_t error_len) {
+    msconnector_header *headers = 0;
+    size_t header_count = 0U;
+    int rc;
+
+    if (src == 0 || out == 0) {
+        haproxy_mapper_error(error, error_len, "missing response mapper input");
+        return -1;
+    }
+    msconnector_response_init(out);
+    if (haproxy_headers_to_common(src->headers, src->header_count, &headers,
+            &header_count, error, error_len) != 0) {
+        return -1;
+    }
+    out->status = src->status;
+    out->http_version = src->protocol;
+    out->headers = headers;
+    out->header_count = header_count;
+    if (src->body != 0 && src->body_len > 0U) {
+        out->body.data = src->body;
+        out->body.size = (size_t)src->body_len;
+    }
+    rc = msconnector_response_mapper_validate_output(contract, out, error, error_len);
+    if (rc != 0) {
+        free(headers);
+        out->headers = 0;
+        out->header_count = 0U;
+        return -1;
+    }
+    return 0;
+}

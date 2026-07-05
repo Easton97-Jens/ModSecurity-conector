@@ -629,7 +629,7 @@ probe-response-body: check-framework prepare-runtime-components
 connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
-.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-block-status-generator
+.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-block-status-generator
 check-block-status-generator:
 	$(PYTHON) ci/check-block-status-generator.py
 
@@ -687,6 +687,33 @@ check-nginx-c20:
 check-nginx-c26:
 	@echo "SKIPPED: c26 is not a C standard mode; use c2y/gnu2y for future C or c++26 for C++."
 
+check-haproxy-common-adoption:
+	$(PYTHON) ci/check-haproxy-common-adoption.py
+
+check-haproxy-c-standard-wiring:
+	$(PYTHON) ci/check-haproxy-c-standard-wiring.py
+
+check-haproxy-c-standards:
+	sh ci/check-haproxy-c-standards.sh
+
+check-haproxy-c17:
+	HAPROXY_C_STD_PROFILE=c17 sh ci/check-haproxy-c-standards.sh
+
+check-haproxy-c17-lint:
+	@HAPROXY_C_STD_PROFILE=c17 sh ci/check-haproxy-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: haproxy C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
+
+check-haproxy-c23:
+	HAPROXY_C_STD_PROFILE=c23 sh ci/check-haproxy-c-standards.sh
+
+check-haproxy-future-c:
+	HAPROXY_C_STD_PROFILE=c2y sh ci/check-haproxy-c-standards.sh
+
+check-haproxy-c20:
+	@echo "SKIPPED: c20 is not a C standard mode; use c23/c2x for C or c++20 for C++."
+
+check-haproxy-c26:
+	@echo "SKIPPED: c26 is not a C standard mode; use c2y/gnu2y for future C or c++26 for C++."
+
 check-common-helpers:
 	MSCONNECTOR_C_STD="$(MSCONNECTOR_C_STD)" MSCONNECTOR_CFLAGS="$(MSCONNECTOR_CFLAGS)" sh ci/check-common-helpers.sh
 
@@ -735,6 +762,9 @@ lint: check-framework
 	$(MAKE) check-nginx-common-adoption
 	$(MAKE) check-nginx-c-standard-wiring
 	$(MAKE) check-nginx-c17-lint
+	$(MAKE) check-haproxy-common-adoption
+	$(MAKE) check-haproxy-c-standard-wiring
+	$(MAKE) check-haproxy-c17-lint
 	$(MAKE) check-common-sdk-contract
 	$(MAKE) check-common-security-contract
 	$(MAKE) check-common-memory-safety

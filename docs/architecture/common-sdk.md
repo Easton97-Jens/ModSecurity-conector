@@ -178,3 +178,7 @@ NGINX connector: `ngx_command_t`, `ngx_http_request_t`, `ngx_chain_t`,
 `ngx_buf_t`, filters, pools, return codes, and build glue. The NGINX C17 check is
 blocked with exit 77 when NGINX/libmodsecurity headers are absent; C23/future-C
 checks are optional and do not imply runtime verification.
+
+## HAProxy adoption note
+
+The HAProxy connector is expected to consume the Common SDK for connector-neutral semantics: configuration, directive specs/adapters, primitive parsers, mapper contracts, event JSONL, redaction, resource limits, guards, CRS setup contracts, artifact/test-result contracts, and status/error mapping. HAProxy-specific SPOE/SPOP protocol code, HAProxy cfg glue, runtime process handling, frame parsing, socket handling, and build integration remain adapter-owned. C17 compile evidence is structural only and must not be described as production, CRS, full-matrix, or runtime verification.

@@ -1,4 +1,5 @@
 #include "haproxy_modsecurity_binding.h"
+#include "haproxy_modsecurity_mapper.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -11,6 +12,27 @@
 #include <modsecurity/modsecurity.h>
 #include <modsecurity/rules_set.h>
 #include <modsecurity/transaction.h>
+
+#include "msconnector/config_parser.h"
+#include "msconnector/decision.h"
+#include "msconnector/directive_adapter.h"
+#include "msconnector/directive_spec.h"
+#include "msconnector/directives.h"
+#include "msconnector/dos_guard.h"
+#include "msconnector/event.h"
+#include "msconnector/event_jsonl.h"
+#include "msconnector/flow_guard.h"
+#include "msconnector/headers.h"
+#include "msconnector/integrity_event.h"
+#include "msconnector/json_escape.h"
+#include "msconnector/late_intervention.h"
+#include "msconnector/log_sanitize.h"
+#include "msconnector/redaction.h"
+#include "msconnector/resource_limits.h"
+#include "msconnector/rule_id.h"
+#include "msconnector/rule_loader.h"
+#include "msconnector/rule_load_stats.h"
+#include "msconnector/status.h"
 
 #define HAPROXY_MODSECURITY_EXPECTED_STATUS 403
 #define HAPROXY_PATH_LIMIT 4096U
@@ -41,6 +63,8 @@ static void copy_message(char *dst, size_t dst_len, const char *src) {
 }
 
 static void init_decision(haproxy_modsecurity_decision *decision, int phase) {
+    msconnector_decision common_decision;
+    msconnector_decision_init(&common_decision);
     if (decision == 0) {
         return;
     }
@@ -59,6 +83,7 @@ static void init_intervention(ModSecurityIntervention *intervention) {
 }
 
 struct haproxy_modsecurity_engine {
+    msconnector_config common_config;
     ModSecurity *modsec;
     RulesSet *rules;
 };
@@ -71,6 +96,27 @@ struct haproxy_modsecurity_transaction {
     int response_body_processed;
     char request_id[128];
 };
+
+static int haproxy_common_sdk_probe_semantics(void) {
+    enum msconnector_bool_option bool_value;
+    enum msconnector_phase4_mode phase4_value;
+    size_t size_value;
+    int status_value;
+    char adapter_error[128];
+
+    if (msconnector_parse_bool("on", &bool_value) != 0 ||
+            msconnector_parse_phase4_mode("safe", &phase4_value) != 0 ||
+            msconnector_parse_size("1m", &size_value) != 0 ||
+            msconnector_parse_http_status("403", &status_value) != 0) {
+        return -1;
+    }
+    if (msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_RULES_FILE) == 0 ||
+            msconnector_directive_adapter_validate_all(adapter_error, sizeof(adapter_error)) != 0) {
+        return -1;
+    }
+    return bool_value == MSCONNECTOR_BOOL_UNSET || phase4_value == MSCONNECTOR_PHASE4_MODE_UNSET ||
+        size_value == 0U || status_value == 0 ? -1 : 0;
+}
 
 static int file_exists(const char *path) {
     struct stat st;
@@ -142,6 +188,8 @@ static void capture_intervention(
         int phase,
         haproxy_modsecurity_decision *decision) {
     ModSecurityIntervention intervention;
+    char common_rule_id[64];
+    int truncated = 0;
     int64_t ids[1];
     size_t id_count;
 
@@ -160,8 +208,14 @@ static void capture_intervention(
         }
         copy_message(decision->log_message, sizeof(decision->log_message),
             intervention.log);
+        msconnector_sanitize_log_message(intervention.log, intervention.log != 0 ? strlen(intervention.log) : 0U,
+            decision->log_message, sizeof(decision->log_message), &truncated);
         copy_message(decision->rule_message, sizeof(decision->rule_message),
             intervention.log);
+        if (msconnector_rule_id_extract_from_message(intervention.log, common_rule_id,
+                sizeof(common_rule_id)) == 0) {
+            decision->rule_id = atoi(common_rule_id);
+        }
     }
     id_count = msc_get_rules_messages_rule_ids(transaction, ids, 1U);
     if (id_count > 0U) {
@@ -178,6 +232,10 @@ static int load_rules_file(
     int rc;
 
     if (rules_file != 0 && rules_file[0] != '\0') {
+        msconnector_rule_load_stats common_stats;
+        msconnector_rule_load_stats_init(&common_stats);
+        msconnector_rule_load_stats_add_file(&common_stats, 1U);
+        (void)common_stats;
         rc = msc_rules_add_file(rules, rules_file, &rules_error);
         if (rc < 0) {
             copy_message(decision->log_message, sizeof(decision->log_message),
@@ -485,6 +543,23 @@ int haproxy_modsecurity_engine_create(
         copy_message(decision->log_message, sizeof(decision->log_message),
             "failed to allocate ModSecurity engine");
         return 1;
+    }
+    if (haproxy_common_sdk_probe_semantics() != 0) {
+        copy_message(decision->log_message, sizeof(decision->log_message),
+            "Common SDK directive/parser semantics unavailable");
+        free(created);
+        return 1;
+    }
+    msconnector_config_init(&created->common_config);
+    msconnector_config_apply_defaults(&created->common_config);
+    if (config != 0) {
+        char config_error[256];
+        if (msconnector_config_merge(&created->common_config, &created->common_config, &config->common_config) != 0 ||
+                msconnector_config_validate(&created->common_config, config_error, sizeof(config_error)) != 0) {
+            copy_message(decision->log_message, sizeof(decision->log_message), config_error);
+            haproxy_modsecurity_engine_destroy(created);
+            return 1;
+        }
     }
     created->modsec = msc_init();
     if (created->modsec == 0) {
