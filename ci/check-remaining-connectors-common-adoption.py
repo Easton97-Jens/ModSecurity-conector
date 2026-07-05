@@ -22,14 +22,20 @@ for c in connectors:
     for copied in copied_terms:
         if copied in m: errors.append(f'{c}: copied mapper helper remains: {copied}')
     meta=(base/'metadata.c').read_text(errors='ignore')
-    if 'not_verified' not in meta: errors.append(f'{c}: runtime_status not not_verified')
-    if not any(x in meta for x in ['connector-gap','not_verified']): errors.append(f'{c}: verification_status missing connector-gap/not_verified')
+    if 'not_verified' not in meta and 'not-verified' not in meta: errors.append(f'{c}: runtime_status not not_verified/not-verified')
+    if 'connector-gap' not in meta: errors.append(f'{c}: verification_status missing connector-gap')
     for bad in ['production-ready','runtime secure','security verified','CRS verified','full matrix verified','response body verified','runtime verified']:
         if bad.lower() in text.lower(): errors.append(f'{c}: forbidden claim {bad}')
     for dup in [f'{c}_parse_bool(',f'{c}_parse_size(',f'{c}_json_escape(',f'{c}_rule_id_extract(',f'{c}_sanitize_log_message(']:
         if dup in text: errors.append(f'{c}: duplicate helper {dup}')
 if len(existing_mapper_sources) == 3 and all(len(m.splitlines()) > 40 for _, m in existing_mapper_sources):
     errors.append('all three mapper source files still exist and are larger than thin adapters')
+starter=(root/'connectors/lighttpd/src/lighttpd_build_starter.c').read_text(errors='ignore')
+lighttpd_meta=(root/'connectors/lighttpd/metadata.c').read_text(errors='ignore')
+if 'not_verified' in lighttpd_meta and 'not_verified' not in starter:
+    errors.append('lighttpd starter check does not accept not_verified runtime status')
+if 'connector-gap' not in lighttpd_meta:
+    errors.append('lighttpd metadata missing connector-gap')
 common=(root/'common/src/generic_mapper.c').read_text(errors='ignore') if (root/'common/src/generic_mapper.c').is_file() else ''
 if 'msconnector_generic_map_request' not in common or 'msconnector_generic_map_response' not in common:
     errors.append('common generic mapper implementation missing')

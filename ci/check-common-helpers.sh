@@ -96,6 +96,7 @@ cat > "$SMOKE_C" <<'EOF'
 #include "msconnector/flow_guard.h"
 #include "msconnector/integrity_event.h"
 #include "msconnector/dos_guard.h"
+#include "msconnector/generic_mapper.h"
 
 #include <assert.h>
 #include <string.h>
@@ -404,6 +405,28 @@ int main(void) {
         msconnector_free_checked(&allocator, &allocation, 4U);
         assert(allocation == 0);
         assert(allocator.bytes_allocated == 0U);
+
+
+        {
+            msconnector_generic_request_source generic_request;
+            msconnector_generic_response_source generic_response;
+            msconnector_request mapped_request;
+            msconnector_response mapped_response;
+            msconnector_request_mapper_contract request_contract;
+            msconnector_response_mapper_contract response_contract;
+
+            memset(&generic_request, 0, sizeof(generic_request));
+            memset(&generic_response, 0, sizeof(generic_response));
+            msconnector_request_mapper_contract_init(&request_contract);
+            msconnector_response_mapper_contract_init(&response_contract);
+            generic_request.method = "POST";
+            generic_request.uri = "/";
+            generic_request.body.size = 1U;
+            assert(!msconnector_generic_map_request(&generic_request, &request_contract, &mapped_request, 0, 0));
+            generic_response.status = 200;
+            generic_response.body.size = 1U;
+            assert(!msconnector_generic_map_response(&generic_response, &response_contract, &mapped_response, 0, 0));
+        }
 
         msconnector_flow_guard_init(&guard, "tx-1");
         assert(msconnector_flow_guard_mark_validated(&guard, MSCONNECTOR_PHASE_CONNECTION) == MSCONNECTOR_FLOW_GUARD_OK);

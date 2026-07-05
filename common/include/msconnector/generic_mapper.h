@@ -17,6 +17,7 @@ typedef struct msconnector_generic_request_source {
     const char *method;
     const char *uri;
     const char *http_version;
+    /* hostname must be NUL-terminated when provided; header value slices are not exposed as C strings. */
     const char *hostname;
     msconnector_endpoint client;
     msconnector_endpoint server;

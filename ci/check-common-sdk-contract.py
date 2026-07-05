@@ -125,6 +125,13 @@ for token in ("ngx_", "request_rec", "apr_", "haproxy", "envoy", "traefik", "lig
     if token in generic_header or token in generic_source:
         fail(f"generic mapper contains server-specific token {token!r}")
 
+if "msconnector_headers_find_first" in generic_source or "out->hostname = host" in generic_source or "host->value" in generic_source:
+    fail("generic mapper must not expose header value slices as C-string hostnames")
+if "hostname must be NUL-terminated" not in generic_header:
+    fail("generic mapper header must document NUL-terminated hostname requirement")
+if "body.size > 0U && src->body.data == 0" not in generic_source:
+    fail("generic mapper must reject nonzero body sizes with null body data")
+
 log_sanitize_source = (ROOT / "common" / "src" / "log_sanitize.c").read_text(encoding="utf-8")
 if "redacted body" not in log_sanitize_source or "src;" not in log_sanitize_source:
     fail("body-snippet redaction must not copy payload bytes")

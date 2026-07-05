@@ -23,7 +23,8 @@ int main(void) {
     if (strcmp(metadata->source_kind, "bridge-starter") != 0) {
         return 1;
     }
-    if (strcmp(metadata->runtime_status, "not-verified") != 0) {
+    if (strcmp(metadata->runtime_status, "not_verified") != 0 &&
+        strcmp(metadata->runtime_status, "not-verified") != 0) {
         return 1;
     }
 

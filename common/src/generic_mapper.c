@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 
-#include "msconnector/headers.h"
 #include "msconnector/request_helpers.h"
 #include "msconnector/response_helpers.h"
 
@@ -23,10 +22,13 @@ int msconnector_generic_map_request(
         msconnector_request *out,
         char *error,
         size_t error_len) {
-    const msconnector_header *host;
-
     if (src == 0 || out == 0) {
         set_mapper_error(error, error_len, "missing request mapper input");
+        return 0;
+    }
+
+    if (src->body.size > 0U && src->body.data == 0) {
+        set_mapper_error(error, error_len, "request body data is required when body size is nonzero");
         return 0;
     }
 
@@ -41,10 +43,7 @@ int msconnector_generic_map_request(
     out->header_count = src->header_count;
     out->body = src->body;
 
-    host = msconnector_headers_find_first(out->headers, out->header_count, "host");
-    if (host != 0 && host->value != 0 && host->value_size > 0U) {
-        out->hostname = host->value;
-    } else if (out->hostname == 0) {
+    if (out->hostname == 0) {
         out->hostname = src->server.address;
     }
 
@@ -59,6 +58,11 @@ int msconnector_generic_map_response(
         size_t error_len) {
     if (src == 0 || out == 0) {
         set_mapper_error(error, error_len, "missing response mapper input");
+        return 0;
+    }
+
+    if (src->body.size > 0U && src->body.data == 0) {
+        set_mapper_error(error, error_len, "response body data is required when body size is nonzero");
         return 0;
     }
 
