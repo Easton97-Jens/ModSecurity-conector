@@ -51,3 +51,7 @@ The HAProxy connector is expected to consume the Common SDK for connector-neutra
 ## Starter/not_verified connector rule
 
 A starter connector may add thin adapter mappers to Common SDK request/response/config contracts, but it must keep metadata at `runtime_status=not_verified` and `verification_status=connector-gap` until runtime evidence exists. Do not log body payloads. Do not add server-specific types to `common/`. Keep host API glue, runtime lifecycle, build glue, and protocol/frame handling in the connector tree.
+
+## Generic mapper adoption
+
+Starter connectors should prefer the connector-neutral generic mapper helper when their local source can be expressed as `msconnector_generic_request_source` or `msconnector_generic_response_source`. Local files should stay thin adapters and must not duplicate header mapping, Host fallback, Common validation, or ownership cleanup logic. This does not imply runtime verification.

@@ -75,6 +75,7 @@ for required_header in (
     "limits.h",
     "rule_id.h",
     "log_sanitize.h",
+    "generic_mapper.h",
 ):
     if not (COMMON / "include" / "msconnector" / required_header).is_file():
         fail(f"missing common SDK header {required_header}")
@@ -114,6 +115,15 @@ for required_doc in (
 ):
     if not (ROOT / required_doc).is_file():
         fail(f"missing generated common package doc {required_doc}")
+
+
+generic_header = (COMMON / "include" / "msconnector" / "generic_mapper.h").read_text(encoding="utf-8")
+generic_source = (COMMON / "src" / "generic_mapper.c").read_text(encoding="utf-8")
+if "msconnector_generic_map_request" not in generic_header or "msconnector_generic_map_response" not in generic_header:
+    fail("generic mapper header must expose request and response mapping APIs")
+for token in ("ngx_", "request_rec", "apr_", "haproxy", "envoy", "traefik", "lighttpd"):
+    if token in generic_header or token in generic_source:
+        fail(f"generic mapper contains server-specific token {token!r}")
 
 log_sanitize_source = (ROOT / "common" / "src" / "log_sanitize.c").read_text(encoding="utf-8")
 if "redacted body" not in log_sanitize_source or "src;" not in log_sanitize_source:

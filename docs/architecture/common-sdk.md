@@ -186,3 +186,7 @@ The HAProxy connector is expected to consume the Common SDK for connector-neutra
 ## Remaining connector starter adoption
 
 Envoy, Traefik, and lighttpd now carry connector-local Common SDK mapper scaffolding for `msconnector_config`, `msconnector_request`, and `msconnector_response`. This is a structure/compile contract only. Host API glue, runtime lifecycle, build glue, protocol/frame handling, event artifact callsites, and libmodsecurity transaction ownership remain connector-specific work. These connectors must remain `not_verified` / `connector-gap` until runtime evidence exists.
+
+## Generic mapper helper
+
+The Common SDK includes `msconnector_generic_map_request()` and `msconnector_generic_map_response()` for starter connectors that already have connector-neutral request and response fields. Envoy, Traefik, and lighttpd use this helper through thin local adapters. The helper does not take ownership of headers or body bytes, does not log body payloads, and does not change their `not_verified` / `connector-gap` status.

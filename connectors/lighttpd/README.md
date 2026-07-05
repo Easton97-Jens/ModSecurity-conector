@@ -235,7 +235,7 @@ matrix readiness, CRS completeness, or response-body verification.
 This connector is prepared for the Common SDK but remains `not_verified` / `connector-gap`.
 
 - Common configuration is initialized through `lighttpd_modsecurity_config_init()` and maps to `msconnector_config`.
-- Request and response mapper contracts live in `connectors/lighttpd/src/lighttpd_modsecurity_mapper.*` and are structure/compile-level only until host runtime callsites exist.
+- Request and response mapper contracts use the Common generic mapper helper and live in `connectors/lighttpd/src/lighttpd_modsecurity_mapper.*` and are structure/compile-level only until host runtime callsites exist.
 - Decisions use Common decision/intervention models; event, test-result, and artifact emission remain connector-gap until runtime integration exists.
 - Connector-specific code remains responsible for host API glue, runtime lifecycle, build glue, and protocol/frame handling.
 - No production, CRS, full-matrix, runtime, or RESPONSE_BODY verification is claimed.

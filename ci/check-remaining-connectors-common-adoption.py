@@ -10,9 +10,13 @@ for c in connectors:
     header=base/'src'/f'{c}_modsecurity_mapper.h'
     if not mapper.is_file() or not header.is_file(): errors.append(f'{c}: request/response mapper files missing')
     m=mapper.read_text(errors='ignore') if mapper.is_file() else ''
-    for term in ['msconnector_config_init','msconnector_config_apply_defaults','msconnector_request_init','msconnector_response_init','msconnector_request_mapper_validate_output','msconnector_response_mapper_validate_output']:
+    for term in ['msconnector_config_init','msconnector_config_apply_defaults','msconnector_generic_map_request','msconnector_generic_map_response']:
         if term not in m: errors.append(f'{c}: missing {term}')
     if 'free((void *)' in text or re.search(r'free\s*\(\s*\(void \*\).*headers', text): errors.append(f'{c}: const-dropping header free found')
+    if len(m.splitlines()) >= 120: errors.append(f'{c}: mapper is too large for thin generic adapter')
+    copied_terms=['headers_to_common','msconnector_headers_find_first','msconnector_request_mapper_validate_output','msconnector_response_mapper_validate_output','owned_headers']
+    for copied in copied_terms:
+        if copied in m: errors.append(f'{c}: copied mapper helper remains: {copied}')
     meta=(base/'metadata.c').read_text(errors='ignore')
     if 'not_verified' not in meta: errors.append(f'{c}: runtime_status not not_verified')
     if not any(x in meta for x in ['connector-gap','not_verified']): errors.append(f'{c}: verification_status missing connector-gap/not_verified')
