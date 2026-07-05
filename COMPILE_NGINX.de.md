@@ -211,3 +211,15 @@ belegter Evidence.
 - [examples/nginx/README.de.md](examples/nginx/README.de.md)
 - `connectors/nginx/docs/build.md`
 - `connectors/nginx/docs/validation.md`
+
+## Common-SDK-Adoption-Compile-Checks
+
+Der NGINX-Connector besitzt jetzt reine Compile-/Strukturprüfungen für die
+Common-SDK-Adoptionsschicht. `make check-nginx-c17` kompiliert relevante NGINX-
+und Common-Objekte mit C17 (`-Wall -Wextra -Werror`), sofern lokale NGINX- und
+libmodsecurity-Header vorhanden sind. `make check-nginx-c23` und
+`make check-nginx-future-c` sind optionale Compiler-Fähigkeitsprüfungen. Fehlende
+Header werden als `BLOCKED` mit Exit 77 gemeldet. Das ist keine Production-,
+CRS-, Full-Matrix- oder Runtime-Verifikation.
+
+NGINX-Common-SDK-Modul-Builds mit kopiertem Connector-Quellbaum müssen `MSCONNECTOR_COMMON_SRC` (oder `CONNECTOR_COMMON_SRC` / `COMMON_SRC_ROOT`) auf den Common-Source-Root des Repositories setzen; `MSCONNECTOR_COMMON_INC` bleibt der Common-Include-Root. Ohne diese Variable wird nur auf `$ngx_addon_dir/../../common/src` zurückgefallen, wenn dieser Pfad existiert.

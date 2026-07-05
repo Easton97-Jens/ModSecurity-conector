@@ -23,7 +23,7 @@ directive existing in code does not by itself promote full behavior.
 | `modsecurity_phase4_mode` | Supported | Supported | Not applicable | Bounded Phase 4 control. This does not promote full RESPONSE_BODY support. |
 | `modsecurity_phase4_content_types_file` | Supported | Supported | Not applicable | Bounded response content-type allow-list. |
 | `modsecurity_phase4_log` | Supported | Supported | Not applicable | JSONL Phase 4 decision/evidence log for Apache/NGINX. |
-| `modsecurity_phase4_body_limit` | Supported | Not supported | Not applicable | Apache connector response-buffer bound. NGINX uses libmodsecurity limits and strict-abort controls instead. |
+| `modsecurity_phase4_body_limit` | Supported | Supported | Not applicable | Bounded Phase 4 body-inspection limit. NGINX registers the directive, maps it into Common config, and stops passing response bytes to ModSecurity after the configured limit; this is not a full RESPONSE_BODY promotion. |
 | `filter spoe engine modsecurity` | Not applicable | Not applicable | Supported | HAProxy SPOE entry point. |
 | `http-request send-spoe-group` | Not applicable | Not applicable | Supported | Sends request phases 1/2 evidence to `haproxy-modsecurity-spoa`. |
 | `http-response send-spoe-group` | Not applicable | Not applicable | Supported | Sends response headers and bounded response-body evidence. |
@@ -70,11 +70,10 @@ The NGINX connector currently registers:
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
 - `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_body_limit <bytes>`
 
 NGINX `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
-per-request variables. Apache expression transaction IDs use
-`modsecurity_transaction_id_expr` instead. NGINX Phase 4 support is bounded
-strict-abort evidence and not full RESPONSE_BODY promotion.
+per-request variables. Apache-style `modsecurity_transaction_id_expr` is not registered for NGINX. NGINX Phase 4 support is bounded: the body-limit directive controls how many response bytes are passed to ModSecurity and records truncation metadata, but it is not full RESPONSE_BODY promotion.
 
 ## HAProxy Configuration Surface
 

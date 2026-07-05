@@ -37,3 +37,12 @@ besitzt semantische Konfiguration, Direktiven, Mapper-Contracts und Events,
 während Apache-eigener Code Apache-API-Zugriffe sowie Filter-/Hook-Mechanik
 behält. Dieser Hinweis ist keine Aussage zu Produktionsreife, CRS, Full-Matrix
 oder Runtime-Verifikation.
+
+## NGINX/Common-Adoptionsmuster
+
+Ein Connector darf servereigene Registrierung sowie Request-/Filter-APIs
+behalten, soll aber `msconnector_config` einbetten oder mappen und Common-
+Direktivenspezifikationen, Request-/Response-Mapper-Verträge, Header, Events und
+Limits nutzen. Reine C17-Compile-Checks müssen echte Kompilierung von blockierten
+Umgebungen mit Exit 77 unterscheiden; optionale Future-Standard-Checks dürfen
+keine Production- oder Runtime-Abdeckung behaupten.

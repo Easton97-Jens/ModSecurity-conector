@@ -34,3 +34,12 @@ The Apache connector is an example of a host-specific adapter beginning this
 adoption: Common owns semantic config/directives/mapper contracts/events, while
 Apache-owned code keeps Apache API access and filter/hook mechanics. This note
 is not a production, CRS, full-matrix, or runtime verification claim.
+
+## NGINX/Common adoption precedent
+
+A connector may keep server-native registration and request/filter APIs while
+embedding or mapping `msconnector_config` and using Common directive specs,
+request/response mapper contracts, headers, events, and limits. Compile-only C17
+checks should distinguish real compilation from blocked environments with exit
+77, and optional future-standard checks must not claim production or runtime
+coverage.

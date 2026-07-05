@@ -22,15 +22,22 @@
 #include "ddebug.h"
 
 #include "ngx_http_modsecurity_common.h"
+#include "ngx_http_modsecurity_mapper.h"
+#include "msconnector/json_escape.h"
+#include "msconnector/limits.h"
+#include "msconnector/log_sanitize.h"
+#include "msconnector/rule_id.h"
 
 static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
 static ngx_int_t ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r);
 static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason);
 static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf);
-static void ngx_http_modsecurity_json_escape(ngx_pool_t *pool, ngx_str_t *src, ngx_str_t *dst);
-static void ngx_http_modsecurity_extract_rule_id(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id);
+static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
+static void ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len);
+static void ngx_http_modsecurity_common_json(ngx_pool_t *pool, ngx_str_t *src, ngx_str_t *dst);
+static void ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id);
 static ngx_str_t ngx_http_modsecurity_normalize_content_type(ngx_pool_t *pool, ngx_str_t in);
-static ngx_str_t ngx_http_modsecurity_sanitize_intervention(ngx_pool_t *pool, ngx_str_t in);
+static ngx_str_t ngx_http_modsecurity_redact_intervention(ngx_pool_t *pool, ngx_str_t in);
 
 /* XXX: check behaviour on few body filters installed */
 ngx_int_t
@@ -40,6 +47,68 @@ ngx_http_modsecurity_body_filter_init(void)
     ngx_http_top_body_filter = ngx_http_modsecurity_body_filter;
 
     return NGX_OK;
+}
+
+static ngx_int_t
+ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx)
+{
+    msconnector_response_mapper_contract contract;
+    msconnector_response mapped_response;
+    char mapper_error[128];
+
+    if (ctx->common_response_validated) {
+        return NGX_OK;
+    }
+
+    msconnector_response_mapper_contract_init(&contract);
+    if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
+            &mapped_response, mapper_error, sizeof(mapper_error))) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity common response-body mapper validation skipped: %s", mapper_error);
+    }
+    ctx->common_response_validated = 1;
+
+    return NGX_OK;
+}
+
+static void
+ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx,
+    ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len)
+{
+    size_t limit;
+    size_t allowed;
+    size_t remaining;
+
+    if (len == 0U) {
+        return;
+    }
+
+    limit = mcf ? mcf->common_config.phase4_body_limit : 0U;
+    allowed = len;
+
+    ctx->response_body_seen = 1;
+    ctx->response_body_bytes_seen += len;
+
+    if (limit > 0U && ctx->response_body_bytes_inspected >= limit) {
+        ctx->response_body_truncated = 1;
+        return;
+    }
+
+    if (limit > 0U) {
+        remaining = limit - ctx->response_body_bytes_inspected;
+        if (allowed > remaining) {
+            allowed = remaining;
+        }
+    }
+
+    if (allowed > 0U) {
+        msc_append_response_body(ctx->modsec_transaction, data, allowed);
+        ctx->response_body_bytes_inspected += allowed;
+    }
+
+    if (allowed < len) {
+        ctx->response_body_truncated = 1;
+    }
 }
 
 ngx_int_t
@@ -68,6 +137,10 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
     if (ctx->intervention_triggered) {
         return ngx_http_next_body_filter(r, in);
+    }
+
+    if (ngx_http_modsecurity_validate_response_mapper_once(r, ctx) != NGX_OK) {
+        return NGX_ERROR;
     }
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
@@ -158,11 +231,7 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             : 0;
         int ret;
 
-        if (len > 0) {
-            ctx->response_body_seen = 1;
-            ctx->response_body_bytes_seen += len;
-            msc_append_response_body(ctx->modsec_transaction, data, len);
-        }
+        ngx_http_modsecurity_append_limited_response_body(ctx, mcf, data, len);
 
 /* XXX: chain->buf->last_buf || chain->buf->last_in_chain */
         is_request_processed = chain->buf->last_buf;
@@ -236,7 +305,7 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
         ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, "log_only", r->headers_out.content_type.len ? "content_type_not_in_scope" : "content_type_missing");
         return NGX_OK;
     }
-    if (mcf->phase4_mode == NGX_HTTP_MODSEC_PHASE4_MODE_STRICT) {
+    if (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT) {
         if (ctx) {
             ctx->phase4_strict_abort = 1;
         }
@@ -247,7 +316,7 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
         return NGX_ERROR;
     }
     ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, "log_only",
-        mcf->phase4_mode == NGX_HTTP_MODSEC_PHASE4_MODE_MINIMAL ? "mode_minimal" : "mode_safe");
+        mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_MINIMAL ? "mode_minimal" : "mode_safe");
     return NGX_OK;
 }
 
@@ -292,22 +361,22 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     const char *transport = "http_status";
     ngx_http_modsecurity_ctx_t *ctx = ngx_http_modsecurity_get_module_ctx(r);
     if (mcf->phase4_log_file == NULL || mcf->phase4_log_file->fd == NGX_INVALID_FILE) return NGX_OK;
-    ngx_http_modsecurity_json_escape(r->pool, &r->uri, &euri);
-    ngx_http_modsecurity_json_escape(r->pool, &r->method_name, &emethod);
+    ngx_http_modsecurity_common_json(r->pool, &r->uri, &euri);
+    ngx_http_modsecurity_common_json(r->pool, &r->method_name, &emethod);
     ngx_str_t nct = ngx_http_modsecurity_normalize_content_type(r->pool, r->headers_out.content_type);
-    ngx_http_modsecurity_json_escape(r->pool, &nct, &ect);
+    ngx_http_modsecurity_common_json(r->pool, &nct, &ect);
     if (ctx) {
         raw_log = ctx->last_intervention_log;
-        ngx_http_modsecurity_extract_rule_id(r->pool, &raw_log, &erule);
-        slog = ngx_http_modsecurity_sanitize_intervention(r->pool, raw_log);
-        ngx_http_modsecurity_json_escape(r->pool, &slog, &elog);
+        ngx_http_modsecurity_common_rule(r->pool, &raw_log, &erule);
+        slog = ngx_http_modsecurity_redact_intervention(r->pool, raw_log);
+        ngx_http_modsecurity_common_json(r->pool, &slog, &elog);
     } else {
         raw_log.len = 0; raw_log.data = (u_char *)"";
         elog.len = 0; elog.data=(u_char*)"";
         erule.len = 0; erule.data=(u_char*)"";
     }
-    if (mcf->phase4_mode == NGX_HTTP_MODSEC_PHASE4_MODE_MINIMAL) mode = "minimal";
-    else if (mcf->phase4_mode == NGX_HTTP_MODSEC_PHASE4_MODE_STRICT) mode = "strict";
+    if (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_MINIMAL) mode = "minimal";
+    else if (mcf->phase4_mode == MSCONNECTOR_PHASE4_MODE_STRICT) mode = "strict";
     if (ctx) {
         response_headers_seen = ctx->response_headers_seen ? "true" : "false";
         response_body_seen = ctx->response_body_seen ? "true" : "false";
@@ -355,81 +424,105 @@ ngx_http_modsecurity_normalize_content_type(ngx_pool_t *pool, ngx_str_t in)
 }
 
 static ngx_str_t
-ngx_http_modsecurity_sanitize_intervention(ngx_pool_t *pool, ngx_str_t in)
+ngx_http_modsecurity_redact_intervention(ngx_pool_t *pool, ngx_str_t in)
 {
-    static ngx_str_t redacted = { sizeof("redacted") - 1, (u_char *) "redacted" };
+    static ngx_str_t redacted = { sizeof("id:- msg:- operator:- truncated:false") - 1,
+        (u_char *) "id:- msg:- operator:- truncated:false" };
     ngx_str_t out = redacted;
-    u_char *id, *msg, *op;
-    size_t len = 0;
+    char *message;
+    const char *id_state;
+    const char *msg_state;
+    const char *operator_state;
+    const char *truncated_state = "false";
+    size_t len;
+
     if (in.data == NULL || in.len == 0) {
         return redacted;
     }
-    id = (u_char *)ngx_strstr(in.data, "id \"");
-    msg = (u_char *)ngx_strstr(in.data, "msg \"");
-    op = (u_char *)ngx_strstr(in.data, "Operator");
-    if (id == NULL && msg == NULL && op == NULL) {
+
+    len = in.len;
+    if (len > 4096U) {
+        len = 4096U;
+        truncated_state = "true";
+    }
+
+    message = ngx_pnalloc(pool, len + 1U);
+    if (message == NULL) {
         return redacted;
     }
-    len = 9 + (id ? 10 : 0) + (msg ? 12 : 0) + (op ? 10 : 0);
-    out.data = ngx_pnalloc(pool, len);
-    if (out.data == NULL) return redacted;
-    out.len = ngx_snprintf(out.data, len, "id:%s msg:%s op:%s",
-        id ? "present" : "-", msg ? "present" : "-", op ? "present" : "-") - out.data;
+    ngx_memcpy(message, in.data, len);
+    message[len] = '\0';
+
+    id_state = (ngx_strstr((u_char *)message, "id \"") != NULL ||
+        ngx_strstr((u_char *)message, "[id \"") != NULL) ? "present" : "-";
+    msg_state = (ngx_strstr((u_char *)message, "msg \"") != NULL ||
+        ngx_strstr((u_char *)message, "[msg \"") != NULL) ? "present" : "-";
+    operator_state = (ngx_strstr((u_char *)message, "Operator") != NULL) ? "present" : "-";
+
+    out.data = ngx_pnalloc(pool, sizeof("id:present msg:present operator:present truncated:true"));
+    if (out.data == NULL) {
+        return redacted;
+    }
+    out.len = ngx_snprintf(out.data,
+        sizeof("id:present msg:present operator:present truncated:true"),
+        "id:%s msg:%s operator:%s truncated:%s",
+        id_state, msg_state, operator_state, truncated_state) - out.data;
     return out;
 }
 
 static void
-ngx_http_modsecurity_json_escape(ngx_pool_t *pool, ngx_str_t *src, ngx_str_t *dst)
+ngx_http_modsecurity_common_json(ngx_pool_t *pool, ngx_str_t *src, ngx_str_t *dst)
 {
-    size_t i;
-    size_t extra = 0;
-    u_char *d;
-    if (src == NULL || src->data == NULL) { dst->len=0; dst->data=(u_char*)""; return; }
-    for (i = 0; i < src->len; i++) {
-        if (src->data[i] < 0x20 || src->data[i] == '"' || src->data[i] == '\\') {
-            extra++;
-        }
+    if (src == NULL || src->data == NULL) {
+        dst->len = 0;
+        dst->data = (u_char *)"";
+        return;
     }
-    dst->data = ngx_pnalloc(pool, src->len + extra + 1);
+    char *input = ngx_pnalloc(pool, src->len + 1U);
+    if (input == NULL) {
+        dst->len = 0;
+        dst->data = (u_char *)"";
+        return;
+    }
+    ngx_memcpy(input, src->data, src->len);
+    input[src->len] = '\0';
+    dst->data = ngx_pnalloc(pool, (src->len * 6U) + 1U);
     if (dst->data == NULL) {
         dst->len = 0;
         dst->data = (u_char *)"";
         return;
     }
-    d = dst->data;
-    for (i = 0; i < src->len; i++) {
-        u_char c = src->data[i];
-        if (c == '"' || c == '\\') { *d++='\\'; *d++=c; }
-        else if (c < 0x20) { *d++=' '; }
-        else *d++=c;
-    }
-    dst->len = d - dst->data;
+    dst->len = msconnector_json_escape(input, (char *)dst->data,
+        (src->len * 6U) + 1U);
 }
 
 static void
-ngx_http_modsecurity_extract_rule_id(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id)
+ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id)
 {
-    size_t i;
+    char extracted[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
+    int rule_id_result;
+
+    extracted[0] = '\0';
     rule_id->data = (u_char *)"";
     rule_id->len = 0;
-    if (intervention == NULL || intervention->data == NULL) return;
-    for (i = 0; i + 4 < intervention->len; i++) {
-        size_t j;
-
-        if (ngx_strncasecmp(intervention->data + i, (u_char *)"id \"", 4) != 0) continue;
-
-        j = i + 4;
-        while (j < intervention->len && intervention->data[j] >= '0' && intervention->data[j] <= '9') j++;
-        if (j <= i + 4 || j >= intervention->len || intervention->data[j] != '"') continue;
-
-        rule_id->len = j - (i + 4);
+    if (intervention == NULL || intervention->data == NULL) {
+        return;
+    }
+    char *message = ngx_pnalloc(pool, intervention->len + 1U);
+    if (message == NULL) {
+        return;
+    }
+    ngx_memcpy(message, intervention->data, intervention->len);
+    message[intervention->len] = '\0';
+    rule_id_result = msconnector_rule_id_extract_from_message(message, extracted, sizeof(extracted));
+    if (rule_id_result > 0) {
+        rule_id->len = ngx_strlen(extracted);
         rule_id->data = ngx_pnalloc(pool, rule_id->len);
         if (rule_id->data == NULL) {
             rule_id->len = 0;
             rule_id->data = (u_char *)"";
             return;
         }
-        ngx_memcpy(rule_id->data, intervention->data + i + 4, rule_id->len);
-        return;
+        ngx_memcpy(rule_id->data, extracted, rule_id->len);
     }
 }
