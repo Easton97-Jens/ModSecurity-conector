@@ -30,21 +30,21 @@ static int haproxy_headers_to_common(
 
     if (headers_out == 0 || header_count_out == 0) {
         haproxy_mapper_error(error, error_len, "missing header mapper output");
-        return -1;
+        return 0;
     }
     *headers_out = 0;
     *header_count_out = 0U;
     if (header_count == 0U) {
-        return 0;
+        return 1;
     }
     if (src == 0) {
         haproxy_mapper_error(error, error_len, "header count provided without headers");
-        return -1;
+        return 0;
     }
     headers = (msconnector_header *)calloc((size_t)header_count, sizeof(*headers));
     if (headers == 0) {
         haproxy_mapper_error(error, error_len, "failed to allocate common headers");
-        return -1;
+        return 0;
     }
     for (i = 0U; i < header_count; ++i) {
         headers[i].name = src[i].name;
@@ -54,7 +54,7 @@ static int haproxy_headers_to_common(
     }
     *headers_out = headers;
     *header_count_out = (size_t)header_count;
-    return 0;
+    return 1;
 }
 
 int haproxy_modsecurity_map_request(
@@ -70,12 +70,12 @@ int haproxy_modsecurity_map_request(
 
     if (src == 0 || out == 0) {
         haproxy_mapper_error(error, error_len, "missing request mapper input");
-        return -1;
+        return 0;
     }
     msconnector_request_init(out);
     if (haproxy_headers_to_common(src->headers, src->header_count, &headers,
-            &header_count, error, error_len) != 0) {
-        return -1;
+            &header_count, error, error_len) != 1) {
+        return 0;
     }
     out->method = src->method;
     out->uri = src->uri;
@@ -93,13 +93,13 @@ int haproxy_modsecurity_map_request(
         out->body.size = (size_t)src->body_len;
     }
     rc = msconnector_request_mapper_validate_output(contract, out, error, error_len);
-    if (rc != 0) {
+    if (rc != 1) {
         free(headers);
         out->headers = 0;
         out->header_count = 0U;
-        return -1;
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 int haproxy_modsecurity_map_response(
@@ -114,12 +114,12 @@ int haproxy_modsecurity_map_response(
 
     if (src == 0 || out == 0) {
         haproxy_mapper_error(error, error_len, "missing response mapper input");
-        return -1;
+        return 0;
     }
     msconnector_response_init(out);
     if (haproxy_headers_to_common(src->headers, src->header_count, &headers,
-            &header_count, error, error_len) != 0) {
-        return -1;
+            &header_count, error, error_len) != 1) {
+        return 0;
     }
     out->status = src->status;
     out->http_version = src->protocol;
@@ -130,11 +130,11 @@ int haproxy_modsecurity_map_response(
         out->body.size = (size_t)src->body_len;
     }
     rc = msconnector_response_mapper_validate_output(contract, out, error, error_len);
-    if (rc != 0) {
+    if (rc != 1) {
         free(headers);
         out->headers = 0;
         out->header_count = 0U;
-        return -1;
+        return 0;
     }
-    return 0;
+    return 1;
 }

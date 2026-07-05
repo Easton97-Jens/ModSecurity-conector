@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 ROOT=Path(__file__).resolve().parents[1]
 mk=(ROOT/'Makefile').read_text()
+haproxy_mk=(ROOT/'connectors/haproxy/Makefile').read_text()
 sh=ROOT/'ci/check-haproxy-c-standards.sh'
 ok=True
 def check(cond,msg):
@@ -21,4 +22,9 @@ if sh.exists():
  check('HAPROXY_SOURCE_DIR="${HAPROXY_SOURCE_DIR:-${HAPROXY_SRC:-${MODSECURITY_HAPROXY_SOURCE_DIR:-}}}"' in txt, 'script honors HAProxy source fallback variables')
  check('MODSECURITY_INCLUDE_DIR' in txt and 'MODSECURITY_INC' in txt and 'MODSECURITY_INCLUDE_FLAG' in txt, 'script honors ModSecurity include roots and -I flags')
  check('common/src/transaction_state.c' in txt, 'script compiles Common transaction_state.c')
+check('COMMON_CPPFLAGS := -I$(COMMON_INCLUDE)' in haproxy_mk, 'HAProxy Makefile defines Common include compile flags')
+check('$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS)' in haproxy_mk, 'HAProxy Makefile compiles Common-linked sources with Common include flags')
+check('src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS)' in haproxy_mk and '$(CXX) $(LDFLAGS)' in haproxy_mk and 'src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS) -L' not in haproxy_mk, 'Common sources are compiled to objects before link')
+for src in ['http_status.c','block_statuses.c','path_policy.c','intervention.c','transaction_state.c','late_intervention.c','decision_action.c','rule_error.c','rule_event.c','rule_merge.c','artifacts.c','artifact_layout.c','test_result.c','test_result_json.c']:
+ check(f'$(COMMON_SRC)/{src}' in haproxy_mk, f'COMMON_SDK_SRCS includes {src}')
 sys.exit(0 if ok else 1)

@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -104,14 +105,14 @@ static int haproxy_common_sdk_probe_semantics(void) {
     int status_value;
     char adapter_error[128];
 
-    if (msconnector_parse_bool("on", &bool_value) != 0 ||
-            msconnector_parse_phase4_mode("safe", &phase4_value) != 0 ||
-            msconnector_parse_size("1m", &size_value) != 0 ||
-            msconnector_parse_http_status("403", &status_value) != 0) {
+    if (msconnector_parse_bool("on", &bool_value) != 1 ||
+            msconnector_parse_phase4_mode("safe", &phase4_value) != 1 ||
+            msconnector_parse_size("1048576", &size_value) != 1 ||
+            msconnector_parse_http_status("403", &status_value) != 1) {
         return -1;
     }
     if (msconnector_directive_spec_find(MSCONNECTOR_DIRECTIVE_RULES_FILE) == 0 ||
-            msconnector_directive_adapter_validate_all(adapter_error, sizeof(adapter_error)) != 0) {
+            msconnector_directive_adapter_validate_all(adapter_error, sizeof(adapter_error)) != 1) {
         return -1;
     }
     return bool_value == MSCONNECTOR_BOOL_UNSET || phase4_value == MSCONNECTOR_PHASE4_MODE_UNSET ||
@@ -189,11 +190,13 @@ static void capture_intervention(
         haproxy_modsecurity_decision *decision) {
     ModSecurityIntervention intervention;
     char common_rule_id[64];
+    int rule_id_result;
     int truncated = 0;
     int64_t ids[1];
     size_t id_count;
 
     init_decision(decision, phase);
+    common_rule_id[0] = '\0';
     init_intervention(&intervention);
     if (msc_intervention(transaction, &intervention) != 0) {
         decision->disruptive = intervention.disruptive;
@@ -212,9 +215,15 @@ static void capture_intervention(
             decision->log_message, sizeof(decision->log_message), &truncated);
         copy_message(decision->rule_message, sizeof(decision->rule_message),
             intervention.log);
-        if (msconnector_rule_id_extract_from_message(intervention.log, common_rule_id,
-                sizeof(common_rule_id)) == 0) {
-            decision->rule_id = atoi(common_rule_id);
+        rule_id_result = msconnector_rule_id_extract_from_message(intervention.log, common_rule_id,
+            sizeof(common_rule_id));
+        if (rule_id_result > 0) {
+            char *end = 0;
+            long parsed = strtol(common_rule_id, &end, 10);
+            if (end != common_rule_id && end != 0 && *end == '\0' &&
+                    parsed >= 0L && parsed <= (long)INT_MAX) {
+                decision->rule_id = (int)parsed;
+            }
         }
     }
     id_count = msc_get_rules_messages_rule_ids(transaction, ids, 1U);
@@ -554,9 +563,13 @@ int haproxy_modsecurity_engine_create(
     msconnector_config_apply_defaults(&created->common_config);
     if (config != 0) {
         char config_error[256];
-        if (msconnector_config_merge(&created->common_config, &created->common_config, &config->common_config) != 0 ||
-                msconnector_config_validate(&created->common_config, config_error, sizeof(config_error)) != 0) {
-            copy_message(decision->log_message, sizeof(decision->log_message), config_error);
+        config_error[0] = '\0';
+        if (msconnector_config_merge(&created->common_config, &created->common_config,
+                &config->common_config) != 1 ||
+                msconnector_config_validate(&created->common_config, config_error,
+                    sizeof(config_error)) != 1) {
+            copy_message(decision->log_message, sizeof(decision->log_message),
+                config_error[0] != '\0' ? config_error : "Common config validation failed");
             haproxy_modsecurity_engine_destroy(created);
             return 1;
         }
