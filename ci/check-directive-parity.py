@@ -25,7 +25,9 @@ KNOWN = [
     "modsecurity_phase4_log",
     "modsecurity_phase4_body_limit",
 ]
-NGINX_DIRECTIVE_NOT_APPLICABLE: dict[str, str] = {}
+NGINX_DIRECTIVE_NOT_APPLICABLE: dict[str, str] = {
+    "modsecurity_transaction_id_expr": "Apache expression syntax is not supported by NGINX; use modsecurity_transaction_id with NGINX variables instead.",
+}
 
 POLICY_FOR_TYPE = {
     "MSCONNECTOR_DIRECTIVE_VALUE_BOOL": {"MSCONNECTOR_DIRECTIVE_ARG_ONE"},

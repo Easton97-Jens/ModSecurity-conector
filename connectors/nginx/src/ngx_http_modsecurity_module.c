@@ -508,8 +508,8 @@ char *ngx_conf_set_transaction_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
     }
 
     *mcf->transaction_id = cv;
-    mcf->common_config.transaction_id_expr = ngx_str_to_char(value[1], cf->pool);
-    if (mcf->common_config.transaction_id_expr == (char *)-1) {
+    mcf->common_config.transaction_id = ngx_str_to_char(value[1], cf->pool);
+    if (mcf->common_config.transaction_id == (char *)-1) {
         return NGX_CONF_ERROR;
     }
 
@@ -834,14 +834,6 @@ static ngx_command_t ngx_http_modsecurity_commands[] =  {
   },
   {
     ngx_string(MSCONNECTOR_DIRECTIVE_TRANSACTION_ID),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
-    ngx_conf_set_transaction_id,
-    NGX_HTTP_LOC_CONF_OFFSET,
-    0,
-    NULL
-  },
-  {
-    ngx_string(MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR),
     NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
     ngx_conf_set_transaction_id,
     NGX_HTTP_LOC_CONF_OFFSET,

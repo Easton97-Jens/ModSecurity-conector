@@ -21,6 +21,7 @@ checks = [
 ('MSCONNECTOR_DIRECTIVE_' in module_c and ('directive_adapter.h' in module_c or 'directive_spec.h' in module_c), 'NGINX directive registration is tied to Common macros/specs/adapters'),
 ('ngx_http_request_t' in mapper_h and 'msconnector_request' in mapper_h and 'msconnector_request_mapper_contract' in mapper_h and 'msconnector_request_mapper_validate_output' in mapper_c, 'NGINX request mapper contract is present'),
 ('ngx_http_modsecurity_map_request' in access_c and 'msconnector_request_mapper_contract_init' in access_c, 'NGINX request mapper is exercised in access path'),
+('common request mapper validation skipped' in access_c and 'NGX_LOG_WARN' in access_c and 'return NGX_HTTP_INTERNAL_SERVER_ERROR;' not in access_c.split('ngx_http_modsecurity_map_request', 1)[1].split('}', 1)[0], 'NGINX request mapper validation is non-fatal in access path'),
 ('msconnector_response' in mapper_h and 'msconnector_response_mapper_contract' in mapper_h and 'msconnector_response_mapper_validate_output' in mapper_c, 'NGINX response mapper contract is present'),
 (('ngx_http_modsecurity_map_response_from_ctx' in header_c or 'ngx_http_modsecurity_map_response' in header_c) and 'msconnector_response_mapper_contract_init' in header_c and 'ngx_http_modsecurity_map_response_from_ctx' in body_c, 'NGINX response mapper is exercised in header/body paths'),
 ('msconnector_headers_find_first' in mapper_c, 'NGINX mapper uses Common header helpers'),
@@ -33,6 +34,8 @@ checks = [
 ('extracted[0]' in body_c and 'rule_id_result =' in body_c and 'rule_id_result > 0' in body_c and 'if (!msconnector_rule_id_extract_from_message' not in body_c, 'NGINX rule-id extraction handles negative failures safely'),
 ('MSCONNECTOR_COMMON_SRC' in nginx_config and '$MSCONNECTOR_COMMON_SRC/event.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/transaction_state.c' in nginx_config, 'NGINX build uses stable Common source root and links transaction_state.c with event.c'),
 ('common_response_validated' in common_h and 'if (!ctx->common_response_validated)' in body_c and 'ctx->common_response_validated = 1' in body_c, 'NGINX response mapper validation is gated once per response in body path'),
+('response_body_bytes_inspected' in common_h and 'common_config.phase4_body_limit' in body_c and 'ctx->response_body_truncated = 1' in body_c and not re.search(r'msc_append_response_body\s*\([^;]*,\s*len\s*\)', body_c), 'NGINX enforces phase4 body limit before appending response bytes to ModSecurity'),
+('MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR' not in module_c, 'NGINX does not register Apache-style transaction_id_expr'),
 ]
 claims = ['production verified','runtime verified','full-matrix verified','crs verified']
 text = '\n'.join((ROOT/p).read_text(errors='ignore') for p in ['connectors/nginx/README.md','connectors/nginx/docs/architecture.md'] if (ROOT/p).exists()).lower()

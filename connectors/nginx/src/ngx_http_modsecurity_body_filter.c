@@ -179,9 +179,27 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         int ret;
 
         if (len > 0) {
+            size_t limit = mcf ? mcf->common_config.phase4_body_limit : 0U;
+            size_t already = ctx->response_body_bytes_inspected;
+            size_t allowed = len;
+
             ctx->response_body_seen = 1;
             ctx->response_body_bytes_seen += len;
-            msc_append_response_body(ctx->modsec_transaction, data, len);
+
+            if (limit > 0U) {
+                if (already >= limit) {
+                    allowed = 0U;
+                    ctx->response_body_truncated = 1;
+                } else if (allowed > limit - already) {
+                    allowed = limit - already;
+                    ctx->response_body_truncated = 1;
+                }
+            }
+
+            if (allowed > 0U) {
+                msc_append_response_body(ctx->modsec_transaction, data, allowed);
+                ctx->response_body_bytes_inspected += allowed;
+            }
         }
 
 /* XXX: chain->buf->last_buf || chain->buf->last_in_chain */

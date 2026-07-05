@@ -47,9 +47,12 @@ The adapter-owned NGINX connector currently registers:
 - `modsecurity_phase4_mode minimal|safe|strict`
 - `modsecurity_phase4_content_types_file <path>`
 - `modsecurity_phase4_log <path>`
+- `modsecurity_phase4_body_limit <bytes>`
 
 `modsecurity_transaction_id` uses an NGINX complex value and may evaluate
-per-request variables. The Phase 4 directives are bounded runtime controls.
+per-request variables. Apache-style `modsecurity_transaction_id_expr` is not
+registered for NGINX; use `modsecurity_transaction_id` with NGINX variables
+instead. The Phase 4 directives are bounded runtime controls.
 Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is
 documented/reported as runtime evidence only.
 
