@@ -646,19 +646,19 @@ int haproxy_modsecurity_transaction_begin(
         return 1;
     }
     {
-        msconnector_request mapped_request;
+        haproxy_modsecurity_mapped_request mapped_request;
         msconnector_request_mapper_contract contract;
         char mapper_error[256];
         mapper_error[0] = '\0';
         msconnector_request_mapper_contract_init(&contract);
-        if (haproxy_modsecurity_map_request(request, &contract, &mapped_request,
+        if (haproxy_modsecurity_map_owned_request(request, &contract, &mapped_request,
                 mapper_error, sizeof(mapper_error)) != 1 &&
                 decision->log_message[0] == '\0') {
             copy_message(decision->log_message, sizeof(decision->log_message),
                 mapper_error[0] != '\0' ? mapper_error :
                 "common request mapper validation skipped");
         }
-        haproxy_modsecurity_request_mapper_cleanup(&mapped_request);
+        haproxy_modsecurity_mapped_request_cleanup(&mapped_request);
     }
     safe_method = request->method != 0 && request->method[0] != '\0' ?
         request->method : "GET";
@@ -764,19 +764,19 @@ int haproxy_modsecurity_transaction_process_response_headers(
         return 1;
     }
     {
-        msconnector_response mapped_response;
+        haproxy_modsecurity_mapped_response mapped_response;
         msconnector_response_mapper_contract contract;
         char mapper_error[256];
         mapper_error[0] = '\0';
         msconnector_response_mapper_contract_init(&contract);
-        if (haproxy_modsecurity_map_response(response, &contract, &mapped_response,
+        if (haproxy_modsecurity_map_owned_response(response, &contract, &mapped_response,
                 mapper_error, sizeof(mapper_error)) != 1 &&
                 decision->log_message[0] == '\0') {
             copy_message(decision->log_message, sizeof(decision->log_message),
                 mapper_error[0] != '\0' ? mapper_error :
                 "common response mapper validation skipped");
         }
-        haproxy_modsecurity_response_mapper_cleanup(&mapped_response);
+        haproxy_modsecurity_mapped_response_cleanup(&mapped_response);
     }
     for (i = 0; i < response->header_count; ++i) {
         const char *name = response->headers[i].name;

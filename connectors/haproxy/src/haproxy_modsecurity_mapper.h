@@ -12,25 +12,38 @@
 extern "C" {
 #endif
 
-int haproxy_modsecurity_map_request(
+typedef struct haproxy_modsecurity_mapped_request {
+    msconnector_request request;
+    msconnector_header *owned_headers;
+} haproxy_modsecurity_mapped_request;
+
+typedef struct haproxy_modsecurity_mapped_response {
+    msconnector_response response;
+    msconnector_header *owned_headers;
+} haproxy_modsecurity_mapped_response;
+
+void haproxy_modsecurity_mapped_request_init(
+    haproxy_modsecurity_mapped_request *mapped);
+void haproxy_modsecurity_mapped_request_cleanup(
+    haproxy_modsecurity_mapped_request *mapped);
+void haproxy_modsecurity_mapped_response_init(
+    haproxy_modsecurity_mapped_response *mapped);
+void haproxy_modsecurity_mapped_response_cleanup(
+    haproxy_modsecurity_mapped_response *mapped);
+
+int haproxy_modsecurity_map_owned_request(
     const haproxy_modsecurity_request *src,
     const msconnector_request_mapper_contract *contract,
-    msconnector_request *out,
+    haproxy_modsecurity_mapped_request *out,
     char *error,
     size_t error_len);
 
-int haproxy_modsecurity_map_response(
+int haproxy_modsecurity_map_owned_response(
     const haproxy_modsecurity_response *src,
     const msconnector_response_mapper_contract *contract,
-    msconnector_response *out,
+    haproxy_modsecurity_mapped_response *out,
     char *error,
     size_t error_len);
-
-/* The mapper owns only the msconnector_header array assigned to out->headers;
- * header name/value pointers remain borrowed from the HAProxy binding input.
- */
-void haproxy_modsecurity_request_mapper_cleanup(msconnector_request *request);
-void haproxy_modsecurity_response_mapper_cleanup(msconnector_response *response);
 
 #ifdef __cplusplus
 }
