@@ -255,7 +255,13 @@ int ngx_http_modsecurity_map_response_from_ctx(const ngx_http_modsecurity_ctx_t 
         return 0;
     }
 
-    out->status = r->headers_out.status ? (int)r->headers_out.status : NGX_HTTP_OK;
+    if (r->headers_out.status != 0) {
+        out->status = (int) r->headers_out.status;
+    } else if (r->err_status != 0) {
+        out->status = (int) r->err_status;
+    } else {
+        out->status = NGX_HTTP_OK;
+    }
     out->http_version = ngx_http_modsecurity_http_version(r->pool, r);
     if (out->http_version == NULL) {
         ngx_http_modsecurity_mapper_error(error, error_len, "response http version allocation failed");

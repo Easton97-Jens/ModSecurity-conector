@@ -30,6 +30,7 @@ checks = [
 (not re.search(r'ngx_http_modsecurity_[a-z0-9_]*rule_id\s*\(', all_nginx), 'Duplicate NGINX rule-id helper is absent'),
 ('ngx_http_modsecurity_pool_strndup' in mapper_c and 'out->method = ngx_http_modsecurity_pool_strndup' in mapper_c and 'out->uri = ngx_http_modsecurity_pool_strndup' in mapper_c, 'NGINX request mapper NUL-terminates request string fields'),
 ('Content-Type' in mapper_c and 'Content-Length' in mapper_c and 'msconnector_headers_find_first' in mapper_c, 'NGINX response mapper preserves synthetic special headers'),
+('headers_out.status != 0' in mapper_c and 'r->err_status != 0' in mapper_c and 'out->status = (int) r->err_status' in mapper_c, 'NGINX response mapper preserves err_status before fallback status'),
 ('ngx_http_modsecurity_redact_intervention' in body_c and 'id:%s msg:%s operator:%s truncated:%s' in body_c, 'NGINX phase4 intervention log uses metadata-only redaction summary'),
 ('extracted[0]' in body_c and 'rule_id_result =' in body_c and 'rule_id_result > 0' in body_c and 'if (!msconnector_rule_id_extract_from_message' not in body_c, 'NGINX rule-id extraction handles negative failures safely'),
 ('MSCONNECTOR_COMMON_SRC' in nginx_config and '$MSCONNECTOR_COMMON_SRC/event.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/transaction_state.c' in nginx_config, 'NGINX build uses stable Common source root and links transaction_state.c with event.c'),
