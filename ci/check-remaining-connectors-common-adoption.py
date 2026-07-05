@@ -30,6 +30,9 @@ for c in connectors:
         if dup in text: errors.append(f'{c}: duplicate helper {dup}')
 if len(existing_mapper_sources) == 3 and all(len(m.splitlines()) > 40 for _, m in existing_mapper_sources):
     errors.append('all three mapper source files still exist and are larger than thin adapters')
+envoy_main=(root/'connectors/envoy/src/envoy_bridge_main.c').read_text(errors='ignore')
+if 'runtime=not-verified' in envoy_main:
+    errors.append('envoy self-test hard-codes not-verified instead of metadata runtime_status')
 starter=(root/'connectors/lighttpd/src/lighttpd_build_starter.c').read_text(errors='ignore')
 lighttpd_meta=(root/'connectors/lighttpd/metadata.c').read_text(errors='ignore')
 if 'not_verified' in lighttpd_meta and 'not_verified' not in starter:
