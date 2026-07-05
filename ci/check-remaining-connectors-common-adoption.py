@@ -39,6 +39,11 @@ if 'connector-gap' not in lighttpd_meta:
 common=(root/'common/src/generic_mapper.c').read_text(errors='ignore') if (root/'common/src/generic_mapper.c').is_file() else ''
 if 'msconnector_generic_map_request' not in common or 'msconnector_generic_map_response' not in common:
     errors.append('common generic mapper implementation missing')
+for c in connectors:
+    source_map=(root/'connectors'/c/'SOURCE_MAP.json').read_text(errors='ignore')
+    expected=f'connectors/{c}/src/{c}_modsecurity_mapper.h'
+    if expected not in source_map:
+        errors.append(f'{c}: mapper header missing from SOURCE_MAP.json')
 for doc in ['reports/remaining-connectors-common-adoption.md','reports/remaining-connectors-common-adoption.de.md']:
     if not (root/doc).is_file(): errors.append(f'missing {doc}')
 if errors:

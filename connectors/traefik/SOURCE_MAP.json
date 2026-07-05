@@ -41,6 +41,10 @@
     {
       "path": "connectors/traefik/src/traefik_decision_service_main.c",
       "purpose": "local decision-service starter CLI and self-test entry point"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_modsecurity_mapper.h",
+      "purpose": "Common SDK generic mapper alias header; no runtime claim"
     }
   ],
   "runtime_evidence": {

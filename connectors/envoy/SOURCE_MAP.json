@@ -45,6 +45,11 @@
       "path": "connectors/envoy/src/envoy_bridge_main.c",
       "kind": "repository-local bridge self-test CLI",
       "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_modsecurity_mapper.h",
+      "kind": "repository-local Common SDK generic mapper alias header",
+      "upstream_origin": "none"
     }
   ],
   "claims": {

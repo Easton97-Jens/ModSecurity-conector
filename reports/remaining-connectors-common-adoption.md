@@ -9,7 +9,7 @@ This report covers Envoy, Traefik, lighttpd, and the repository template starter
 - Connector: `connectors/envoy`
 - Current status: bridge starter; native Envoy SDK and runtime lifecycle are absent.
 - Common config mapping: `envoy_modsecurity_config_init()` initializes `msconnector_config` without applying defaults before merge; directive parsing remains future Envoy glue.
-- Request mapper status: header alias to `msconnector_generic_map_request`; no previous connector-local Envoy mapper implementation existed in this tree; this PR adds a header alias that delegates shared Host fallback behavior to the Common generic mapper and avoids introducing duplicated mapper source files.
+- Request mapper status: header alias to `msconnector_generic_map_request`; no previous connector-local Envoy mapper implementation existed in this tree; this PR adds a header alias that delegates shared hostname/server-address fallback behavior to the Common generic mapper and avoids introducing duplicated mapper source files.
 - Response mapper status: header alias to `msconnector_generic_map_response`; no previous connector-local Envoy mapper implementation existed in this tree; this PR adds a response header alias and avoids introducing duplicated mapper source files; body payloads are not logged.
 - Decision/event status: existing decision starter uses Common decision/intervention types; event JSONL remains connector-gap until a runtime callsite exists.
 - C17 check status: covered by `check-remaining-connectors-c17`; missing source/header inputs return Exit 77.

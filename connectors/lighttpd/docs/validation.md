@@ -151,6 +151,10 @@ allowed request, HTTP 403 for the secondary probe, and an actual CRS rule
 ID/message extracted from evidence. If CRS, libmodsecurity, and Lighttpd are
 available but the secondary probe is not blocked, the result is FAIL.
 
+## Runtime status distinction
+
+Connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap`. Generated per-run `result.json` files may differ: local starter-smoke PASS can report `runtime_verified: true` and `runtime_status: verified`; no-local-binary or missing runtime cases can report `status: BLOCKED`, `runtime_verified: false`, and `runtime_status: blocked`. These per-run fields do not mean production, CRS, RESPONSE_BODY, or full-matrix verification.
+
 ## Common Result Schema
 
 `make smoke-lighttpd` now uses the shared smoke-result writer in
@@ -168,7 +172,7 @@ Current expected result without a local binary:
 - Integration mode: `sidecar_proxy`
 - Status: `BLOCKED`
 - Exit code: 77
-- Runtime status: `not_verified`
+- Runtime status: generated no-local-binary or missing-runtime `result.json` files may report `runtime_status: blocked`; connector metadata remains `runtime_status: not_verified` and `verification_status: connector-gap`.
 - Evidence root: `$VERIFIED_RUN_ROOT/lighttpd-smoke/`, falling back to
   `$BUILD_ROOT/results/lighttpd-smoke/`
 - Binary environment variable: `LIGHTTPD_BIN`

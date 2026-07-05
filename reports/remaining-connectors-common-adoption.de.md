@@ -9,7 +9,7 @@ Dieser Bericht erfasst Envoy, Traefik, lighttpd und den Repository-Template-Star
 - Connector: `connectors/envoy`
 - Current status: Bridge-Starter; native Envoy-SDK- und Runtime-Lifecycle-Anbindung fehlen.
 - Common config mapping: `envoy_modsecurity_config_init()` initialisiert `msconnector_config`, ohne Defaults vor einem Merge anzuwenden.
-- Request mapper status: Header-Alias auf `msconnector_generic_map_request`; es gab in diesem Baum keine vorherige connector-lokale Mapper-Implementierung; der PR vermeidet neue duplizierte Mapper-Quellen und delegiert gemeinsame Logik an den Common Generic Mapper.
+- Request mapper status: Header-Alias auf `msconnector_generic_map_request`; es gab in diesem Baum keine vorherige connector-lokale Mapper-Implementierung; der PR vermeidet neue duplizierte Mapper-Quellen und delegiert gemeinsame Hostname-/Serveradress-Fallback-Logik an den Common Generic Mapper.
 - Response mapper status: Header-Alias auf `msconnector_generic_map_response`; es gab in diesem Baum keine vorherige connector-lokale Mapper-Implementierung; der PR vermeidet neue duplizierte Mapper-Quellen; keine Body-Payloads werden geloggt.
 - Decision/event status: Decision-Starter nutzt Common-Decision/Intervention; Event-JSONL bleibt Connector-Gap.
 - C17 check status: durch `check-remaining-connectors-c17` abgedeckt; fehlende Header/Quellen liefern Exit 77.
