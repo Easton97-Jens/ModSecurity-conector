@@ -182,3 +182,7 @@ checks are optional and do not imply runtime verification.
 ## HAProxy adoption note
 
 The HAProxy connector is expected to consume the Common SDK for connector-neutral semantics: configuration, directive specs/adapters, primitive parsers, mapper contracts, event JSONL, redaction, resource limits, guards, CRS setup contracts, artifact/test-result contracts, and status/error mapping. HAProxy-specific SPOE/SPOP protocol code, HAProxy cfg glue, runtime process handling, frame parsing, socket handling, and build integration remain adapter-owned. C17 compile evidence is structural only and must not be described as production, CRS, full-matrix, or runtime verification.
+
+## Remaining connector starter adoption
+
+Envoy, Traefik, and lighttpd now carry connector-local Common SDK mapper scaffolding for `msconnector_config`, `msconnector_request`, and `msconnector_response`. This is a structure/compile contract only. Host API glue, runtime lifecycle, build glue, protocol/frame handling, event artifact callsites, and libmodsecurity transaction ownership remain connector-specific work. These connectors must remain `not_verified` / `connector-gap` until runtime evidence exists.

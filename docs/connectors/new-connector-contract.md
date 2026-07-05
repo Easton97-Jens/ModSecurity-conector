@@ -47,3 +47,7 @@ coverage.
 ## HAProxy adoption note
 
 The HAProxy connector is expected to consume the Common SDK for connector-neutral semantics: configuration, directive specs/adapters, primitive parsers, mapper contracts, event JSONL, redaction, resource limits, guards, CRS setup contracts, artifact/test-result contracts, and status/error mapping. HAProxy-specific SPOE/SPOP protocol code, HAProxy cfg glue, runtime process handling, frame parsing, socket handling, and build integration remain adapter-owned. C17 compile evidence is structural only and must not be described as production, CRS, full-matrix, or runtime verification.
+
+## Starter/not_verified connector rule
+
+A starter connector may add thin adapter mappers to Common SDK request/response/config contracts, but it must keep metadata at `runtime_status=not_verified` and `verification_status=connector-gap` until runtime evidence exists. Do not log body payloads. Do not add server-specific types to `common/`. Keep host API glue, runtime lifecycle, build glue, and protocol/frame handling in the connector tree.

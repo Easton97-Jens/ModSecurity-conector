@@ -16,6 +16,7 @@ typedef struct msconnector_envoy_adapter_metadata {
     const char *integration_path;
     const char *build_status;
     const char *runtime_status;
+    const char *verification_status;
 } msconnector_envoy_adapter_metadata;
 
 msconnector_origin msconnector_envoy_adapter_origin(void);

@@ -159,7 +159,7 @@ Current expected result without a local binary:
 - Integration mode: `ext_authz`
 - Status: `BLOCKED`
 - Exit code: 77
-- Runtime verified: `false`
+- Runtime status: `not_verified`
 - Evidence root: `$VERIFIED_RUN_ROOT/envoy-smoke/`, falling back to
   `$BUILD_ROOT/results/envoy-smoke/`
 - Binary environment variable: `ENVOY_BIN`
@@ -175,7 +175,7 @@ Current expected result without a local binary:
 
 Expected PASS result with a local binary:
 
-- Runtime verified: `true`
+- Runtime status: `not_verified` (historical upstream/starter entry; not runtime evidence)
 - Allowed request status: `200`
 - Blocked request status: `403`
 - Resolved runtime binary: local path from `ENVOY_BIN` or a common.sh-managed

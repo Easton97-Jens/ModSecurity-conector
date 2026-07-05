@@ -13,6 +13,7 @@ typedef struct msconnector_lighttpd_adapter_metadata {
     const char *imported_path;
     const char *build_status;
     const char *runtime_status;
+    const char *verification_status;
     const char *integration_path;
 } msconnector_lighttpd_adapter_metadata;
 

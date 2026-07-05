@@ -168,7 +168,7 @@ Current expected result without a local binary:
 - Integration mode: `sidecar_proxy`
 - Status: `BLOCKED`
 - Exit code: 77
-- Runtime verified: `false`
+- Runtime status: `not_verified`
 - Evidence root: `$VERIFIED_RUN_ROOT/lighttpd-smoke/`, falling back to
   `$BUILD_ROOT/results/lighttpd-smoke/`
 - Binary environment variable: `LIGHTTPD_BIN`
@@ -187,7 +187,7 @@ Current expected result with a local binary and successful simple sidecar smoke:
 - Integration mode: `sidecar_proxy`
 - Status: `PASS`
 - Exit code: 0
-- Runtime verified: `true`
+- Runtime status: `not_verified` (historical upstream/starter entry; not runtime evidence)
 - `lighttpd_binary_verified=true`
 - `lighttpd_http_verified=true`
 - `sidecar_proxy_verified=true`
@@ -203,7 +203,7 @@ libmodsecurity smoke:
 - Decision backend: `libmodsecurity`
 - Status: `PASS`
 - Exit code: `0`
-- Runtime verified: `true`
+- Runtime status: `not_verified` (historical upstream/starter entry; not runtime evidence)
 - `lighttpd_binary_verified=true`
 - `lighttpd_http_verified=true`
 - `sidecar_proxy_verified=true`
@@ -243,7 +243,7 @@ Current expected result with a local binary and successful minimal CRS smoke:
 - Integration mode: `sidecar_proxy`
 - Decision backend: `libmodsecurity`
 - Ruleset: `crs`
-- Runtime verified: `true`
+- Runtime status: `not_verified` (historical upstream/starter entry; not runtime evidence)
 - `lighttpd_binary_verified=true`
 - `lighttpd_http_verified=true`
 - `sidecar_proxy_verified=true`
@@ -262,7 +262,7 @@ Current expected result with a local binary and successful secondary CRS smoke:
 - Decision backend: `libmodsecurity`
 - Ruleset: `crs`
 - CRS smoke case: `secondary`
-- Runtime verified: `true`
+- Runtime status: `not_verified` (historical upstream/starter entry; not runtime evidence)
 - `lighttpd_binary_verified=true`
 - `lighttpd_http_verified=true`
 - `sidecar_proxy_verified=true`

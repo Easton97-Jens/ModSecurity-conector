@@ -20,7 +20,8 @@ static const msconnector_envoy_adapter_metadata envoy_metadata = {
     "connectors/envoy",
     "sidecar/HTTP bridge starter; native Envoy SDK/API dependency not present in this repository",
     "bridge-starter",
-    "not-verified"
+    "not_verified",
+    "connector-gap"
 };
 
 msconnector_origin msconnector_envoy_adapter_origin(void) {

@@ -209,3 +209,13 @@ readiness, full matrix readiness, CRS completeness, or response-body
 verification. `modsecurity_backend_verified=true` is claimed only by the
 targeted libmodsecurity smoke when the decision log shows libmodsecurity loaded
 the targeted rule and returned the 403 intervention.
+
+## Common SDK adoption status
+
+This connector is prepared for the Common SDK but remains `not_verified` / `connector-gap`.
+
+- Common configuration is initialized through `traefik_modsecurity_config_init()` and maps to `msconnector_config`.
+- Request and response mapper contracts live in `connectors/traefik/src/traefik_modsecurity_mapper.*` and are structure/compile-level only until host runtime callsites exist.
+- Decisions use Common decision/intervention models; event, test-result, and artifact emission remain connector-gap until runtime integration exists.
+- Connector-specific code remains responsible for host API glue, runtime lifecycle, build glue, and protocol/frame handling.
+- No production, CRS, full-matrix, runtime, or RESPONSE_BODY verification is claimed.

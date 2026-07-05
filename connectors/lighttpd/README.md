@@ -209,7 +209,7 @@ make smoke-open-connectors-crs-secondary
 ```
 
 This remains a sidecar/proxy proof. It is not a native lighttpd ModSecurity
-module, not CRS-complete, not production-ready, and not response-body
+module, not CRS-complete, not production ready, and not response-body
 verification.
 
 lighttpd source metadata is centralized in `common.sh`: `LIGHTTPD_VERSION=1.4.84`,
@@ -229,3 +229,13 @@ Successful simple sidecar evidence may set `runtime_verified=true`,
 `lighttpd_binary_verified=true`, `lighttpd_http_verified=true`, and
 `sidecar_proxy_verified=true`. It still must not set production readiness, full
 matrix readiness, CRS completeness, or response-body verification.
+
+## Common SDK adoption status
+
+This connector is prepared for the Common SDK but remains `not_verified` / `connector-gap`.
+
+- Common configuration is initialized through `lighttpd_modsecurity_config_init()` and maps to `msconnector_config`.
+- Request and response mapper contracts live in `connectors/lighttpd/src/lighttpd_modsecurity_mapper.*` and are structure/compile-level only until host runtime callsites exist.
+- Decisions use Common decision/intervention models; event, test-result, and artifact emission remain connector-gap until runtime integration exists.
+- Connector-specific code remains responsible for host API glue, runtime lifecycle, build glue, and protocol/frame handling.
+- No production, CRS, full-matrix, runtime, or RESPONSE_BODY verification is claimed.
