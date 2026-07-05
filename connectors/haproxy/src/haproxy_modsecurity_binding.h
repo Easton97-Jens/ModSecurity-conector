@@ -1,6 +1,9 @@
 #ifndef HAPROXY_MODSECURITY_BINDING_H
 #define HAPROXY_MODSECURITY_BINDING_H
 
+#include "msconnector/config.h"
+#include "msconnector/crs.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -49,6 +52,8 @@ typedef struct haproxy_modsecurity_response {
 } haproxy_modsecurity_response;
 
 typedef struct haproxy_modsecurity_engine_config {
+    msconnector_config common_config;
+    msconnector_crs_config crs_config;
     const char *connector_info;
     const char *modsecurity_conf;
     const char *crs_root;

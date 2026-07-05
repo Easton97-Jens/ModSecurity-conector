@@ -46,3 +46,7 @@ Direktivenspezifikationen, Request-/Response-Mapper-Verträge, Header, Events un
 Limits nutzen. Reine C17-Compile-Checks müssen echte Kompilierung von blockierten
 Umgebungen mit Exit 77 unterscheiden; optionale Future-Standard-Checks dürfen
 keine Production- oder Runtime-Abdeckung behaupten.
+
+## HAProxy-Adoptionshinweis
+
+Der HAProxy-Connector soll das Common SDK für connector-neutrale Semantik verwenden: Konfiguration, Direktiven-Specs/Adapter, primitive Parser, Mapper-Contracts, Event-JSONL, Redaction, Resource-Limits, Guards, CRS-Setup-Contracts, Artifact-/Test-Result-Contracts sowie Status-/Error-Mapping. HAProxy-spezifischer SPOE/SPOP-Protokollcode, HAProxy-cfg-Glue, Runtime-Prozesshandling, Frame-Parsing, Socket-Handling und Build-Integration bleiben im Adapter. C17-Compile-Evidence ist nur strukturell und darf nicht als Production-, CRS-, Full-Matrix- oder Runtime-Verification beschrieben werden.

@@ -43,3 +43,7 @@ request/response mapper contracts, headers, events, and limits. Compile-only C17
 checks should distinguish real compilation from blocked environments with exit
 77, and optional future-standard checks must not claim production or runtime
 coverage.
+
+## HAProxy adoption note
+
+The HAProxy connector is expected to consume the Common SDK for connector-neutral semantics: configuration, directive specs/adapters, primitive parsers, mapper contracts, event JSONL, redaction, resource limits, guards, CRS setup contracts, artifact/test-result contracts, and status/error mapping. HAProxy-specific SPOE/SPOP protocol code, HAProxy cfg glue, runtime process handling, frame parsing, socket handling, and build integration remain adapter-owned. C17 compile evidence is structural only and must not be described as production, CRS, full-matrix, or runtime verification.
