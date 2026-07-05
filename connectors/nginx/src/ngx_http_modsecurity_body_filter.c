@@ -32,6 +32,8 @@ static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
 static ngx_int_t ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r);
 static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf, const char *wanted, const char *actual, const char *reason);
 static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf);
+static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
+static void ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len);
 static void ngx_http_modsecurity_common_json(ngx_pool_t *pool, ngx_str_t *src, ngx_str_t *dst);
 static void ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id);
 static ngx_str_t ngx_http_modsecurity_normalize_content_type(ngx_pool_t *pool, ngx_str_t in);
@@ -45,6 +47,68 @@ ngx_http_modsecurity_body_filter_init(void)
     ngx_http_top_body_filter = ngx_http_modsecurity_body_filter;
 
     return NGX_OK;
+}
+
+static ngx_int_t
+ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx)
+{
+    msconnector_response_mapper_contract contract;
+    msconnector_response mapped_response;
+    char mapper_error[128];
+
+    if (ctx->common_response_validated) {
+        return NGX_OK;
+    }
+
+    msconnector_response_mapper_contract_init(&contract);
+    if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
+            &mapped_response, mapper_error, sizeof(mapper_error))) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity common response-body mapper validation skipped: %s", mapper_error);
+    }
+    ctx->common_response_validated = 1;
+
+    return NGX_OK;
+}
+
+static void
+ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx,
+    ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len)
+{
+    size_t limit;
+    size_t allowed;
+    size_t remaining;
+
+    if (len == 0U) {
+        return;
+    }
+
+    limit = mcf ? mcf->common_config.phase4_body_limit : 0U;
+    allowed = len;
+
+    ctx->response_body_seen = 1;
+    ctx->response_body_bytes_seen += len;
+
+    if (limit > 0U && ctx->response_body_bytes_inspected >= limit) {
+        ctx->response_body_truncated = 1;
+        return;
+    }
+
+    if (limit > 0U) {
+        remaining = limit - ctx->response_body_bytes_inspected;
+        if (allowed > remaining) {
+            allowed = remaining;
+        }
+    }
+
+    if (allowed > 0U) {
+        msc_append_response_body(ctx->modsec_transaction, data, allowed);
+        ctx->response_body_bytes_inspected += allowed;
+    }
+
+    if (allowed < len) {
+        ctx->response_body_truncated = 1;
+    }
 }
 
 ngx_int_t
@@ -75,19 +139,8 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         return ngx_http_next_body_filter(r, in);
     }
 
-    if (!ctx->common_response_validated) {
-        msconnector_response_mapper_contract contract;
-        msconnector_response mapped_response;
-        char mapper_error[128];
-
-        msconnector_response_mapper_contract_init(&contract);
-        if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
-                &mapped_response, mapper_error, sizeof(mapper_error))) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "modsecurity response-body mapper validation failed: %s", mapper_error);
-            return NGX_ERROR;
-        }
-        ctx->common_response_validated = 1;
+    if (ngx_http_modsecurity_validate_response_mapper_once(r, ctx) != NGX_OK) {
+        return NGX_ERROR;
     }
 
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)
@@ -178,29 +231,7 @@ ngx_http_modsecurity_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             : 0;
         int ret;
 
-        if (len > 0) {
-            size_t limit = mcf ? mcf->common_config.phase4_body_limit : 0U;
-            size_t already = ctx->response_body_bytes_inspected;
-            size_t allowed = len;
-
-            ctx->response_body_seen = 1;
-            ctx->response_body_bytes_seen += len;
-
-            if (limit > 0U) {
-                if (already >= limit) {
-                    allowed = 0U;
-                    ctx->response_body_truncated = 1;
-                } else if (allowed > limit - already) {
-                    allowed = limit - already;
-                    ctx->response_body_truncated = 1;
-                }
-            }
-
-            if (allowed > 0U) {
-                msc_append_response_body(ctx->modsec_transaction, data, allowed);
-                ctx->response_body_bytes_inspected += allowed;
-            }
-        }
+        ngx_http_modsecurity_append_limited_response_body(ctx, mcf, data, len);
 
 /* XXX: chain->buf->last_buf || chain->buf->last_in_chain */
         is_request_processed = chain->buf->last_buf;

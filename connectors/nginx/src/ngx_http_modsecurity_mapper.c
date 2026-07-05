@@ -255,10 +255,10 @@ int ngx_http_modsecurity_map_response_from_ctx(const ngx_http_modsecurity_ctx_t 
         return 0;
     }
 
-    if (r->headers_out.status != 0) {
-        out->status = (int) r->headers_out.status;
-    } else if (r->err_status != 0) {
+    if (r->err_status != 0) {
         out->status = (int) r->err_status;
+    } else if (r->headers_out.status != 0) {
+        out->status = (int) r->headers_out.status;
     } else {
         out->status = NGX_HTTP_OK;
     }

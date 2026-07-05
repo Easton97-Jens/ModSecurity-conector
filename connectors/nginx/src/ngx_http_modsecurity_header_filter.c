@@ -453,10 +453,8 @@ ngx_http_modsecurity_header_filter(ngx_http_request_t *r)
         msconnector_response_mapper_contract_init(&contract);
         if (!ngx_http_modsecurity_map_response_from_ctx(ctx, r, &contract,
                 &mapped_response, mapper_error, sizeof(mapper_error))) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "modsecurity response mapper validation failed: %s", mapper_error);
-            return ngx_http_filter_finalize_request(r,
-                &ngx_http_modsecurity_module, NGX_HTTP_INTERNAL_SERVER_ERROR);
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                "modsecurity common response mapper validation skipped: %s", mapper_error);
         }
         ctx->common_response_validated = 1;
     }
