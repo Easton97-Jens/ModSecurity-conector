@@ -6,6 +6,7 @@ paths = [p for p in (ROOT/'connectors/haproxy').rglob('*') if p.is_file() and p.
 text = '\n'.join(p.read_text(errors='ignore') for p in paths)
 binding = (ROOT/'connectors/haproxy/src/haproxy_modsecurity_binding.c').read_text()
 mapper = (ROOT/'connectors/haproxy/src/haproxy_modsecurity_mapper.c').read_text()
+runtime_text = '\n'.join(p.read_text(errors='ignore') for p in (ROOT/'connectors/haproxy').rglob('*.c') if p.name != 'haproxy_modsecurity_mapper.c')
 ok = True
 def check(cond,msg):
     global ok
@@ -23,10 +24,17 @@ check('config_error[0] = \'\\0\';' in binding, 'config error buffer is initializ
 check('MSCONNECTOR_DIRECTIVE_' in text or 'msconnector_directive_spec' in text or 'msconnector_directive_adapter' in text, 'HAProxy references Common directive macros/specs/adapters')
 check('haproxy_modsecurity_map_request' in text and 'msconnector_request_mapper_contract' in text and 'msconnector_request_mapper_validate_output' in text, 'HAProxy request mapper uses Common request contract')
 check('haproxy_modsecurity_map_response' in text and 'msconnector_response_mapper_contract' in text and 'msconnector_response_mapper_validate_output' in text, 'HAProxy response mapper uses Common response contract')
+check('haproxy_modsecurity_map_request(' in runtime_text, 'request mapper has a callsite outside mapper.c/.h')
+check('haproxy_modsecurity_map_response(' in runtime_text, 'response mapper has a callsite outside mapper.c/.h')
+check('haproxy_modsecurity_request_mapper_cleanup(&mapped_request)' in binding, 'request mapper callsite cleans up mapped header array')
+check('haproxy_modsecurity_response_mapper_cleanup(&mapped_response)' in binding, 'response mapper callsite cleans up mapped header array')
+check('haproxy_modsecurity_request_mapper_cleanup' in mapper and 'haproxy_modsecurity_response_mapper_cleanup' in mapper, 'mapper cleanup APIs exist')
+check('msconnector_headers_find_first(out->headers, out->header_count, "host")' in mapper, 'request mapper looks up Host header explicitly')
+check('out->hostname = host_header->value' in mapper and 'out->hostname = src->server_ip' in mapper, 'request mapper prefers Host header and keeps server_ip fallback')
 check('msconnector_request_mapper_validate_output(contract, out, error, error_len)' in mapper and 'if (rc != 1)' in mapper, 'request mapper validation success is not inverted')
 check('msconnector_response_mapper_validate_output(contract, out, error, error_len)' in mapper and mapper.count('if (rc != 1)') >= 2, 'response mapper validation success is not inverted')
 check('return 1;' in mapper, 'request/response mappers return 1 on success')
-check('msconnector_headers_host' in text or 'msconnector_headers_find' in text, 'HAProxy uses Common header helpers')
+check('msconnector_headers_find_first' in text, 'HAProxy uses Common header lookup helpers')
 check('msconnector_event_write_jsonl_line' in text or 'msconnector_rule_id_extract_from_message' in text or 'msconnector_json_escape' in text or 'msconnector_sanitize_log_message' in text, 'HAProxy uses Common event/rule/json/log primitives or documents gap')
 check("common_rule_id[0] = '\\0';" in binding, 'rule-id buffer is initialized before extraction')
 check('rule_id_result > 0' in binding and 'strtol(common_rule_id' in binding, 'rule-id extraction only uses positive results')

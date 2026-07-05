@@ -22,6 +22,7 @@ if sh.exists():
  check('HAPROXY_SOURCE_DIR="${HAPROXY_SOURCE_DIR:-${HAPROXY_SRC:-${MODSECURITY_HAPROXY_SOURCE_DIR:-}}}"' in txt, 'script honors HAProxy source fallback variables')
  check('MODSECURITY_INCLUDE_DIR' in txt and 'MODSECURITY_INC' in txt and 'MODSECURITY_INCLUDE_FLAG' in txt, 'script honors ModSecurity include roots and -I flags')
  check('common/src/transaction_state.c' in txt, 'script compiles Common transaction_state.c')
+ check('probe_haproxy_headers' in txt and 'haproxy/api.h' in txt and 'missing usable HAProxy headers/source' in txt, 'script probes actual HAProxy headers before passing')
 check('COMMON_CPPFLAGS := -I$(COMMON_INCLUDE)' in haproxy_mk, 'HAProxy Makefile defines Common include compile flags')
 check('$(CC) $(CPPFLAGS) $(COMMON_CPPFLAGS) $(CFLAGS)' in haproxy_mk, 'HAProxy Makefile compiles Common-linked sources with Common include flags')
 check('src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS)' in haproxy_mk and '$(CXX) $(LDFLAGS)' in haproxy_mk and 'src/haproxy_modsecurity_mapper.c $(COMMON_SDK_SRCS) -L' not in haproxy_mk, 'Common sources are compiled to objects before link')

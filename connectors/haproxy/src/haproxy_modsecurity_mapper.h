@@ -26,6 +26,12 @@ int haproxy_modsecurity_map_response(
     char *error,
     size_t error_len);
 
+/* The mapper owns only the msconnector_header array assigned to out->headers;
+ * header name/value pointers remain borrowed from the HAProxy binding input.
+ */
+void haproxy_modsecurity_request_mapper_cleanup(msconnector_request *request);
+void haproxy_modsecurity_response_mapper_cleanup(msconnector_response *response);
+
 #ifdef __cplusplus
 }
 #endif

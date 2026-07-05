@@ -26,8 +26,6 @@ static int haproxy_headers_to_common(
         char *error,
         size_t error_len) {
     msconnector_header *headers;
-    unsigned int i;
-
     if (headers_out == 0 || header_count_out == 0) {
         haproxy_mapper_error(error, error_len, "missing header mapper output");
         return 0;
@@ -46,7 +44,7 @@ static int haproxy_headers_to_common(
         haproxy_mapper_error(error, error_len, "failed to allocate common headers");
         return 0;
     }
-    for (i = 0U; i < header_count; ++i) {
+    for (unsigned int i = 0U; i < header_count; ++i) {
         headers[i].name = src[i].name;
         headers[i].name_size = haproxy_cstr_size(src[i].name);
         headers[i].value = src[i].value != 0 ? src[i].value : "";
@@ -65,7 +63,7 @@ int haproxy_modsecurity_map_request(
         size_t error_len) {
     msconnector_header *headers = 0;
     size_t header_count = 0U;
-    const char *host;
+    const msconnector_header *host_header;
     int rc;
 
     if (src == 0 || out == 0) {
@@ -86,8 +84,12 @@ int haproxy_modsecurity_map_request(
     out->server.port = src->server_port;
     out->headers = headers;
     out->header_count = header_count;
-    host = msconnector_headers_host(out->headers, out->header_count);
-    out->hostname = host != 0 ? host : src->server_ip;
+    host_header = msconnector_headers_find_first(out->headers, out->header_count, "host");
+    if (host_header != 0 && host_header->value != 0 && host_header->value_size > 0U) {
+        out->hostname = host_header->value;
+    } else {
+        out->hostname = src->server_ip;
+    }
     if (src->body != 0 && src->body_len > 0U) {
         out->body.data = src->body;
         out->body.size = (size_t)src->body_len;
@@ -137,4 +139,22 @@ int haproxy_modsecurity_map_response(
         return 0;
     }
     return 1;
+}
+
+void haproxy_modsecurity_request_mapper_cleanup(msconnector_request *request) {
+    if (request == 0) {
+        return;
+    }
+    free((void *)request->headers);
+    request->headers = 0;
+    request->header_count = 0U;
+}
+
+void haproxy_modsecurity_response_mapper_cleanup(msconnector_response *response) {
+    if (response == 0) {
+        return;
+    }
+    free((void *)response->headers);
+    response->headers = 0;
+    response->header_count = 0U;
 }

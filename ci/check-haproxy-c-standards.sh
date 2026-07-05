@@ -31,6 +31,23 @@ if [ "$found_modsec" != 1 ]; then
   for d in /usr/include /usr/local/include; do [ -f "$d/modsecurity/modsecurity.h" ] && { incs="$incs -I$d"; found_modsec=1; break; }; done
 fi
 [ "$found_modsec" = 1 ] || { echo "BLOCKED: haproxy_c_standards missing libmodsecurity headers"; exit 77; }
+probe_haproxy_headers() {
+  std_flag=$1
+  for header in haproxy/api.h haproxy/http.h haproxy/htx.h common/cfgparse.h types/global.h proto/proxy.h; do
+    probe_src="$OUT/haproxy-header-probe-$(echo "$header" | tr '/.' '__').c"
+    probe_obj="$OUT/haproxy-header-probe-$(echo "$header" | tr '/.' '__').o"
+    {
+      printf '#include <%s>\n' "$header"
+      printf 'int main(void) { return 0; }\n'
+    } > "$probe_src"
+    if "$CC_BIN" $std_flag -Wall -Wextra -Werror $incs -c "$probe_src" -o "$probe_obj" >/dev/null 2>"$OUT/haproxy-header-probe.err"; then
+      return 0
+    fi
+  done
+  echo "BLOCKED: haproxy_c_standards missing usable HAProxy headers/source"
+  exit 77
+}
+
 compile_profile() {
   prof=$1
   case "$prof" in
@@ -39,6 +56,7 @@ compile_profile() {
     c2y) std=$(python3 "$ROOT/ci/detect-c-standard.py" --profile c2y --compiler "$CC_BIN") || { rc=$?; [ "$rc" = 77 ] && { echo "SKIPPED: optional future-C check unsupported"; return 0; }; return "$rc"; } ;;
     *) echo "unknown profile $prof"; return 2 ;;
   esac
+  probe_haproxy_headers "$std"
   files=""
   for dir in connectors/haproxy/src connectors/haproxy/runtime connectors/haproxy/spoa connectors/haproxy/harness; do
     if [ -d "$ROOT/$dir" ]; then
