@@ -18,16 +18,19 @@ for d in /usr/include/nginx /usr/local/include/nginx; do [ -d "$d" ] && { incs="
 [ "$found_nginx" = 1 ] || { echo "BLOCKED: nginx_c_standards missing nginx headers/source"; exit 77; }
 MODSECURITY_INCLUDE=${MODSECURITY_INCLUDE:-${MODSECURITY_INCLUDE_DIR:-${MODSECURITY_INC:-${V3INCLUDE:-}}}}
 MODSECURITY_INCLUDE_FLAG=
-MODSECURITY_INCLUDE_PATH=
-case "$MODSECURITY_INCLUDE" in
-  -I*) MODSECURITY_INCLUDE_FLAG="$MODSECURITY_INCLUDE"; MODSECURITY_INCLUDE_PATH=${MODSECURITY_INCLUDE#-I} ;;
-  "") MODSECURITY_INCLUDE_FLAG=""; MODSECURITY_INCLUDE_PATH="" ;;
-  *) MODSECURITY_INCLUDE_FLAG="-I$MODSECURITY_INCLUDE"; MODSECURITY_INCLUDE_PATH="$MODSECURITY_INCLUDE" ;;
-esac
 found_modsec=0
-if [ -n "$MODSECURITY_INCLUDE_PATH" ] && [ -f "$MODSECURITY_INCLUDE_PATH/modsecurity/modsecurity.h" ]; then
-  incs="$incs $MODSECURITY_INCLUDE_FLAG"
-  found_modsec=1
+if [ -n "$MODSECURITY_INCLUDE" ]; then
+  for include_item in $MODSECURITY_INCLUDE; do
+    case "$include_item" in
+      -I*) MODSECURITY_INCLUDE_FLAG="$include_item"; MODSECURITY_INCLUDE_PATH=${include_item#-I} ;;
+      "") MODSECURITY_INCLUDE_FLAG=""; MODSECURITY_INCLUDE_PATH="" ;;
+      *) MODSECURITY_INCLUDE_FLAG="-I$include_item"; MODSECURITY_INCLUDE_PATH="$include_item" ;;
+    esac
+    if [ -n "$MODSECURITY_INCLUDE_PATH" ] && [ -f "$MODSECURITY_INCLUDE_PATH/modsecurity/modsecurity.h" ]; then
+      incs="$incs $MODSECURITY_INCLUDE_FLAG"
+      found_modsec=1
+    fi
+  done
 fi
 if [ "$found_modsec" != 1 ]; then
   for d in /usr/include /usr/local/include; do

@@ -466,15 +466,14 @@ ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_
     ngx_memcpy(message, intervention->data, intervention->len);
     message[intervention->len] = '\0';
     rule_id_result = msconnector_rule_id_extract_from_message(message, extracted, sizeof(extracted));
-    if (rule_id_result <= 0) {
-        return;
+    if (rule_id_result > 0) {
+        rule_id->len = ngx_strlen(extracted);
+        rule_id->data = ngx_pnalloc(pool, rule_id->len);
+        if (rule_id->data == NULL) {
+            rule_id->len = 0;
+            rule_id->data = (u_char *)"";
+            return;
+        }
+        ngx_memcpy(rule_id->data, extracted, rule_id->len);
     }
-    rule_id->len = ngx_strlen(extracted);
-    rule_id->data = ngx_pnalloc(pool, rule_id->len);
-    if (rule_id->data == NULL) {
-        rule_id->len = 0;
-        rule_id->data = (u_char *)"";
-        return;
-    }
-    ngx_memcpy(rule_id->data, extracted, rule_id->len);
 }
