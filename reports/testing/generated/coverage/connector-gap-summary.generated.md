@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-29T13:04:15Z`
+> Generated at: `2026-07-06T16:46:14Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `3dec17b31359b2f0585e8943707490c770b9ff59`
-> Framework SHA: `ea494ff5e24984bf4983ffab7ed9e1863dab44c2`
+> Connector SHA: `4afa499f6719e802c5091c43742e99ba39d6d42a`
+> Framework SHA: `3817acec9f2fb483b275b5a9a747542ec40e3b45`
 > Input status: `complete`
 
 # Generated Connector Gap Summary
@@ -41,6 +41,21 @@
 | phase3_response_headers_mixed_case_connector_gap | `tests/cases/response/headers/phase3_response_headers_mixed_case_connector_gap.yaml` | imported | active | connector-gap | RESPONSE_HEADERS:content-type | unknown | - |
 | phase3_response_headers_multi_value_connector_gap | `tests/cases/response/headers/phase3_response_headers_multi_value_connector_gap.yaml` | imported | active | connector-gap | RESPONSE_HEADERS:Set-Cookie | unknown | - |
 | sqli_like_quote_encoding_runtime_difference | `tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml` | imported | active | runtime-difference | ARGS:q | unknown | - |
+| request_body_limit_exceeded | `tests/cases/security-data-flow/body-limits/request_body_limit_exceeded.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| response_body_truncation_event | `tests/cases/security-data-flow/body-limits/response_body_truncation_event.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| decision_jsonl_no_body_payload | `tests/cases/security-data-flow/events/decision_jsonl_no_body_payload.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| event_jsonl_no_body_payload | `tests/cases/security-data-flow/events/event_jsonl_no_body_payload.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| integrity_event_hash_chain_tamper_detected | `tests/cases/security-data-flow/events/integrity_event_hash_chain_tamper_detected.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| integrity_event_hash_chain_valid | `tests/cases/security-data-flow/events/integrity_event_hash_chain_valid.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| conflicting_content_length_rejected | `tests/cases/security-data-flow/headers/conflicting_content_length_rejected.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| header_count_limit_exceeded | `tests/cases/security-data-flow/headers/header_count_limit_exceeded.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| header_value_limit_exceeded | `tests/cases/security-data-flow/headers/header_value_limit_exceeded.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| log_control_chars_sanitized | `tests/cases/security-data-flow/log-safety/log_control_chars_sanitized.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| log_secret_like_payload_redacted | `tests/cases/security-data-flow/log-safety/log_secret_like_payload_redacted.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| duplicate_mutating_phase_rejected | `tests/cases/security-data-flow/phase-order/duplicate_mutating_phase_rejected.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| phase_skip_rejected | `tests/cases/security-data-flow/phase-order/phase_skip_rejected.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| transaction_id_control_char_rejected | `tests/cases/security-data-flow/transaction-id/transaction_id_control_char_rejected.yaml` | connector-gap | active | connector-gap | - | unknown | - |
+| transaction_id_too_long_rejected | `tests/cases/security-data-flow/transaction-id/transaction_id_too_long_rejected.yaml` | connector-gap | active | connector-gap | - | unknown | - |
 | tests/cases/connector-specific/nginx/nginx_redirect_phase1_302.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX redirect behavior is not yet proven against Apache. |
 | tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX TX scoring import is not yet proven against Apache. |
 | tests/cases/connector-specific/nginx/nginx_tx_scoring_iterative_block.yaml | `config/testing/import-status.json` | connector_specific | - | - | unknown | NGINX TX scoring import is not yet proven against Apache. |

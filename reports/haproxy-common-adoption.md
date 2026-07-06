@@ -1,6 +1,6 @@
 # HAProxy Common SDK adoption
 
-**Language:** English
+**Language:** English | [Deutsch](haproxy-common-adoption.de.md)
 
 This report records the HAProxy adoption layer migration boundary. The evidence is compile/structure evidence only: it is not a production, CRS, full-matrix, or runtime verification claim.
 
