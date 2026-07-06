@@ -4,1040 +4,1034 @@
 
 ## Inhaltsverzeichnis
 
-1. [Zweck des Repositorys](#repository-purpose)
-2. [Kurzfassung für Menschen](#short-summary-for-humans)
-3. [Kurzfassung für KI-Systeme](#short-summary-for-ai-systems)
-4. [Architekturprinzip](#architecture-principle)
-5. [Repository-Struktur](#repository-structure)
-6. [Common SDK: vollständiger Dateiindex](#common-sdk-complete-file-index)
-7. [Common SDK: Module und Aufgaben](#common-sdk-modules-and-responsibilities)
-8. [Config-, Direktiven- und Parser-Modell](#config-directives-and-parser-model)
-9. [Erlaubte Config-/Directive-Begriffe](#allowed-configdirective-vocabulary)
-10. [Request-/Response-Mapping](#requestresponse-mapping)
-11. [Decision-, Intervention-, Status- und Event-Modell](#decision-intervention-status-and-event-model)
-12. [Resource Limits, DoS Guard, Flow Guard und Integrity](#reSource-limits-dos-guard-flow-guard-and-integrity)
-13. [C-Sprache und Standards](#c-language-and-standards)
-14. [CI-, Contract- und Governance-Checks](#ci-contract-and-governance-checks)
-15. [Makefile-Ziele: Was kann man mit `make` tun?](#makefile-targets-what-can-be-done-with-make)
-16. [Häufige Makefile-Aufrufe](#common-makefile-commands)
-17. [Exit-Codes und BLOCKED/SKIPPED-Verhalten](#exit-codes-and-blockedskipped-behavior)
-18. [Umgebungsvariablen](#environment-variables)
-19. [Connector-Modell](#connector-model)
+1. [Zweck des Repositorys](#zweck-des-repositorys)
+2. [Kurzfassung für Menschen](#kurzfassung-für-menschen)
+3. [Kurzfassung für KI-Systeme](#kurzfassung-für-ki-systeme)
+4. [Architekturprinzip](#architekturprinzip)
+5. [Repository-Struktur](#repository-struktur)
+6. [Common SDK: vollständiger Dateiindex](#common-sdk-vollständiger-dateiindex)
+7. [Common SDK: Module und Aufgaben](#common-sdk-module-und-aufgaben)
+8. [Config-, Direktiven- und Parser-Modell](#config-direktiven-und-parser-modell)
+9. [Erlaubte Config-/Directive-Begriffe](#erlaubte-config-directive-begriffe)
+10. [Request-/Response-Mapping](#request-response-mapping)
+11. [Decision-, Intervention-, Status- und Event-Modell](#decision-intervention-status-und-event-modell)
+12. [Ressourcenlimits, DoS-Schutz, Flow-Guard und Integrität](#ressourcenlimits-dos-schutz-flow-guard-und-integrität)
+13. [C-Sprache und Standards](#c-sprache-und-standards)
+14. [CI-, Contract- und Governance-Checks](#ci-contract-und-governance-checks)
+15. [Makefile-Ziele: Was kann man mit `make` tun?](#makefile-ziele-was-kann-man-mit-make-tun)
+16. [Häufige Makefile-Aufrufe](#häufige-makefile-aufrufe)
+17. [Exit-Codes und BLOCKED/SKIPPED-Verhalten](#exit-codes-und-blockedskipped-verhalten)
+18. [Umgebungsvariablen](#umgebungsvariablen)
+19. [Connector-Modell](#connector-modell)
 20. [Apache-Connector](#apache-connector)
 21. [NGINX-Connector](#nginx-connector)
 22. [HAProxy-Connector](#haproxy-connector)
 23. [Envoy-Connector](#envoy-connector)
 24. [Traefik-Connector](#traefik-connector)
 25. [lighttpd-Connector](#lighttpd-connector)
-26. [Connector-Statusmatrix](#connector-status-matrix)
-27. [Test-Framework-Bezug](#test-framework-relation)
-28. [Runtime Evidence und Verification Policy](#runtime-evidence-and-verification-policy)
-29. [Was bereits umgesetzt ist](#implemented-work)
-30. [Was noch fehlt](#missingfuture-work)
-31. [Bekannte Grenzen](#known-limits)
-32. [Was bewusst connector-spezifisch bleibt](#intentionally-connector-specific)
-33. [KI-Faktenblock](#ai-fact-block)
-34. [Erlaubte und verbotene Claims](#allowed-and-forbidden-claims)
-35. [Glossar](#glossary)
-36. [Wartungs-Checkliste](#maintenance-checklist)
+26. [Connector-Statusmatrix](#connector-statusmatrix)
+27. [Test-Framework-Bezug](#test-framework-bezug)
+28. [Runtime-Evidence und Verifikationsrichtlinie](#runtime-evidence-und-verifikationsrichtlinie)
+29. [Umgesetzt](#umgesetzt)
+30. [Fehlend / Nächste Schritte](#fehlend--nächste-schritte)
+31. [Bekannte Grenzen](#bekannte-grenzen)
+32. [Bewusst connector-spezifisch](#bewusst-connector-spezifisch)
+33. [KI-Faktenblock](#ki-faktenblock)
+34. [Erlaubte und verbotene Claims](#erlaubte-und-verbotene-claims)
+35. [Glossar](#glossar)
+36. [Wartungs-Checkliste](#wartungs-checkliste)
 
 ## Zweck des Repositorys
 
-Diese deutsche Datei ist inhaltlich gleichwertig zur englischen Übersicht. Code-, API-, Datei- und Statusnamen bleiben absichtlich unverändert, damit spätere KI-Systeme sie direkt mit dem Repository abgleichen können. Die Aussagen sind konservativ: Compile-, Struktur- und Governance-Checks werden nicht als Runtime-, CRS-, Full-Matrix-, RESPONSE_BODY- oder Production-Nachweise beschrieben.
+Dieses Repository baut ModSecurity-Connectoren und eine gemeinsame Common-SDK-Schicht. Das Architekturziel ist, connector-neutrale Semantik in `common/` zu halten und Host-/Server-API-Integration in den einzelnen Connector-Verzeichnissen zu belassen.
 
+Grundsatz: Semantische Logik gehört nach `common/`; Host-/Server-API-Glue bleibt im jeweiligen Connector.
 
-Dieses Repository baut ModSecurity-Connectoren und eine gemeinsame Common-SDK-Schicht auf. Ziel ist, connector-neutrale Semantik in `common/` zu halten und Host-/Server-API-Integration in den jeweiligen Connectoren zu belassen.
+Beispiele für Common sind Konfiguration, Direktiven, Direktiven-Spezifikationen, Parser-Helfer, Request- und Response-Modelle, Header-Helfer, Mapper-Verträge, Entscheidungs-/Interventions-/Status-/Fehlermodelle, Event JSONL, Ressourcenlimits, DoS-Schutz, Flow-Guard, Integritätsmetadaten, Rule-Loading-Verträge, Test-Result-JSON, Adapter-Metadaten, Capabilities und generische Mapper-Helfer.
 
-Grundsatz: Alles, was Semantik ist, gehört nach `common/`; alles, was Host-/Server-API ist, bleibt im Connector.
-
-Beispiele für Common: Config, Direktiven, Direktiven-Spezifikationen, Parser-Helfer, Request- und Response-Modelle, Header-Helfer, Mapper-Contracts, Decision-/Intervention-/Status-/Error-Modelle, Event JSONL, Resource Limits, DoS Guard, Flow Guard, Integrity-Metadaten, Rule-Loading-Contracts, Test-Result-JSON, Adapter-Metadaten, Capabilities und Generic-Mapper-Helfer.
-
-Beispiele für Connector-spezifische Teile: Apache `request_rec`, `command_rec` und APR; NGINX `ngx_http_request_t`, `ngx_chain_t` und Filter; HAProxy SPOE/SPOP, Frame-Parsing und Runtime-Loop; Envoy Filter-/Runtime-APIs; Traefik Middleware-/Proxy-/Runtime-APIs; und lighttpd Plugin-/Proxy-/Runtime-APIs.
+Beispiele für connector-spezifische Teile sind Apache `request_rec`, `command_rec`, APR-Pools und Filter; NGINX `ngx_http_request_t`, `ngx_chain_t` und Filter; HAProxy SPOE/SPOP, Frame-Parsing und Runtime-Loop; Envoy Filter-/Runtime-APIs; Traefik Middleware-/Proxy-/Runtime-APIs; und lighttpd Plugin-/Proxy-/Runtime-APIs.
 
 ## Kurzfassung für Menschen
 
-Das Repository ist ein Connector-Monorepo. Apache, NGINX und HAProxy besitzen aktiven Connector-Code und Common-Adoption-Checks. Envoy, Traefik und lighttpd besitzen Starter-/Structure-only-/Compile-only-Vorbereitung und müssen bis zu echter Runtime Evidence als `not_verified / connector-gap` behandelt werden. Compile-, Lint- und Contract-Checks sind wertvoll, sind aber keine Production-, CRS-, Full-Matrix-, Response-Body- oder Runtime-Verifikations-Claims.
+Apache, NGINX und HAProxy besitzen in diesem Repository Connector-Code und Common-Adoption-Checks. Envoy, Traefik und lighttpd sind als Starter-/structure-only-/compile-only-Connectorbereiche vorbereitet und bleiben `not_verified / connector-gap`. Compile-, Lint-, Contract- und generierte Report-Checks sind wertvolle Evidence für ihren genauen Prüfbereich, aber keine Production-, CRS-, Full-Matrix-, Response-Body- oder Runtime-Verifikations-Claims.
 
 ## Kurzfassung für KI-Systeme
 
-Nutze Repository-Code, CI-Skripte und aktuelle Reports als Source of Truth. Leite keine Runtime-Garantien aus Dateinamen, Makefile-Zielen oder lokalen Smoke-Ergebnissen ab. Unterscheide Connector-Metadaten von per-run `result.json`. Verwende `unknown`, `partial`, `structure-only`, `not_verified`, `connector-gap` oder `requires runtime evidence`, wenn Nachweise fehlen.
+Nutze aktuellen Repository-Code, CI-Skripte, Metadaten und generierte Reports als Source of Truth. Leite keine Runtime-Garantien aus Dateinamen, Makefile-Zielen, Starter-Smokes oder lokalen `result.json`-Dateien ab. Unterscheide Connector-Metadaten von per-run Result-JSON. Wenn Evidence fehlt, verwende `unknown`, `partial`, `structure-only`, `compile-only`, `not_verified`, `connector-gap` oder `requires runtime evidence`.
 
 ## Architekturprinzip
 
-`common/` definiert connector-neutrale C/C++-Contracts und Helfer. `connectors/<name>/` bildet Server-APIs auf diese Contracts ab. Generierte Reports liegen unter `reports/testing/generated/`; CI- und Governance-Skripte liegen in `ci/`; wiederverwendbare Tests werden unter `modules/ModSecurity-test-Framework` erwartet.
+`common/` definiert connector-neutrale C/C++-Verträge und Helfer. `connectors/<name>/` bildet Server-APIs auf diese Verträge ab. Generierte Reports liegen unter `reports/`; CI- und Governance-Skripte liegen in `ci/`; wiederverwendbare Tests werden unter `modules/ModSecurity-test-Framework` erwartet.
 
 ## Repository-Struktur
 
 | Pfad | Bedeutung | Evidenzstatus |
 |---|---|---|
-| `common/include/msconnector/` | Öffentliche Common-SDK-Header. | Nur Contract-/statische Evidenz, außer in einem Lauf getestet. |
-| `common/src/` | Common-SDK-Helferimplementierungen. | C17-/Common-Checks. |
-| `connectors/apache/` | Apache-Adapter-Quellen, docs, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidenz. |
-| `connectors/nginx/` | NGINX-Adapter-Quellen, docs, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidenz. |
-| `connectors/haproxy/` | HAProxy-/SPOA-Starter und Mapping-Quellen, docs, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidenz. |
+| `common/include/msconnector/` | Öffentliche Common-SDK-Header. | Contract-/statische Evidence, sofern kein Lauf zusätzliche Runtime-Evidence belegt. |
+| `common/src/` | Implementierungen der Common-SDK-Helfer. | C17-/Common-Checks. |
+| `connectors/apache/` | Apache-Adapter-Quellen, Doku, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidence. |
+| `connectors/nginx/` | NGINX-Adapter-Quellen, Doku, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidence. |
+| `connectors/haproxy/` | HAProxy-/SPOA-Quellen, Doku, Harness und Metadaten. | Common-Adoption; Runtime-Claims benötigen aktuelle Evidence. |
 | `connectors/envoy/` | Envoy-Bridge-Starter. | `not_verified / connector-gap`. |
 | `connectors/traefik/` | Traefik-Decision-Service-Starter. | `not_verified / connector-gap`. |
 | `connectors/lighttpd/` | lighttpd-Bridge-/Build-Starter. | `not_verified / connector-gap`. |
-| `ci/` | Lint, contract, governance, C-standard and report scripts. | Check-Definitionen, für sich allein keine Runtime Evidence. |
-| `docs/` | Repository-weite und Architektur-Dokumentation. | Dokumentation; muss synchron bleiben. |
-| `reports/` | Generierte Reports/Evidenz/Matrizen. | Nur aktuelle generierte Evidenz und Statuslabels vertrauen. |
+| `ci/` | Lint-, Contract-, Governance-, C-Standard- und Report-Skripte. | Check-Definitionen, für sich allein keine Runtime-Evidence. |
+| `docs/`, `docs/architecture/`, `docs/connectors/` | Repository-, Architektur- und Connector-Dokumentation. | Dokumentation; muss mit Quellcode und Reports synchron bleiben. |
+| `reports/` | Generierte Reports, Evidence und Matrizen. | Nur aktuellen Statuslabels und Evidenzumfang vertrauen. |
 
 ## Common SDK: vollständiger Dateiindex
 
 | Datei | Typ | Zweck | Wichtige APIs/Structs | Genutzt von | Status / Hinweise |
 |---|---|---|---|---|---|
-| `common/include/msconnector/adapter.h` | Header | adapter helper/model for the connector-neutral SDK | msconnector_adapter, msconnector_adapter_metadata, msconnector_capabilities, msconnector_config, msconnector_error, msconnector_transaction_view | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/adapter_contract.h` | Header | adapter contract declarations | msconnector_adapter_contract_result, msconnector_adapter_contract_result_init, msconnector_adapter_contract_validate, msconnector_adapter | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/adapter_metadata.h` | Header | adapter metadata shape | msconnector_adapter_metadata, msconnector_origin, msconnector_capabilities, msconnector_adapter_metadata_init, msconnector_adapter_metadata_is_complete | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/artifact_layout.h` | Header | artifact layout helper/model for the connector-neutral SDK | msconnector_artifact_layout, msconnector_artifact_layout_init, msconnector_artifact_name_result_json, msconnector_artifact_name_decision_jsonl, msconnector_artifact_name_audit_log, msconnector_artifact_name_error_log | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/artifacts.h` | Header | artifacts helper/model for the connector-neutral SDK | msconnector_artifact_paths, msconnector_artifact_paths_init, msconnector_artifact_default_result_json, msconnector_artifact_default_decision_jsonl | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/block_statuses.h` | Header | block statuses helper/model for the connector-neutral SDK | msconnector_block_status_support, msconnector_block_status_is_allowed, msconnector_block_status_normalize, msconnector_http_status_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/blocking.h` | Header | blocking helper/model for the connector-neutral SDK | msconnector_block_action, msconnector_blocking_policy, msconnector_block_action_name, msconnector_block_action_is_disruptive, msconnector_blocking_policy_make | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/body_policy.h` | Header | body policy helper/model for the connector-neutral SDK | msconnector_body_mode, msconnector_body_policy, msconnector_body_policy_init, msconnector_body_mode_name, msconnector_body_mode_is_supported | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/build_contract.h` | Header | build contract helper/model for the connector-neutral SDK | msconnector_build_contract_target_name, msconnector_build_contract_target_count, msconnector_build_contract_target_is_standard | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/capabilities.h` | Header | capability declarations | msconnector_capability_flags, msconnector_capability_flag, msconnector_capabilities, msconnector_capabilities_has, msconnector_capability_name, msconnector_capability_from_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/capabilities.hpp` | Header | capability declarations | msconnector_capability_flags, msconnector_capability_flag, msconnector_capabilities, msconnector_capability_name | Common SDK und adoptierende Connectoren | C++ facade |
-| `common/include/msconnector/capability_matrix.h` | Header | capability matrix helper/model for the connector-neutral SDK | msconnector_capability_required_test, msconnector_capability_flag, msconnector_capability_has_required_test | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/config.h` | Header | connector-neutral configuration object, defaults, merge and validation | msconnector_config, msconnector_bool_option, msconnector_phase4_mode, msconnector_config_init, msconnector_config_apply_defaults, msconnector_config_merge | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/config_parser.h` | Header | shared parsers for booleans, phase4 mode, sizes, HTTP statuses and content-type tokens | msconnector_parse_bool, msconnector_bool_option, msconnector_parse_phase4_mode, msconnector_phase4_mode, msconnector_parse_size, msconnector_parse_http_status | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/connector_manifest.h` | Header | connector manifest helper/model for the connector-neutral SDK | msconnector_connector_manifest, msconnector_capability_flags, msconnector_connector_manifest_init, msconnector_connector_manifest_from_metadata, msconnector_adapter_metadata, msconnector_connector_manifest_write_json | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/crs.h` | Header | crs helper/model for the connector-neutral SDK | msconnector_crs_mode, msconnector_crs_config, msconnector_crs_config_init, msconnector_crs_config_validate, msconnector_crs_mode_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/decision.h` | Header | inspection decision model | msconnector_event, msconnector_decision_kind, msconnector_decision, msconnector_status, msconnector_phase, msconnector_intervention | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/decision_action.h` | Header | decision action helper/model for the connector-neutral SDK | msconnector_decision_action, msconnector_decision_action_name, msconnector_decision_action_from_decision, msconnector_decision, msconnector_decision_action_is_disruptive | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/directive_adapter.h` | Header | helpers that apply directive values to msconnector_config | msconnector_directive_scope, msconnector_directive_argument_policy, msconnector_directive_adapter_entry, msconnector_directive_spec, msconnector_directive_adapter_count, msconnector_directive_adapter_at | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/directive_spec.h` | Header | global directive catalog with value types, defaults and allowed values | msconnector_directive_value_type, msconnector_directive_spec, msconnector_directive_specs, msconnector_directive_spec_count, msconnector_directive_spec_find | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/directives.h` | Header | canonical directive name macros | file-local helpers / metadata | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/dos_guard.h` | Header | DoS guard counters and checks | msconnector_dos_guard_check_request, msconnector_request, msconnector_reSource_limits, msconnector_error, msconnector_dos_guard_check_response, msconnector_response | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/error.h` | Header | error helper/model for the connector-neutral SDK | msconnector_error_code, msconnector_error, msconnector_error_init, msconnector_error_set, msconnector_error_code_name, msconnector_error_default_message | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/event.h` | Header | event model | msconnector_event_meta, msconnector_event_decision, msconnector_phase, msconnector_status, msconnector_event_http, msconnector_event_request | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/event_jsonl.h` | Header | JSONL serialization for events | msconnector_event_write_jsonl_line, msconnector_event | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/flow_guard.h` | Header | request/response flow guard | msconnector_flow_guard, msconnector_phase, msconnector_flow_guard_init, msconnector_flow_guard_can_enter_phase, msconnector_flow_guard_mark_validated, msconnector_flow_guard_mark_immutable | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/generic_mapper.h` | Header | generic request/response mapper helpers for starter connectors | msconnector_generic_request_Source, msconnector_endpoint, msconnector_Header, msconnector_bytes, msconnector_generic_response_Source, msconnector_generic_config_init | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/Headers.h` | Header | connector-neutral Header list helpers | msconnector_Header_name_equals, msconnector_Header, msconnector_Header_name_is, msconnector_Headers_find, msconnector_Headers_find_first, msconnector_Headers_find_last | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/http_status.h` | Header | http status helper/model for the connector-neutral SDK | msconnector_http_status_class, msconnector_http_status_info, msconnector_http_status_info_find, msconnector_http_status_reason_phrase, msconnector_http_status_default_message, msconnector_http_status_classify | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/integrity_event.h` | Header | integrity metadata events without cryptographic claims | msconnector_non_crypto_hash_bytes, msconnector_non_crypto_hash_string, msconnector_integrity_event_hash, msconnector_event, msconnector_integrity_event_chain_verify | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/intervention.h` | Header | intervention/blocking model | msconnector_intervention, msconnector_intervention_make, msconnector_intervention_none, msconnector_intervention_is_disruptive | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/intervention.hpp` | Header | intervention/blocking model | msconnector_intervention | Common SDK und adoptierende Connectoren | C++ facade |
-| `common/include/msconnector/json_escape.h` | Header | json escape helper/model for the connector-neutral SDK | msconnector_json_escape | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/late_intervention.h` | Header | late intervention helper/model for the connector-neutral SDK | msconnector_late_intervention_action, msconnector_late_intervention_policy, msconnector_late_intervention_policy_init, msconnector_late_intervention_action_name, msconnector_late_intervention_resolve | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/lifecycle_status.h` | Header | lifecycle status helper/model for the connector-neutral SDK | msconnector_build_status, msconnector_runtime_status, msconnector_verification_status, msconnector_build_status_name, msconnector_runtime_status_name, msconnector_verification_status_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/limits.h` | Header | limits helper/model for the connector-neutral SDK | msconnector_limit_Header_count, msconnector_limit_Header_name_length, msconnector_limit_Header_value_length, msconnector_limit_total_Header_bytes, msconnector_limit_body_buffer_size, msconnector_limit_response_body_buffer_size | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/log_sanitize.h` | Header | log sanitize helper/model for the connector-neutral SDK | msconnector_sanitize_log_message, msconnector_redact_body_snippet | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/logging.h` | Header | logging helper/model for the connector-neutral SDK | msconnector_log_level, msconnector_log_record, msconnector_log_callback, msconnector_logger, msconnector_log | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/logging.hpp` | Header | logging helper/model for the connector-neutral SDK | msconnector_log_level, msconnector_log_record, msconnector_logger, msconnector_log | Common SDK und adoptierende Connectoren | C++ facade |
-| `common/include/msconnector/memory.h` | Header | memory helper/model for the connector-neutral SDK | msconnector_alloc_checked, msconnector_free_checked, msconnector_alloc_callback, msconnector_free_callback, msconnector_allocator, msconnector_allocator_init | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/modsecurity_engine.h` | Header | modsecurity engine helper/model for the connector-neutral SDK | msconnector_modsecurity_engine_ops, msconnector_error, msconnector_request, msconnector_decision, msconnector_response, msconnector_modsecurity_engine | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/options.h` | Header | options helper/model for the connector-neutral SDK | msconnector_bool_option, msconnector_phase4_mode | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/origin.h` | Header | origin/license metadata | msconnector_origin, msconnector_origin_make, msconnector_origin_is_empty | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/origin.hpp` | Header | origin/license metadata | msconnector_origin, msconnector_origin_is_empty | Common SDK und adoptierende Connectoren | C++ facade |
-| `common/include/msconnector/origin_governance.h` | Header | origin governance helper/model for the connector-neutral SDK | msconnector_origin_governance, msconnector_origin_governance_init, msconnector_origin_governance_is_complete, msconnector_origin_governance_from_metadata, msconnector_adapter_metadata | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/path_policy.h` | Header | path policy helper/model for the connector-neutral SDK | msconnector_path_is_absolute, msconnector_path_is_empty, msconnector_path_has_parent_reference | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/phase.h` | Header | phase helper/model for the connector-neutral SDK | msconnector_phase | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/redaction.h` | Header | redaction helper/model for the connector-neutral SDK | msconnector_redacted_string, msconnector_redact_copy | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/request.h` | Header | connector-neutral request model | msconnector_bytes, msconnector_Header, msconnector_endpoint, msconnector_request | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/request.hpp` | Header | connector-neutral request model | msconnector_bytes, msconnector_Header, msconnector_endpoint, msconnector_request, msconnector_request_init, msconnector_request_validate | Common SDK und adoptierende Connectoren | C++ facade |
-| `common/include/msconnector/request_helpers.h` | Header | request helpers helper/model for the connector-neutral SDK | msconnector_request_init, msconnector_request, msconnector_request_validate, msconnector_request_validate_with_limits, msconnector_reSource_limits, msconnector_request_has_Header | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/request_mapper_contract.h` | Header | request mapper contract validation | msconnector_mapper_requirement, msconnector_request_mapper_contract, msconnector_request_mapper_contract_init, msconnector_request_mapper_contract_validate, msconnector_request_mapper_validate_output, msconnector_request | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/reSource_limits.h` | Header | reSource limit model | msconnector_reSource_limits, msconnector_reSource_limits_init, msconnector_reSource_limits_validate, msconnector_reSource_limits_Headers_ok, msconnector_Header, msconnector_reSource_limits_body_ok | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/response.h` | Header | connector-neutral response model | msconnector_response, msconnector_Header, msconnector_bytes | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/response.hpp` | Header | connector-neutral response model | msconnector_response, msconnector_response_init, msconnector_response_validate | Common SDK und adoptierende Connectoren | C++ facade |
-| `common/include/msconnector/response_helpers.h` | Header | response helpers helper/model for the connector-neutral SDK | msconnector_response_init, msconnector_response, msconnector_response_validate, msconnector_response_validate_with_limits, msconnector_reSource_limits, msconnector_response_has_Header | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/response_mapper_contract.h` | Header | response mapper contract validation | msconnector_response_mapper_contract, msconnector_mapper_requirement, msconnector_response_mapper_contract_init, msconnector_response_mapper_contract_validate, msconnector_response_mapper_validate_output, msconnector_response | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/rule_error.h` | Header | rule error helper/model for the connector-neutral SDK | msconnector_rule_error_set_parse_failed, msconnector_error, msconnector_rule_error_set_load_failed, msconnector_rule_error_clear | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/rule_event.h` | Header | rule event helper/model for the connector-neutral SDK | msconnector_rule_load_event_ex, msconnector_rule_load_stats, msconnector_event, msconnector_rule_load_event, msconnector_rule_error_event, msconnector_error | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/rule_id.h` | Header | rule id helper/model for the connector-neutral SDK | msconnector_rule_id_copy, msconnector_rule_id_extract_from_message, msconnector_rule_id_validate | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/rule_load_stats.h` | Header | rule load stats helper/model for the connector-neutral SDK | msconnector_rule_load_stats, msconnector_rule_load_stats_init, msconnector_rule_load_stats_add, msconnector_rule_load_stats_add_inline, msconnector_rule_load_stats_add_file, msconnector_rule_load_stats_add_remote | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/rule_loader.h` | Header | rule loading contracts | msconnector_rule_loader_backend, msconnector_error, msconnector_rule_loader, msconnector_rule_load_stats, msconnector_rule_loader_init, msconnector_rule_loader_add_inline | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/rule_merge.h` | Header | rule merge helper/model for the connector-neutral SDK | msconnector_rule_collection, msconnector_rule_collection_init, msconnector_rule_collection_from_config, msconnector_config, msconnector_rule_collection_merge | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/runtime_paths.h` | Header | runtime paths helper/model for the connector-neutral SDK | msconnector_runtime_path_join | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/runtime_report.h` | Header | runtime report helper/model for the connector-neutral SDK | msconnector_runtime_report, msconnector_status, msconnector_runtime_report_init, msconnector_runtime_report_write_json | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/status.h` | Header | status classification helpers | msconnector_status, msconnector_status_name, msconnector_status_from_result | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/status.hpp` | Header | status classification helpers | msconnector_status, msconnector_status_name | Common SDK und adoptierende Connectoren | C++ facade |
-| `common/include/msconnector/test_result.h` | Header | test result helper/model for the connector-neutral SDK | msconnector_test_result, msconnector_status, msconnector_test_result_init, msconnector_test_result_passed | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/test_result_json.h` | Header | test result JSON writer | msconnector_test_result_write_json, msconnector_test_result | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/transaction.h` | Header | transaction helper/model for the connector-neutral SDK | msconnector_transaction_view, msconnector_request, msconnector_response, msconnector_intervention | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/transaction.hpp` | Header | transaction helper/model for the connector-neutral SDK | msconnector_transaction_view, msconnector_transaction_state, msconnector_decision, msconnector_phase, msconnector_phase_name | Common SDK und adoptierende Connectoren | C++ facade |
-| `common/include/msconnector/transaction_id.h` | Header | transaction id helper/model for the connector-neutral SDK | msconnector_transaction_id_Source, msconnector_transaction_id_expr_eval, msconnector_request, msconnector_transaction_id_context, msconnector_config, msconnector_transaction_id_result | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/include/msconnector/transaction_state.h` | Header | transaction state helper/model for the connector-neutral SDK | msconnector_transaction_state, msconnector_transaction_state_init, msconnector_transaction_state_mark_phase, msconnector_phase, msconnector_transaction_state_phase_processed, msconnector_phase_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/README.md` | Dokumentation | README helper/model for the connector-neutral SDK | file-local helpers / metadata | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/adapter.c` | Source | adapter helper/model for the connector-neutral SDK | msconnector_adapter_init, msconnector_adapter, msconnector_adapter_has_metadata, msconnector_adapter_has_capabilities, msconnector_adapter_supports_phase, msconnector_phase | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/adapter_contract.c` | Source | adapter contract declarations | msconnector_adapter_contract_result, msconnector_capabilities, msconnector_capability_flag, msconnector_capability_flags, msconnector_adapter, msconnector_adapter_contract_result_init | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/adapter_metadata.c` | Source | adapter metadata shape | msconnector_adapter_metadata_init, msconnector_adapter_metadata, msconnector_adapter_metadata_is_complete | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/artifact_layout.c` | Source | artifact layout helper/model for the connector-neutral SDK | msconnector_artifact_name_result_json, msconnector_artifact_name_decision_jsonl, msconnector_artifact_name_audit_log, msconnector_artifact_name_error_log, msconnector_artifact_name_runtime_stdout_log, msconnector_artifact_name_runtime_stderr_log | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/artifacts.c` | Source | artifacts helper/model for the connector-neutral SDK | msconnector_artifact_paths_init, msconnector_artifact_paths, msconnector_artifact_default_result_json, msconnector_artifact_default_decision_jsonl | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/block_statuses.c` | Source | block statuses helper/model for the connector-neutral SDK | msconnector_block_status_is_allowed, msconnector_http_status_is_block_response, msconnector_block_status_normalize, msconnector_http_status_is_valid, msconnector_http_status_name, msconnector_http_status_info_find | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/blocking.c` | Source | blocking helper/model for the connector-neutral SDK | msconnector_block_action_name, msconnector_block_action, msconnector_block_action_is_disruptive, msconnector_blocking_policy, msconnector_blocking_policy_make, msconnector_block_status_normalize | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/body_policy.c` | Source | body policy helper/model for the connector-neutral SDK | msconnector_body_policy_init, msconnector_body_policy, msconnector_body_mode_name, msconnector_body_mode, msconnector_body_mode_is_supported | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/build_contract.c` | Source | build contract helper/model for the connector-neutral SDK | msconnector_build_contract_target_name, msconnector_build_contract_target_count, msconnector_build_contract_target_is_standard | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/capabilities.c` | Source | capability declarations | msconnector_capability_flag, msconnector_capability_name, msconnector_capability_from_name, msconnector_capability_flags, msconnector_capabilities_add | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/capability_matrix.c` | Source | capability matrix helper/model for the connector-neutral SDK | msconnector_capability_required_test, msconnector_capability_flag, msconnector_capability_has_required_test | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/config.c` | Source | connector-neutral configuration object, defaults, merge and validation | msconnector_bool_option, msconnector_phase4_mode, msconnector_config, msconnector_block_status_is_allowed, msconnector_http_status_is_valid, msconnector_http_status_is_error | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/config_parser.c` | Source | shared parsers for booleans, phase4 mode, sizes, HTTP statuses and content-type tokens | msconnector_parse_bool, msconnector_bool_option, msconnector_parse_phase4_mode, msconnector_phase4_mode, msconnector_parse_size, msconnector_parse_http_status | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/connector_manifest.c` | Source | connector manifest helper/model for the connector-neutral SDK | msconnector_json_escape, msconnector_connector_manifest_init, msconnector_connector_manifest, msconnector_connector_manifest_from_metadata, msconnector_adapter_metadata, msconnector_adapter_metadata_is_complete | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/crs.c` | Source | crs helper/model for the connector-neutral SDK | msconnector_crs_config_init, msconnector_crs_config, msconnector_crs_mode_name, msconnector_crs_mode, msconnector_crs_config_validate | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/decision.c` | Source | inspection decision model | msconnector_decision_kind, msconnector_decision_init, msconnector_decision, msconnector_intervention_none, msconnector_decision_kind_name, msconnector_decision_is_disruptive | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/decision_action.c` | Source | decision action helper/model for the connector-neutral SDK | msconnector_decision_action_name, msconnector_decision_action, msconnector_decision_action_from_decision, msconnector_decision, msconnector_decision_action_is_disruptive | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/directive_adapter.c` | Source | helpers that apply directive values to msconnector_config | msconnector_directive_adapter_entry, msconnector_directive_adapter_count, msconnector_directive_adapter_at, msconnector_directive_spec_find, msconnector_directive_adapter_find, msconnector_directive_adapter_validate_entry | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/directive_spec.c` | Source | global directive catalog with value types, defaults and allowed values | msconnector_directive_spec, msconnector_directive_specs, msconnector_directive_spec_count, msconnector_directive_spec_find | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/dos_guard.c` | Source | DoS guard counters and checks | msconnector_error, msconnector_error_code, msconnector_error_set, msconnector_dos_guard_check_request, msconnector_request, msconnector_reSource_limits | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/error.c` | Source | error helper/model for the connector-neutral SDK | msconnector_error_init, msconnector_error, msconnector_error_set, msconnector_error_code, msconnector_error_code_name, msconnector_error_default_message | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/event.c` | Source | event model | msconnector_event_json_text_index, msconnector_event_json_status_index, msconnector_event_json_flag_index, msconnector_event_json_parts | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/event_jsonl.c` | Source | JSONL serialization for events | msconnector_event_write_jsonl_line, msconnector_event, msconnector_event_write_json_ex | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/flow_guard.c` | Source | request/response flow guard | msconnector_phase, msconnector_flow_guard_init, msconnector_flow_guard, msconnector_flow_guard_can_enter_phase, msconnector_flow_guard_mark_validated, msconnector_flow_guard_mark_immutable | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/generic_mapper.c` | Source | generic request/response mapper helpers for starter connectors | msconnector_generic_config_init, msconnector_config, msconnector_config_init, msconnector_generic_map_request, msconnector_generic_request_Source, msconnector_request_mapper_contract | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/Headers.c` | Source | connector-neutral Header list helpers | msconnector_Header_name_is, msconnector_Header_name_equals, msconnector_Header, msconnector_Headers_find_first, msconnector_Headers_find, msconnector_Headers_find_last | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/http_status.c` | Source | http status helper/model for the connector-neutral SDK | msconnector_http_status_info, msconnector_http_status_is_valid, msconnector_http_status_class, msconnector_http_status_classify, msconnector_http_status_info_find, msconnector_http_status_reason_phrase | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/integrity_event.c` | Source | integrity metadata events without cryptographic claims | msconnector_non_crypto_hash_bytes, msconnector_non_crypto_hash_string, msconnector_integrity_event_hash, msconnector_event, msconnector_integrity_event_chain_verify | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/intervention.c` | Source | intervention/blocking model | msconnector_intervention, msconnector_intervention_make, msconnector_intervention_none, msconnector_intervention_is_disruptive | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/json_escape.c` | Source | json escape helper/model for the connector-neutral SDK | msconnector_json_escape | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/late_intervention.c` | Source | late intervention helper/model for the connector-neutral SDK | msconnector_late_intervention_policy_init, msconnector_late_intervention_policy, msconnector_late_intervention_action_name, msconnector_late_intervention_action, msconnector_late_intervention_resolve | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/lifecycle_status.c` | Source | lifecycle status helper/model for the connector-neutral SDK | msconnector_build_status_name, msconnector_build_status, msconnector_runtime_status_name, msconnector_runtime_status, msconnector_verification_status_name, msconnector_verification_status | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/limits.c` | Source | limits helper/model for the connector-neutral SDK | msconnector_limit_Header_count, msconnector_limit_Header_name_length, msconnector_limit_Header_value_length, msconnector_limit_total_Header_bytes, msconnector_limit_body_buffer_size, msconnector_limit_response_body_buffer_size | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/log_sanitize.c` | Source | log sanitize helper/model for the connector-neutral SDK | msconnector_sanitize_log_message, msconnector_redact_body_snippet | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/memory.c` | Source | memory helper/model for the connector-neutral SDK | msconnector_allocator_init, msconnector_allocator, msconnector_alloc_checked, msconnector_free_checked, msconnector_allocator_within_limit | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/modsecurity_engine.c` | Source | modsecurity engine helper/model for the connector-neutral SDK | msconnector_error, msconnector_error_code, msconnector_error_set, msconnector_modsecurity_transaction, msconnector_modsecurity_engine_init, msconnector_modsecurity_engine | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/origin.c` | Source | origin/license metadata | msconnector_origin, msconnector_origin_make, msconnector_origin_is_empty | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/origin_governance.c` | Source | origin governance helper/model for the connector-neutral SDK | msconnector_origin_governance_init, msconnector_origin_governance, msconnector_origin_governance_is_complete, msconnector_origin_governance_from_metadata, msconnector_adapter_metadata | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/path_policy.c` | Source | path policy helper/model for the connector-neutral SDK | msconnector_path_is_empty, msconnector_path_is_absolute, msconnector_path_has_parent_reference | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/redaction.c` | Source | redaction helper/model for the connector-neutral SDK | msconnector_redacted_string, msconnector_redact_copy | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/request_helpers.c` | Source | request helpers helper/model for the connector-neutral SDK | msconnector_Header, msconnector_request_init, msconnector_request, msconnector_request_validate, msconnector_request_validate_with_limits, msconnector_reSource_limits | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/request_mapper_contract.c` | Source | request mapper contract validation | msconnector_mapper_requirement, msconnector_request_mapper_contract_init, msconnector_request_mapper_contract, msconnector_request_mapper_contract_validate, msconnector_request_mapper_validate_output, msconnector_request | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/reSource_limits.c` | Source | reSource limit model | msconnector_reSource_limits_init, msconnector_reSource_limits, msconnector_reSource_limits_validate, msconnector_reSource_limits_Headers_ok, msconnector_Header, msconnector_reSource_limits_body_ok | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/response_helpers.c` | Source | response helpers helper/model for the connector-neutral SDK | msconnector_Header, msconnector_response_init, msconnector_response, msconnector_response_validate, msconnector_http_status_is_valid, msconnector_response_validate_with_limits | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/response_mapper_contract.c` | Source | response mapper contract validation | msconnector_mapper_requirement, msconnector_response_mapper_contract_init, msconnector_response_mapper_contract, msconnector_response_mapper_contract_validate, msconnector_response_mapper_validate_output, msconnector_response | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/rule_error.c` | Source | rule error helper/model for the connector-neutral SDK | msconnector_rule_error_set_parse_failed, msconnector_error, msconnector_error_set, msconnector_error_default_message, msconnector_rule_error_set_load_failed, msconnector_rule_error_clear | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/rule_event.c` | Source | rule event helper/model for the connector-neutral SDK | msconnector_rule_load_event_ex, msconnector_rule_load_stats, msconnector_event, msconnector_event_init, msconnector_rule_load_event, msconnector_rule_error_event | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/rule_id.c` | Source | rule id helper/model for the connector-neutral SDK | msconnector_rule_id_validate, msconnector_rule_id_copy, msconnector_rule_id_extract_from_message | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/rule_loader.c` | Source | rule loading contracts | msconnector_error, msconnector_error_code, msconnector_error_set, msconnector_rule_loader_init, msconnector_rule_loader, msconnector_rule_loader_backend | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/rule_merge.c` | Source | rule merge helper/model for the connector-neutral SDK | msconnector_rule_collection_init, msconnector_rule_collection, msconnector_rule_collection_from_config, msconnector_config, msconnector_rule_collection_merge | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/runtime_paths.c` | Source | runtime paths helper/model for the connector-neutral SDK | msconnector_runtime_path_join, msconnector_path_is_absolute, msconnector_path_has_parent_reference | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/runtime_report.c` | Source | runtime report helper/model for the connector-neutral SDK | msconnector_json_escape, msconnector_runtime_report_init, msconnector_runtime_report, msconnector_runtime_report_write_json, msconnector_status_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/status.c` | Source | status classification helpers | msconnector_status_name, msconnector_status, msconnector_status_from_result | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/test_result.c` | Source | test result helper/model for the connector-neutral SDK | msconnector_test_result_init, msconnector_test_result, msconnector_test_result_passed | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/test_result_json.c` | Source | test result JSON writer | msconnector_json_escape, msconnector_test_result_write_json, msconnector_test_result, msconnector_status_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/transaction.c` | Source | transaction helper/model for the connector-neutral SDK | msconnector_decision_kind, msconnector_status, msconnector_decision, msconnector_intervention_none, msconnector_decision_make, msconnector_intervention | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/transaction_id.c` | Source | transaction id helper/model for the connector-neutral SDK | msconnector_error, msconnector_error_code, msconnector_error_set, msconnector_transaction_id_result, msconnector_transaction_id_validate, msconnector_transaction_id_copy | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
-| `common/src/transaction_state.c` | Source | transaction state helper/model for the connector-neutral SDK | msconnector_transaction_state_init, msconnector_transaction_state, msconnector_transaction_state_mark_phase, msconnector_phase, msconnector_transaction_state_phase_processed, msconnector_phase_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime Evidence |
+| `common/include/msconnector/adapter.h` | Header | Adapter-Integrationsobjekt und gemeinsame Adapter-Lifecycle-Helfer | MSCONNECTOR_ADAPTER_H, msconnector_adapter, msconnector_adapter_metadata, msconnector_capabilities, msconnector_config, msconnector_error, msconnector_transaction_view, msconnector_decision | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/adapter_contract.h` | Header | Validierung des Adapter-Vertrags | MSCONNECTOR_ADAPTER_CONTRACT_H, msconnector_adapter_contract_result, msconnector_adapter_contract_result_init, msconnector_adapter_contract_validate, msconnector_adapter | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/adapter_metadata.h` | Header | Adapter-Metadaten sowie Origin-/Capability-Vollständigkeit | MSCONNECTOR_ADAPTER_METADATA_H, msconnector_adapter_metadata, msconnector_origin, msconnector_capabilities, msconnector_adapter_metadata_init, msconnector_adapter_metadata_is_complete | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/artifact_layout.h` | Header | Standardnamen für Lauf-Artefakte | MSCONNECTOR_ARTIFACT_LAYOUT_H, msconnector_artifact_layout, msconnector_artifact_layout_init, msconnector_artifact_name_result_json, msconnector_artifact_name_decision_jsonl, msconnector_artifact_name_audit_log, msconnector_artifact_name_error_log, msconnector_artifact_name_runtime_stdout_log | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/artifacts.h` | Header | Helfer für Standard-Artefaktpfade | MSCONNECTOR_ARTIFACTS_H, msconnector_artifact_paths, msconnector_artifact_paths_init, msconnector_artifact_default_result_json, msconnector_artifact_default_decision_jsonl | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/block_statuses.h` | Header | Helfer für erlaubte und standardmäßige Block-/Fehlerstatus | MSCONNECTOR_BLOCK_STATUSES_H, MSCONNECTOR_DEFAULT_BLOCK_STATUS, MSCONNECTOR_DEFAULT_ERROR_STATUS, MSCONNECTOR_DEFAULT_UNSUPPORTED_STATUS, msconnector_block_status_support, msconnector_block_status_is_allowed, msconnector_block_status_normalize, msconnector_http_status_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/blocking.h` | Header | Helfer für Blocking-Policy und Blocking-Aktion | MSCONNECTOR_BLOCKING_H, msconnector_block_action, MSCONNECTOR_BLOCK_ACTION_DENY, MSCONNECTOR_BLOCK_ACTION_REDIRECT, MSCONNECTOR_BLOCK_ACTION_DROP, MSCONNECTOR_BLOCK_ACTION_LOG_ONLY, MSCONNECTOR_BLOCK_ACTION_ABORT_CONNECTION, msconnector_blocking_policy | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/body_policy.h` | Header | Modell für Body-Verarbeitung | MSCONNECTOR_BODY_POLICY_H, msconnector_body_mode, MSCONNECTOR_BODY_MODE_NONE, MSCONNECTOR_BODY_MODE_BUFFERED, MSCONNECTOR_BODY_MODE_STREAMING, msconnector_body_policy, msconnector_body_policy_init, msconnector_body_mode_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/build_contract.h` | Header | Build-Target-Namen und C-Standard-Vertrag | MSCONNECTOR_BUILD_CONTRACT_H, msconnector_build_contract_target_name, msconnector_build_contract_target_count, msconnector_build_contract_target_is_standard | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/capabilities.h` | Header | Capability-Flags und Capability-Lookups | MSCONNECTOR_CAPABILITIES_H, msconnector_capability_flags, msconnector_capability_flag, MSCONNECTOR_CAPABILITY_NONE, MSCONNECTOR_CAPABILITY_CONNECTION_METADATA, MSCONNECTOR_CAPABILITY_REQUEST_HEADERS, MSCONNECTOR_CAPABILITY_REQUEST_BODY_BUFFERED, MSCONNECTOR_CAPABILITY_REQUEST_BODY_STREAMING | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/capabilities.hpp` | Header | Capability-Flags und Capability-Lookups | MSCONNECTOR_CAPABILITIES_HPP, msconnector_capability_flags, msconnector_capability_flag, msconnector_capabilities, msconnector_capability_name | Common SDK und adoptierende Connectoren | C++-Fassade |
+| `common/include/msconnector/capability_matrix.h` | Header | Zuordnung von Capabilities zu erforderlichen Tests | MSCONNECTOR_CAPABILITY_MATRIX_H, msconnector_capability_required_test, msconnector_capability_flag, msconnector_capability_has_required_test | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/config.h` | Header | Connector-neutrales Konfigurationsobjekt mit Defaults, Merge und Validierung | MSCONNECTOR_CONFIG_H, msconnector_config, msconnector_bool_option, msconnector_phase4_mode, msconnector_config_init, msconnector_config_apply_defaults, msconnector_config_merge, msconnector_config_validate | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/config_parser.h` | Header | Parser für Boolean-Werte, Phase-4-Modus, Größen, HTTP-Status und Content-Type-Tokens | MSCONNECTOR_CONFIG_PARSER_H, msconnector_parse_bool, msconnector_bool_option, msconnector_parse_phase4_mode, msconnector_phase4_mode, msconnector_parse_size, msconnector_parse_http_status, msconnector_validate_content_type_token | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/connector_manifest.h` | Header | Helfer für Connector-Manifest-JSON | MSCONNECTOR_CONNECTOR_MANIFEST_H, msconnector_connector_manifest, msconnector_capability_flags, msconnector_connector_manifest_init, msconnector_connector_manifest_from_metadata, msconnector_adapter_metadata, msconnector_connector_manifest_write_json | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/crs.h` | Header | Helfer für CRS-Konfiguration und CRS-Modus | MSCONNECTOR_CRS_H, msconnector_crs_mode, MSCONNECTOR_CRS_DISABLED, MSCONNECTOR_CRS_EXTERNAL_PATH, MSCONNECTOR_CRS_BUNDLED_PATH, MSCONNECTOR_CRS_TEST_FIXTURE, msconnector_crs_config, msconnector_crs_config_init | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/decision.h` | Header | Entscheidungsmodell für Inspektionsergebnisse | MSCONNECTOR_DECISION_H, msconnector_event, msconnector_decision_kind, MSCONNECTOR_DECISION_KIND_ALLOW, MSCONNECTOR_DECISION_KIND_LOG_ONLY, MSCONNECTOR_DECISION_KIND_DENY, MSCONNECTOR_DECISION_KIND_REDIRECT, MSCONNECTOR_DECISION_KIND_DROP | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/decision_action.h` | Header | Zuordnung von Entscheidungen zu Aktionen | MSCONNECTOR_DECISION_ACTION_H, msconnector_decision_action, MSCONNECTOR_DECISION_ACTION_ALLOW, MSCONNECTOR_DECISION_ACTION_DENY, MSCONNECTOR_DECISION_ACTION_REDIRECT, MSCONNECTOR_DECISION_ACTION_DROP, MSCONNECTOR_DECISION_ACTION_LOG_ONLY, MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/directive_adapter.h` | Header | Common-Katalog für Direktivenadapter und dessen Validierung | MSCONNECTOR_DIRECTIVE_ADAPTER_H, msconnector_directive_scope, MSCONNECTOR_DIRECTIVE_SCOPE_GLOBAL, MSCONNECTOR_DIRECTIVE_SCOPE_SERVER, MSCONNECTOR_DIRECTIVE_SCOPE_LOCATION, MSCONNECTOR_DIRECTIVE_SCOPE_DIRECTORY, msconnector_directive_argument_policy, MSCONNECTOR_DIRECTIVE_ARG_NONE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/directive_spec.h` | Header | Globaler Katalog der Direktiven-Spezifikationen | MSCONNECTOR_DIRECTIVE_SPEC_H, msconnector_directive_value_type, MSCONNECTOR_DIRECTIVE_VALUE_BOOL, MSCONNECTOR_DIRECTIVE_VALUE_STRING, MSCONNECTOR_DIRECTIVE_VALUE_PATH, MSCONNECTOR_DIRECTIVE_VALUE_ENUM, MSCONNECTOR_DIRECTIVE_VALUE_SIZE, msconnector_directive_spec | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/directives.h` | Header | Kanonische Makros für Direktivenamen | MSCONNECTOR_DIRECTIVES_H, MSCONNECTOR_DIRECTIVE_MODSECURITY, MSCONNECTOR_DIRECTIVE_RULES, MSCONNECTOR_DIRECTIVE_RULES_FILE, MSCONNECTOR_DIRECTIVE_RULES_REMOTE, MSCONNECTOR_DIRECTIVE_TRANSACTION_ID, MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR, MSCONNECTOR_DIRECTIVE_PHASE4_MODE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/dos_guard.h` | Header | DoS-Schutzprüfungen für Request und Response | MSCONNECTOR_DOS_GUARD_H, msconnector_dos_guard_check_request, msconnector_request, msconnector_resource_limits, msconnector_error, msconnector_dos_guard_check_response, msconnector_response, msconnector_dos_guard_check_event_json_size | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/error.h` | Header | Gemeinsames Fehlermodell mit Codes und Meldungen | MSCONNECTOR_ERROR_H, msconnector_error_code, MSCONNECTOR_ERROR_NONE, MSCONNECTOR_ERROR_INVALID_CONFIG, MSCONNECTOR_ERROR_RULE_PARSE_FAILED, MSCONNECTOR_ERROR_RULE_LOAD_FAILED, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE, MSCONNECTOR_ERROR_UNSUPPORTED_PHASE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/event.h` | Header | Ereignismodell | MSCONNECTOR_EVENT_H, msconnector_event_meta, msconnector_event_decision, msconnector_phase, msconnector_status, msconnector_event_http, msconnector_event_request, msconnector_event_integrity | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/event_jsonl.h` | Header | JSONL-Serialisierung von Ereignissen | MSCONNECTOR_EVENT_JSONL_H, msconnector_event_write_jsonl_line, msconnector_event | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/flow_guard.h` | Header | Ablaufwächter für Phasen-/Flow-Zustand | MSCONNECTOR_FLOW_GUARD_H, MSCONNECTOR_FLOW_GUARD_OK, MSCONNECTOR_FLOW_GUARD_INVALID, MSCONNECTOR_FLOW_GUARD_PHASE_ORDER, MSCONNECTOR_FLOW_GUARD_IMMUTABLE, MSCONNECTOR_FLOW_GUARD_DUPLICATE_MUTATION, msconnector_flow_guard, msconnector_phase | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/generic_mapper.h` | Header | Generischer Request-/Response-Mapper für Starter-Connectoren | MSCONNECTOR_GENERIC_MAPPER_H, msconnector_generic_request_source, msconnector_endpoint, msconnector_header, msconnector_bytes, msconnector_generic_response_source, msconnector_generic_config_init, msconnector_config | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/headers.h` | Header | Case-insensitive Header-Lookup-Helfer | MSCONNECTOR_HEADERS_H, msconnector_header_name_equals, msconnector_header, msconnector_header_name_is, msconnector_headers_find, msconnector_headers_find_first, msconnector_headers_find_last, msconnector_headers_count_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/http_status.h` | Header | Validierung und Klassifizierung von HTTP-Statuscodes | MSCONNECTOR_HTTP_STATUS_H, msconnector_http_status_class, MSCONNECTOR_HTTP_STATUS_CLASS_UNKNOWN, MSCONNECTOR_HTTP_STATUS_CLASS_INFORMATIONAL, MSCONNECTOR_HTTP_STATUS_CLASS_SUCCESS, MSCONNECTOR_HTTP_STATUS_CLASS_REDIRECTION, MSCONNECTOR_HTTP_STATUS_CLASS_CLIENT_ERROR, MSCONNECTOR_HTTP_STATUS_CLASS_SERVER_ERROR | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/integrity_event.h` | Header | Integritätsmetadaten mit nicht-kryptografischen Hashes | MSCONNECTOR_INTEGRITY_EVENT_H, msconnector_non_crypto_hash_bytes, msconnector_non_crypto_hash_string, msconnector_integrity_event_hash, msconnector_event, msconnector_integrity_event_chain_verify | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/intervention.h` | Header | Helfer für Interventionen und Blocking-Ergebnisse | MSCONNECTOR_INTERVENTION_H, msconnector_intervention, msconnector_intervention_make, msconnector_intervention_none, msconnector_intervention_is_disruptive | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/intervention.hpp` | Header | Helfer für Interventionen und Blocking-Ergebnisse | MSCONNECTOR_INTERVENTION_HPP, msconnector_intervention | Common SDK und adoptierende Connectoren | C++-Fassade |
+| `common/include/msconnector/json_escape.h` | Header | Helfer zum Escapen von JSON-Strings | MSCONNECTOR_JSON_ESCAPE_H, msconnector_json_escape | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/late_intervention.h` | Header | Helfer für Late-Intervention-Policy | MSCONNECTOR_LATE_INTERVENTION_H, msconnector_late_intervention_action, MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY, MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE, MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION, msconnector_late_intervention_policy, msconnector_late_intervention_policy_init, msconnector_late_intervention_action_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/lifecycle_status.h` | Header | Namen für Build-, Runtime- und Verifikationsstatus | MSCONNECTOR_LIFECYCLE_STATUS_H, msconnector_build_status, MSCONNECTOR_BUILD_STATUS_NOT_STARTED, MSCONNECTOR_BUILD_STATUS_STARTER, MSCONNECTOR_BUILD_STATUS_COMPILES, MSCONNECTOR_BUILD_STATUS_LINKS, MSCONNECTOR_BUILD_STATUS_RUNTIME_READY, msconnector_runtime_status | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/limits.h` | Header | Kompilierte Limit-Konstanten | MSCONNECTOR_LIMITS_H, MSCONNECTOR_MAX_HEADER_COUNT, MSCONNECTOR_MAX_HEADER_NAME_LENGTH, MSCONNECTOR_MAX_HEADER_VALUE_LENGTH, MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, MSCONNECTOR_MAX_BODY_BUFFER_SIZE, MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE, MSCONNECTOR_MAX_EVENT_JSON_BYTES | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/log_sanitize.h` | Header | Helfer für Log-Redaktion und Sanitizing | MSCONNECTOR_LOG_SANITIZE_H, msconnector_sanitize_log_message, msconnector_redact_body_snippet | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/logging.h` | Header | Connector-neutrales Logging-Callback-Modell | MSCONNECTOR_LOGGING_H, msconnector_log_level, MSCONNECTOR_LOG_TRACE, MSCONNECTOR_LOG_DEBUG, MSCONNECTOR_LOG_INFO, MSCONNECTOR_LOG_WARN, MSCONNECTOR_LOG_ERROR, msconnector_log_record | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/logging.hpp` | Header | Connector-neutrales Logging-Callback-Modell | MSCONNECTOR_LOGGING_HPP, msconnector_log_level, msconnector_log_record, msconnector_logger, msconnector_log | Common SDK und adoptierende Connectoren | C++-Fassade |
+| `common/include/msconnector/memory.h` | Header | Geprüfte Allokation und Allocator-Callbacks | MSCONNECTOR_MEMORY_H, msconnector_alloc_checked, msconnector_free_checked, msconnector_alloc_callback, msconnector_free_callback, msconnector_allocator, msconnector_allocator_init, msconnector_allocator_within_limit | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/modsecurity_engine.h` | Header | Connector-neutrale Operationstabelle für die ModSecurity-Engine | MSCONNECTOR_MODSECURITY_ENGINE_H, msconnector_modsecurity_engine_ops, msconnector_error, msconnector_request, msconnector_decision, msconnector_response, msconnector_modsecurity_engine, msconnector_modsecurity_transaction | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/options.h` | Header | Gemeinsame Options-Enums und Defaults | MSCONNECTOR_OPTIONS_H, MSCONNECTOR_OPTION_ENABLE, MSCONNECTOR_OPTION_RULES_INLINE, MSCONNECTOR_OPTION_RULES_FILE, MSCONNECTOR_OPTION_RULES_REMOTE, MSCONNECTOR_OPTION_TRANSACTION_ID, MSCONNECTOR_OPTION_USE_ERROR_LOG, MSCONNECTOR_OPTION_PHASE4_MODE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/origin.h` | Header | Helfer für Source-/Origin-Metadaten | MSCONNECTOR_ORIGIN_H, msconnector_origin, msconnector_origin_make, msconnector_origin_is_empty | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/origin.hpp` | Header | Helfer für Source-/Origin-Metadaten | MSCONNECTOR_ORIGIN_HPP, msconnector_origin, msconnector_origin_is_empty | Common SDK und adoptierende Connectoren | C++-Fassade |
+| `common/include/msconnector/origin_governance.h` | Header | Vollständigkeitsprüfungen für Origin-Governance | MSCONNECTOR_ORIGIN_GOVERNANCE_H, msconnector_origin_governance, msconnector_origin_governance_init, msconnector_origin_governance_is_complete, msconnector_origin_governance_from_metadata, msconnector_adapter_metadata | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/path_policy.h` | Header | Helfer zur Pfadvalidierung | MSCONNECTOR_PATH_POLICY_H, msconnector_path_is_absolute, msconnector_path_is_empty, msconnector_path_has_parent_reference | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/phase.h` | Header | Enum für ModSecurity-Phasen | MSCONNECTOR_PHASE_H, msconnector_phase, MSCONNECTOR_PHASE_CONNECTION, MSCONNECTOR_PHASE_URI, MSCONNECTOR_PHASE_REQUEST_HEADERS, MSCONNECTOR_PHASE_REQUEST_BODY, MSCONNECTOR_PHASE_RESPONSE_HEADERS, MSCONNECTOR_PHASE_RESPONSE_BODY | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/redaction.h` | Header | Helfer zur String-Redaktion | MSCONNECTOR_REDACTION_H, msconnector_redacted_string, msconnector_redact_copy | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/request.h` | Header | Connector-neutrales Request-Modell | MSCONNECTOR_REQUEST_H, msconnector_bytes, msconnector_header, msconnector_endpoint, msconnector_request | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/request.hpp` | Header | Connector-neutrales Request-Modell | MSCONNECTOR_REQUEST_HPP, msconnector_bytes, msconnector_header, msconnector_endpoint, msconnector_request, msconnector_request_init, msconnector_request_validate | Common SDK und adoptierende Connectoren | C++-Fassade |
+| `common/include/msconnector/request_helpers.h` | Header | Helfer für Request-Initialisierung und -Validierung | MSCONNECTOR_REQUEST_HELPERS_H, msconnector_request_init, msconnector_request, msconnector_request_validate, msconnector_request_validate_with_limits, msconnector_resource_limits, msconnector_request_has_header, msconnector_request_header_value | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/request_mapper_contract.h` | Header | Validierung des Request-Mapper-Vertrags | MSCONNECTOR_REQUEST_MAPPER_CONTRACT_H, msconnector_mapper_requirement, MSCONNECTOR_MAPPER_REQUIRED, MSCONNECTOR_MAPPER_OPTIONAL, MSCONNECTOR_MAPPER_UNSUPPORTED, msconnector_request_mapper_contract, msconnector_request_mapper_contract_init, msconnector_request_mapper_contract_validate | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/resource_limits.h` | Header | Ressourcenlimits und Validatoren | MSCONNECTOR_RESOURCE_LIMITS_H, msconnector_resource_limits, msconnector_resource_limits_init, msconnector_resource_limits_validate, msconnector_resource_limits_headers_ok, msconnector_header, msconnector_resource_limits_body_ok | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/response.h` | Header | Connector-neutrales Response-Modell | MSCONNECTOR_RESPONSE_H, msconnector_response, msconnector_header, msconnector_bytes | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/response.hpp` | Header | Connector-neutrales Response-Modell | MSCONNECTOR_RESPONSE_HPP, msconnector_response, msconnector_response_init, msconnector_response_validate | Common SDK und adoptierende Connectoren | C++-Fassade |
+| `common/include/msconnector/response_helpers.h` | Header | Helfer für Response-Initialisierung und -Validierung | MSCONNECTOR_RESPONSE_HELPERS_H, msconnector_response_init, msconnector_response, msconnector_response_validate, msconnector_response_validate_with_limits, msconnector_resource_limits, msconnector_response_has_header, msconnector_response_header_value | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/response_mapper_contract.h` | Header | Validierung des Response-Mapper-Vertrags | MSCONNECTOR_RESPONSE_MAPPER_CONTRACT_H, msconnector_response_mapper_contract, msconnector_mapper_requirement, msconnector_response_mapper_contract_init, msconnector_response_mapper_contract_validate, msconnector_response_mapper_validate_output, msconnector_response | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/rule_error.h` | Header | Helfer für Fehler beim Laden von Regeln | MSCONNECTOR_RULE_ERROR_H, msconnector_rule_error_set_parse_failed, msconnector_error, msconnector_rule_error_set_load_failed, msconnector_rule_error_clear | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/rule_event.h` | Header | Helfer für Ereignisse beim Laden von Regeln | MSCONNECTOR_RULE_EVENT_H, msconnector_rule_load_event_ex, msconnector_rule_load_stats, msconnector_event, msconnector_rule_load_event, msconnector_rule_error_event, msconnector_error | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/rule_id.h` | Header | Kopieren, Extrahieren und Validieren von Rule-IDs | MSCONNECTOR_RULE_ID_H, msconnector_rule_id_copy, msconnector_rule_id_extract_from_message, msconnector_rule_id_validate | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/rule_load_stats.h` | Header | Statistikmodell für geladenen Regeln | MSCONNECTOR_RULE_LOAD_STATS_H, msconnector_rule_load_stats, msconnector_rule_load_stats_init, msconnector_rule_load_stats_add, msconnector_rule_load_stats_add_inline, msconnector_rule_load_stats_add_file, msconnector_rule_load_stats_add_remote | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/rule_loader.h` | Header | Backend-Vertrag für das Laden von Regeln | MSCONNECTOR_RULE_LOADER_H, msconnector_rule_loader_backend, msconnector_error, msconnector_rule_loader, msconnector_rule_load_stats, msconnector_rule_loader_init, msconnector_rule_loader_add_inline, msconnector_rule_loader_add_file | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/rule_merge.h` | Header | Helfer zum Zusammenführen von Rule Collections | MSCONNECTOR_RULE_MERGE_H, msconnector_rule_collection, msconnector_rule_collection_init, msconnector_rule_collection_from_config, msconnector_config, msconnector_rule_collection_merge | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/runtime_paths.h` | Header | Helfer zum Zusammenfügen von Runtime-Pfaden | MSCONNECTOR_RUNTIME_PATHS_H, msconnector_runtime_path_join | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/runtime_report.h` | Header | Helfer für Runtime-Report-JSON | MSCONNECTOR_RUNTIME_REPORT_H, msconnector_runtime_report, msconnector_status, msconnector_runtime_report_init, msconnector_runtime_report_write_json | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/status.h` | Header | Gemeinsame Status-Helfer für PASS/FAIL/BLOCKED-artige Zustände | MSCONNECTOR_STATUS_H, msconnector_status, MSCONNECTOR_STATUS_OK, MSCONNECTOR_STATUS_ERROR, MSCONNECTOR_STATUS_BLOCKED, MSCONNECTOR_STATUS_UNSUPPORTED, msconnector_status_name, msconnector_status_from_result | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/status.hpp` | Header | Gemeinsame Status-Helfer für PASS/FAIL/BLOCKED-artige Zustände | MSCONNECTOR_STATUS_HPP, msconnector_status, msconnector_status_name | Common SDK und adoptierende Connectoren | C++-Fassade |
+| `common/include/msconnector/test_result.h` | Header | Test-Result-Modell | MSCONNECTOR_TEST_RESULT_H, msconnector_test_result, msconnector_status, msconnector_test_result_init, msconnector_test_result_passed | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/test_result_json.h` | Header | JSON-Schreiber für Test-Resultate | MSCONNECTOR_TEST_RESULT_JSON_H, msconnector_test_result_write_json, msconnector_test_result | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/transaction.h` | Header | Helfer für Transaction Views | MSCONNECTOR_TRANSACTION_H, msconnector_transaction_view, msconnector_request, msconnector_response, msconnector_intervention | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/transaction.hpp` | Header | Helfer für Transaction Views | MSCONNECTOR_TRANSACTION_HPP, msconnector_transaction_view, msconnector_transaction_state, msconnector_decision, msconnector_phase, msconnector_phase_name | Common SDK und adoptierende Connectoren | C++-Fassade |
+| `common/include/msconnector/transaction_id.h` | Header | Helfer für Transaction-ID-Quelle und -Auswertung | MSCONNECTOR_TRANSACTION_ID_H, msconnector_transaction_id_source, MSCONNECTOR_TRANSACTION_ID_SOURCE_NONE, MSCONNECTOR_TRANSACTION_ID_SOURCE_STATIC, MSCONNECTOR_TRANSACTION_ID_SOURCE_EXPR, MSCONNECTOR_TRANSACTION_ID_SOURCE_HOST, MSCONNECTOR_TRANSACTION_ID_SOURCE_HEADER, MSCONNECTOR_TRANSACTION_ID_SOURCE_FALLBACK | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/include/msconnector/transaction_state.h` | Header | Zustand der verarbeiteten Transaction-Phasen | MSCONNECTOR_TRANSACTION_STATE_H, msconnector_transaction_state, msconnector_transaction_state_init, msconnector_transaction_state_mark_phase, msconnector_phase, msconnector_transaction_state_phase_processed, msconnector_phase_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/README.md` | Dokumentation | Hinweise zum Common-Source-Layout | macros / declarations | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/adapter.c` | Source | Adapter-Integrationsobjekt und gemeinsame Adapter-Lifecycle-Helfer | msconnector_adapter_init, msconnector_adapter, msconnector_adapter_has_metadata, msconnector_adapter_has_capabilities, msconnector_adapter_supports_phase, msconnector_phase, MSCONNECTOR_PHASE_CONNECTION, MSCONNECTOR_PHASE_REQUEST_HEADERS | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/adapter_contract.c` | Source | Validierung des Adapter-Vertrags | msconnector_adapter_contract_result, msconnector_capabilities, msconnector_capability_flag, msconnector_capability_flags, msconnector_adapter, MSCONNECTOR_CAPABILITY_CONNECTION_METADATA, MSCONNECTOR_CAPABILITY_REQUEST_HEADERS, MSCONNECTOR_CAPABILITY_REQUEST_BODY_BUFFERED | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/adapter_metadata.c` | Source | Adapter-Metadaten sowie Origin-/Capability-Vollständigkeit | msconnector_adapter_metadata_init, msconnector_adapter_metadata, MSCONNECTOR_CAPABILITY_NONE, msconnector_adapter_metadata_is_complete | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/artifact_layout.c` | Source | Standardnamen für Lauf-Artefakte | msconnector_artifact_name_result_json, msconnector_artifact_name_decision_jsonl, msconnector_artifact_name_audit_log, msconnector_artifact_name_error_log, msconnector_artifact_name_runtime_stdout_log, msconnector_artifact_name_runtime_stderr_log, msconnector_artifact_name_server_config, msconnector_artifact_name_connector_config | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/artifacts.c` | Source | Helfer für Standard-Artefaktpfade | msconnector_artifact_paths_init, msconnector_artifact_paths, msconnector_artifact_default_result_json, msconnector_artifact_default_decision_jsonl | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/block_statuses.c` | Source | Helfer für erlaubte und standardmäßige Block-/Fehlerstatus | msconnector_block_status_is_allowed, msconnector_http_status_is_block_response, msconnector_block_status_normalize, MSCONNECTOR_DEFAULT_BLOCK_STATUS, msconnector_http_status_is_valid, MSCONNECTOR_DEFAULT_ERROR_STATUS, msconnector_http_status_name, msconnector_http_status_info_find | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/blocking.c` | Source | Helfer für Blocking-Policy und Blocking-Aktion | msconnector_block_action_name, msconnector_block_action, MSCONNECTOR_BLOCK_ACTION_DENY, MSCONNECTOR_BLOCK_ACTION_REDIRECT, MSCONNECTOR_BLOCK_ACTION_DROP, MSCONNECTOR_BLOCK_ACTION_LOG_ONLY, MSCONNECTOR_BLOCK_ACTION_ABORT_CONNECTION, msconnector_block_action_is_disruptive | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/body_policy.c` | Source | Modell für Body-Verarbeitung | msconnector_body_policy_init, msconnector_body_policy, MSCONNECTOR_BODY_MODE_NONE, msconnector_body_mode_name, msconnector_body_mode, MSCONNECTOR_BODY_MODE_BUFFERED, MSCONNECTOR_BODY_MODE_STREAMING, msconnector_body_mode_is_supported | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/build_contract.c` | Source | Build-Target-Namen und C-Standard-Vertrag | msconnector_build_contract_target_name, msconnector_build_contract_target_count, msconnector_build_contract_target_is_standard | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/capabilities.c` | Source | Capability-Flags und Capability-Lookups | msconnector_capability_flag, MSCONNECTOR_CAPABILITY_NONE, MSCONNECTOR_CAPABILITY_CONNECTION_METADATA, MSCONNECTOR_CAPABILITY_REQUEST_HEADERS, MSCONNECTOR_CAPABILITY_REQUEST_BODY_BUFFERED, MSCONNECTOR_CAPABILITY_REQUEST_BODY_STREAMING, MSCONNECTOR_CAPABILITY_RESPONSE_HEADERS, MSCONNECTOR_CAPABILITY_RESPONSE_BODY_BUFFERED | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/capability_matrix.c` | Source | Zuordnung von Capabilities zu erforderlichen Tests | msconnector_capability_required_test, msconnector_capability_flag, MSCONNECTOR_CAPABILITY_CONNECTION_METADATA, MSCONNECTOR_CAPABILITY_REQUEST_HEADERS, MSCONNECTOR_CAPABILITY_REQUEST_BODY_BUFFERED, MSCONNECTOR_CAPABILITY_REQUEST_BODY_STREAMING, MSCONNECTOR_CAPABILITY_RESPONSE_HEADERS, MSCONNECTOR_CAPABILITY_RESPONSE_BODY_BUFFERED | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/config.c` | Source | Connector-neutrales Konfigurationsobjekt mit Defaults, Merge und Validierung | msconnector_bool_option, MSCONNECTOR_BOOL_UNSET, msconnector_phase4_mode, MSCONNECTOR_PHASE4_MODE_UNSET, msconnector_config, MSCONNECTOR_BOOL_ON, msconnector_block_status_is_allowed, msconnector_http_status_is_valid | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/config_parser.c` | Source | Parser für Boolean-Werte, Phase-4-Modus, Größen, HTTP-Status und Content-Type-Tokens | msconnector_parse_bool, msconnector_bool_option, MSCONNECTOR_BOOL_ON, MSCONNECTOR_BOOL_OFF, msconnector_parse_phase4_mode, msconnector_phase4_mode, MSCONNECTOR_PHASE4_MODE_MINIMAL, MSCONNECTOR_PHASE4_MODE_SAFE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/connector_manifest.c` | Source | Helfer für Connector-Manifest-JSON | msconnector_json_escape, msconnector_connector_manifest_init, msconnector_connector_manifest, msconnector_connector_manifest_from_metadata, msconnector_adapter_metadata, msconnector_adapter_metadata_is_complete, msconnector_connector_manifest_write_json | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/crs.c` | Source | Helfer für CRS-Konfiguration und CRS-Modus | msconnector_crs_config_init, msconnector_crs_config, MSCONNECTOR_CRS_DISABLED, msconnector_crs_mode_name, msconnector_crs_mode, MSCONNECTOR_CRS_EXTERNAL_PATH, MSCONNECTOR_CRS_BUNDLED_PATH, MSCONNECTOR_CRS_TEST_FIXTURE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/decision.c` | Source | Entscheidungsmodell für Inspektionsergebnisse | msconnector_decision_kind, MSCONNECTOR_DECISION_KIND_ALLOW, MSCONNECTOR_DECISION_KIND_LOG_ONLY, MSCONNECTOR_DECISION_KIND_DENY, MSCONNECTOR_DECISION_KIND_REDIRECT, MSCONNECTOR_DECISION_KIND_DROP, MSCONNECTOR_DECISION_KIND_CONNECTION_ABORT, MSCONNECTOR_DECISION_KIND_ERROR | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/decision_action.c` | Source | Zuordnung von Entscheidungen zu Aktionen | msconnector_decision_action_name, msconnector_decision_action, MSCONNECTOR_DECISION_ACTION_ALLOW, MSCONNECTOR_DECISION_ACTION_DENY, MSCONNECTOR_DECISION_ACTION_REDIRECT, MSCONNECTOR_DECISION_ACTION_DROP, MSCONNECTOR_DECISION_ACTION_LOG_ONLY, MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/directive_adapter.c` | Source | Common-Katalog für Direktivenadapter und dessen Validierung | msconnector_directive_adapter_entry, MSCONNECTOR_DIRECTIVE_MODSECURITY, MSCONNECTOR_DIRECTIVE_SCOPE_SERVER, MSCONNECTOR_DIRECTIVE_ARG_ONE, MSCONNECTOR_DIRECTIVE_RULES, MSCONNECTOR_DIRECTIVE_ARG_RAW, MSCONNECTOR_DIRECTIVE_RULES_FILE, MSCONNECTOR_DIRECTIVE_RULES_REMOTE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/directive_spec.c` | Source | Globaler Katalog der Direktiven-Spezifikationen | msconnector_directive_spec, MSCONNECTOR_DIRECTIVE_MODSECURITY, MSCONNECTOR_DIRECTIVE_VALUE_BOOL, MSCONNECTOR_DIRECTIVE_RULES, MSCONNECTOR_DIRECTIVE_VALUE_STRING, MSCONNECTOR_DIRECTIVE_RULES_FILE, MSCONNECTOR_DIRECTIVE_VALUE_PATH, MSCONNECTOR_DIRECTIVE_RULES_REMOTE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/dos_guard.c` | Source | DoS-Schutzprüfungen für Request und Response | msconnector_error, msconnector_error_code, msconnector_error_set, msconnector_dos_guard_check_request, msconnector_request, msconnector_resource_limits, msconnector_error_init, msconnector_resource_limits_validate | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/error.c` | Source | Gemeinsames Fehlermodell mit Codes und Meldungen | msconnector_error_init, msconnector_error, MSCONNECTOR_ERROR_NONE, msconnector_error_set, msconnector_error_code, msconnector_error_code_name, MSCONNECTOR_ERROR_INVALID_CONFIG, MSCONNECTOR_ERROR_RULE_PARSE_FAILED | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/event.c` | Source | Ereignismodell | msconnector_event_json_text_index, msconnector_event_json_status_index, msconnector_event_json_flag_index, msconnector_event_json_parts, msconnector_json_escape, msconnector_event_default_message | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/event_jsonl.c` | Source | JSONL-Serialisierung von Ereignissen | msconnector_event_write_jsonl_line, msconnector_event, msconnector_event_write_json_ex | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/flow_guard.c` | Source | Ablaufwächter für Phasen-/Flow-Zustand | msconnector_phase, MSCONNECTOR_PHASE_CONNECTION, MSCONNECTOR_PHASE_LOGGING, msconnector_flow_guard_init, msconnector_flow_guard, msconnector_flow_guard_can_enter_phase, MSCONNECTOR_FLOW_GUARD_INVALID, MSCONNECTOR_FLOW_GUARD_IMMUTABLE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/generic_mapper.c` | Source | Generischer Request-/Response-Mapper für Starter-Connectoren | msconnector_generic_config_init, msconnector_config, msconnector_config_init, msconnector_generic_map_request, msconnector_generic_request_source, msconnector_request_mapper_contract, msconnector_request, msconnector_request_init | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/headers.c` | Source | Case-insensitive Header-Lookup-Helfer | msconnector_header_name_is, msconnector_header_name_equals, msconnector_header, msconnector_headers_find_first, msconnector_headers_find, msconnector_headers_find_last, msconnector_headers_count_name, msconnector_headers_find_value | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/http_status.c` | Source | Validierung und Klassifizierung von HTTP-Statuscodes | MSCONNECTOR_HTTP_STATUS_MIN, MSCONNECTOR_HTTP_STATUS_MAX, msconnector_http_status_info, MSCONNECTOR_HTTP_STATUS_CLASS_SUCCESS, MSCONNECTOR_HTTP_STATUS_CLASS_REDIRECTION, MSCONNECTOR_HTTP_STATUS_CLASS_CLIENT_ERROR, MSCONNECTOR_HTTP_STATUS_CLASS_SERVER_ERROR, msconnector_http_status_is_valid | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/integrity_event.c` | Source | Integritätsmetadaten mit nicht-kryptografischen Hashes | msconnector_non_crypto_hash_bytes, msconnector_non_crypto_hash_string, msconnector_integrity_event_hash, msconnector_event, msconnector_integrity_event_chain_verify | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/intervention.c` | Source | Helfer für Interventionen und Blocking-Ergebnisse | msconnector_intervention, msconnector_intervention_make, msconnector_intervention_none, msconnector_intervention_is_disruptive | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/json_escape.c` | Source | Helfer zum Escapen von JSON-Strings | msconnector_json_escape | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/late_intervention.c` | Source | Helfer für Late-Intervention-Policy | msconnector_late_intervention_policy_init, msconnector_late_intervention_policy, MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY, MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION, msconnector_late_intervention_action_name, msconnector_late_intervention_action, MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE, msconnector_late_intervention_resolve | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/lifecycle_status.c` | Source | Namen für Build-, Runtime- und Verifikationsstatus | msconnector_build_status_name, msconnector_build_status, MSCONNECTOR_BUILD_STATUS_NOT_STARTED, MSCONNECTOR_BUILD_STATUS_STARTER, MSCONNECTOR_BUILD_STATUS_COMPILES, MSCONNECTOR_BUILD_STATUS_LINKS, MSCONNECTOR_BUILD_STATUS_RUNTIME_READY, msconnector_runtime_status_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/limits.c` | Source | Kompilierte Limit-Konstanten | msconnector_limit_header_count, MSCONNECTOR_MAX_HEADER_COUNT, msconnector_limit_header_name_length, MSCONNECTOR_MAX_HEADER_NAME_LENGTH, msconnector_limit_header_value_length, MSCONNECTOR_MAX_HEADER_VALUE_LENGTH, msconnector_limit_total_header_bytes, MSCONNECTOR_MAX_TOTAL_HEADER_BYTES | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/log_sanitize.c` | Source | Helfer für Log-Redaktion und Sanitizing | msconnector_sanitize_log_message, msconnector_redact_body_snippet | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/memory.c` | Source | Geprüfte Allokation und Allocator-Callbacks | msconnector_allocator_init, msconnector_allocator, msconnector_alloc_checked, msconnector_free_checked, msconnector_allocator_within_limit | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/modsecurity_engine.c` | Source | Connector-neutrale Operationstabelle für die ModSecurity-Engine | msconnector_error, msconnector_error_code, msconnector_error_set, msconnector_modsecurity_transaction, MSCONNECTOR_ERROR_INTERNAL, MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE, msconnector_modsecurity_engine_init, msconnector_modsecurity_engine | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/origin.c` | Source | Helfer für Source-/Origin-Metadaten | msconnector_origin, msconnector_origin_make, msconnector_origin_is_empty | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/origin_governance.c` | Source | Vollständigkeitsprüfungen für Origin-Governance | msconnector_origin_governance_init, msconnector_origin_governance, msconnector_origin_governance_is_complete, msconnector_origin_governance_from_metadata, msconnector_adapter_metadata | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/path_policy.c` | Source | Helfer zur Pfadvalidierung | msconnector_path_is_empty, msconnector_path_is_absolute, msconnector_path_has_parent_reference | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/redaction.c` | Source | Helfer zur String-Redaktion | msconnector_redacted_string, msconnector_redact_copy | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/request_helpers.c` | Source | Helfer für Request-Initialisierung und -Validierung | msconnector_header, msconnector_request_init, msconnector_request, msconnector_request_validate, msconnector_request_validate_with_limits, msconnector_resource_limits, msconnector_resource_limits_headers_ok, msconnector_resource_limits_body_ok | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/request_mapper_contract.c` | Source | Validierung des Request-Mapper-Vertrags | msconnector_mapper_requirement, MSCONNECTOR_MAPPER_REQUIRED, MSCONNECTOR_MAPPER_UNSUPPORTED, msconnector_request_mapper_contract_init, msconnector_request_mapper_contract, MSCONNECTOR_MAPPER_OPTIONAL, msconnector_request_mapper_contract_validate, msconnector_request_mapper_validate_output | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/resource_limits.c` | Source | Ressourcenlimits und Validatoren | msconnector_resource_limits_init, msconnector_resource_limits, MSCONNECTOR_MAX_HEADER_COUNT, MSCONNECTOR_MAX_HEADER_NAME_LENGTH, MSCONNECTOR_MAX_HEADER_VALUE_LENGTH, MSCONNECTOR_MAX_TOTAL_HEADER_BYTES, MSCONNECTOR_MAX_BODY_BUFFER_SIZE, MSCONNECTOR_MAX_RESPONSE_BODY_BUFFER_SIZE | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/response_helpers.c` | Source | Helfer für Response-Initialisierung und -Validierung | msconnector_header, msconnector_response_init, msconnector_response, msconnector_response_validate, msconnector_http_status_is_valid, msconnector_response_validate_with_limits, msconnector_resource_limits, msconnector_resource_limits_headers_ok | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/response_mapper_contract.c` | Source | Validierung des Response-Mapper-Vertrags | msconnector_mapper_requirement, MSCONNECTOR_MAPPER_REQUIRED, MSCONNECTOR_MAPPER_UNSUPPORTED, msconnector_response_mapper_contract_init, msconnector_response_mapper_contract, MSCONNECTOR_MAPPER_OPTIONAL, msconnector_response_mapper_contract_validate, msconnector_response_mapper_validate_output | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/rule_error.c` | Source | Helfer für Fehler beim Laden von Regeln | msconnector_rule_error_set_parse_failed, msconnector_error, msconnector_error_set, MSCONNECTOR_ERROR_RULE_PARSE_FAILED, msconnector_error_default_message, msconnector_rule_error_set_load_failed, MSCONNECTOR_ERROR_RULE_LOAD_FAILED, msconnector_rule_error_clear | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/rule_event.c` | Source | Helfer für Ereignisse beim Laden von Regeln | msconnector_rule_load_event_ex, msconnector_rule_load_stats, msconnector_event, msconnector_event_init, MSCONNECTOR_STATUS_OK, msconnector_rule_load_event, msconnector_rule_error_event, msconnector_error | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/rule_id.c` | Source | Kopieren, Extrahieren und Validieren von Rule-IDs | msconnector_rule_id_validate, msconnector_rule_id_copy, msconnector_rule_id_extract_from_message | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/rule_loader.c` | Source | Backend-Vertrag für das Laden von Regeln | msconnector_error, msconnector_error_code, msconnector_error_set, msconnector_rule_loader_init, msconnector_rule_loader, msconnector_rule_loader_backend, msconnector_rule_load_stats_init, msconnector_rule_loader_add_inline | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/rule_merge.c` | Source | Helfer zum Zusammenführen von Rule Collections | msconnector_rule_collection_init, msconnector_rule_collection, msconnector_rule_collection_from_config, msconnector_config, msconnector_rule_collection_merge | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/runtime_paths.c` | Source | Helfer zum Zusammenfügen von Runtime-Pfaden | msconnector_runtime_path_join, msconnector_path_is_absolute, msconnector_path_has_parent_reference | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/runtime_report.c` | Source | Helfer für Runtime-Report-JSON | msconnector_json_escape, msconnector_runtime_report_init, msconnector_runtime_report, MSCONNECTOR_STATUS_UNSUPPORTED, msconnector_runtime_report_write_json, msconnector_status_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/status.c` | Source | Gemeinsame Status-Helfer für PASS/FAIL/BLOCKED-artige Zustände | msconnector_status_name, msconnector_status, MSCONNECTOR_STATUS_OK, MSCONNECTOR_STATUS_ERROR, MSCONNECTOR_STATUS_BLOCKED, MSCONNECTOR_STATUS_UNSUPPORTED, msconnector_status_from_result | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/test_result.c` | Source | Test-Result-Modell | msconnector_test_result_init, msconnector_test_result, MSCONNECTOR_STATUS_UNSUPPORTED, msconnector_test_result_passed, MSCONNECTOR_STATUS_OK | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/test_result_json.c` | Source | JSON-Schreiber für Test-Resultate | msconnector_json_escape, msconnector_test_result_write_json, msconnector_test_result, msconnector_status_name | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/transaction.c` | Source | Helfer für Transaction Views | msconnector_decision_kind, msconnector_status, MSCONNECTOR_STATUS_BLOCKED, MSCONNECTOR_DECISION_KIND_DENY, MSCONNECTOR_STATUS_ERROR, MSCONNECTOR_DECISION_KIND_ERROR, MSCONNECTOR_STATUS_UNSUPPORTED, MSCONNECTOR_DECISION_KIND_UNSUPPORTED | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/transaction_id.c` | Source | Helfer für Transaction-ID-Quelle und -Auswertung | msconnector_error, msconnector_error_code, msconnector_error_set, msconnector_transaction_id_result, msconnector_transaction_id_validate, msconnector_transaction_id_copy, msconnector_transaction_id_source, MSCONNECTOR_ERROR_INVALID_CONFIG | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
+| `common/src/transaction_state.c` | Source | Zustand der verarbeiteten Transaction-Phasen | msconnector_transaction_state_init, msconnector_transaction_state, msconnector_transaction_state_mark_phase, msconnector_phase, MSCONNECTOR_PHASE_CONNECTION, MSCONNECTOR_PHASE_URI, MSCONNECTOR_PHASE_REQUEST_HEADERS, MSCONNECTOR_PHASE_REQUEST_BODY | Common SDK und adoptierende Connectoren | connector-neutral; keine Runtime-Evidence |
 
 ## Common SDK: Module und Aufgaben
 
-- Configuration/directives/parser: owns neutral vocabulary, defaults, merge and validation. It is neutral because it stores values without Apache/NGINX/HAProxy/Envoy/Traefik/lighttpd types. It does not claim host syntax parity unless a connector implements it.
-- Request/response/Header/mapper contracts: define neutral HTTP shapes and validation. They do not prove body processing in a live server.
-- Decision/intervention/status/error/event JSONL: define shared semantics and serialization. They are not tamper-proof or cryptographic evidence.
-- Resource limits/body policy/DoS guard/flow guard/integrity metadata: define guardrails and metadata. They do not claim runtime secure behavior.
-- Rule loading, merge and CRS helpers: define contracts and metadata. They do not prove CRS execution or full matrix coverage.
-- Adapter metadata/capabilities/origin/manifests: identify Source, status and capabilities. Metadata status must not be overridden by a successful per-run starter smoke.
+- Konfiguration, Direktiven und Parser definieren das gemeinsame Vokabular, Standardwerte, Merge-Verhalten und Validierung. Sie sind connector-neutral, weil sie semantische Werte ohne Apache-, NGINX-, HAProxy-, Envoy-, Traefik- oder lighttpd-Typen speichern. Sie beweisen keine Host-Syntax-Parität.
+- Request, Response, Header und Mapper-Verträge definieren neutrale HTTP-Formen und Validierung. Sie beweisen keine Live-Verarbeitung von Requests oder Response-Bodies.
+- Decision-, Intervention-, Status-, Error- und Event-JSONL-Helfer definieren gemeinsame Ergebnissemantik und Serialisierung. Sie sind keine append-only oder kryptografische Evidence.
+- Ressourcenlimits, Body Policy, DoS-Schutz, Flow-Guard und Integritätsmetadaten sind Guardrails. Sie behaupten kein runtime-secure Verhalten.
+- Rule Loading, Merge, Rule-ID- und CRS-Helfer definieren Verträge und Metadaten. Sie beweisen keine CRS-Ausführung.
+- Adapter-Metadaten, Capabilities, Origin-Governance und Manifeste beschreiben Herkunft und Capability-Claims. Metadaten müssen konservativ bleiben, bis Evidence eine Statusänderung rechtfertigt.
 
 ## Config-, Direktiven- und Parser-Modell
 
-`msconnector_config` stores neutral options: enable, error-log use, inline/file/remote rules, static or expression transaction ID, phase-4 response-body mode, content-type file, log path, body limit and default statuses.
+`msconnector_config` speichert connector-neutrale Optionen: Enable-Flag, Error-Log-Flag, Inline-/File-/Remote-Regeln, statische oder Ausdruck-basierte Transaction-ID, Phase-4-Modus, Content-Type-Datei, Phase-4-Logpfad, Body-Limit und Standardstatuswerte.
 
-`msconnector_config_init` sets fields to unset/zero/null. `msconnector_config_apply_defaults` fills unset values only. `msconnector_config_merge` merges parent and child values and then applies defaults; defaults must not be applied too early because doing so would incorrectly override parent/child inheritance. `msconnector_config_validate` checks enum ranges, complete remote-rule pairs, mutual exclusion of `transaction_id` and `transaction_id_expr`, and allowed status values.
+`msconnector_config_init` initialisiert Werte auf unset/zero/null. `msconnector_config_apply_defaults` füllt nur nicht gesetzte Werte. `msconnector_config_merge` merged Parent- und Child-Werte und wendet danach Defaults an; zu frühes Anwenden von Defaults würde Parent-/Child-Vererbung verfälschen. `msconnector_config_validate` validiert Enum-Bereiche, vollständige Remote-Rule-Key/URL-Paare, gegenseitigen Ausschluss von `transaction_id` und `transaction_id_expr`, erlaubte Blockstatuswerte und gültige Fehlerstatuswerte.
 
-Parser helpers use `1 = success` and `0 = failure`: `msconnector_parse_bool`, `msconnector_parse_phase4_mode`, `msconnector_parse_size`, `msconnector_parse_http_status` and `msconnector_validate_content_type_token`. Boolean parsing accepts on/off-style values; phase4 mode accepts `minimal`, `safe`, `strict`; size parsing accepts positive decimal byte sizes; HTTP status parsing requires a valid HTTP status; content-type token validation requires one slash, non-empty type/subtype and rejects control characters and semicolons. Transaction-ID validation is represented by `transaction_id` helpers and connector-specific expression parsing remains connector-specific.
+Parser-Helfer verwenden `1 = success` und `0 = failure`: `msconnector_parse_bool`, `msconnector_parse_phase4_mode`, `msconnector_parse_size`, `msconnector_parse_http_status` und `msconnector_validate_content_type_token`. Der Boolean-Parser akzeptiert `on/off`, `true/false`, `1/0` und `yes/no`. Der Phase-4-Modus akzeptiert `minimal`, `safe` und `strict`. Größen werden als positive dezimale Bytewerte geparst. HTTP-Statuswerte müssen gültig sein. Content-Type-Token benötigen genau einen Slash, nicht-leeren Type und Subtype, keine Control-Characters und kein Semikolon. Transaction-ID-Expression-Parsing bleibt connector-spezifisch.
 
 ## Erlaubte Config-/Directive-Begriffe
 
-| Config / Directive | Common macro | Type | Allowed values | Default | Parser / validator | Supported connectors | Notes |
+| Config / Directive | Common Macro | Typ | Erlaubte Werte | Default | Parser / Validator | Betroffene Connectoren | Hinweise |
 |---|---|---|---|---|---|---|---|
-| `modsecurity` | `MSCONNECTOR_DIRECTIVE_MODSECURITY` | bool | `on|off` in spec; bool parser also accepts `true|false|1|0|yes|no` | `off` | `msconnector_parse_bool`, config validation | Apache/NGINX/HAProxy where adopted; Envoy/Traefik/lighttpd structure-only | Enables connector processing; no production claim. |
-| `modsecurity_rules` | `MSCONNECTOR_DIRECTIVE_RULES` | string | inline rules text | none | directive adapter / config validation | connector-dependent | Rule text presence does not prove CRS/runtime execution. |
-| `modsecurity_rules_file` | `MSCONNECTOR_DIRECTIVE_RULES_FILE` | path | connector/runtime path | none | directive adapter / path policy where used | connector-dependent | Path validity is environment-specific. |
-| `modsecurity_rules_remote` | `MSCONNECTOR_DIRECTIVE_RULES_REMOTE` | string pair | `key url` | none | config requires key and URL together | connector-dependent | Incomplete pair is invalid. |
-| `modsecurity_transaction_id` | `MSCONNECTOR_DIRECTIVE_TRANSACTION_ID` | string | static ID | none | transaction-id helpers / config mutual exclusion | connector-dependent | Mutually exclusive with expression. |
-| `modsecurity_transaction_id_expr` | `MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR` | string | connector-parsed expression | none | connector-specific expression parser plus config mutual exclusion | Apache/NGINX behavior may differ; Envoy/Traefik/lighttpd connector-gap | Do not treat Apache expression syntax as NGINX syntax. |
-| `modsecurity_use_error_log` | `MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG` | bool | `on|off` in spec; bool parser also accepts aliases | `on` | `msconnector_parse_bool` | connector-dependent | Controls common config flag only. |
-| `modsecurity_phase4_mode` | `MSCONNECTOR_DIRECTIVE_PHASE4_MODE` | enum | `minimal|safe|strict` | `safe` | `msconnector_parse_phase4_mode` | connector-dependent; starter connectors not_verified | Response-body mode model; no RESPONSE_BODY verification by itself. |
-| `modsecurity_phase4_content_types_file` | `MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE` | path | file of valid content-type tokens | none | content-type token parser; connector-specific strictness possible | connector-dependent | Exact matching/strictness depends on connector implementation and evidence. |
-| `modsecurity_phase4_log` | `MSCONNECTOR_DIRECTIVE_PHASE4_LOG` | path | log path | none | directive adapter / path policy where used | connector-dependent | Log path does not imply verified body handling. |
-| `modsecurity_phase4_body_limit` | `MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT` | size | positive decimal bytes | `1048576` | `msconnector_parse_size` | connector-dependent | Body truncation metadata requires connector implementation/evidence. |
-| `default_block_status` | config field | HTTP status | allowed block statuses | `403` | `msconnector_block_status_is_allowed` | common config consumers | Field, not listed in `directives.h`. |
-| `default_error_status` | config field | HTTP error status | valid HTTP error status | `500` | `msconnector_http_status_is_valid` and error check | common config consumers | Field, not listed in `directives.h`. |
-| `unsupported_status` | config field | HTTP error status | valid HTTP error status | `501` | HTTP status validation | common config consumers | Field, not listed in `directives.h`. |
-| CRS setup/path/fixture modes | reports/framework metadata | string/path/mode | current framework-specific values | unknown | framework scripts | framework-dependent | Document as `requires runtime evidence` unless current report proves it. |
+| `modsecurity` | `MSCONNECTOR_DIRECTIVE_MODSECURITY` | bool | Spezifikation: `on|off`; Parser akzeptiert auch `true|false|1|0|yes|no` | `off` | `msconnector_parse_bool`, `msconnector_config_validate` | Apache/NGINX/HAProxy, soweit adoptiert; Envoy/Traefik/lighttpd structure-only | Aktiviert nur semantische Verarbeitung; kein Production-Claim. |
+| `modsecurity_rules` | `MSCONNECTOR_DIRECTIVE_RULES` | string/raw | Inline-Regeltext | keiner | Direktivenadapter und connector-spezifisches Rule Loading | connector-abhängig | Regeltext beweist keine CRS-/Runtime-Ausführung. |
+| `modsecurity_rules_file` | `MSCONNECTOR_DIRECTIVE_RULES_FILE` | path | Runtime-Pfad | keiner | Direktivenadapter, Path Policy soweit genutzt | connector-abhängig | Pfadgültigkeit ist umgebungsabhängig. |
+| `modsecurity_rules_remote` | `MSCONNECTOR_DIRECTIVE_RULES_REMOTE` | string pair | `key url` | keiner | Config verlangt Key und URL gemeinsam | connector-abhängig | Unvollständiges Remote-Paar ist ungültig. |
+| `modsecurity_transaction_id` | `MSCONNECTOR_DIRECTIVE_TRANSACTION_ID` | string | statische ID | keiner | Transaction-ID-Helfer; gegenseitiger Ausschluss in Config | connector-abhängig | Gegenseitig exklusiv mit Expression. |
+| `modsecurity_transaction_id_expr` | `MSCONNECTOR_DIRECTIVE_TRANSACTION_ID_EXPR` | string | connector-geparste Expression | keiner | connector-spezifischer Parser; gegenseitiger Ausschluss in Config | Apache/NGINX können abweichen; Envoy/Traefik/lighttpd connector-gap | Apache-artige Expressions dürfen nicht als NGINX-Syntax behandelt werden. |
+| `modsecurity_use_error_log` | `MSCONNECTOR_DIRECTIVE_USE_ERROR_LOG` | bool | Spezifikation: `on|off`; Parser akzeptiert auch Aliase | `on` | `msconnector_parse_bool` | connector-abhängig | Nur Common-Config-Flag. |
+| `modsecurity_phase4_mode` | `MSCONNECTOR_DIRECTIVE_PHASE4_MODE` | enum | `minimal|safe|strict` | `safe` | `msconnector_parse_phase4_mode` | connector-abhängig; Starter-Connectoren nicht verifiziert | Response-Body-Policy-Modell; keine Response-Body-Verifikation. |
+| `modsecurity_phase4_content_types_file` | `MSCONNECTOR_DIRECTIVE_PHASE4_CONTENT_TYPES_FILE` | path | Datei mit gültigen Content-Type-Tokens | keiner | Content-Type-Token-Parser und connector-spezifisches File-Handling | connector-abhängig | Striktheit hängt von Connector und Evidence ab. |
+| `modsecurity_phase4_log` | `MSCONNECTOR_DIRECTIVE_PHASE4_LOG` | path | Logpfad | keiner | Direktivenadapter und Path Policy soweit genutzt | connector-abhängig | Logpfad beweist kein Body Handling. |
+| `modsecurity_phase4_body_limit` | `MSCONNECTOR_DIRECTIVE_PHASE4_BODY_LIMIT` | size | positive dezimale Bytes | `1048576` | `msconnector_parse_size` | connector-abhängig | Truncation-Metadaten benötigen Connector-Implementierung/Evidence. |
+| `default_block_status` | Config-Feld | HTTP-Status | erlaubte Blockstatuswerte | `403` | `msconnector_block_status_is_allowed` | Common-Config-Consumer | Config-Feld, kein Makro in `directives.h`. |
+| `default_error_status` | Config-Feld | HTTP-Fehlerstatus | gültiger HTTP-Fehlerstatus | `500` | HTTP-Statusvalidierung und Fehlerstatusprüfung | Common-Config-Consumer | Config-Feld, kein Makro in `directives.h`. |
+| `unsupported_status` | Config-Feld | HTTP-Fehlerstatus | gültiger HTTP-Fehlerstatus | `501` | HTTP-Statusvalidierung und Fehlerstatusprüfung | Common-Config-Consumer | Config-Feld, kein Makro in `directives.h`. |
+| CRS setup / CRS mode / fixture mode | CRS-/Framework-Metadaten | mode/path/string | repository-/framework-spezifisch | unknown | `msconnector_crs_config_validate` und Framework-Skripte, soweit genutzt | framework-/connector-abhängig | Als `requires runtime evidence` behandeln, sofern kein aktueller Report den konkreten Lauf belegt. |
 
 ## Request-/Response-Mapping
 
-Request mapping owns neutral method, URI, protocol, Headers, body metadata and transaction identifiers. Response mapping owns status, Headers, content-type/body metadata and phase-4 policy data. Mapper contracts validate ownership, required fields and cleanup expectations. Host server objects bleiben außerhalb von `common/`.
+Request-Mapping besitzt Methode, URI, Protokoll, Endpunkte, Header, Body-Metadaten und Transaction-IDs in connector-neutraler Form. Response-Mapping besitzt Status, Protokoll, Header, Content-Type-/Body-Metadaten und Phase-4-Policy-Zustand. Mapper-Verträge definieren Validierungs- und Ownership-Erwartungen. Host-Server-Objekte bleiben außerhalb von `common/`.
 
 ## Decision-, Intervention-, Status- und Event-Modell
 
-Common decision/action helpers express allow/block/error/unsupported-like outcomes. Intervention helpers normalize block handling; status helpers map to HTTP statuses; event and JSONL helpers serialize structured evidence for a run. These outputs are per-run artifacts and not append-only or cryptographically signed unless such evidence is explicitly implemented later.
+Gemeinsame Decision-/Action-Helfer beschreiben allow-/block-/error-/unsupported-artige Ergebnisse. Intervention-Helfer normalisieren Blocking-Ergebnisse. Status-Helfer bilden Ergebnisse auf gemeinsame Statusnamen ab. Event- und JSONL-Helfer serialisieren per-run Evidence. Diese Ausgaben sind nicht append-only und nicht kryptografisch signiert, sofern zukünftiger Code dies nicht ausdrücklich implementiert und belegt.
 
-## Resource Limits, DoS Guard, Flow Guard und Integrity
+## Ressourcenlimits, DoS-Schutz, Flow-Guard und Integrität
 
-Resource limits centralize maximum sizes/counts. DoS guard and flow guard detect policy violations in neutral state. Integrity events carry metadata. This is governance and safety modeling, not a claim that runtime traffic is secure, tamper-proof or cryptographically protected.
+Ressourcenlimits zentralisieren Maximalgrößen und Zählwerte. DoS-Schutz und Flow-Guard prüfen connector-neutralen Request-/Response-Zustand und Phasenübergänge. Integrity-Events tragen Metadaten und nicht-kryptografische Hashes. Das ist Governance- und Safety-Modellierung, kein runtime-secure-, tamper-proof- oder cryptographic-integrity-Claim.
 
 ## C-Sprache und Standards
 
-The Common SDK is designed for C17. C17 is the required profile when the compiler and required host/libmodsecurity Headers are present. C23 is optional. future-C (`c2y`/`gnu2y`) is optional. `c20` and `c26` are not C standard modes and should be reported as SKIPPED/INFO if targets exist. Exit 77 means BLOCKED/SKIPPED due to missing environment, missing Headers, missing compiler or unsupported optional profile. Real compile failures must not be hidden as 77.
+Das Common SDK ist auf C17 ausgelegt. C17 ist der harte Pflichtstandard, wenn Compiler und benötigte Header vorhanden sind. C23 ist optional. future-C (`c2y`/`gnu2y`) ist optional. `c20` und `c26` sind keine gültigen C-Standard-Modi und sollen bei vorhandenen Targets als SKIPPED/INFO behandelt werden. Exit 77 bedeutet BLOCKED/SKIPPED, weil Umgebung, Header, Compiler oder optionales Profil fehlen. Echte Compile-Fehler dürfen nicht als Exit 77 versteckt werden.
 
-| Connector | C17 | C23 | future-C | Header requirements | Exit-77 behavior |
+| Connector-Gruppe | C17 | C23 | future-C | Header-Voraussetzungen | Exit-77-Verhalten |
 |---|---|---|---|---|---|
-| Common | required when compiler exists | optional | optional | common Headers | only missing/unsupported environment should skip |
-| Apache | hard when APXS/APR/libmodsecurity Headers exist | optional | optional | APXS, APR, libmodsecurity | missing Headers may block; compile errors must fail |
-| NGINX | hard when NGINX/libmodsecurity Headers exist | optional | optional | NGINX Source/include roots, libmodsecurity | missing Source/Header roots may block |
-| HAProxy | hard when HAProxy/libmodsecurity context exists | optional | optional | HAProxy/SPOE/SPOP and common includes | missing Headers may block |
-| Envoy | compile/structure-level only | optional | optional | starter/common Headers; no native Envoy SDK claim | not_verified connector-gap remains |
-| Traefik | compile/structure-level only | optional | optional | starter/common Headers | not_verified connector-gap remains |
-| lighttpd | compile/structure-level only | optional | optional | starter/common Headers | not_verified connector-gap remains |
+| Common | erforderlich, wenn Compiler vorhanden ist | optional | optional | Common-Header | nur Umgebung/unsupported optional profile darf skippen |
+| Apache | hart, wenn APXS/APR/libmodsecurity-Header vorhanden sind | optional | optional | APXS/APR/libmodsecurity | fehlende Header dürfen blockieren; Compile-Fehler müssen fehlschlagen |
+| NGINX | hart, wenn NGINX-/libmodsecurity-Header vorhanden sind | optional | optional | NGINX-Source-/Include-Roots, libmodsecurity | fehlende Roots/Header dürfen blockieren |
+| HAProxy | hart, wenn HAProxy-/libmodsecurity-Kontext vorhanden ist | optional | optional | HAProxy-/SPOE-/SPOP-Kontext und Common-Includes | fehlende Header dürfen blockieren |
+| Remaining Connectors | nur compile-/structure-level | optional | optional | Starter-/Common-Header | not_verified / connector-gap bleibt bestehen |
 
 ## CI-, Contract- und Governance-Checks
 
-| Check / Target | Script | Purpose | Scope | Hard or optional | Exit-77 possible? |
+| Check / Target | Skript | Zweck | Betrifft | Hart oder optional | Exit 77 möglich? |
 |---|---|---|---|---|---|
-| `check-common-helpers` | `ci/check_common_helpers.py` | Common helper compile/static checks | common | hard when env exists | possible for env blockers |
-| `check-common-sdk-contract` | `ci/check_common_sdk_contract.py` | Common SDK API/contract governance | common | hard | usually no |
-| `check-common-security-contract` | `ci/check_common_security_contract.py` | Security/data contract governance | common | hard | script-specific |
-| `check-common-memory-safety` | `ci/check_common_memory_safety.py` | Memory ownership/safety contract checks | common | hard | script-specific |
-| `check-common-flow-integrity` | `ci/check_common_flow_integrity.py` | Flow/integrity contract checks | common | hard | script-specific |
-| `check-adapter-contracts` | `ci/check_adapter_contracts.py` | Adapter metadata/contract checks | connectors | hard | script-specific |
-| `check-directive-parity` | `ci/check_directive_parity.py` | Common directive parity across connectors | common/connectors | hard | script-specific |
-| connector common-adoption checks | `ci/check_*_common_adoption.py` | adoption/static governance | connector | hard | script-specific |
-| connector C17/C23/future-C checks | `ci/check_*_c_standard*.py` | compile standard profiles | connector | C17 hard, others optional | yes for missing env/optional profile |
-| `check-bilingual-docs` | `ci/check_bilingual_docs.py` | Englisch/deutsche Dokumentations-Paarung | docs/connectors | hart für docs | no/usage-specific |
-| `lint`, `quick-check`, `codex-check` | Makefile composites | aggregate lint/check workflows | repo | hard aggregate | framework blockers possible |
-| framework/report targets | framework scripts | runtime matrix/report governance | reports/framework | optional or composite | yes when submodule/env missing |
+| `check-common-helpers` | `ci/check-common-helpers.sh` | Common-Helfer Compile-/Static-Checks | common | hart, wenn Umgebung vorhanden ist | möglich bei Umgebungsblockern |
+| `check-common-sdk-contract` | `ci/check-common-sdk-contract.py` | Common-SDK-API-/Contract-Governance | common | hart | normalerweise nein |
+| `check-common-security-contract` | `ci/check-common-security-contract.py` | Security-/Daten-Contract-Governance | common | hart | skriptabhängig |
+| `check-common-memory-safety` | `ci/check-common-memory-safety.sh` | Ownership-/Memory-Contract-Checks | common | hart | skriptabhängig |
+| `check-common-flow-integrity` | `ci/check-common-flow-integrity.py` | Flow-/Integritäts-Contract-Checks | common | hart | skriptabhängig |
+| `check-adapter-contracts` | `ci/check-adapter-contracts.py` | Adapter-Metadaten-/Contract-Checks | Connectoren | hart | skriptabhängig |
+| `check-directive-parity` | `ci/check-directive-parity.py` | Common-Direktivenparität über Connectoren | common/Connectoren | hart | skriptabhängig |
+| Connector-Adoption-Ziele | `ci/check-*-common-adoption.py` | Adoption-/Static-Governance | Connectoren | hart | skriptabhängig |
+| Connector-C-Standard-Ziele | `ci/check-*-c-standards.sh`, `ci/check-*-c-standard-wiring.py` | C17/C23/future-C Compile-Profile | Connectoren | C17 hart, optionale Profile optional | ja |
+| `check-bilingual-docs` | `ci/check-bilingual-docs.py` | Bilinguale Dokumentations- und Link-Governance | docs/reports | hart für Doku | kann bei fehlenden Companion-Dokumenten oder Framework-Links fehlschlagen |
 
 ## Makefile-Ziele: Was kann man mit `make` tun?
 
-Das Makefile ist der operative Index für Setup, Linting, Common-SDK-Checks, Connector-Checks, C-Standard-Profile, Runtime-/Starter-Smoke-Läufe, Matrix-/Report-Generierung, Framework-Integration sowie Cleanup-/Bootstrap-Workflows. Wichtige Regel: Ein Makefile-Ziel kann nur das belegen, was sein Skript tatsächlich prüft. Compile-only- und Structure-only-Ziele erzeugen keine Runtime Evidence.
+Das Makefile ist der operative Index für Setup, Linting, Common-SDK-Checks, Connector-Checks, C-Standard-Profile, Runtime-/Starter-Smokes, Matrix-/Report-Generierung, Framework-Integration und Bootstrap-Workflows. Ein Target belegt nur das, was sein Skript tatsächlich prüft. Compile-only- und structure-only-Ziele erzeugen keine Runtime-Evidence.
 
 ### Zielkategorien
 
-1. General targets: `lint`, `quick-check`, `codex-check`, `setup-dev`, `install-dev-deps`, `Dokumentationtor`, `Dokumentationtor-quick`, `cloud-quick-check`, `quick-all`, `clean`-like/bootstrap targets where present.
-2. Common SDK targets: `check-common-helpers`, C17/C23/future-C variants, SDK/security/memory/flow contracts, adapter contracts and directive parity.
-3. Apache targets: common adoption, C-standard wiring, C17/C23/future-C and smoke/test targets. `check-apache-c17` is hard when APXS/APR/libmodsecurity Headers exist; `check-apache-c17-lint` may translate environment skips in lint context.
-4. NGINX targets: common adoption, C-standard wiring, C17/C23/future-C and smoke/test targets. NGINX Source/include variables may be required.
-5. HAProxy targets: common adoption, C-standard wiring, C17/C23/future-C and HAProxy smoke/test targets. HAProxy/SPOE/SPOP remains connector-specific.
-6. Remaining connector targets: Envoy, Traefik and lighttpd adoption/C-standard/starter smoke targets. These remain `not_verified / connector-gap` and compile/structure-level only.
-7. Framework/test-framework targets: `check-framework`, runtime matrix, verified report and MRTS targets; these can block if `modules/ModSecurity-test-Framework/...` is missing.
-8. Report/generator targets: generate/check matrix and report artifacts. Reports require valid inputs and do not automatically imply verified claims.
+- Allgemeine Ziele: Setup, Dependency-Fetch, Doctor, Lint und Quick-/Codex-Checks.
+- Common-SDK-Ziele: Helfer-Compilation, SDK-/Security-/Memory-/Flow-Verträge, Adapter-Verträge und Direktivenparität.
+- Apache-, NGINX- und HAProxy-Ziele: Common-Adoption, C-Standard-Wiring und C17/C23/future-C-Checks sowie Smoke-/Test-Wrapper.
+- Remaining-Connector-Ziele: Envoy-, Traefik- und lighttpd-Starter-/Adoption-/C-Standard-Checks. Diese bleiben `not_verified / connector-gap`.
+- Framework-/Test-Framework-Ziele: Matrix-, Verified-Report-, MRTS- und Smoke-/Test-Workflows. Diese können blockieren, wenn `modules/ModSecurity-test-Framework` oder Runtime-Komponenten fehlen.
+- Report-/Generator-Ziele: Reports und Matrizen generieren oder prüfen. Daraus folgt nicht automatisch verifiziertes Runtime-Verhalten.
 
 ### Vollständige Makefile-Zieltabelle
 
 | Makefile-Ziel | Zweck | Betrifft | Voraussetzung | Hart/optional | Exit-77/BLOCKED möglich? | Hinweise |
 |---|---|---|---|---|---|---|
-| `check-framework` | Führt den Workflow `check-framework` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-framework-fixture-syntax` | Führt den Workflow `check-framework-fixture-syntax` aus. | framework/reports | check-framework | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework |
-| `prepare-runtime-components` | Führt den Workflow `prepare-runtime-components` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `prepare-envoy-runtime` | Führt den Workflow `prepare-envoy-runtime` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `prepare-traefik-runtime` | Führt den Workflow `prepare-traefik-runtime` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `prepare-lighttpd-runtime` | Führt den Workflow `prepare-lighttpd-runtime` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `prepare-lighttpd-runtime-build` | Führt den Workflow `prepare-lighttpd-runtime-build` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `prepare-open-connector-runtimes` | Führt den Workflow `prepare-open-connector-runtimes` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `runtime-components-inventory` | Führt den Workflow `runtime-components-inventory` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `runtime-components-sources` | Führt den Workflow `runtime-components-sources` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `check-runtime-producer-readiness` | Führt den Workflow `check-runtime-producer-readiness` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `check-runtime-path-policy` | Führt den Workflow `check-runtime-path-policy` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `check-bilingual-docs` | Führt den Workflow `check-bilingual-docs` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `refresh-connector-reports` | Führt den Workflow `refresh-connector-reports` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `refresh-all-reports` | Führt den Workflow `refresh-all-reports` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `check-generated-report-layout` | Führt den Workflow `check-generated-report-layout` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `report-governance` | Führt den Workflow `report-governance` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-report-evidence-gate` | Führt den Workflow `verified-report-evidence-gate` aus. | framework/reports | check-generated-report-layout | optional/composite | usually no; script-specific | depends on check-generated-report-layout |
-| `generate-system-environment-proof` | Führt den Workflow `generate-system-environment-proof` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-verified-runtime-mismatch-analysis` | Führt den Workflow `generate-verified-runtime-mismatch-analysis` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-remaining-critical-batch-analysis` | Führt den Workflow `generate-remaining-critical-batch-analysis` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-native-semantics-comparison` | Führt den Workflow `generate-native-semantics-comparison` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `prove-generated-reports` | Führt den Workflow `prove-generated-reports` aus. | framework/reports | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `verified-runtime-producers` | Führt den Workflow `verified-runtime-producers` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-report-producers` | Führt den Workflow `verified-report-producers` aus. | framework/reports | verified-runtime-producers | optional/composite | usually no; script-specific | depends on verified-runtime-producers |
-| `verified-report-refresh` | Führt den Workflow `verified-report-refresh` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-report-consumers` | Führt den Workflow `verified-report-consumers` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-report-checks` | Führt den Workflow `verified-report-checks` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-report-run` | Führt den Workflow `verified-report-run` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-report-run-soft` | Führt den Workflow `verified-report-run-soft` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-report-run-smoke` | Führt den Workflow `verified-report-run-smoke` aus. | framework/reports | check-framework | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework |
-| `verified-full-matrix-job` | Führt den Workflow `verified-full-matrix-job` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-case` | Führt den Workflow `verified-case` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `verified-native-case` | Führt den Workflow `verified-native-case` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `verified-nginx-case` | Führt den Workflow `verified-nginx-case` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `verified-apache-case` | Führt den Workflow `verified-apache-case` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `verified-haproxy-case` | Führt den Workflow `verified-haproxy-case` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `verified-full-matrix-resume` | Führt den Workflow `verified-full-matrix-resume` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `smoke-common` | Führt den Workflow `smoke-common` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `smoke-apache` | Führt den Workflow `smoke-apache` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `smoke-nginx` | Führt den Workflow `smoke-nginx` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `smoke-envoy` | Führt den Workflow `smoke-envoy` aus. | framework/reports | check-framework | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework |
-| `smoke-envoy-modsecurity` | Führt den Workflow `smoke-envoy-modsecurity` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-envoy-request-body` | Führt den Workflow `smoke-envoy-request-body` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-envoy-crs` | Führt den Workflow `smoke-envoy-crs` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-envoy-crs-secondary` | Führt den Workflow `smoke-envoy-crs-secondary` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-haproxy` | Führt den Workflow `smoke-haproxy` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `smoke-lighttpd` | Führt den Workflow `smoke-lighttpd` aus. | framework/reports | check-framework | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework |
-| `smoke-lighttpd-modsecurity` | Führt den Workflow `smoke-lighttpd-modsecurity` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-lighttpd-request-body` | Führt den Workflow `smoke-lighttpd-request-body` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-lighttpd-crs` | Führt den Workflow `smoke-lighttpd-crs` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-lighttpd-crs-secondary` | Führt den Workflow `smoke-lighttpd-crs-secondary` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-traefik` | Führt den Workflow `smoke-traefik` aus. | framework/reports | check-framework | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework |
-| `smoke-traefik-modsecurity` | Führt den Workflow `smoke-traefik-modsecurity` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-traefik-request-body` | Führt den Workflow `smoke-traefik-request-body` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-traefik-crs` | Führt den Workflow `smoke-traefik-crs` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-traefik-crs-secondary` | Führt den Workflow `smoke-traefik-crs-secondary` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-open-connectors-crs` | Führt den Workflow `smoke-open-connectors-crs` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-open-connectors-request-body` | Führt den Workflow `smoke-open-connectors-request-body` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-open-connectors-crs-secondary` | Führt den Workflow `smoke-open-connectors-crs-secondary` aus. | framework/reports | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `smoke-new-connectors` | Führt den Workflow `smoke-new-connectors` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `smoke-all` | Führt den Workflow `smoke-all` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `test` | Führt den Workflow `test` aus. | framework/reports | test-no-crs test-with-crs | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on test-no-crs test-with-crs |
-| `test-no-crs` | Führt den Workflow `test-no-crs` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `test-with-crs` | Führt den Workflow `test-with-crs` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `mrts-generate` | Führt den Workflow `mrts-generate` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `mrts-load` | Führt den Workflow `mrts-load` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `mrts-import` | Führt den Workflow `mrts-import` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `test-no-mrts` | Führt den Workflow `test-no-mrts` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `test-with-mrts` | Führt den Workflow `test-with-mrts` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `test-with-mrts-feature-demo` | Führt den Workflow `test-with-mrts-feature-demo` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `test-mrts-matrix` | Führt den Workflow `test-mrts-matrix` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `mrts-ftw` | Führt den Workflow `mrts-ftw` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `runtime-matrix` | Führt den Workflow `runtime-matrix` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `runtime-matrix-all` | Führt den Workflow `runtime-matrix-all` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `runtime-matrix-all-runtime` | Führt den Workflow `runtime-matrix-all-runtime` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `runtime-matrix-haproxy` | Führt den Workflow `runtime-matrix-haproxy` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `full-mrts-runtime-matrix` | Führt den Workflow `full-mrts-runtime-matrix` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `mrts-only-full-run` | Führt den Workflow `mrts-only-full-run` aus. | framework/reports | full-mrts-runtime-matrix | optional/composite | usually no; script-specific | depends on full-mrts-runtime-matrix |
-| `full-runtime-matrix` | Führt den Workflow `full-runtime-matrix` aus. | framework/reports | full-matrix-parallel | optional/composite | usually no; script-specific | depends on full-matrix-parallel |
-| `full-matrix-parallel` | Führt den Workflow `full-matrix-parallel` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `full-matrix-parallel-runtime` | Führt den Workflow `full-matrix-parallel-runtime` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `full-matrix-single-job-runtime` | Führt den Workflow `full-matrix-single-job-runtime` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `full-matrix-resume-runtime` | Führt den Workflow `full-matrix-resume-runtime` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `generate-full-runtime-matrix` | Führt den Workflow `generate-full-runtime-matrix` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-full-matrix-job-completeness` | Führt den Workflow `generate-full-matrix-job-completeness` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-nginx-mrts-http500-cluster-analysis` | Führt den Workflow `generate-nginx-mrts-http500-cluster-analysis` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-work-queue` | Führt den Workflow `generate-work-queue` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-phase-work-queue` | Führt den Workflow `generate-phase-work-queue` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-nolog-audit-evidence-analysis` | Führt den Workflow `generate-nolog-audit-evidence-analysis` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-response-header-hook-analysis` | Führt den Workflow `generate-response-header-hook-analysis` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-phase4-hard-abort-capability` | Führt den Workflow `generate-phase4-hard-abort-capability` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-intervention-blocking-analysis` | Führt den Workflow `generate-intervention-blocking-analysis` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-no-mrts-intervention-nomatch-analysis` | Führt den Workflow `generate-no-mrts-intervention-nomatch-analysis` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-body-processor-analysis` | Führt den Workflow `generate-body-processor-analysis` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-rule-chain-semantics-analysis` | Führt den Workflow `generate-rule-chain-semantics-analysis` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-final-consistency-audit` | Führt den Workflow `generate-final-consistency-audit` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `generate-remaining-failure-analysis` | Führt den Workflow `generate-remaining-failure-analysis` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `mrts-native-full-run` | Führt den Workflow `mrts-native-full-run` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `mrts-native-full-run-runtime` | Führt den Workflow `mrts-native-full-run-runtime` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `mrts-native-apache-full` | Führt den Workflow `mrts-native-apache-full` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `mrts-native-nginx-pr24-full` | Führt den Workflow `mrts-native-nginx-pr24-full` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `mrts-upstream-infra-check` | Führt den Workflow `mrts-upstream-infra-check` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `test-haproxy-no-crs` | Führt den Workflow `test-haproxy-no-crs` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `test-haproxy-with-crs` | Führt den Workflow `test-haproxy-with-crs` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework prepare-runtime-components |
-| `probe-response-body` | Führt den Workflow `probe-response-body` aus. | framework/reports | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `connector-starter-checks` | Führt den Workflow `connector-starter-checks` aus. | repo | check-framework prepare-runtime-components | optional/composite | usually no; script-specific | depends on check-framework prepare-runtime-components |
-| `check-remaining-connectors-common-adoption` | Führt den Workflow `check-remaining-connectors-common-adoption` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-remaining-connectors-c-standard-wiring` | Führt den Workflow `check-remaining-connectors-c-standard-wiring` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-remaining-connectors-c-standards` | Führt den Workflow `check-remaining-connectors-c-standards` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-remaining-connectors-c17` | Führt den Workflow `check-remaining-connectors-c17` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-remaining-connectors-c17-lint` | Führt den Workflow `check-remaining-connectors-c17-lint` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-remaining-connectors-c23` | Führt den Workflow `check-remaining-connectors-c23` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-remaining-connectors-future-c` | Führt den Workflow `check-remaining-connectors-future-c` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-block-status-generator` | Führt den Workflow `check-block-status-generator` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-apache-common-adoption` | Führt den Workflow `check-apache-common-adoption` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-apache-c-standard-wiring` | Führt den Workflow `check-apache-c-standard-wiring` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-apache-c-standards` | Führt den Workflow `check-apache-c-standards` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-apache-c17` | Führt den Workflow `check-apache-c17` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-apache-c17-lint` | Führt den Workflow `check-apache-c17-lint` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-apache-c23` | Führt den Workflow `check-apache-c23` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-apache-future-c` | Führt den Workflow `check-apache-future-c` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-apache-c20` | Führt den Workflow `check-apache-c20` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-apache-c26` | Führt den Workflow `check-apache-c26` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-nginx-common-adoption` | Führt den Workflow `check-nginx-common-adoption` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-nginx-c-standard-wiring` | Führt den Workflow `check-nginx-c-standard-wiring` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-nginx-c-standards` | Führt den Workflow `check-nginx-c-standards` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-nginx-c17` | Führt den Workflow `check-nginx-c17` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-nginx-c17-lint` | Führt den Workflow `check-nginx-c17-lint` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-nginx-c23` | Führt den Workflow `check-nginx-c23` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-nginx-future-c` | Führt den Workflow `check-nginx-future-c` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-nginx-c20` | Führt den Workflow `check-nginx-c20` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-nginx-c26` | Führt den Workflow `check-nginx-c26` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-haproxy-common-adoption` | Führt den Workflow `check-haproxy-common-adoption` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-haproxy-c-standard-wiring` | Führt den Workflow `check-haproxy-c-standard-wiring` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-haproxy-c-standards` | Führt den Workflow `check-haproxy-c-standards` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-haproxy-c17` | Führt den Workflow `check-haproxy-c17` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-haproxy-c17-lint` | Führt den Workflow `check-haproxy-c17-lint` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-haproxy-c23` | Führt den Workflow `check-haproxy-c23` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-haproxy-future-c` | Führt den Workflow `check-haproxy-future-c` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-haproxy-c20` | Führt den Workflow `check-haproxy-c20` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-haproxy-c26` | Führt den Workflow `check-haproxy-c26` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-common-helpers` | Führt den Workflow `check-common-helpers` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-common-helpers-c17` | Führt den Workflow `check-common-helpers-c17` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-common-helpers-c23` | Führt den Workflow `check-common-helpers-c23` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-common-helpers-future-c` | Führt den Workflow `check-common-helpers-future-c` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-common-helpers-c20` | Führt den Workflow `check-common-helpers-c20` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-common-helpers-c26` | Führt den Workflow `check-common-helpers-c26` aus. | common/connectors | see Makefile/script | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | direct script/action |
-| `check-common-sdk-contract` | Führt den Workflow `check-common-sdk-contract` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-common-security-contract` | Führt den Workflow `check-common-security-contract` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-common-memory-safety` | Führt den Workflow `check-common-memory-safety` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-common-flow-integrity` | Führt den Workflow `check-common-flow-integrity` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `check-adapter-contracts` | Führt den Workflow `check-adapter-contracts` aus. | common/connectors | see Makefile/script | hard | usually no; script-specific | direct script/action |
-| `check-directive-parity` | Führt den Workflow `check-directive-parity` aus. | common/connectors | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `lint` | Führt den Workflow `lint` aus. | repo | check-framework | hard | usually no; script-specific | depends on check-framework |
-| `summary` | Führt den Workflow `summary` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `case-matrix` | Führt den Workflow `case-matrix` aus. | framework/reports | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `install-dev-deps` | Führt den Workflow `install-dev-deps` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `setup-dev` | Führt den Workflow `setup-dev` aus. | repo | install-dev-deps | optional/composite | usually no; script-specific | depends on install-dev-deps |
-| `fetch-modsecurity-v3` | Führt den Workflow `fetch-modsecurity-v3` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `fetch-crs` | Führt den Workflow `fetch-crs` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `prepare-crs` | Führt den Workflow `prepare-crs` aus. | repo | check-framework | optional/composite | usually no; script-specific | depends on check-framework |
-| `print-python` | Führt den Workflow `print-python` aus. | repo | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `bootstrap-all` | Führt den Workflow `bootstrap-all` aus. | repo | setup-dev fetch-deps Dokumentationtor | optional/composite | usually no; script-specific | depends on setup-dev fetch-deps Dokumentationtor |
-| `Dokumentationtor-install-hints` | Führt den Workflow `Dokumentationtor-install-hints` aus. | repo | see Makefile/script | optional/composite | usually no; script-specific | direct script/action |
-| `Dokumentationtor-quick` | Führt den Workflow `Dokumentationtor-quick` aus. | repo | check-framework | hard | usually no; script-specific | depends on check-framework |
-| `quick-all` | Führt den Workflow `quick-all` aus. | repo | check-framework | hard | usually no; script-specific | depends on check-framework |
-| `cloud-quick-check` | Führt den Workflow `cloud-quick-check` aus. | repo | setup-dev lint generate-test-matrix check-test-matrix quick-check | hard | usually no; script-specific | depends on setup-dev lint generate-test-matrix check-test-matrix quick-check |
-| `generate-test-matrix` | Führt den Workflow `generate-test-matrix` aus. | framework/reports | check-framework | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework |
-| `check-test-matrix` | Führt den Workflow `check-test-matrix` aus. | framework/reports | check-framework | optional/composite | yes for framework/env/Header blockers; optional profiles may skip | depends on check-framework |
+| `check-framework` | Führt `check-framework` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-framework-fixture-syntax` | Führt `check-framework-fixture-syntax` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-framework-fixture-syntax.py |
+| `prepare-runtime-components` | Führt `prepare-runtime-components` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `prepare-envoy-runtime` | Führt `prepare-envoy-runtime` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/prepare-envoy-runtime.sh |
+| `prepare-traefik-runtime` | Führt `prepare-traefik-runtime` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/prepare-traefik-runtime.sh |
+| `prepare-lighttpd-runtime` | Führt `prepare-lighttpd-runtime` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/prepare-lighttpd-runtime.sh |
+| `prepare-lighttpd-runtime-build` | Führt `prepare-lighttpd-runtime-build` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `prepare-open-connector-runtimes` | Führt `prepare-open-connector-runtimes` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `runtime-components-inventory` | Führt `runtime-components-inventory` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/runtime-components-inventory.sh |
+| `runtime-components-sources` | Führt `runtime-components-sources` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/runtime-components-inventory.sh |
+| `check-runtime-producer-readiness` | Führt `check-runtime-producer-readiness` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-runtime-producer-readiness.py |
+| `check-runtime-path-policy` | Führt `check-runtime-path-policy` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-runtime-path-policy.py |
+| `check-bilingual-docs` | Führt `check-bilingual-docs` aus (Other). | Other | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-bilingual-docs.py |
+| `refresh-connector-reports` | Führt `refresh-connector-reports` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/refresh-connector-reports.py |
+| `refresh-all-reports` | Führt `refresh-all-reports` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-generated-report-layout` | Führt `check-generated-report-layout` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-generated-report-layout.py |
+| `report-governance` | Führt `report-governance` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-generated-report-layout.py |
+| `verified-report-evidence-gate` | Führt `verified-report-evidence-gate` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-generated-report-layout | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `generate-system-environment-proof` | Führt `generate-system-environment-proof` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-system-environment-proof.py |
+| `generate-verified-runtime-mismatch-analysis` | Führt `generate-verified-runtime-mismatch-analysis` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/generate-verified-runtime-mismatch-analysis.py |
+| `generate-remaining-critical-batch-analysis` | Führt `generate-remaining-critical-batch-analysis` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-remaining-critical-batch-analysis.py |
+| `generate-native-semantics-comparison` | Führt `generate-native-semantics-comparison` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/run-native-case-comparison.py |
+| `prove-generated-reports` | Führt `prove-generated-reports` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `verified-runtime-producers` | Führt `verified-runtime-producers` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-verified-report-run.py |
+| `verified-report-producers` | Führt `verified-report-producers` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | verified-runtime-producers | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: dependency target / see Makefile |
+| `verified-report-refresh` | Führt `verified-report-refresh` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-verified-report-run.py |
+| `verified-report-consumers` | Führt `verified-report-consumers` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-verified-report-run.py |
+| `verified-report-checks` | Führt `verified-report-checks` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-verified-report-run.py |
+| `verified-report-run` | Führt `verified-report-run` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-verified-report-run.py |
+| `verified-report-run-soft` | Führt `verified-report-run-soft` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-verified-report-run.py |
+| `verified-report-run-smoke` | Führt `verified-report-run-smoke` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-verified-report-run.py |
+| `verified-full-matrix-job` | Führt `verified-full-matrix-job` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `verified-case` | Führt `verified-case` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `verified-native-case` | Führt `verified-native-case` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-native-case-comparison.py |
+| `verified-nginx-case` | Führt `verified-nginx-case` aus (NGINX). | NGINX | check-framework prepare-runtime-components | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `verified-apache-case` | Führt `verified-apache-case` aus (Apache). | Apache | check-framework prepare-runtime-components | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `verified-haproxy-case` | Führt `verified-haproxy-case` aus (HAProxy). | HAProxy | check-framework prepare-runtime-components | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `verified-full-matrix-resume` | Führt `verified-full-matrix-resume` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-verified-report-run.py |
+| `smoke-common` | Führt `smoke-common` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-connector-smokes.sh |
+| `smoke-apache` | Führt `smoke-apache` aus (Apache). | Apache | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-apache-smoke.sh |
+| `smoke-nginx` | Führt `smoke-nginx` aus (NGINX). | NGINX | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-nginx-smoke.sh |
+| `smoke-envoy` | Führt `smoke-envoy` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-envoy-smoke.sh |
+| `smoke-envoy-modsecurity` | Führt `smoke-envoy-modsecurity` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-envoy-request-body` | Führt `smoke-envoy-request-body` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-envoy-crs` | Führt `smoke-envoy-crs` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-envoy-crs-secondary` | Führt `smoke-envoy-crs-secondary` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-haproxy` | Führt `smoke-haproxy` aus (HAProxy). | HAProxy | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-haproxy-smoke.sh |
+| `smoke-lighttpd` | Führt `smoke-lighttpd` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-lighttpd-smoke.sh |
+| `smoke-lighttpd-modsecurity` | Führt `smoke-lighttpd-modsecurity` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-lighttpd-request-body` | Führt `smoke-lighttpd-request-body` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-lighttpd-crs` | Führt `smoke-lighttpd-crs` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-lighttpd-crs-secondary` | Führt `smoke-lighttpd-crs-secondary` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-traefik` | Führt `smoke-traefik` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-traefik-smoke.sh |
+| `smoke-traefik-modsecurity` | Führt `smoke-traefik-modsecurity` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-traefik-request-body` | Führt `smoke-traefik-request-body` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-traefik-crs` | Führt `smoke-traefik-crs` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-traefik-crs-secondary` | Führt `smoke-traefik-crs-secondary` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-open-connectors-crs` | Führt `smoke-open-connectors-crs` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-open-connectors-request-body` | Führt `smoke-open-connectors-request-body` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-open-connectors-crs-secondary` | Führt `smoke-open-connectors-crs-secondary` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-new-connectors` | Führt `smoke-new-connectors` aus (Remaining connectors). | Remaining connectors | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `smoke-all` | Führt `smoke-all` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-connector-smokes.sh |
+| `test` | Führt `test` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | test-no-crs test-with-crs | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: dependency target / see Makefile |
+| `test-no-crs` | Führt `test-no-crs` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/common.sh, ci/run-connector-smokes.sh |
+| `test-with-crs` | Führt `test-with-crs` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/common.sh, ci/fetch-crs.sh, ci/prepare-crs.sh, ci/run-connector-smokes.sh |
+| `mrts-generate` | Führt `mrts-generate` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `mrts-load` | Führt `mrts-load` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `mrts-import` | Führt `mrts-import` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `test-no-mrts` | Führt `test-no-mrts` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `test-with-mrts` | Führt `test-with-mrts` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `test-with-mrts-feature-demo` | Führt `test-with-mrts-feature-demo` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `test-mrts-matrix` | Führt `test-mrts-matrix` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `mrts-ftw` | Führt `mrts-ftw` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `runtime-matrix` | Führt `runtime-matrix` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-runtime-matrix.sh |
+| `runtime-matrix-all` | Führt `runtime-matrix-all` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-runtime-matrix.sh |
+| `runtime-matrix-all-runtime` | Führt `runtime-matrix-all-runtime` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-runtime-matrix.sh |
+| `runtime-matrix-haproxy` | Führt `runtime-matrix-haproxy` aus (HAProxy). | HAProxy | check-framework prepare-runtime-components | optional/Composite | skriptabhängig | Skript/Rezept: ci/run-haproxy-runtime-matrix.sh |
+| `full-mrts-runtime-matrix` | Führt `full-mrts-runtime-matrix` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-full-mrts-runtime-matrix.sh |
+| `mrts-only-full-run` | Führt `mrts-only-full-run` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | full-mrts-runtime-matrix | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: dependency target / see Makefile |
+| `full-runtime-matrix` | Führt `full-runtime-matrix` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | full-matrix-parallel | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: dependency target / see Makefile |
+| `full-matrix-parallel` | Führt `full-matrix-parallel` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-full-matrix-parallel.sh |
+| `full-matrix-parallel-runtime` | Führt `full-matrix-parallel-runtime` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-full-matrix-parallel.sh |
+| `full-matrix-single-job-runtime` | Führt `full-matrix-single-job-runtime` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `full-matrix-resume-runtime` | Führt `full-matrix-resume-runtime` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-full-matrix-resume.py |
+| `generate-full-runtime-matrix` | Führt `generate-full-runtime-matrix` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/generate-full-runtime-matrix.py |
+| `generate-full-matrix-job-completeness` | Führt `generate-full-matrix-job-completeness` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/generate-full-matrix-job-completeness.py |
+| `generate-nginx-mrts-http500-cluster-analysis` | Führt `generate-nginx-mrts-http500-cluster-analysis` aus (NGINX). | NGINX | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-nginx-mrts-http500-cluster-analysis.py |
+| `generate-work-queue` | Führt `generate-work-queue` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-connector-work-queue.py, ci/generate-phase-work-queue.py, ci/generate-nolog-audit-evidence-analysis.py |
+| `generate-phase-work-queue` | Führt `generate-phase-work-queue` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-phase-work-queue.py, ci/generate-nolog-audit-evidence-analysis.py, ci/generate-response-header-hook-analysis.py |
+| `generate-nolog-audit-evidence-analysis` | Führt `generate-nolog-audit-evidence-analysis` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-nolog-audit-evidence-analysis.py |
+| `generate-response-header-hook-analysis` | Führt `generate-response-header-hook-analysis` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-response-header-hook-analysis.py |
+| `generate-phase4-hard-abort-capability` | Führt `generate-phase4-hard-abort-capability` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-phase4-hard-abort-capability.py |
+| `generate-intervention-blocking-analysis` | Führt `generate-intervention-blocking-analysis` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-intervention-blocking-analysis.py |
+| `generate-no-mrts-intervention-nomatch-analysis` | Führt `generate-no-mrts-intervention-nomatch-analysis` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/generate-no-mrts-intervention-nomatch-analysis.py |
+| `generate-body-processor-analysis` | Führt `generate-body-processor-analysis` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-body-processor-analysis.py |
+| `generate-rule-chain-semantics-analysis` | Führt `generate-rule-chain-semantics-analysis` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-rule-chain-semantics-analysis.py |
+| `generate-final-consistency-audit` | Führt `generate-final-consistency-audit` aus (Other). | Other | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-final-consistency-audit.py |
+| `generate-remaining-failure-analysis` | Führt `generate-remaining-failure-analysis` aus (Remaining connectors). | Remaining connectors | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/generate-remaining-failure-analysis.py |
+| `mrts-native-full-run` | Führt `mrts-native-full-run` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-mrts-native-full.sh |
+| `mrts-native-full-run-runtime` | Führt `mrts-native-full-run-runtime` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-mrts-native-full.sh |
+| `mrts-native-apache-full` | Führt `mrts-native-apache-full` aus (Apache). | Apache | check-framework prepare-runtime-components | optional/Composite | skriptabhängig | Skript/Rezept: ci/run-mrts-native-full.sh |
+| `mrts-native-nginx-pr24-full` | Führt `mrts-native-nginx-pr24-full` aus (NGINX). | NGINX | check-framework prepare-runtime-components | optional/Composite | skriptabhängig | Skript/Rezept: ci/run-mrts-native-full.sh |
+| `mrts-upstream-infra-check` | Führt `mrts-upstream-infra-check` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `test-haproxy-no-crs` | Führt `test-haproxy-no-crs` aus (HAProxy). | HAProxy | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-haproxy-runtime-matrix.sh |
+| `test-haproxy-with-crs` | Führt `test-haproxy-with-crs` aus (HAProxy). | HAProxy | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/run-haproxy-runtime-matrix.sh |
+| `probe-response-body` | Führt `probe-response-body` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework prepare-runtime-components | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/probe-response-body-blocking.sh |
+| `connector-starter-checks` | Führt `connector-starter-checks` aus (Other). | Other | check-framework prepare-runtime-components | optional/Composite | skriptabhängig | Skript/Rezept: ci/run-connector-starter-checks.sh |
+| `check-remaining-connectors-common-adoption` | Führt `check-remaining-connectors-common-adoption` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-remaining-connectors-common-adoption.py |
+| `check-remaining-connectors-c-standard-wiring` | Führt `check-remaining-connectors-c-standard-wiring` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-remaining-connectors-c-standard-wiring.py |
+| `check-remaining-connectors-c-standards` | Führt `check-remaining-connectors-c-standards` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-remaining-connectors-c-standards.sh |
+| `check-remaining-connectors-c17` | Führt `check-remaining-connectors-c17` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-remaining-connectors-c-standards.sh |
+| `check-remaining-connectors-c17-lint` | Führt `check-remaining-connectors-c17-lint` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-remaining-connectors-c-standards.sh |
+| `check-remaining-connectors-c23` | Führt `check-remaining-connectors-c23` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-remaining-connectors-c-standards.sh |
+| `check-remaining-connectors-future-c` | Führt `check-remaining-connectors-future-c` aus (Remaining connectors). | Remaining connectors | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-remaining-connectors-c-standards.sh |
+| `check-block-status-generator` | Führt `check-block-status-generator` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-block-status-generator.py |
+| `check-apache-common-adoption` | Führt `check-apache-common-adoption` aus (Apache). | Apache | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-apache-common-adoption.py |
+| `check-apache-c-standard-wiring` | Führt `check-apache-c-standard-wiring` aus (Apache). | Apache | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-apache-c-standard-wiring.py |
+| `check-apache-c-standards` | Führt `check-apache-c-standards` aus (Apache). | Apache | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-apache-c-standards.sh |
+| `check-apache-c17` | Führt `check-apache-c17` aus (Apache). | Apache | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-apache-c-standards.sh |
+| `check-apache-c17-lint` | Führt `check-apache-c17-lint` aus (Apache). | Apache | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-apache-c-standards.sh |
+| `check-apache-c23` | Führt `check-apache-c23` aus (Apache). | Apache | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-apache-c-standards.sh |
+| `check-apache-future-c` | Führt `check-apache-future-c` aus (Apache). | Apache | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-apache-c-standards.sh |
+| `check-apache-c20` | Führt `check-apache-c20` aus (Apache). | Apache | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-apache-c26` | Führt `check-apache-c26` aus (Apache). | Apache | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-nginx-common-adoption` | Führt `check-nginx-common-adoption` aus (NGINX). | NGINX | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-nginx-common-adoption.py |
+| `check-nginx-c-standard-wiring` | Führt `check-nginx-c-standard-wiring` aus (NGINX). | NGINX | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-nginx-c-standard-wiring.py |
+| `check-nginx-c-standards` | Führt `check-nginx-c-standards` aus (NGINX). | NGINX | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-nginx-c-standards.sh |
+| `check-nginx-c17` | Führt `check-nginx-c17` aus (NGINX). | NGINX | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-nginx-c-standards.sh |
+| `check-nginx-c17-lint` | Führt `check-nginx-c17-lint` aus (NGINX). | NGINX | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-nginx-c-standards.sh |
+| `check-nginx-c23` | Führt `check-nginx-c23` aus (NGINX). | NGINX | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-nginx-c-standards.sh |
+| `check-nginx-future-c` | Führt `check-nginx-future-c` aus (NGINX). | NGINX | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-nginx-c-standards.sh |
+| `check-nginx-c20` | Führt `check-nginx-c20` aus (NGINX). | NGINX | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-nginx-c26` | Führt `check-nginx-c26` aus (NGINX). | NGINX | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-haproxy-common-adoption` | Führt `check-haproxy-common-adoption` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-haproxy-common-adoption.py |
+| `check-haproxy-c-standard-wiring` | Führt `check-haproxy-c-standard-wiring` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-haproxy-c-standard-wiring.py |
+| `check-haproxy-c-standards` | Führt `check-haproxy-c-standards` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-haproxy-c-standards.sh |
+| `check-haproxy-c17` | Führt `check-haproxy-c17` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-haproxy-c-standards.sh |
+| `check-haproxy-c17-lint` | Führt `check-haproxy-c17-lint` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-haproxy-c-standards.sh |
+| `check-haproxy-c23` | Führt `check-haproxy-c23` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-haproxy-c-standards.sh |
+| `check-haproxy-future-c` | Führt `check-haproxy-future-c` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/check-haproxy-c-standards.sh |
+| `check-haproxy-c20` | Führt `check-haproxy-c20` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-haproxy-c26` | Führt `check-haproxy-c26` aus (HAProxy). | HAProxy | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-common-helpers` | Führt `check-common-helpers` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-common-helpers.sh |
+| `check-common-helpers-c17` | Führt `check-common-helpers-c17` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | hart | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-common-helpers-c23` | Führt `check-common-helpers-c23` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/detect-c-standard.py |
+| `check-common-helpers-future-c` | Führt `check-common-helpers-future-c` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/detect-c-standard.py |
+| `check-common-helpers-c20` | Führt `check-common-helpers-c20` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-common-helpers-c26` | Führt `check-common-helpers-c26` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
+| `check-common-sdk-contract` | Führt `check-common-sdk-contract` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | hart | skriptabhängig | Skript/Rezept: ci/check-common-sdk-contract.py |
+| `check-common-security-contract` | Führt `check-common-security-contract` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | hart | skriptabhängig | Skript/Rezept: ci/check-common-security-contract.py |
+| `check-common-memory-safety` | Führt `check-common-memory-safety` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-common-memory-safety.sh |
+| `check-common-flow-integrity` | Führt `check-common-flow-integrity` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: ci/check-common-flow-integrity.py |
+| `check-adapter-contracts` | Führt `check-adapter-contracts` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | hart | skriptabhängig | Skript/Rezept: ci/check-adapter-contracts.py |
+| `check-directive-parity` | Führt `check-directive-parity` aus (Common SDK / contracts). | Common SDK / contracts | siehe Makefile/Rezept | hart | skriptabhängig | Skript/Rezept: ci/check-directive-parity.py |
+| `lint` | Führt `lint` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | check-framework | hart | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `summary` | Führt `summary` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/summarize-results.py |
+| `case-matrix` | Führt `case-matrix` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/write-case-matrix.py |
+| `install-dev-deps` | Führt `install-dev-deps` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/bootstrap-python.sh |
+| `setup-dev` | Führt `setup-dev` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | install-dev-deps | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `fetch-modsecurity-v3` | Führt `fetch-modsecurity-v3` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/fetch-smoke-sources.sh |
+| `fetch-crs` | Führt `fetch-crs` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/fetch-crs.sh |
+| `prepare-crs` | Führt `prepare-crs` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/prepare-crs.sh, ci/doctor.sh |
+| `print-python` | Führt `print-python` aus (Other). | Other | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `bootstrap-all` | Führt `bootstrap-all` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | setup-dev fetch-deps doctor | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `doctor-install-hints` | Führt `doctor-install-hints` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | siehe Makefile/Rezept | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `doctor-quick` | Führt `doctor-quick` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/doctor.sh |
+| `quick-all` | Führt `quick-all` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | check-framework | optional/Composite | skriptabhängig | Skript/Rezept: ci/quick-all.sh |
+| `cloud-quick-check` | Führt `cloud-quick-check` aus (General setup / lint / bootstrap). | General setup / lint / bootstrap | setup-dev lint generate-test-matrix check-test-matrix quick-check | optional/Composite | skriptabhängig | Skript/Rezept: Makefile composite / shell recipe |
+| `generate-test-matrix` | Führt `generate-test-matrix` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: ci/ensure-test-matrix-language-switches.py |
+| `check-test-matrix` | Führt `check-test-matrix` aus (Framework / reports / runtime harnesses). | Framework / reports / runtime harnesses | check-framework | optional/Composite | ja, bei fehlender Umgebung/Headern/Framework oder optionalem Profil | Skript/Rezept: Makefile composite / shell recipe |
 
 ### C17-, C23- und future-C-Ziele
 
-C17 targets (`check-*-c17`) are the required standard checks when the relevant compiler and Headers are present. C23 targets (`check-*-c23`) are optional. future-C targets (`check-*-future-c`) are optional and may use `c2y`/`gnu2y` where supported. `check-*-c20` and `check-*-c26`, where present, are skip/info targets because c20/c26 are not valid C language modes. Exit 77 must mean an environment or unsupported-profile skip, never a hidden compile or contract error.
+`check-*-c17`-Ziele sind erforderlich, wenn der relevante Compiler und die relevanten Header vorhanden sind. `check-*-c23`-Ziele sind optional. `check-*-future-c`-Ziele sind optional und können `c2y`/`gnu2y` verwenden. `check-*-c20` und `check-*-c26`, soweit vorhanden, sind Skip-/Info-Ziele, weil c20/c26 keine gültigen C-Sprachmodi sind. Exit 77 bedeutet fehlende Umgebung oder nicht unterstütztes optionales Profil; echte Compile- oder Contract-Fehler dürfen dadurch nicht versteckt werden.
 
 ## Häufige Makefile-Aufrufe
 
-- `make check-common-helpers`: use after common helper changes.
-- `make check-common-sdk-contract`: use after adding/changing Common SDK Headers or APIs.
-- `make check-adapter-contracts`: use after metadata or connector contract changes.
-- `make check-directive-parity`: use after directive/config/parser changes.
-- `make check-apache-common-adoption && make check-apache-c17`: use after Apache connector changes.
-- `make check-nginx-common-adoption && make check-nginx-c17`: use after NGINX connector changes.
-- `make check-haproxy-common-adoption && make check-haproxy-c17`: use after HAProxy connector changes.
-- `make check-remaining-connectors-common-adoption && make check-remaining-connectors-c17`: use after Envoy/Traefik/lighttpd starter changes; still no runtime claim.
-- `make lint`: aggregate repository lint/governance check.
-- `make quick-check` or `make codex-check`: lightweight pre-commit validation.
+- `make check-common-helpers`: nach Änderungen an Common-Helfern.
+- `make check-common-sdk-contract`: nach Änderungen an Common-SDK-APIs oder Headern.
+- `make check-adapter-contracts`: nach Änderungen an Adapter-Metadaten oder Adapter-Verträgen.
+- `make check-directive-parity`: nach Änderungen an Direktiven, Config oder Parsern.
+- `make check-apache-common-adoption && make check-apache-c17`: nach Apache-Connector-Änderungen.
+- `make check-nginx-common-adoption && make check-nginx-c17`: nach NGINX-Connector-Änderungen.
+- `make check-haproxy-common-adoption && make check-haproxy-c17`: nach HAProxy-Connector-Änderungen.
+- `make check-remaining-connectors-common-adoption && make check-remaining-connectors-c17`: nach Envoy-/Traefik-/lighttpd-Starter-Änderungen; das bleibt nur Compile-/Strukturevidence.
+- `make lint`, `make quick-check`, `make codex-check`: aggregierte Validierung, abhängig von Framework- und Umgebungsblockern.
 
 ## Exit-Codes und BLOCKED/SKIPPED-Verhalten
 
-- `0`: success.
-- `1`, `2` or other non-zero values: real failure or usage error unless the script Dokumentationuments otherwise.
-- `77`: BLOCKED/SKIPPED because the environment, Headers, compiler, submodule or optional C profile is unavailable.
+- `0`: erfolgreich.
+- `1`, `2` oder andere Non-Zero-Werte: echter Fehler oder Usage-Fehler, sofern ein Skript nichts anderes dokumentiert.
+- `77`: BLOCKED/SKIPPED wegen fehlender Umgebung, fehlender Header, fehlendem Compiler, fehlendem Framework-Input oder nicht unterstütztem optionalem C-Profil.
 
-Exit 77 darf echte Compile- oder Contract-Fehler nicht verstecken. Lint-Wrapper dürfen 77 für umgebungsbedingt begrenzte Checks übersetzen, aber nicht für echte Fehler.
+Exit 77 darf echte Compile- oder Contract-Fehler nicht verstecken. Lint-Wrapper dürfen umgebungsbedingte Skips übersetzen, aber keine echten Fehler verbergen.
 
 ## Umgebungsvariablen
 
 | Variable | Verwendung | Beispiel | Betrifft |
 |---|---|---|---|
-| `APACHE_C_STD_PROFILE` | Used by Makefile/CI scripts when present. | `APACHE_C_STD_PROFILE=...` | build/check environment |
-| `APXS` | Used by Makefile/CI scripts when present. | `APXS=...` | build/check environment |
-| `BUILD_ROOT` | Used by Makefile/CI scripts when present. | `BUILD_ROOT=...` | build/check environment |
-| `CONNECTOR_C_STD_PROFILE` | Used by Makefile/CI scripts when present. | `CONNECTOR_C_STD_PROFILE=...` | build/check environment |
-| `HAPROXY_C_STD_PROFILE` | Used by Makefile/CI scripts when present. | `HAPROXY_C_STD_PROFILE=...` | build/check environment |
-| `HAPROXY_SOURCE_DIR` | Used by Makefile/CI scripts when present. | `HAPROXY_SOURCE_DIR=...` | build/check environment |
-| `MODSECURITY_INC` | Used by Makefile/CI scripts when present. | `MODSECURITY_INC=...` | build/check environment |
-| `MODSECURITY_INCLUDE_DIR` | Used by Makefile/CI scripts when present. | `MODSECURITY_INCLUDE_DIR=...` | build/check environment |
-| `MODSECURITY_NGINX_SOURCE_DIR` | Used by Makefile/CI scripts when present. | `MODSECURITY_NGINX_SOURCE_DIR=...` | build/check environment |
-| `MSCONNECTOR_CFLAGS` | Used by Makefile/CI scripts when present. | `MSCONNECTOR_CFLAGS=...` | build/check environment |
-| `MSCONNECTOR_COMMON_SRC` | Used by Makefile/CI scripts when present. | `MSCONNECTOR_COMMON_SRC=...` | build/check environment |
-| `MSCONNECTOR_C_STD` | Used by Makefile/CI scripts when present. | `MSCONNECTOR_C_STD=...` | build/check environment |
-| `NGINX_C_STD_PROFILE` | Used by Makefile/CI scripts when present. | `NGINX_C_STD_PROFILE=...` | build/check environment |
-| `NGINX_SOURCE_DIR` | Used by Makefile/CI scripts when present. | `NGINX_SOURCE_DIR=...` | build/check environment |
-| `NGINX_SRC` | Used by Makefile/CI scripts when present. | `NGINX_SRC=...` | build/check environment |
-| `PYTHON` | Used by Makefile/CI scripts when present. | `PYTHON=...` | build/check environment |
-
+| `CC` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `CC=...` | Build-/Check-Umgebung |
+| `PYTHON` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `PYTHON=...` | Build-/Check-Umgebung |
+| `BUILD_ROOT` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `BUILD_ROOT=...` | Build-/Check-Umgebung |
+| `MSCONNECTOR_C_STD` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `MSCONNECTOR_C_STD=...` | Build-/Check-Umgebung |
+| `MSCONNECTOR_CFLAGS` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `MSCONNECTOR_CFLAGS=...` | Build-/Check-Umgebung |
+| `APXS` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `APXS=...` | Build-/Check-Umgebung |
+| `NGINX_SOURCE_DIR` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `NGINX_SOURCE_DIR=...` | Build-/Check-Umgebung |
+| `NGINX_SRC` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `NGINX_SRC=...` | Build-/Check-Umgebung |
+| `MODSECURITY_NGINX_SOURCE_DIR` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `MODSECURITY_NGINX_SOURCE_DIR=...` | Build-/Check-Umgebung |
+| `NGINX_INCLUDE_DIR` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `NGINX_INCLUDE_DIR=...` | Build-/Check-Umgebung |
+| `MSCONNECTOR_COMMON_SRC` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `MSCONNECTOR_COMMON_SRC=...` | Build-/Check-Umgebung |
+| `MODSECURITY_INC` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `MODSECURITY_INC=...` | Build-/Check-Umgebung |
+| `MODSECURITY_INCLUDE` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `MODSECURITY_INCLUDE=...` | Build-/Check-Umgebung |
+| `MODSECURITY_INCLUDE_DIR` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `MODSECURITY_INCLUDE_DIR=...` | Build-/Check-Umgebung |
+| `V3INCLUDE` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `V3INCLUDE=...` | Build-/Check-Umgebung |
+| `HAPROXY_SOURCE_DIR` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `HAPROXY_SOURCE_DIR=...` | Build-/Check-Umgebung |
+| `HAPROXY_INCLUDE_DIR` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `HAPROXY_INCLUDE_DIR=...` | Build-/Check-Umgebung |
+| `CONNECTOR_C_STD_PROFILE` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `CONNECTOR_C_STD_PROFILE=...` | Build-/Check-Umgebung |
+| `APACHE_C_STD_PROFILE` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `APACHE_C_STD_PROFILE=...` | Build-/Check-Umgebung |
+| `NGINX_C_STD_PROFILE` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `NGINX_C_STD_PROFILE=...` | Build-/Check-Umgebung |
+| `HAPROXY_C_STD_PROFILE` | Von Makefile/CI-Skripten genutzt, wenn gesetzt. | `HAPROXY_C_STD_PROFILE=...` | Build-/Check-Umgebung |
 
 ## Connector-Modell
 
-Each connector owns server API glue and may call common config, request/response mapping, directive adapter, decision/intervention/status/event and reSource-limit helpers. A connector must state unsupported features as `not supported`, `connector-gap`, `structure-only`, `partial`, `unknown` or `requires runtime evidence`.
+Jeder Connector besitzt den Server-API-Glue und bildet host-spezifischen Zustand auf Common-SDK-Verträge ab. Ein Connector muss fehlende Unterstützung als `not supported`, `not applicable`, `connector-gap`, `structure-only`, `partial`, `unknown` oder `requires runtime evidence` kennzeichnen.
 
 ## Apache-Connector
 
-### Zweck des Connectors
-Der Apache-Connector belässt Host-/Server-API-Arbeit in `connectors/apache/` und adoptiert Common-Config, Mapping, Decision-, Status-, Event- und Metadaten-Contracts, soweit umgesetzt.
+### Zweck
+Der Apache-Connector belässt die Host-/Server-API-Integration in `connectors/apache/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
-common SDK adoption present; runtime claims require current harness/report evidence.
+Common-SDK-Adoption ist vorhanden; jeder Runtime-Claim benötigt aktuelle Harness-/Report-Evidence.
 
 ### Common-SDK-Adoption
-Der Connector soll, soweit passend, `msconnector_config`, Direktiven-Vokabular, Mapper-Contracts, Request-/Response-Modelle, Status-/Decision-/Event-Helfer und Common-Source-Linking verwenden. Adoption-Checks sind Compile-/Static-/Contract-Evidenz, keine automatische Runtime Evidence.
+Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
 
 ### Config-/Directive-Unterstützung
-Unterstützte Common-Direktiven stehen in der Direktiventabelle. Nicht unterstützte oder host-spezifische Syntax muss als `not supported`, `not applicable`, `connector-gap` oder `structure-only` markiert werden; Apache-artige Expressions dürfen nicht stillschweigend als NGINX-Syntax akzeptiert werden.
+Unterstützte Common-Direktiven stehen in der Direktiventabelle. Host-spezifische Syntax bleibt host-spezifisch. Nicht unterstützte Syntax muss als `not supported`, `not applicable`, `connector-gap`, `partial` oder `requires runtime evidence` gekennzeichnet werden. NGINX darf Apache-artige Transaction-Expressions nicht stillschweigend als NGINX-Syntax akzeptieren.
 
 ### Request-Mapping
-Request-Mapping wandelt Host-Request-Objekte in `msconnector_request` und Header-Helfer um. Fehlende Host-Details sind `partial` oder `requires runtime evidence`.
+Der Request-Mapper wandelt Host-Request-Strukturen in `msconnector_request` und gemeinsame Header-Helfer um. Fehlende Host-Details müssen als `partial` oder `requires runtime evidence` behandelt werden.
 
 ### Response-Mapping
-Response-Mapping wandelt Host-Response-/Header-/Body-Zustand in `msconnector_response` um. RESPONSE_BODY-Verhalten darf nur mit aktueller Runtime Evidence als verifiziert bezeichnet werden.
+Der Response-Mapper wandelt Host-Response-, Header- und Body-Zustand in `msconnector_response` um. Response-Body-Verhalten ist nur dann verifiziert, wenn aktuelle Runtime-Evidence dies belegt.
 
 ### Decision/Event/JSONL-Verhalten
-Decision-, Intervention-, Status- und JSONL-Event-Helfer sind Common-Semantik. Per-run Event-Ausgabe ist nur Evidenz für diesen Lauf.
+Die gemeinsamen Decision-, Intervention-, Status- und JSONL-Ereignis-Helfer liefern gemeinsame Semantik. Per-run Events sind nur Evidence für genau diesen Lauf.
 
-### Resource-/Body-/DoS-/Flow boundaries
-Resource Limits, Body Policy, DoS Guard und Flow Guard sind connector-neutrale Kontrollen. Sie sind Guardrails und Governance-Modelle, keine runtime-secure- oder tamper-proof-Claims.
+### Resource-/Body-/DoS-/Flow-Grenzen
+Ressourcenlimits, Body Policy, DoS-Schutz und Flow-Guard sind connector-neutrale Guardrails. Sie beweisen kein runtime-secure Verhalten und keine tamper-proof Evidence.
 
-### C-Sprachstandard / Checks
-C17 ist das erforderliche Compile-Profil, wenn Compiler und Header vorhanden sind. C23 und future-C sind optional. Exit 77 bedeutet BLOCKED/SKIPPED wegen fehlender Umgebung oder nicht unterstütztem optionalem Profil, nicht versteckter Compile-Fehler.
+### C17/C23/future-C-Checks
+C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 und future-C sind optional. Exit 77 ist für fehlende Umgebung oder nicht unterstützte optionale Profile reserviert.
 
 ### CI-/Contract-Checks
-Nutze connector-spezifische Common-Adoption- und C-Standard-Ziele plus gemeinsame Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
+Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-For Apache-Connector, trust current metadata and generated reports only. Envoy, Traefik and lighttpd explicitly remain `not_verified / connector-gap` until real runtime evidence exists.
+Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
 
-### Was umgesetzt ist
-Common-facing structure, metadata, docs/harness stubs or Connector-Quellen are present as listed below.
+### Umgesetzt
+Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
 
-### Was fehlt
-Fehlende Arbeit ist alles, was als `connector-gap`, `not_verified`, `structure-only`, `unknown` oder `requires runtime evidence` markiert ist, besonders echte Runtime-Integration für Starter-Connectoren.
+### Fehlend
+Alles, was als `connector-gap`, `not_verified`, `structure-only`, `partial`, `unknown` oder `requires runtime evidence` markiert ist, benötigt noch Evidence oder Implementierung.
 
 ### Was connector-spezifisch bleibt
-request_rec, command_rec, APR pools, bucket brigades, hooks, filters, APXS/autotools, Apache logging and return codes bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
+`request_rec`, `command_rec`, APR-Pools, Bucket Brigades, Hooks, Filter, APXS/autotools, Apache-Logging und Return-Codes bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
 
-### Dateien des Connectors
+### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/apache/Makefile.am` | Makefile helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/ORIGIN.md` | ORIGIN helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/README.de.md` | README.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/SOURCE_MAP.json` | SOURCE MAP helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/TODO.md` | TODO helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/autogen.sh` | autogen helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/build/apxs-wrapper.in` | apxs-wrapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/build/ax_prog_apache.m4` | ax prog apache helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/build/find_apxs.m4` | find apxs helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/build/find_libmodsec.m4` | find libmodsec helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/configure.ac` | configure helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/docs/architecture.md` | architecture helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/docs/build.md` | build helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/docs/coverage-decision-matrix.de.md` | coverage-decision-matrix.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/docs/coverage-decision-matrix.md` | coverage-decision-matrix helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/docs/public-sources.md` | public-sources helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/docs/validation.md` | validation helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/harness/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/harness/run_apache_smoke.sh` | run apache smoke helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/metadata.c` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/metadata.h` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/mod_security3.c` | mod security3 helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/mod_security3.h` | mod security3 helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/msc_apache_mapper.c` | msc apache mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/msc_apache_mapper.h` | msc apache mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/msc_config.c` | msc config helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/msc_config.h` | msc config helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/msc_filters.c` | msc filters helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/msc_filters.h` | msc filters helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/msc_utils.c` | msc utils helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/apache/src/msc_utils.h` | msc utils helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
+| `connectors/apache/Makefile.am` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/autogen.sh` | Implementiert bzw. baut `autogen` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/build/apxs-wrapper.in` | Implementiert bzw. baut `apxs wrapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/build/ax_prog_apache.m4` | Implementiert bzw. baut `ax prog apache` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/build/find_apxs.m4` | Implementiert bzw. baut `find apxs` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/build/find_libmodsec.m4` | Implementiert bzw. baut `find libmodsec` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/configure.ac` | Implementiert bzw. baut `configure` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/harness/run_apache_smoke.sh` | Implementiert bzw. baut `run apache smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/mod_security3.c` | Implementiert bzw. baut `mod security3` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/mod_security3.h` | Implementiert bzw. baut `mod security3` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/msc_apache_mapper.c` | Implementiert bzw. baut `msc apache mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/msc_apache_mapper.h` | Implementiert bzw. baut `msc apache mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/msc_config.c` | Implementiert bzw. baut `msc config` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/msc_config.h` | Implementiert bzw. baut `msc config` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/msc_filters.c` | Implementiert bzw. baut `msc filters` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/msc_filters.h` | Implementiert bzw. baut `msc filters` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/msc_utils.c` | Implementiert bzw. baut `msc utils` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/apache/src/msc_utils.h` | Implementiert bzw. baut `msc utils` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
 
 ## NGINX-Connector
 
-### Zweck des Connectors
-Der NGINX-Connector belässt Host-/Server-API-Arbeit in `connectors/nginx/` und adoptiert Common-Config, Mapping, Decision-, Status-, Event- und Metadaten-Contracts, soweit umgesetzt.
+### Zweck
+Der NGINX-Connector belässt die Host-/Server-API-Integration in `connectors/nginx/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
-common SDK adoption present; runtime claims require current harness/report evidence.
+Common-SDK-Adoption ist vorhanden; jeder Runtime-Claim benötigt aktuelle Harness-/Report-Evidence.
 
 ### Common-SDK-Adoption
-Der Connector soll, soweit passend, `msconnector_config`, Direktiven-Vokabular, Mapper-Contracts, Request-/Response-Modelle, Status-/Decision-/Event-Helfer und Common-Source-Linking verwenden. Adoption-Checks sind Compile-/Static-/Contract-Evidenz, keine automatische Runtime Evidence.
+Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
 
 ### Config-/Directive-Unterstützung
-Unterstützte Common-Direktiven stehen in der Direktiventabelle. Nicht unterstützte oder host-spezifische Syntax muss als `not supported`, `not applicable`, `connector-gap` oder `structure-only` markiert werden; Apache-artige Expressions dürfen nicht stillschweigend als NGINX-Syntax akzeptiert werden.
+Unterstützte Common-Direktiven stehen in der Direktiventabelle. Host-spezifische Syntax bleibt host-spezifisch. Nicht unterstützte Syntax muss als `not supported`, `not applicable`, `connector-gap`, `partial` oder `requires runtime evidence` gekennzeichnet werden. NGINX darf Apache-artige Transaction-Expressions nicht stillschweigend als NGINX-Syntax akzeptieren.
 
 ### Request-Mapping
-Request-Mapping wandelt Host-Request-Objekte in `msconnector_request` und Header-Helfer um. Fehlende Host-Details sind `partial` oder `requires runtime evidence`.
+Der Request-Mapper wandelt Host-Request-Strukturen in `msconnector_request` und gemeinsame Header-Helfer um. Fehlende Host-Details müssen als `partial` oder `requires runtime evidence` behandelt werden.
 
 ### Response-Mapping
-Response-Mapping wandelt Host-Response-/Header-/Body-Zustand in `msconnector_response` um. RESPONSE_BODY-Verhalten darf nur mit aktueller Runtime Evidence als verifiziert bezeichnet werden.
+Der Response-Mapper wandelt Host-Response-, Header- und Body-Zustand in `msconnector_response` um. Response-Body-Verhalten ist nur dann verifiziert, wenn aktuelle Runtime-Evidence dies belegt.
 
 ### Decision/Event/JSONL-Verhalten
-Decision-, Intervention-, Status- und JSONL-Event-Helfer sind Common-Semantik. Per-run Event-Ausgabe ist nur Evidenz für diesen Lauf.
+Die gemeinsamen Decision-, Intervention-, Status- und JSONL-Ereignis-Helfer liefern gemeinsame Semantik. Per-run Events sind nur Evidence für genau diesen Lauf.
 
-### Resource-/Body-/DoS-/Flow boundaries
-Resource Limits, Body Policy, DoS Guard und Flow Guard sind connector-neutrale Kontrollen. Sie sind Guardrails und Governance-Modelle, keine runtime-secure- oder tamper-proof-Claims.
+### Resource-/Body-/DoS-/Flow-Grenzen
+Ressourcenlimits, Body Policy, DoS-Schutz und Flow-Guard sind connector-neutrale Guardrails. Sie beweisen kein runtime-secure Verhalten und keine tamper-proof Evidence.
 
-### C-Sprachstandard / Checks
-C17 ist das erforderliche Compile-Profil, wenn Compiler und Header vorhanden sind. C23 und future-C sind optional. Exit 77 bedeutet BLOCKED/SKIPPED wegen fehlender Umgebung oder nicht unterstütztem optionalem Profil, nicht versteckter Compile-Fehler.
+### C17/C23/future-C-Checks
+C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 und future-C sind optional. Exit 77 ist für fehlende Umgebung oder nicht unterstützte optionale Profile reserviert.
 
 ### CI-/Contract-Checks
-Nutze connector-spezifische Common-Adoption- und C-Standard-Ziele plus gemeinsame Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
+Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-For NGINX-Connector, trust current metadata and generated reports only. Envoy, Traefik and lighttpd explicitly remain `not_verified / connector-gap` until real runtime evidence exists.
+Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
 
-### Was umgesetzt ist
-Common-facing structure, metadata, docs/harness stubs or Connector-Quellen are present as listed below.
+### Umgesetzt
+Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
 
-### Was fehlt
-Fehlende Arbeit ist alles, was als `connector-gap`, `not_verified`, `structure-only`, `unknown` oder `requires runtime evidence` markiert ist, besonders echte Runtime-Integration für Starter-Connectoren.
+### Fehlend
+Alles, was als `connector-gap`, `not_verified`, `structure-only`, `partial`, `unknown` oder `requires runtime evidence` markiert ist, benötigt noch Evidence oder Implementierung.
 
 ### Was connector-spezifisch bleibt
-ngx_http_request_t, ngx_command_t, ngx_chain_t, ngx_buf_t, Headers_in/Headers_out, filters, pools, return codes and NGINX module build glue bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
+`ngx_http_request_t`, `ngx_command_t`, `ngx_chain_t`, `ngx_buf_t`, `headers_in`/`headers_out`, Filter, Pools, Return-Codes und NGINX-Modul-Build-Glue bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
 
-### Dateien des Connectors
+### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/nginx/ORIGIN.md` | ORIGIN helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/README.de.md` | README.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/SOURCE_MAP.json` | SOURCE MAP helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/TODO.md` | TODO helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/config` | connector-neutral configuration object, defaults, merge and validation | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/docs/architecture.md` | architecture helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/docs/build.md` | build helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/docs/coverage-decision-matrix.de.md` | coverage-decision-matrix.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/docs/coverage-decision-matrix.md` | coverage-decision-matrix helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/docs/public-sources.md` | public-sources helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/docs/validation.md` | validation helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/harness/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/harness/run_nginx_smoke.sh` | run nginx smoke helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/metadata.c` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/metadata.h` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ddebug.h` | ddebug helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ngx_http_modsecurity_access.c` | ngx http modsecurity access helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | ngx http modsecurity body filter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ngx_http_modsecurity_common.h` | ngx http modsecurity common helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ngx_http_modsecurity_Header_filter.c` | ngx http modsecurity Header filter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ngx_http_modsecurity_log.c` | ngx http modsecurity log helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ngx_http_modsecurity_mapper.c` | ngx http modsecurity mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ngx_http_modsecurity_mapper.h` | ngx http modsecurity mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/nginx/src/ngx_http_modsecurity_module.c` | ngx http modsecurity module helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
+| `connectors/nginx/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/config` | Implementiert bzw. baut `config` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/harness/run_nginx_smoke.sh` | Implementiert bzw. baut `run nginx smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ddebug.h` | Implementiert bzw. baut `ddebug` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_access.c` | Implementiert bzw. baut `ngx http modsecurity access` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_body_filter.c` | Implementiert bzw. baut `ngx http modsecurity body filter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_common.h` | Implementiert bzw. baut `ngx http modsecurity common` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_header_filter.c` | Implementiert bzw. baut `ngx http modsecurity header filter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_log.c` | Implementiert bzw. baut `ngx http modsecurity log` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_mapper.c` | Implementiert bzw. baut `ngx http modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_mapper.h` | Implementiert bzw. baut `ngx http modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/nginx/src/ngx_http_modsecurity_module.c` | Implementiert bzw. baut `ngx http modsecurity module` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
 
 ## HAProxy-Connector
 
-### Zweck des Connectors
-Der HAProxy-Connector belässt Host-/Server-API-Arbeit in `connectors/haproxy/` und adoptiert Common-Config, Mapping, Decision-, Status-, Event- und Metadaten-Contracts, soweit umgesetzt.
+### Zweck
+Der HAProxy-Connector belässt die Host-/Server-API-Integration in `connectors/haproxy/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
-common SDK adoption present; runtime claims require current harness/report evidence.
+Common-SDK-Adoption ist vorhanden; jeder Runtime-Claim benötigt aktuelle Harness-/Report-Evidence.
 
 ### Common-SDK-Adoption
-Der Connector soll, soweit passend, `msconnector_config`, Direktiven-Vokabular, Mapper-Contracts, Request-/Response-Modelle, Status-/Decision-/Event-Helfer und Common-Source-Linking verwenden. Adoption-Checks sind Compile-/Static-/Contract-Evidenz, keine automatische Runtime Evidence.
+Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
 
 ### Config-/Directive-Unterstützung
-Unterstützte Common-Direktiven stehen in der Direktiventabelle. Nicht unterstützte oder host-spezifische Syntax muss als `not supported`, `not applicable`, `connector-gap` oder `structure-only` markiert werden; Apache-artige Expressions dürfen nicht stillschweigend als NGINX-Syntax akzeptiert werden.
+Unterstützte Common-Direktiven stehen in der Direktiventabelle. Host-spezifische Syntax bleibt host-spezifisch. Nicht unterstützte Syntax muss als `not supported`, `not applicable`, `connector-gap`, `partial` oder `requires runtime evidence` gekennzeichnet werden. NGINX darf Apache-artige Transaction-Expressions nicht stillschweigend als NGINX-Syntax akzeptieren.
 
 ### Request-Mapping
-Request-Mapping wandelt Host-Request-Objekte in `msconnector_request` und Header-Helfer um. Fehlende Host-Details sind `partial` oder `requires runtime evidence`.
+Der Request-Mapper wandelt Host-Request-Strukturen in `msconnector_request` und gemeinsame Header-Helfer um. Fehlende Host-Details müssen als `partial` oder `requires runtime evidence` behandelt werden.
 
 ### Response-Mapping
-Response-Mapping wandelt Host-Response-/Header-/Body-Zustand in `msconnector_response` um. RESPONSE_BODY-Verhalten darf nur mit aktueller Runtime Evidence als verifiziert bezeichnet werden.
+Der Response-Mapper wandelt Host-Response-, Header- und Body-Zustand in `msconnector_response` um. Response-Body-Verhalten ist nur dann verifiziert, wenn aktuelle Runtime-Evidence dies belegt.
 
 ### Decision/Event/JSONL-Verhalten
-Decision-, Intervention-, Status- und JSONL-Event-Helfer sind Common-Semantik. Per-run Event-Ausgabe ist nur Evidenz für diesen Lauf.
+Die gemeinsamen Decision-, Intervention-, Status- und JSONL-Ereignis-Helfer liefern gemeinsame Semantik. Per-run Events sind nur Evidence für genau diesen Lauf.
 
-### Resource-/Body-/DoS-/Flow boundaries
-Resource Limits, Body Policy, DoS Guard und Flow Guard sind connector-neutrale Kontrollen. Sie sind Guardrails und Governance-Modelle, keine runtime-secure- oder tamper-proof-Claims.
+### Resource-/Body-/DoS-/Flow-Grenzen
+Ressourcenlimits, Body Policy, DoS-Schutz und Flow-Guard sind connector-neutrale Guardrails. Sie beweisen kein runtime-secure Verhalten und keine tamper-proof Evidence.
 
-### C-Sprachstandard / Checks
-C17 ist das erforderliche Compile-Profil, wenn Compiler und Header vorhanden sind. C23 und future-C sind optional. Exit 77 bedeutet BLOCKED/SKIPPED wegen fehlender Umgebung oder nicht unterstütztem optionalem Profil, nicht versteckter Compile-Fehler.
+### C17/C23/future-C-Checks
+C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 und future-C sind optional. Exit 77 ist für fehlende Umgebung oder nicht unterstützte optionale Profile reserviert.
 
 ### CI-/Contract-Checks
-Nutze connector-spezifische Common-Adoption- und C-Standard-Ziele plus gemeinsame Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
+Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-For HAProxy-Connector, trust current metadata and generated reports only. Envoy, Traefik and lighttpd explicitly remain `not_verified / connector-gap` until real runtime evidence exists.
+Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
 
-### Was umgesetzt ist
-Common-facing structure, metadata, docs/harness stubs or Connector-Quellen are present as listed below.
+### Umgesetzt
+Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
 
-### Was fehlt
-Fehlende Arbeit ist alles, was als `connector-gap`, `not_verified`, `structure-only`, `unknown` oder `requires runtime evidence` markiert ist, besonders echte Runtime-Integration für Starter-Connectoren.
+### Fehlend
+Alles, was als `connector-gap`, `not_verified`, `structure-only`, `partial`, `unknown` oder `requires runtime evidence` markiert ist, benötigt noch Evidence oder Implementierung.
 
 ### Was connector-spezifisch bleibt
-SPOE/SPOP, frame parsing, runtime loop, socket handling, HAProxy cfg snippets, process lifecycle and build glue bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
+SPOE/SPOP, Frame-Parsing, Runtime-Loop, Socket-Handling, HAProxy-Konfigurationsausschnitte, Prozess-Lifecycle und Build-Glue bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
 
-### Dateien des Connectors
+### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/haproxy/Makefile` | Makefile helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/ORIGIN.md` | ORIGIN helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/README.de.md` | README.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/SOURCE_MAP.json` | SOURCE MAP helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/TODO.md` | TODO helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/architecture.md` | architecture helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/build.md` | build helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/coverage-decision-matrix.de.md` | coverage-decision-matrix.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/coverage-decision-matrix.md` | coverage-decision-matrix helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/evidence-findings.de.md` | evidence-findings.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/evidence-findings.md` | evidence-findings helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/evidence-questionnaire.de.md` | evidence-questionnaire.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/evidence-questionnaire.md` | evidence-questionnaire helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/integration-decision.md` | integration-decision helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/public-sources.md` | public-sources helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/spoe-external-evidence.de.md` | spoe-external-evidence.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/spoe-external-evidence.md` | spoe-external-evidence helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/spoe-minimal-artifacts.md` | spoe-minimal-artifacts helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/spoe-poc-plan.md` | spoe-poc-plan helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/test-framework-contract.md` | test-framework-contract helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/docs/validation.md` | validation helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/harness/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/harness/run_haproxy_smoke.sh` | run haproxy smoke helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/metadata.c` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/metadata.h` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/poc/spoe/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/poc/spoe/agent/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/poc/spoe/agent/design.md` | design helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/poc/spoe/harness/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/poc/spoe/harness/design.md` | design helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/poc/spoe/reports/README.de.md` | README.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/poc/spoe/reports/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/poc/spoe/syntax-validation.md` | syntax-validation helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_modsecurity_binding.c` | haproxy modsecurity binding helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_modsecurity_binding.h` | haproxy modsecurity binding helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c` | haproxy modsecurity binding self test helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_modsecurity_mapper.c` | haproxy modsecurity mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_modsecurity_mapper.h` | haproxy modsecurity mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_spoa_agent_starter.c` | haproxy spoa agent starter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_spoa_agent_starter.h` | haproxy spoa agent starter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_spoa_main.c` | haproxy spoa main helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
-| `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` | haproxy spop diagnostic runtime helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | implemented or dokumentiert; benötigt Evidenz für Runtime-Claims |
+| `connectors/haproxy/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/evidence-findings.de.md` | Dokumentiert oder implementiert `evidence findings.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/evidence-findings.md` | Dokumentiert oder implementiert `evidence findings` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/evidence-questionnaire.de.md` | Dokumentiert oder implementiert `evidence questionnaire.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/evidence-questionnaire.md` | Dokumentiert oder implementiert `evidence questionnaire` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/integration-decision.md` | Dokumentiert oder implementiert `integration decision` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/spoe-external-evidence.de.md` | Dokumentiert oder implementiert `spoe external evidence.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/spoe-external-evidence.md` | Dokumentiert oder implementiert `spoe external evidence` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/spoe-minimal-artifacts.md` | Dokumentiert oder implementiert `spoe minimal artifacts` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/spoe-poc-plan.md` | Dokumentiert oder implementiert `spoe poc plan` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/test-framework-contract.md` | Dokumentiert oder implementiert `test framework contract` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/harness/run_haproxy_smoke.sh` | Implementiert bzw. baut `run haproxy smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/poc/spoe/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/poc/spoe/agent/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/poc/spoe/agent/design.md` | Dokumentiert oder implementiert `design` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/poc/spoe/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/poc/spoe/harness/design.md` | Dokumentiert oder implementiert `design` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/poc/spoe/reports/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/poc/spoe/reports/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/poc/spoe/syntax-validation.md` | Dokumentiert oder implementiert `syntax validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_modsecurity_binding.c` | Implementiert bzw. baut `haproxy modsecurity binding` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_modsecurity_binding.h` | Implementiert bzw. baut `haproxy modsecurity binding` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_modsecurity_binding_self_test.c` | Implementiert bzw. baut `haproxy modsecurity binding self test` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_modsecurity_mapper.c` | Implementiert bzw. baut `haproxy modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_modsecurity_mapper.h` | Implementiert bzw. baut `haproxy modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_spoa_agent_starter.c` | Implementiert bzw. baut `haproxy spoa agent starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_spoa_agent_starter.h` | Implementiert bzw. baut `haproxy spoa agent starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_spoa_main.c` | Implementiert bzw. baut `haproxy spoa main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
+| `connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c` | Implementiert bzw. baut `haproxy spop diagnostic runtime` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | vorhanden; Runtime-Claims benötigen aktuelle Evidence |
 
 ## Envoy-Connector
 
-### Zweck des Connectors
-Der Envoy-Connector belässt Host-/Server-API-Arbeit in `connectors/envoy/` und adoptiert Common-Config, Mapping, Decision-, Status-, Event- und Metadaten-Contracts, soweit umgesetzt.
+### Zweck
+Der Envoy-Connector belässt die Host-/Server-API-Integration in `connectors/envoy/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
 not_verified / connector-gap; Starter / structure-only / compile-only; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
 
 ### Common-SDK-Adoption
-Der Connector soll, soweit passend, `msconnector_config`, Direktiven-Vokabular, Mapper-Contracts, Request-/Response-Modelle, Status-/Decision-/Event-Helfer und Common-Source-Linking verwenden. Adoption-Checks sind Compile-/Static-/Contract-Evidenz, keine automatische Runtime Evidence.
+Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
 
 ### Config-/Directive-Unterstützung
-Unterstützte Common-Direktiven stehen in der Direktiventabelle. Nicht unterstützte oder host-spezifische Syntax muss als `not supported`, `not applicable`, `connector-gap` oder `structure-only` markiert werden; Apache-artige Expressions dürfen nicht stillschweigend als NGINX-Syntax akzeptiert werden.
+Unterstützte Common-Direktiven stehen in der Direktiventabelle. Host-spezifische Syntax bleibt host-spezifisch. Nicht unterstützte Syntax muss als `not supported`, `not applicable`, `connector-gap`, `partial` oder `requires runtime evidence` gekennzeichnet werden. NGINX darf Apache-artige Transaction-Expressions nicht stillschweigend als NGINX-Syntax akzeptieren.
 
 ### Request-Mapping
-Request-Mapping wandelt Host-Request-Objekte in `msconnector_request` und Header-Helfer um. Fehlende Host-Details sind `partial` oder `requires runtime evidence`.
+Der Request-Mapper wandelt Host-Request-Strukturen in `msconnector_request` und gemeinsame Header-Helfer um. Fehlende Host-Details müssen als `partial` oder `requires runtime evidence` behandelt werden.
 
 ### Response-Mapping
-Response-Mapping wandelt Host-Response-/Header-/Body-Zustand in `msconnector_response` um. RESPONSE_BODY-Verhalten darf nur mit aktueller Runtime Evidence als verifiziert bezeichnet werden.
+Der Response-Mapper wandelt Host-Response-, Header- und Body-Zustand in `msconnector_response` um. Response-Body-Verhalten ist nur dann verifiziert, wenn aktuelle Runtime-Evidence dies belegt.
 
 ### Decision/Event/JSONL-Verhalten
-Decision-, Intervention-, Status- und JSONL-Event-Helfer sind Common-Semantik. Per-run Event-Ausgabe ist nur Evidenz für diesen Lauf.
+Die gemeinsamen Decision-, Intervention-, Status- und JSONL-Ereignis-Helfer liefern gemeinsame Semantik. Per-run Events sind nur Evidence für genau diesen Lauf.
 
-### Resource-/Body-/DoS-/Flow boundaries
-Resource Limits, Body Policy, DoS Guard und Flow Guard sind connector-neutrale Kontrollen. Sie sind Guardrails und Governance-Modelle, keine runtime-secure- oder tamper-proof-Claims.
+### Resource-/Body-/DoS-/Flow-Grenzen
+Ressourcenlimits, Body Policy, DoS-Schutz und Flow-Guard sind connector-neutrale Guardrails. Sie beweisen kein runtime-secure Verhalten und keine tamper-proof Evidence.
 
-### C-Sprachstandard / Checks
-C17 ist das erforderliche Compile-Profil, wenn Compiler und Header vorhanden sind. C23 und future-C sind optional. Exit 77 bedeutet BLOCKED/SKIPPED wegen fehlender Umgebung oder nicht unterstütztem optionalem Profil, nicht versteckter Compile-Fehler.
+### C17/C23/future-C-Checks
+C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 und future-C sind optional. Exit 77 ist für fehlende Umgebung oder nicht unterstützte optionale Profile reserviert.
 
 ### CI-/Contract-Checks
-Nutze connector-spezifische Common-Adoption- und C-Standard-Ziele plus gemeinsame Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
+Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Für den Envoy-Connector gelten nur aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben ausdrücklich `not_verified / connector-gap`, bis echte Runtime Evidence existiert.
+Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
 
-### Was umgesetzt ist
-Common-facing structure, metadata, docs/harness stubs or Connector-Quellen are present as listed below.
+### Umgesetzt
+Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
 
-### Was fehlt
-Fehlende Arbeit ist alles, was als `connector-gap`, `not_verified`, `structure-only`, `unknown` oder `requires runtime evidence` markiert ist, besonders echte Runtime-Integration für Starter-Connectoren.
+### Fehlend
+Alles, was als `connector-gap`, `not_verified`, `structure-only`, `partial`, `unknown` oder `requires runtime evidence` markiert ist, benötigt noch Evidence oder Implementierung.
 
 ### Was connector-spezifisch bleibt
-Envoy filter/runtime API, native Envoy SDK ownership and deployed proxy integration bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
+Envoy-Filter-/Runtime-API, Besitz nativer Envoy-SDK-Integration und ausgerollte Proxy-Integration bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
 
-### Dateien des Connectors
+### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/envoy/Makefile` | Makefile helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/envoy/ORIGIN.md` | ORIGIN helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/README.de.md` | README.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/SOURCE_MAP.json` | SOURCE MAP helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/TODO.md` | TODO helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/build/build_metadata.sh` | build metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/architecture.md` | architecture helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/build.md` | build helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/coverage-decision-matrix.de.md` | coverage-decision-matrix.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/coverage-decision-matrix.md` | coverage-decision-matrix helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/public-sources.md` | public-sources helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/docs/validation.md` | validation helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/harness/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/envoy/harness/run_envoy_smoke.sh` | run envoy smoke helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/envoy/metadata.c` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/metadata.h` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/envoy/src/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge.c` | envoy bridge helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge.h` | envoy bridge helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_bridge_main.c` | envoy bridge main helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/envoy/src/envoy_modsecurity_mapper.h` | envoy modsecurity mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
+| `connectors/envoy/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/envoy/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/build/build_metadata.sh` | Implementiert bzw. baut `build metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/envoy/harness/run_envoy_smoke.sh` | Implementiert bzw. baut `run envoy smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/envoy/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/envoy/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/envoy/src/envoy_bridge.c` | Implementiert bzw. baut `envoy bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/envoy/src/envoy_bridge.h` | Implementiert bzw. baut `envoy bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/envoy/src/envoy_bridge_main.c` | Implementiert bzw. baut `envoy bridge main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/envoy/src/envoy_modsecurity_mapper.h` | Implementiert bzw. baut `envoy modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
 
 ## Traefik-Connector
 
-### Zweck des Connectors
-Der Traefik-Connector belässt Host-/Server-API-Arbeit in `connectors/traefik/` und adoptiert Common-Config, Mapping, Decision-, Status-, Event- und Metadaten-Contracts, soweit umgesetzt.
+### Zweck
+Der Traefik-Connector belässt die Host-/Server-API-Integration in `connectors/traefik/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
 not_verified / connector-gap; Starter / structure-only / compile-only; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
 
 ### Common-SDK-Adoption
-Der Connector soll, soweit passend, `msconnector_config`, Direktiven-Vokabular, Mapper-Contracts, Request-/Response-Modelle, Status-/Decision-/Event-Helfer und Common-Source-Linking verwenden. Adoption-Checks sind Compile-/Static-/Contract-Evidenz, keine automatische Runtime Evidence.
+Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
 
 ### Config-/Directive-Unterstützung
-Unterstützte Common-Direktiven stehen in der Direktiventabelle. Nicht unterstützte oder host-spezifische Syntax muss als `not supported`, `not applicable`, `connector-gap` oder `structure-only` markiert werden; Apache-artige Expressions dürfen nicht stillschweigend als NGINX-Syntax akzeptiert werden.
+Unterstützte Common-Direktiven stehen in der Direktiventabelle. Host-spezifische Syntax bleibt host-spezifisch. Nicht unterstützte Syntax muss als `not supported`, `not applicable`, `connector-gap`, `partial` oder `requires runtime evidence` gekennzeichnet werden. NGINX darf Apache-artige Transaction-Expressions nicht stillschweigend als NGINX-Syntax akzeptieren.
 
 ### Request-Mapping
-Request-Mapping wandelt Host-Request-Objekte in `msconnector_request` und Header-Helfer um. Fehlende Host-Details sind `partial` oder `requires runtime evidence`.
+Der Request-Mapper wandelt Host-Request-Strukturen in `msconnector_request` und gemeinsame Header-Helfer um. Fehlende Host-Details müssen als `partial` oder `requires runtime evidence` behandelt werden.
 
 ### Response-Mapping
-Response-Mapping wandelt Host-Response-/Header-/Body-Zustand in `msconnector_response` um. RESPONSE_BODY-Verhalten darf nur mit aktueller Runtime Evidence als verifiziert bezeichnet werden.
+Der Response-Mapper wandelt Host-Response-, Header- und Body-Zustand in `msconnector_response` um. Response-Body-Verhalten ist nur dann verifiziert, wenn aktuelle Runtime-Evidence dies belegt.
 
 ### Decision/Event/JSONL-Verhalten
-Decision-, Intervention-, Status- und JSONL-Event-Helfer sind Common-Semantik. Per-run Event-Ausgabe ist nur Evidenz für diesen Lauf.
+Die gemeinsamen Decision-, Intervention-, Status- und JSONL-Ereignis-Helfer liefern gemeinsame Semantik. Per-run Events sind nur Evidence für genau diesen Lauf.
 
-### Resource-/Body-/DoS-/Flow boundaries
-Resource Limits, Body Policy, DoS Guard und Flow Guard sind connector-neutrale Kontrollen. Sie sind Guardrails und Governance-Modelle, keine runtime-secure- oder tamper-proof-Claims.
+### Resource-/Body-/DoS-/Flow-Grenzen
+Ressourcenlimits, Body Policy, DoS-Schutz und Flow-Guard sind connector-neutrale Guardrails. Sie beweisen kein runtime-secure Verhalten und keine tamper-proof Evidence.
 
-### C-Sprachstandard / Checks
-C17 ist das erforderliche Compile-Profil, wenn Compiler und Header vorhanden sind. C23 und future-C sind optional. Exit 77 bedeutet BLOCKED/SKIPPED wegen fehlender Umgebung oder nicht unterstütztem optionalem Profil, nicht versteckter Compile-Fehler.
+### C17/C23/future-C-Checks
+C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 und future-C sind optional. Exit 77 ist für fehlende Umgebung oder nicht unterstützte optionale Profile reserviert.
 
 ### CI-/Contract-Checks
-Nutze connector-spezifische Common-Adoption- und C-Standard-Ziele plus gemeinsame Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
+Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Für den Traefik-Connector gelten nur aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben ausdrücklich `not_verified / connector-gap`, bis echte Runtime Evidence existiert.
+Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
 
-### Was umgesetzt ist
-Common-facing structure, metadata, docs/harness stubs or Connector-Quellen are present as listed below.
+### Umgesetzt
+Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
 
-### Was fehlt
-Fehlende Arbeit ist alles, was als `connector-gap`, `not_verified`, `structure-only`, `unknown` oder `requires runtime evidence` markiert ist, besonders echte Runtime-Integration für Starter-Connectoren.
+### Fehlend
+Alles, was als `connector-gap`, `not_verified`, `structure-only`, `partial`, `unknown` oder `requires runtime evidence` markiert ist, benötigt noch Evidence oder Implementierung.
 
 ### Was connector-spezifisch bleibt
-Traefik middleware/proxy/runtime API and real traffic path integration bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
+Traefik-Middleware-/Proxy-/Runtime-API und echte Traffic-Path-Integration bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
 
-### Dateien des Connectors
+### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/traefik/Makefile` | Makefile helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/traefik/ORIGIN.md` | ORIGIN helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/README.de.md` | README.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/SOURCE_MAP.json` | SOURCE MAP helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/TODO.md` | TODO helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/build/build-starter.sh` | build-starter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/architecture.md` | architecture helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/build.md` | build helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/coverage-decision-matrix.de.md` | coverage-decision-matrix.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/coverage-decision-matrix.md` | coverage-decision-matrix helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/public-sources.md` | public-sources helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/docs/validation.md` | validation helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/harness/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/traefik/harness/run_traefik_smoke.sh` | run traefik smoke helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/traefik/metadata.c` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/metadata.h` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/traefik/src/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_build_starter.c` | traefik build starter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service.c` | traefik decision service helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service.h` | traefik decision service helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_decision_service_main.c` | traefik decision service main helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/traefik/src/traefik_modsecurity_mapper.h` | traefik modsecurity mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
+| `connectors/traefik/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/build/build-starter.sh` | Implementiert bzw. baut `build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/harness/run_traefik_smoke.sh` | Implementiert bzw. baut `run traefik smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/traefik/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/src/traefik_build_starter.c` | Implementiert bzw. baut `traefik build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/src/traefik_decision_service.c` | Implementiert bzw. baut `traefik decision service` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/src/traefik_decision_service.h` | Implementiert bzw. baut `traefik decision service` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/src/traefik_decision_service_main.c` | Implementiert bzw. baut `traefik decision service main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/traefik/src/traefik_modsecurity_mapper.h` | Implementiert bzw. baut `traefik modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
 
 ## lighttpd-Connector
 
-### Zweck des Connectors
-Der lighttpd-Connector belässt Host-/Server-API-Arbeit in `connectors/lighttpd/` und adoptiert Common-Config, Mapping, Decision-, Status-, Event- und Metadaten-Contracts, soweit umgesetzt.
+### Zweck
+Der lighttpd-Connector belässt die Host-/Server-API-Integration in `connectors/lighttpd/` und nutzt Common-SDK-Verträge, soweit dies umgesetzt ist.
 
 ### Aktueller Status
 not_verified / connector-gap; Starter / structure-only / compile-only; kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim.
 
 ### Common-SDK-Adoption
-Der Connector soll, soweit passend, `msconnector_config`, Direktiven-Vokabular, Mapper-Contracts, Request-/Response-Modelle, Status-/Decision-/Event-Helfer und Common-Source-Linking verwenden. Adoption-Checks sind Compile-/Static-/Contract-Evidenz, keine automatische Runtime Evidence.
+Der Connector kann `msconnector_config`, das Direktiven-Vokabular, Mapper-Verträge, Request-/Response-Modelle, Entscheidungs-/Status-/Ereignis-Helfer und Common-Quellen nutzen. Adoption-Checks sind statische, Contract- oder Compile-Evidence und keine automatische Runtime-Evidence.
 
 ### Config-/Directive-Unterstützung
-Unterstützte Common-Direktiven stehen in der Direktiventabelle. Nicht unterstützte oder host-spezifische Syntax muss als `not supported`, `not applicable`, `connector-gap` oder `structure-only` markiert werden; Apache-artige Expressions dürfen nicht stillschweigend als NGINX-Syntax akzeptiert werden.
+Unterstützte Common-Direktiven stehen in der Direktiventabelle. Host-spezifische Syntax bleibt host-spezifisch. Nicht unterstützte Syntax muss als `not supported`, `not applicable`, `connector-gap`, `partial` oder `requires runtime evidence` gekennzeichnet werden. NGINX darf Apache-artige Transaction-Expressions nicht stillschweigend als NGINX-Syntax akzeptieren.
 
 ### Request-Mapping
-Request-Mapping wandelt Host-Request-Objekte in `msconnector_request` und Header-Helfer um. Fehlende Host-Details sind `partial` oder `requires runtime evidence`.
+Der Request-Mapper wandelt Host-Request-Strukturen in `msconnector_request` und gemeinsame Header-Helfer um. Fehlende Host-Details müssen als `partial` oder `requires runtime evidence` behandelt werden.
 
 ### Response-Mapping
-Response-Mapping wandelt Host-Response-/Header-/Body-Zustand in `msconnector_response` um. RESPONSE_BODY-Verhalten darf nur mit aktueller Runtime Evidence als verifiziert bezeichnet werden.
+Der Response-Mapper wandelt Host-Response-, Header- und Body-Zustand in `msconnector_response` um. Response-Body-Verhalten ist nur dann verifiziert, wenn aktuelle Runtime-Evidence dies belegt.
 
 ### Decision/Event/JSONL-Verhalten
-Decision-, Intervention-, Status- und JSONL-Event-Helfer sind Common-Semantik. Per-run Event-Ausgabe ist nur Evidenz für diesen Lauf.
+Die gemeinsamen Decision-, Intervention-, Status- und JSONL-Ereignis-Helfer liefern gemeinsame Semantik. Per-run Events sind nur Evidence für genau diesen Lauf.
 
-### Resource-/Body-/DoS-/Flow boundaries
-Resource Limits, Body Policy, DoS Guard und Flow Guard sind connector-neutrale Kontrollen. Sie sind Guardrails und Governance-Modelle, keine runtime-secure- oder tamper-proof-Claims.
+### Resource-/Body-/DoS-/Flow-Grenzen
+Ressourcenlimits, Body Policy, DoS-Schutz und Flow-Guard sind connector-neutrale Guardrails. Sie beweisen kein runtime-secure Verhalten und keine tamper-proof Evidence.
 
-### C-Sprachstandard / Checks
-C17 ist das erforderliche Compile-Profil, wenn Compiler und Header vorhanden sind. C23 und future-C sind optional. Exit 77 bedeutet BLOCKED/SKIPPED wegen fehlender Umgebung oder nicht unterstütztem optionalem Profil, nicht versteckter Compile-Fehler.
+### C17/C23/future-C-Checks
+C17 ist erforderlich, wenn Compiler und benötigte Header vorhanden sind. C23 und future-C sind optional. Exit 77 ist für fehlende Umgebung oder nicht unterstützte optionale Profile reserviert.
 
 ### CI-/Contract-Checks
-Nutze connector-spezifische Common-Adoption- und C-Standard-Ziele plus gemeinsame Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
+Nutze connector-spezifische Adoption-/C-Standard-Ziele und die gemeinsamen Contract-Ziele. Compile- und Contract-Checks erzeugen keine Production-, CRS-, Full-Matrix- oder Runtime-Claims.
 
 ### Runtime-Evidence-Status
-Für den lighttpd-Connector gelten nur aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben ausdrücklich `not_verified / connector-gap`, bis echte Runtime Evidence existiert.
+Maßgeblich sind aktuelle Metadaten und generierte Reports. Envoy, Traefik und lighttpd bleiben `not_verified / connector-gap`, bis echte Runtime-Evidence existiert.
 
-### Was umgesetzt ist
-Common-facing structure, metadata, docs/harness stubs or Connector-Quellen are present as listed below.
+### Umgesetzt
+Die unten aufgeführten Connector-Dateien, Metadaten, Dokumente, Harness-Stubs oder Quellen existieren im Repository.
 
-### Was fehlt
-Fehlende Arbeit ist alles, was als `connector-gap`, `not_verified`, `structure-only`, `unknown` oder `requires runtime evidence` markiert ist, besonders echte Runtime-Integration für Starter-Connectoren.
+### Fehlend
+Alles, was als `connector-gap`, `not_verified`, `structure-only`, `partial`, `unknown` oder `requires runtime evidence` markiert ist, benötigt noch Evidence oder Implementierung.
 
 ### Was connector-spezifisch bleibt
-lighttpd plugin/proxy/runtime API and FastCGI/SCGI/native module integration bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
+lighttpd-Plugin-/Proxy-/Runtime-API und FastCGI-/SCGI-/native Modul-Integration bleiben connector-spezifisch und dürfen nicht nach `common/` verschoben werden.
 
-### Dateien des Connectors
+### Wichtige Connector-Dateien
 | Datei | Zweck | Common-Bezug | Connector-spezifisch? | Status |
 |---|---|---|---|---|
-| `connectors/lighttpd/Makefile` | Makefile helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/lighttpd/ORIGIN.md` | ORIGIN helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/README.de.md` | README.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/SOURCE_MAP.json` | SOURCE MAP helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/TODO.md` | TODO helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/build/bridge_starter.sh` | bridge starter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/build/build_starter.sh` | build starter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/architecture.md` | architecture helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/build.md` | build helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/coverage-decision-matrix.de.md` | coverage-decision-matrix.de helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/coverage-decision-matrix.md` | coverage-decision-matrix helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/public-sources.md` | public-sources helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/docs/validation.md` | validation helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/harness/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/lighttpd/harness/run_lighttpd_smoke.sh` | run lighttpd smoke helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/lighttpd/metadata.c` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/metadata.h` | metadata helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | metadata/docs | not_verified / connector-gap |
-| `connectors/lighttpd/src/README.md` | README helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge.c` | lighttpd bridge helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge.h` | lighttpd bridge helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_bridge_main.c` | lighttpd bridge main helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_build_starter.c` | lighttpd build starter helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
-| `connectors/lighttpd/src/lighttpd_modsecurity_mapper.h` | lighttpd modsecurity mapper helper/model for the connector-neutral SDK | nutzt Common-Contracts, soweit eingebunden; siehe Source | yes | not_verified / connector-gap |
+| `connectors/lighttpd/Makefile` | Implementiert bzw. baut `Makefile` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/ORIGIN.md` | Dokumentiert oder implementiert `ORIGIN` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/README.de.md` | Dokumentiert oder implementiert `README.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/SOURCE_MAP.json` | Dokumentiert oder implementiert `SOURCE MAP` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/TODO.md` | Dokumentiert oder implementiert `TODO` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/build/bridge_starter.sh` | Implementiert bzw. baut `bridge starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/build/build_starter.sh` | Implementiert bzw. baut `build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/docs/architecture.md` | Dokumentiert oder implementiert `architecture` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/docs/build.md` | Dokumentiert oder implementiert `build` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/docs/coverage-decision-matrix.de.md` | Dokumentiert oder implementiert `coverage decision matrix.de` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/docs/coverage-decision-matrix.md` | Dokumentiert oder implementiert `coverage decision matrix` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/docs/public-sources.md` | Dokumentiert oder implementiert `public sources` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/docs/validation.md` | Dokumentiert oder implementiert `validation` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/harness/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/harness/run_lighttpd_smoke.sh` | Implementiert bzw. baut `run lighttpd smoke` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/metadata.c` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/metadata.h` | Implementiert bzw. baut `metadata` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | Metadaten/Dokumentation | not_verified / connector-gap |
+| `connectors/lighttpd/src/README.md` | Dokumentiert oder implementiert `README` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/src/lighttpd_bridge.c` | Implementiert bzw. baut `lighttpd bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/src/lighttpd_bridge.h` | Implementiert bzw. baut `lighttpd bridge` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/src/lighttpd_bridge_main.c` | Implementiert bzw. baut `lighttpd bridge main` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/src/lighttpd_build_starter.c` | Implementiert bzw. baut `lighttpd build starter` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
+| `connectors/lighttpd/src/lighttpd_modsecurity_mapper.h` | Implementiert bzw. baut `lighttpd modsecurity mapper` im Connector-Bereich | nutzt Common-Contracts, wenn im Quelltext eingebunden; Host-API bleibt connector-spezifisch | ja | not_verified / connector-gap |
 
 ## Connector-Statusmatrix
 
-| Connector | Current status | Common adoption | Runtime evidence | Forbidden inference |
+| Connector | Aktueller Status | Common-Adoption | Runtime-Evidence | Verbotene Schlussfolgerung |
 |---|---|---|---|---|
-| Apache | implementierte Connector-Quellen | present | benötigt aktuelle Reports/Harness-Ausgabe | no production/runtime/CRS/full-matrix claim |
-| NGINX | implementierte Connector-Quellen | present | benötigt aktuelle Reports/Harness-Ausgabe | no production/runtime/CRS/full-matrix claim |
-| HAProxy | SPOA/starter plus mapper/binding Source | present/partial | benötigt aktuelle Reports/Harness-Ausgabe | no production/runtime/CRS/full-matrix claim |
-| Envoy | starter/structure-only/compile-only | prepared | missing | no production, CRS, full-matrix or RESPONSE_BODY claim |
-| Traefik | starter/structure-only/compile-only | prepared | missing; per-run result only if run | no production, CRS, full-matrix or RESPONSE_BODY claim |
-| lighttpd | starter/structure-only/compile-only | prepared | missing | no production, CRS, full-matrix or RESPONSE_BODY claim |
+| Apache | Connector-Quellen vorhanden | vorhanden | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| NGINX | Connector-Quellen vorhanden | vorhanden | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| HAProxy | SPOA-/Starter- sowie Mapper-/Binding-Quellen vorhanden | vorhanden/partial | benötigt aktuelle Reports/Harness-Ausgabe | kein Production-/Runtime-/CRS-/Full-Matrix-Claim |
+| Envoy | Starter/structure-only/compile-only | vorbereitet | fehlt | kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim |
+| Traefik | Starter/structure-only/compile-only | vorbereitet | fehlt; per-run Ergebnis nur bei Lauf | kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim |
+| lighttpd | Starter/structure-only/compile-only | vorbereitet | fehlt | kein Production-, CRS-, Full-Matrix- oder RESPONSE_BODY-Claim |
 
 ## Test-Framework-Bezug
 
-Das wiederverwendbare Test-Framework wird unter `modules/ModSecurity-test-Framework` erwartet. Framework-abhängige Ziele können BLOCKED sein, wenn das Submodule oder seine Inputs fehlen. Das bedeutet nicht automatisch, dass Common-/Connector-Compile-Checks fehlgeschlagen sind.
+Das wiederverwendbare Test-Framework wird unter `modules/ModSecurity-test-Framework` erwartet. Framework-abhängige Targets können BLOCKED sein, wenn Submodule, Framework-Dokumente, Fixtures oder Runtime-Komponenten fehlen. Das bedeutet nicht automatisch, dass ein Common-SDK- oder Connector-Compile-Check fehlgeschlagen ist.
 
-## Runtime Evidence und Verification Policy
+## Runtime-Evidence und Verifikationsrichtlinie
 
-Connector-Metadatenfelder wie `runtime_status`, `verification_status`, `not_verified` and `connector-gap` beschreiben den Repository-weiten Connector-Status. Per-run `result.json` fields such as `status: PASS/BLOCKED/FAIL`, `runtime_verified: true/false` and `runtime_status: verified/blocked/...` beschreiben nur diesen Lauf. Ein Starter-Smoke kann per-run PASS oder sogar `runtime_verified: true` für diesen Lauf erzeugen, aber das ändert Connector-Metadaten nicht automatisch von `not_verified / connector-gap`.
+Connector-Metadatenfelder wie `runtime_status`, `verification_status`, `not_verified` und `connector-gap` beschreiben den repository-weiten Connector-Status. Per-run `result.json`-Felder wie `status: PASS/BLOCKED/FAIL`, `runtime_verified: true/false` und `runtime_status: verified/blocked/...` beschreiben nur diesen Lauf. Ein Starter-Smoke kann lokal bestehen, ändert aber Connector-Metadaten nicht automatisch von `not_verified / connector-gap`.
 
-## Was bereits umgesetzt ist
+## Umgesetzt
 
-Umgesetzte Repository-Fakten umfassen the Common SDK, config/directive/parser model, request/response mapper contracts, common security/data-flow guard helpers, Apache/NGINX/HAProxy common-adoption structures, Envoy/Traefik/lighttpd starter preparation, C17/C23/future-C check wiring, CI/governance scripts and generated docs/reports areas. Behandle dies jeweils als Static-/Compile-/Governance-Evidenz, sofern keine aktuelle spezifische Runtime Evidence vorliegt.
+Umgesetzte Repository-Fakten umfassen das Common SDK, das Common-Config-/Direktiven-/Parser-Modell, Request-/Response-Mapper-Verträge, Common-Guard-/Flow-Helfer, Apache-/NGINX-/HAProxy-Common-Adoption-Strukturen, Envoy-/Traefik-/lighttpd-Starter-Vorbereitung, C17/C23/future-C-Check-Wiring, CI-/Governance-Skripte sowie Dokumentations- und Report-Bereiche. Alles ist als statische, Compile- oder Governance-Evidence zu behandeln, sofern aktuelle Runtime-Evidence nicht darüber hinausgeht.
 
-## Was noch fehlt
+## Fehlend / Nächste Schritte
 
-Fehlende oder zukünftige Arbeit umfasst real runtime evidence for Envoy, Traefik and lighttpd; CRS matrix evidence; RESPONSE_BODY runtime evidence; full-matrix verification; production hardening; HMAC/signed event chains if desired; append-only evidence storage if desired; and additional runtime harnesses.
+Fehlende oder zukünftige Arbeit umfasst echte Runtime-Evidence für Envoy, Traefik und lighttpd; CRS-Matrix-Evidence; RESPONSE_BODY-Runtime-Evidence; Full-Matrix-Verifikation; Production Hardening; signierte/HMAC-Event-Chains, falls gewünscht; append-only Evidence Storage, falls gewünscht; und zusätzliche Runtime-Harnesses.
 
 ## Bekannte Grenzen
 
-Bekannte Grenzen sind connector-specific host APIs, umgebungsabhängige Header/Toolchains, Framework-/Submodule-Blocker, Starter-only-Connectoren, partial/unknown runtime coverage and Dokumentation that must be kept synchronized with metadata and reports.
+Bekannte Grenzen sind connector-spezifische Host-APIs, umgebungsabhängige Header/Toolchains, Framework-/Submodule-Blocker, Starter-only-Connectoren, partial/unknown Runtime-Coverage und Dokumentation, die mit Metadaten und Reports synchron bleiben muss.
 
-## Was bewusst connector-spezifisch bleibt
+## Bewusst connector-spezifisch
 
-Apache request/APR/filter/APXS details, NGINX request/chain/filter/module glue, HAProxy SPOE/SPOP/frame/runtime loop, Envoy APIs, Traefik APIs and lighttpd APIs bleiben außerhalb von `common/`.
+Apache-Request-/APR-/Filter-/APXS-Details, NGINX-Request-/Chain-/Filter-/Modul-Glue, HAProxy-SPOE-/SPOP-/Frame-/Runtime-Loop, Envoy-APIs, Traefik-APIs und lighttpd-APIs bleiben außerhalb von `common/`.
 
 ## KI-Faktenblock
 
 ```yaml
 repository: Easton97-Jens/ModSecurity-conector
-purpose: Shared Common SDK layer for ModSecurity connectors
+purpose: Gemeinsame Common-SDK-Schicht für ModSecurity-Connectoren
 common_sdk: true
 production_ready: false
 runtime_verified_all_connectors: false
@@ -1058,37 +1052,33 @@ forbidden_claims:
   - CRS verified
   - full matrix verified
   - response body verified
-  - runtime verified
-  - production hardened
-  - tamper-proof
-  - cryptographic integrity
 ```
 
 ## Erlaubte und verbotene Claims
 
-Erlaubte Claims: connector-neutral common semantics, C17 required check when environment exists, optional C23/future-C, compile-only/static/governance checks, starter/structure-only status and per-run evidence scoped to that run. Ohne aktuelle Evidenz verboten: production-ready, runtime secure, security verified, CRS verified, full matrix verified, response body verified, runtime verified, production hardened, tamper-proof and cryptographic integrity.
+Erlaubte Claims sind connector-neutrale Common-SDK-Semantik, C17-Pflichtchecks bei vorhandener Umgebung, optionale C23-/future-C-Checks, compile-only/static/governance Evidence, Starter-/structure-only-Status und per-run Evidence mit Gültigkeit nur für diesen Lauf. Ohne aktuelle explizite Evidence dürfen nicht behauptet werden: production-ready, runtime secure, security verified, CRS verified, full matrix verified, response body verified, runtime verified, production hardened, tamper-proof oder cryptographic integrity.
 
 ## Glossar
 
 - `common`: connector-neutrales SDK und Semantik.
 - `connector-gap`: bekannte Lücke zwischen Starter/Struktur und echter Connector-Runtime-Integration.
-- `not_verified`: kein aktueller Repository-weiter Runtime-Verifikations-Claim.
+- `not_verified`: kein aktueller repository-weiter Runtime-Verifikations-Claim.
 - `structure-only`: Dateien/Scaffolding existieren, beweisen aber kein Runtime-Verhalten.
-- `compile-only`: nur Compiler-/Static-Check-Evidenz.
+- `compile-only`: nur Compiler-/Static-Check-Evidence.
 - `runtime evidence`: aktueller Lauf/Report, der konkretes Runtime-Verhalten belegt.
-- `SOURCE_MAP`: Connector-Source-/Origin-/Status-Mapping-Metadaten.
+- `SOURCE_MAP`: Metadaten für Connector-Source-/Origin-/Status-Mapping.
 
 ## Wartungs-Checkliste
 
 ```text
 - Neue Common-Datei -> Common-SDK-Dateiindex aktualisieren.
-- New directive -> update directives.h, directive_spec, directive_adapter and docs.
+- Neue Directive -> directives.h, directive_spec, directive_adapter und docs aktualisieren.
 - Neuer Parser -> Config-/Directive-Tabelle aktualisieren.
 - Neuer Connector -> Statusmatrix aktualisieren.
 - Neuer C-Source -> C17-Source-Liste aktualisieren.
 - Neuer Header -> Header-Smoke-Checks aktualisieren.
 - Neuer Mapper -> Ownership/Cleanup prüfen.
-- Status change -> keep metadata, SOURCE_MAP, reports and docs synchronized.
-- Keep German docs synchronized with English docs.
+- Statusänderung -> metadata, SOURCE_MAP, Reports und docs synchron halten.
+- Deutsche Doku immer mit englischer Doku synchron halten.
 - Runtime-Claims nur mit Evidence.
 ```
