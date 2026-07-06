@@ -1,43 +1,29 @@
 #!/bin/sh
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$ROOT/modules/ModSecurity-test-Framework}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$ROOT}"
+REPO_ROOT="$ROOT"
+FRAMEWORK_COMMON="$FRAMEWORK_ROOT/ci/common.sh"
+
+if [ ! -f "$FRAMEWORK_COMMON" ]; then
+  echo "BLOCKED: nginx_c_standards missing framework common.sh: $FRAMEWORK_COMMON"
+  exit 77
+fi
+
+# shellcheck source=/dev/null
+. "$FRAMEWORK_COMMON"
+
 CC_BIN=${CC:-cc}
 PROFILE=${NGINX_C_STD_PROFILE:-all}
 OUT=${BUILD_ROOT:-${TMPDIR:-/tmp}/modsecurity-conector-nginx-c-standards}/nginx-c-standards
 mkdir -p "$OUT"
-command -v "$CC_BIN" >/dev/null 2>&1 || { echo "BLOCKED: nginx_c_standards missing C compiler: $CC_BIN"; exit 77; }
-NGINX_SOURCE_DIR=${NGINX_SOURCE_DIR:-${NGINX_SRC:-${MODSECURITY_NGINX_SOURCE_DIR:-}}}
-NGINX_INCLUDE_DIR=${NGINX_INCLUDE_DIR:-${NGINX_INCLUDE:-}}
-incs="-I$ROOT/common/include -I$ROOT/connectors/nginx/src"
-found_nginx=0
-if [ -n "$NGINX_INCLUDE_DIR" ] && [ -d "$NGINX_INCLUDE_DIR" ]; then incs="$incs -I$NGINX_INCLUDE_DIR"; found_nginx=1; fi
-if [ -n "$NGINX_SOURCE_DIR" ] && [ -d "$NGINX_SOURCE_DIR" ]; then
-  incs="$incs -I$NGINX_SOURCE_DIR/src/core -I$NGINX_SOURCE_DIR/src/http -I$NGINX_SOURCE_DIR/src/event -I$NGINX_SOURCE_DIR/src/os/unix -I$NGINX_SOURCE_DIR/objs"; found_nginx=1
-fi
-for d in /usr/include/nginx /usr/local/include/nginx; do [ -d "$d" ] && { incs="$incs -I$d"; found_nginx=1; }; done
-[ "$found_nginx" = 1 ] || { echo "BLOCKED: nginx_c_standards missing nginx headers/source"; exit 77; }
-MODSECURITY_INCLUDE=${MODSECURITY_INCLUDE:-${MODSECURITY_INCLUDE_DIR:-${MODSECURITY_INC:-${V3INCLUDE:-}}}}
-MODSECURITY_INCLUDE_FLAG=
-found_modsec=0
-if [ -n "$MODSECURITY_INCLUDE" ]; then
-  for include_item in $MODSECURITY_INCLUDE; do
-    case "$include_item" in
-      -I*) MODSECURITY_INCLUDE_FLAG="$include_item"; MODSECURITY_INCLUDE_PATH=${include_item#-I} ;;
-      "") MODSECURITY_INCLUDE_FLAG=""; MODSECURITY_INCLUDE_PATH="" ;;
-      *) MODSECURITY_INCLUDE_FLAG="-I$include_item"; MODSECURITY_INCLUDE_PATH="$include_item" ;;
-    esac
-    if [ -n "$MODSECURITY_INCLUDE_PATH" ] && [ -f "$MODSECURITY_INCLUDE_PATH/modsecurity/modsecurity.h" ]; then
-      incs="$incs $MODSECURITY_INCLUDE_FLAG"
-      found_modsec=1
-    fi
-  done
-fi
-if [ "$found_modsec" != 1 ]; then
-  for d in /usr/include /usr/local/include; do
-    [ -f "$d/modsecurity/modsecurity.h" ] && { incs="$incs -I$d"; found_modsec=1; break; }
-  done
-fi
-[ "$found_modsec" = 1 ] || { echo "BLOCKED: nginx_c_standards missing libmodsecurity headers"; exit 77; }
+require_command_or_blocked "$CC_BIN" "nginx_c_standards missing C compiler: $CC_BIN"
+NGINX_INCLUDE_FLAGS=$(nginx_include_flags_or_blocked)
+MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_blocked)
+incs="-I$ROOT/common/include -I$ROOT/connectors/nginx/src $NGINX_INCLUDE_FLAGS $MODSECURITY_INCLUDE_FLAGS"
 compile_profile() {
   prof=$1
   case "$prof" in

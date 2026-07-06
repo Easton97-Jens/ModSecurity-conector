@@ -77,6 +77,10 @@ required_script_terms = {
     "mandatory C17 flags": "-std=c17 -Wall -Wextra -Werror",
     "optional c23 profile": "--profile \"$profile\"",
     "exit 77 blocked path": "exit 77",
+    "framework common import": "FRAMEWORK_COMMON",
+    "central APXS blocker helper": "find_apxs_or_blocked",
+    "central command blocker helper": "require_command_or_blocked",
+    "central libmodsecurity header helper": "modsecurity_include_flags_or_blocked",
     "optional skip wording": "SKIPPED: optional Apache C23 check",
     "future-C skip wording": "SKIPPED: optional Apache future-C check",
 }

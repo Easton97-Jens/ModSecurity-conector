@@ -1,7 +1,20 @@
 #!/bin/sh
 set -eu
 
-REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$REPO_ROOT/modules/ModSecurity-test-Framework}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$REPO_ROOT}"
+FRAMEWORK_COMMON="$FRAMEWORK_ROOT/ci/common.sh"
+
+if [ ! -f "$FRAMEWORK_COMMON" ]; then
+    echo "BLOCKED: apache_c_standards missing framework common.sh: $FRAMEWORK_COMMON"
+    exit 77
+fi
+
+# shellcheck source=/dev/null
+. "$FRAMEWORK_COMMON"
+
 PROFILE=${APACHE_C_STD_PROFILE:-all}
 CC_BIN=${CC:-cc}
 OUT=${APACHE_C_STANDARDS_OUT:-/var/tmp/ModSecurity-conector-verified/build/apache-c-standards}
@@ -11,17 +24,8 @@ blocked() {
     exit 77
 }
 
-if ! command -v "$CC_BIN" >/dev/null 2>&1; then
-    blocked "missing compiler: $CC_BIN"
-fi
-
-APXS_BIN=${APXS:-}
-if [ -z "$APXS_BIN" ]; then
-    APXS_BIN=$(command -v apxs 2>/dev/null || command -v apxs2 2>/dev/null || true)
-fi
-if [ -z "$APXS_BIN" ]; then
-    blocked "missing apxs/apxs2"
-fi
+require_command_or_blocked "$CC_BIN" "apache_c_standards missing compiler: $CC_BIN"
+APXS_BIN=$(find_apxs_or_blocked)
 
 APXS_CFLAGS=$($APXS_BIN -q CFLAGS 2>/dev/null || true)
 APXS_INCLUDEDIR=$($APXS_BIN -q INCLUDEDIR 2>/dev/null || true)
@@ -33,18 +37,14 @@ elif command -v apr-2-config >/dev/null 2>&1; then
     APR_INCLUDES="$(apr-2-config --includes 2>/dev/null || true) $(apr-2-config --cppflags 2>/dev/null || true)"
 fi
 
-MODSECURITY_INCLUDE=${MODSECURITY_INCLUDE:-${V3INCLUDE:-}}
-MODSECURITY_INCLUDE_FLAG=""
-if [ -n "$MODSECURITY_INCLUDE" ]; then
-    MODSECURITY_INCLUDE_FLAG="-I$MODSECURITY_INCLUDE"
-fi
+MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_blocked)
 
 APXS_INCLUDEDIR_FLAG=""
 if [ -n "$APXS_INCLUDEDIR" ]; then
     APXS_INCLUDEDIR_FLAG="-I$APXS_INCLUDEDIR"
 fi
 
-INCLUDES="-I$REPO_ROOT/common/include -I$REPO_ROOT/connectors/apache/src $APXS_INCLUDEDIR_FLAG $APXS_INCLUDES $APR_INCLUDES $MODSECURITY_INCLUDE_FLAG"
+INCLUDES="-I$REPO_ROOT/common/include -I$REPO_ROOT/connectors/apache/src $APXS_INCLUDEDIR_FLAG $APXS_INCLUDES $APR_INCLUDES $MODSECURITY_INCLUDE_FLAGS"
 
 mkdir -p "$OUT"
 
