@@ -20,24 +20,38 @@ CC_BIN=${CC:-cc}
 OUT=${APACHE_C_STANDARDS_OUT:-/var/tmp/ModSecurity-conector-verified/build/apache-c-standards}
 
 blocked() {
+    if is_local_run; then
+        echo "FAIL: apache_c_standards $*"
+        exit 1
+    fi
     echo "BLOCKED: apache_c_standards $*"
     exit 77
 }
 
 require_command_or_blocked "$CC_BIN" "apache_c_standards missing compiler: $CC_BIN"
-APXS_BIN=$(find_apxs_or_blocked)
+APXS_BIN=$(require_or_provision_apxs)
 
 APXS_CFLAGS=$($APXS_BIN -q CFLAGS 2>/dev/null || true)
+APXS_CPPFLAGS=$($APXS_BIN -q CPPFLAGS 2>/dev/null || true)
 APXS_INCLUDEDIR=$($APXS_BIN -q INCLUDEDIR 2>/dev/null || true)
 APXS_INCLUDES=$($APXS_BIN -q INCLUDES 2>/dev/null || true)
+APXS_BINDIR=$($APXS_BIN -q BINDIR 2>/dev/null || true)
 APR_INCLUDES=""
-if command -v apr-1-config >/dev/null 2>&1; then
-    APR_INCLUDES="$(apr-1-config --includes 2>/dev/null || true) $(apr-1-config --cppflags 2>/dev/null || true)"
-elif command -v apr-2-config >/dev/null 2>&1; then
-    APR_INCLUDES="$(apr-2-config --includes 2>/dev/null || true) $(apr-2-config --cppflags 2>/dev/null || true)"
+APR_CONFIG=""
+for APR_CONFIG_CANDIDATE in "$APXS_BINDIR/apr-1-config" "$APXS_BINDIR/apr-2-config" apr-1-config apr-2-config; do
+    if [ -z "$APR_CONFIG_CANDIDATE" ]; then
+        continue
+    fi
+    APR_CONFIG=$(ci_command_path "$APR_CONFIG_CANDIDATE" 2>/dev/null || true)
+    if [ -n "$APR_CONFIG" ]; then
+        break
+    fi
+done
+if [ -n "$APR_CONFIG" ]; then
+    APR_INCLUDES="$($APR_CONFIG --includes 2>/dev/null || true) $($APR_CONFIG --cppflags 2>/dev/null || true)"
 fi
 
-MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_blocked)
+MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_provision)
 
 APXS_INCLUDEDIR_FLAG=""
 if [ -n "$APXS_INCLUDEDIR" ]; then
@@ -56,7 +70,7 @@ cat > "$HEADER_PROBE" <<'EOF'
 #include <modsecurity/modsecurity.h>
 int main(void) { return 0; }
 EOF
-if ! "$CC_BIN" -std=c17 $APXS_CFLAGS $INCLUDES -c "$HEADER_PROBE" -o "$OUT/header-probe.o" >/dev/null 2>"$OUT/header-probe.err"; then
+if ! "$CC_BIN" -std=c17 $APXS_CFLAGS $APXS_CPPFLAGS $INCLUDES -c "$HEADER_PROBE" -o "$OUT/header-probe.o" >/dev/null 2>"$OUT/header-probe.err"; then
     cat "$OUT/header-probe.err"
     blocked "missing Apache/APR/libmodsecurity headers"
 fi
@@ -106,7 +120,7 @@ compile_profile() {
     for rel in $SOURCES; do
         src="$REPO_ROOT/$rel"
         obj="$OUT/$(object_name "$rel").$label.o"
-        if ! "$CC_BIN" $flags $APXS_CFLAGS $INCLUDES -c "$src" -o "$obj" >"$obj.out" 2>"$obj.err"; then
+        if ! "$CC_BIN" $flags $APXS_CFLAGS $APXS_CPPFLAGS $INCLUDES -c "$src" -o "$obj" >"$obj.out" 2>"$obj.err"; then
             cat "$obj.out"
             cat "$obj.err"
             echo "FAIL: apache_c_standards $label compile failed: $rel"

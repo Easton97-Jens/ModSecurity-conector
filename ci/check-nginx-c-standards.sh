@@ -21,8 +21,8 @@ PROFILE=${NGINX_C_STD_PROFILE:-all}
 OUT=${BUILD_ROOT:-${TMPDIR:-/tmp}/modsecurity-conector-nginx-c-standards}/nginx-c-standards
 mkdir -p "$OUT"
 require_command_or_blocked "$CC_BIN" "nginx_c_standards missing C compiler: $CC_BIN"
-NGINX_INCLUDE_FLAGS=$(nginx_include_flags_or_blocked)
-MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_blocked)
+NGINX_INCLUDE_FLAGS=$(require_or_provision_nginx_headers)
+MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_provision)
 incs="-I$ROOT/common/include -I$ROOT/connectors/nginx/src $NGINX_INCLUDE_FLAGS $MODSECURITY_INCLUDE_FLAGS"
 compile_profile() {
   prof=$1

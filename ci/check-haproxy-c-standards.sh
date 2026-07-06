@@ -21,8 +21,8 @@ PROFILE=${HAPROXY_C_STD_PROFILE:-all}
 OUT=${BUILD_ROOT:-${TMPDIR:-/tmp}/modsecurity-conector-haproxy-c-standards}/haproxy-c-standards
 mkdir -p "$OUT"
 require_command_or_blocked "$CC_BIN" "haproxy_c_standards missing C compiler: $CC_BIN"
-HAPROXY_INCLUDE_FLAGS=$(haproxy_include_flags_or_blocked)
-MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_blocked)
+HAPROXY_INCLUDE_FLAGS=$(require_or_provision_haproxy_headers)
+MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_provision)
 incs="-I$ROOT/common/include -I$ROOT/connectors/haproxy/src $HAPROXY_INCLUDE_FLAGS $MODSECURITY_INCLUDE_FLAGS"
 probe_haproxy_headers() {
   std_flag=$1
@@ -37,6 +37,10 @@ probe_haproxy_headers() {
       return 0
     fi
   done
+  if is_local_run; then
+    echo "FAIL: haproxy_c_standards missing usable HAProxy headers/source"
+    exit 1
+  fi
   echo "BLOCKED: haproxy_c_standards missing usable HAProxy headers/source"
   exit 77
 }
