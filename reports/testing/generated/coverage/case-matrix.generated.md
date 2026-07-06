@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-29T13:04:14Z`
+> Generated at: `2026-07-06T16:46:14Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `3dec17b31359b2f0585e8943707490c770b9ff59`
-> Framework SHA: `ea494ff5e24984bf4983ffab7ed9e1863dab44c2`
+> Connector SHA: `4afa499f6719e802c5091c43742e99ba39d6d42a`
+> Framework SHA: `3817acec9f2fb483b275b5a9a747542ec40e3b45`
 > Input status: `complete`
 
 # Generated Case Matrix
@@ -143,6 +143,21 @@
 | sqli_like_quote_encoding_runtime_difference | `tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml` | common | 2 | ARGS:q | @contains | urlDecode | imported | - | active | - | unknown | no | - |
 | xss_like_encoded_angles_normalization_probe | `tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml` | common | 2 | ARGS:q | @contains | htmlEntityDecode | imported | - | active | - | unknown | no | - |
 | xss_like_mixed_case_script_token_gap | `tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml` | common | 2 | ARGS:q | @contains | lowercase | imported | - | active | - | unknown | no | - |
+| request_body_limit_exceeded | `tests/cases/security-data-flow/body-limits/request_body_limit_exceeded.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| response_body_truncation_event | `tests/cases/security-data-flow/body-limits/response_body_truncation_event.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | yes | - |
+| decision_jsonl_no_body_payload | `tests/cases/security-data-flow/events/decision_jsonl_no_body_payload.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| event_jsonl_no_body_payload | `tests/cases/security-data-flow/events/event_jsonl_no_body_payload.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| integrity_event_hash_chain_tamper_detected | `tests/cases/security-data-flow/events/integrity_event_hash_chain_tamper_detected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| integrity_event_hash_chain_valid | `tests/cases/security-data-flow/events/integrity_event_hash_chain_valid.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| conflicting_content_length_rejected | `tests/cases/security-data-flow/headers/conflicting_content_length_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| header_count_limit_exceeded | `tests/cases/security-data-flow/headers/header_count_limit_exceeded.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| header_value_limit_exceeded | `tests/cases/security-data-flow/headers/header_value_limit_exceeded.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| log_control_chars_sanitized | `tests/cases/security-data-flow/log-safety/log_control_chars_sanitized.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| log_secret_like_payload_redacted | `tests/cases/security-data-flow/log-safety/log_secret_like_payload_redacted.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| duplicate_mutating_phase_rejected | `tests/cases/security-data-flow/phase-order/duplicate_mutating_phase_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| phase_skip_rejected | `tests/cases/security-data-flow/phase-order/phase_skip_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| transaction_id_control_char_rejected | `tests/cases/security-data-flow/transaction-id/transaction_id_control_char_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| transaction_id_too_long_rejected | `tests/cases/security-data-flow/transaction-id/transaction_id_too_long_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
 | tfn_compress_whitespace_runtime_gap | `tests/cases/transformations/tfn_compress_whitespace_runtime_gap.yaml` | common | 2 | ARGS:q | @streq | compressWhitespace | imported | - | active | - | unknown | no | - |
 | tfn_none_exact_block_phase2 | `tests/cases/transformations/tfn_none_exact_block_phase2.yaml` | common | 2 | ARGS:q | @streq | none | imported | - | active | - | unknown | no | - |
 | unicode_whitespace_normalization_gap | `tests/cases/transformations/unicode_whitespace_normalization_gap.yaml` | common | 2 | ARGS:q | @streq | compressWhitespace | imported | - | active | - | unknown | no | - |

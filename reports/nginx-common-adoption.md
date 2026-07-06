@@ -1,5 +1,7 @@
 # NGINX Common SDK adoption report
 
+**Language:** English | [Deutsch](nginx-common-adoption.de.md)
+
 **Scope:** compile/structure evidence only. No production, CRS, full-matrix, or runtime verification is claimed.
 
 | NGINX local function / field | Common replacement | Action | Reason |

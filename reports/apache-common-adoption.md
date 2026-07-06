@@ -1,5 +1,7 @@
 # Apache Common SDK adoption report
 
+**Language:** English | [Deutsch](apache-common-adoption.de.md)
+
 This report records the pre-change duplicate scan and the resulting Apache/Common split. It is a structure-level adoption report only; it does not claim Apache production readiness, CRS readiness, full-matrix coverage, or runtime verification.
 
 | Apache local function / field | Common replacement | Action | Reason |

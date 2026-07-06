@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-06-29T13:04:15Z`
+> Generated at: `2026-07-06T16:46:14Z`
 > Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `3dec17b31359b2f0585e8943707490c770b9ff59`
-> Framework SHA: `ea494ff5e24984bf4983ffab7ed9e1863dab44c2`
+> Connector SHA: `4afa499f6719e802c5091c43742e99ba39d6d42a`
+> Framework SHA: `3817acec9f2fb483b275b5a9a747542ec40e3b45`
 > Input status: `complete`
 
 # Generated Phase Coverage
