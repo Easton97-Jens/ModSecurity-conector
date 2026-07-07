@@ -66,13 +66,15 @@ HTTPS_URL_KEYS = (
     "PCRE2_SHA256_URL",
 )
 
+PATH_POLICY_ENV = dict(os.environ)
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def is_system_path(path: Path) -> bool:
-    return is_system_write_path(path)
+    return is_system_write_path(path, PATH_POLICY_ENV)
 
 
 def sh_quote(value: str) -> str:
@@ -2537,6 +2539,8 @@ def markdown_report(payload: dict[str, Any]) -> str:
 
 
 def main() -> int:
+    global PATH_POLICY_ENV
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--connector-root", required=True)
     parser.add_argument("--framework-root", required=True)
@@ -2559,6 +2563,7 @@ def main() -> int:
     native_root = Path(args.native_root or env.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native"))).resolve()
     env.update(
         {
+            "REPO_ROOT": str(connector_root),
             "CONNECTOR_ROOT": str(connector_root),
             "FRAMEWORK_ROOT": str(framework_root),
             "CONNECTOR_COMPONENT_CACHE": str(cache_root),
@@ -2566,6 +2571,7 @@ def main() -> int:
             "MRTS_NATIVE_ROOT": str(native_root),
         }
     )
+    PATH_POLICY_ENV = dict(env)
     try:
         validate_https_url_config(env)
         go_ftw_source_url = require_env_value(env, "GO_FTW_SOURCE_URL")

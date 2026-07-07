@@ -22,6 +22,9 @@ def fail(message: str) -> None:
 def check_python_policy() -> None:
     env = {
         **os.environ,
+        "CONNECTOR_ROOT": str(CONNECTOR_ROOT),
+        "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+        "REPO_ROOT": str(CONNECTOR_ROOT),
         "VERIFIED_RUN_ROOT": str(VERIFIED_ROOT),
         "RUNNER_TEMP": "/tmp/runner-temp",
         "TMPDIR": "/tmp",
@@ -31,6 +34,10 @@ def check_python_policy() -> None:
         VERIFIED_ROOT / "component-cache",
         Path("/tmp/ModSecurity-conector-verified"),
         Path("/tmp/runner-temp/ModSecurity-conector-verified"),
+        Path("/src"),
+        Path("/src/ModSecurity-conector-build"),
+        CONNECTOR_ROOT,
+        CONNECTOR_ROOT / "build",
     )
     blocked = (
         Path("/var"),
@@ -42,7 +49,7 @@ def check_python_policy() -> None:
         Path("/root/.local/state/foo"),
     )
     for path in allowed:
-        if is_system_write_path(path):
+        if is_system_write_path(path, env):
             fail(f"python marked allowed runtime path as system write path: {path}")
         if not is_allowed_runtime_path(path, env):
             fail(f"python rejected allowed runtime path: {path}")
@@ -88,6 +95,10 @@ def check_shell_policy() -> None:
         str(VERIFIED_ROOT),
         str(VERIFIED_ROOT / "component-cache"),
         "/tmp/ModSecurity-conector-verified",
+        "/src",
+        "/src/ModSecurity-conector-build",
+        str(CONNECTOR_ROOT),
+        str(CONNECTOR_ROOT / "build"),
     )
     for path in expected_system:
         rc = shell_status(common + f"ci_path_is_system_path {sh_quote(path)}")
@@ -101,6 +112,10 @@ def check_shell_policy() -> None:
     rc = shell_status(common + f"assert_safe_runtime_path {sh_quote(str(VERIFIED_ROOT / 'component-cache'))} test_path")
     if rc != 0:
         fail(f"shell rejected allowed safe runtime path: {VERIFIED_ROOT / 'component-cache'}")
+    for allowed_path in ("/src", "/src/ModSecurity-conector-build", str(CONNECTOR_ROOT), str(CONNECTOR_ROOT / "build")):
+        rc = shell_status(common + f"assert_safe_runtime_path {sh_quote(allowed_path)} test_path")
+        if rc != 0:
+            fail(f"shell rejected allowed project/runtime path: {allowed_path}")
     rc = shell_status(common + "assert_safe_runtime_path /root/.local/state/foo test_path")
     if rc == 0:
         fail("shell accepted old /root runtime path")

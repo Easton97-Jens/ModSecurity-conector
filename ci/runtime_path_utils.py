@@ -47,8 +47,23 @@ def is_under_root_home(path: Path) -> bool:
     return is_under(path, Path("/root"))
 
 
-def is_system_write_path(path: Path) -> bool:
+def is_configured_project_path(path: Path, env: Mapping[str, str] | None = None) -> bool:
+    values = env or {}
     resolved = path.resolve(strict=False)
+    for name in ("REPO_ROOT", "CONNECTOR_ROOT", "FRAMEWORK_ROOT"):
+        value = _env_value(values, name)
+        if not value:
+            continue
+        root = Path(value).resolve(strict=False)
+        if resolved == root or is_under(resolved, root):
+            return True
+    return False
+
+
+def is_system_write_path(path: Path, env: Mapping[str, str] | None = None) -> bool:
+    resolved = path.resolve(strict=False)
+    if is_configured_project_path(resolved, env):
+        return False
     text = str(resolved)
     if text == "/var":
         return True
@@ -65,11 +80,16 @@ def allowed_runtime_roots(env: Mapping[str, str] | None = None) -> list[Path]:
     paths = verified_runtime_paths(values)
     roots = [
         Path(paths["VERIFIED_RUN_ROOT"]),
+        Path("/src"),
         Path(_env_value(values, "RUNNER_TEMP")) if _env_value(values, "RUNNER_TEMP") else None,
         Path(_env_value(values, "TMPDIR")) if _env_value(values, "TMPDIR") else None,
         Path("/tmp"),
         Path("/var/tmp"),
     ]
+    for name in ("REPO_ROOT", "CONNECTOR_ROOT", "FRAMEWORK_ROOT"):
+        value = _env_value(values, name)
+        if value:
+            roots.append(Path(value))
     return [root.resolve(strict=False) for root in roots if root is not None and str(root)]
 
 
@@ -138,22 +158,24 @@ def path_status(
     resolved = Path(path).resolve(strict=False)
     status = "PASS"
     notes: list[str] = []
+    project_roots = [
+        connector_root.resolve(strict=False),
+        framework_root.resolve(strict=False),
+    ]
+    project_path_allowed = any(
+        resolved == root or is_under(resolved, root)
+        for root in project_roots
+    )
     if not resolved.is_absolute():
         status = "BLOCKED"
         notes.append("path is not absolute")
-    if is_system_write_path(resolved):
+    if is_system_write_path(resolved) and not project_path_allowed:
         status = "BLOCKED"
         notes.append("system write path is forbidden")
-    if is_under(resolved, connector_root):
-        status = "BLOCKED"
-        notes.append("path is inside connector source checkout")
-    if is_under(resolved, framework_root):
-        status = "BLOCKED"
-        notes.append("path is inside framework source checkout")
-    if worker_compatible and is_under_root_home(resolved):
+    if worker_compatible and is_under_root_home(resolved) and not project_path_allowed:
         status = "BLOCKED"
         notes.append("path is under /root and is not worker-traversable")
-    if not any(resolved == root.resolve(strict=False) or is_under(resolved, root) for root in allowed_roots):
+    if not project_path_allowed and not any(resolved == root.resolve(strict=False) or is_under(resolved, root) for root in allowed_roots):
         status = "BLOCKED"
         notes.append("path is outside verified runtime roots")
     return {"variable": label, "value": str(resolved), "status": status, "notes": "; ".join(notes) or "ok"}
@@ -173,6 +195,9 @@ def runtime_path_rows(
         Path(paths["VERIFIED_TMP_ROOT"]),
         Path(paths["VERIFIED_LOG_ROOT"]),
         Path(paths["VERIFIED_COMPONENT_CACHE"]),
+        Path("/src"),
+        connector_root,
+        framework_root,
     ]
     order = (
         "VERIFIED_RUN_ROOT",

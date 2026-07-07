@@ -130,17 +130,19 @@ def component(
 def check_safe_path(path: Path, label: str, roots: dict[str, Path], connector_root: Path, framework_root: Path) -> dict[str, Any]:
     status = "PASS"
     notes: list[str] = []
+    project_path_allowed = any(
+        is_within(path, root) or path == root
+        for root in (connector_root, framework_root)
+    )
     if not path.is_absolute():
         status = "BLOCKED"
         notes.append("path is not absolute")
-    if is_system_write_path(path):
+    if is_system_write_path(path) and not project_path_allowed:
         status = "BLOCKED"
         notes.append("system write path is forbidden")
-    for root_label, root in (("connector checkout", connector_root), ("framework checkout", framework_root)):
-        if is_within(path, root):
-            status = "BLOCKED"
-            notes.append(f"path is inside {root_label}")
     allowed = any(is_within(path, root) or path == root for root in roots.values())
+    if project_path_allowed:
+        allowed = True
     if not allowed and str(path).startswith("/tmp/"):
         allowed = True
     if not allowed:

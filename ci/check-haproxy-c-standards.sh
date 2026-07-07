@@ -1,36 +1,29 @@
 #!/bin/sh
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$ROOT/modules/ModSecurity-test-Framework}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$ROOT}"
+REPO_ROOT="$ROOT"
+FRAMEWORK_COMMON="$FRAMEWORK_ROOT/ci/common.sh"
+
+if [ ! -f "$FRAMEWORK_COMMON" ]; then
+  echo "BLOCKED: haproxy_c_standards missing framework common.sh: $FRAMEWORK_COMMON"
+  exit 77
+fi
+
+# shellcheck source=/dev/null
+. "$FRAMEWORK_COMMON"
+
 CC_BIN=${CC:-cc}
 PROFILE=${HAPROXY_C_STD_PROFILE:-all}
 OUT=${BUILD_ROOT:-${TMPDIR:-/tmp}/modsecurity-conector-haproxy-c-standards}/haproxy-c-standards
 mkdir -p "$OUT"
-command -v "$CC_BIN" >/dev/null 2>&1 || { echo "BLOCKED: haproxy_c_standards missing C compiler: $CC_BIN"; exit 77; }
-HAPROXY_SOURCE_DIR="${HAPROXY_SOURCE_DIR:-${HAPROXY_SRC:-${MODSECURITY_HAPROXY_SOURCE_DIR:-}}}"
-HAPROXY_INCLUDE_DIR="${HAPROXY_INCLUDE_DIR:-${HAPROXY_INCLUDE:-}}"
-incs="-I$ROOT/common/include -I$ROOT/connectors/haproxy/src"
-found_haproxy=0
-if [ -n "$HAPROXY_INCLUDE_DIR" ] && [ -d "$HAPROXY_INCLUDE_DIR" ]; then incs="$incs -I$HAPROXY_INCLUDE_DIR"; found_haproxy=1; fi
-if [ -n "$HAPROXY_SOURCE_DIR" ] && [ -d "$HAPROXY_SOURCE_DIR" ]; then incs="$incs -I$HAPROXY_SOURCE_DIR/include -I$HAPROXY_SOURCE_DIR/src"; found_haproxy=1; fi
-for d in /usr/include/haproxy /usr/local/include/haproxy; do [ -d "$d" ] && { incs="$incs -I$d"; found_haproxy=1; }; done
-[ "$found_haproxy" = 1 ] || { echo "BLOCKED: haproxy_c_standards missing haproxy headers/source"; exit 77; }
-MODSECURITY_INCLUDE="${MODSECURITY_INCLUDE:-${MODSECURITY_INCLUDE_DIR:-${MODSECURITY_INC:-${V3INCLUDE:-}}}}"
-MODSECURITY_INCLUDE_FLAG=
-found_modsec=0
-if [ -n "$MODSECURITY_INCLUDE" ]; then
-  for include_item in $MODSECURITY_INCLUDE; do
-    case "$include_item" in
-      -I*) MODSECURITY_INCLUDE_FLAG="$include_item"; MODSECURITY_INCLUDE_PATH=${include_item#-I} ;;
-      "") MODSECURITY_INCLUDE_FLAG=""; MODSECURITY_INCLUDE_PATH="" ;;
-      *) MODSECURITY_INCLUDE_FLAG="-I$include_item"; MODSECURITY_INCLUDE_PATH="$include_item" ;;
-    esac
-    if [ -n "$MODSECURITY_INCLUDE_PATH" ] && [ -f "$MODSECURITY_INCLUDE_PATH/modsecurity/modsecurity.h" ]; then incs="$incs $MODSECURITY_INCLUDE_FLAG"; found_modsec=1; fi
-  done
-fi
-if [ "$found_modsec" != 1 ]; then
-  for d in /usr/include /usr/local/include; do [ -f "$d/modsecurity/modsecurity.h" ] && { incs="$incs -I$d"; found_modsec=1; break; }; done
-fi
-[ "$found_modsec" = 1 ] || { echo "BLOCKED: haproxy_c_standards missing libmodsecurity headers"; exit 77; }
+require_command_or_blocked "$CC_BIN" "haproxy_c_standards missing C compiler: $CC_BIN"
+HAPROXY_INCLUDE_FLAGS=$(require_or_provision_haproxy_headers)
+MODSECURITY_INCLUDE_FLAGS=$(modsecurity_include_flags_or_provision)
+incs="-I$ROOT/common/include -I$ROOT/connectors/haproxy/src $HAPROXY_INCLUDE_FLAGS $MODSECURITY_INCLUDE_FLAGS"
 probe_haproxy_headers() {
   std_flag=$1
   for header in haproxy/api.h haproxy/http.h haproxy/htx.h common/cfgparse.h types/global.h proto/proxy.h; do
@@ -44,6 +37,10 @@ probe_haproxy_headers() {
       return 0
     fi
   done
+  if is_local_run; then
+    echo "FAIL: haproxy_c_standards missing usable HAProxy headers/source"
+    exit 1
+  fi
   echo "BLOCKED: haproxy_c_standards missing usable HAProxy headers/source"
   exit 77
 }
