@@ -5,11 +5,11 @@
 #include <string.h>
 
 const char *msconnector_lighttpd_build_starter_status(void) {
-    return "blocked: no lighttpd API/SDK headers, module build configuration, or runtime harness are present in this repository";
+    return "native module build is available through build-lighttpd-connector";
 }
 
 enum msconnector_status msconnector_lighttpd_runtime_status(void) {
-    return MSCONNECTOR_STATUS_BLOCKED;
+    return MSCONNECTOR_STATUS_OK;
 }
 
 #ifdef MSCONNECTOR_LIGHTTPD_BUILD_STARTER_MAIN
@@ -20,11 +20,10 @@ int main(void) {
     if (metadata == 0) {
         return 1;
     }
-    if (strcmp(metadata->source_kind, "bridge-starter") != 0) {
+    if (strcmp(metadata->source_kind, "repository-local-native-module") != 0) {
         return 1;
     }
-    if (strcmp(metadata->runtime_status, "not_verified") != 0 &&
-        strcmp(metadata->runtime_status, "not-verified") != 0) {
+    if (strcmp(metadata->runtime_status, "minimal_runtime_smoke") != 0) {
         return 1;
     }
 

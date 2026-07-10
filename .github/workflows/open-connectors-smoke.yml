@@ -73,6 +73,26 @@ jobs:
           set -eu
           TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
 
+      - name: Build remaining connector artifacts
+        run: |
+          set -eu
+          TMPDIR=/tmp make build-remaining-connectors
+
+      - name: Request-free host start smokes
+        run: |
+          set -eu
+          TMPDIR=/tmp make start-smoke-remaining-connectors
+
+      - name: Connector-owned minimal runtime smokes
+        run: |
+          set -eu
+          TMPDIR=/tmp make runtime-smoke-remaining-connectors
+
+      - name: Remaining connector readiness contracts
+        run: |
+          set -eu
+          TMPDIR=/tmp make readiness-remaining-connectors
+
       - name: Workspace status after prepare
         run: |
           set -eu

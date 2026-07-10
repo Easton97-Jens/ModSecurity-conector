@@ -25,13 +25,12 @@ FORBIDDEN_COMMON_TOKENS = [
     "#include <httpd",
     "#include <ngx_",
     "#include <haproxy",
-    "#include <modsecurity/",
-    "#include \"modsecurity/",
-    "strcpy(",
-    "strcat(",
-    "sprintf(",
-    "gets(",
 ]
+FORBIDDEN_COMMON_CALLS = ("strcpy", "strcat", "sprintf", "gets")
+MODSECURITY_INCLUDE_PATTERN = re.compile(
+    r'^\s*#\s*include\s*[<"]modsecurity/', re.MULTILINE
+)
+ALLOWED_MODSECURITY_INCLUDE_ROOT = Path("common/runtime")
 FORBIDDEN_CLAIM_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
     for pattern in [
@@ -66,10 +65,25 @@ for name in COMMON_APIS:
     if src.is_file() and f'#include "msconnector/{name}.h"' not in src.read_text():
         errors.append(f"{src.relative_to(ROOT)} missing matching header include")
 
-common_text = "\n".join(path.read_text(errors="ignore") for path in (ROOT / "common").rglob("*.[ch]"))
+common_files = sorted((ROOT / "common").rglob("*.c"))
+common_files += sorted((ROOT / "common").rglob("*.h"))
+common_text = "\n".join(path.read_text(errors="ignore") for path in common_files)
 for token in FORBIDDEN_COMMON_TOKENS:
     if token in common_text:
         errors.append(f"forbidden common token {token}")
+for function_name in FORBIDDEN_COMMON_CALLS:
+    # Match an actual function identifier, not a suffix such as fgets().
+    if re.search(rf"(?<![A-Za-z0-9_]){re.escape(function_name)}\s*\(", common_text):
+        errors.append(f"forbidden common token {function_name}(")
+for path in common_files:
+    relative = path.relative_to(ROOT)
+    if not MODSECURITY_INCLUDE_PATTERN.search(path.read_text(errors="ignore")):
+        continue
+    if ALLOWED_MODSECURITY_INCLUDE_ROOT not in relative.parents:
+        errors.append(
+            f"forbidden ModSecurity host API include outside "
+            f"{ALLOWED_MODSECURITY_INCLUDE_ROOT}: {relative}"
+        )
 
 for source in EVENT_JSON_SOURCES:
     path = ROOT / source

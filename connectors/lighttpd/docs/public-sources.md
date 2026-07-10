@@ -1,18 +1,17 @@
 # lighttpd Public Sources
 
-Status: reference-only
-Runtime status: not-verified
+Status: host API references for a repository-owned native module
+Runtime status: `minimal_runtime_smoke` for the pinned Phase-1 header path
 
-This file preserves previously noted public source references for future
-origin/architecture research. It is not origin/license completion for imported
-source and does not prove that a ModSecurity lighttpd connector is implemented
-here.
+These public sources identify the host API and project used for the pinned
+native-module build. No upstream connector implementation or lighttpd source is
+copied into this connector directory.
 
 - https://raw.githubusercontent.com/lighttpd/lighttpd1.4/master/src/plugin.h
 - https://github.com/lighttpd/lighttpd1.4
 - https://redmine.lighttpd.net/projects/1/wiki/Docs_ModMagnet
 
-Any future use or import of these sources must be documented through
+Any future source import must be documented through
 `connectors/lighttpd/ORIGIN.md`, `connectors/lighttpd/SOURCE_MAP.json`, and the
 global connector gates in
 `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`.

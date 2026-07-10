@@ -2,7 +2,7 @@
 
 static const msconnector_envoy_adapter_metadata envoy_metadata = {
     {
-        "ModSecurity-envoy build starter",
+        "ModSecurity Envoy ext_authz connector",
         "not selected",
         "not selected",
         "not selected",
@@ -10,17 +10,21 @@ static const msconnector_envoy_adapter_metadata envoy_metadata = {
         "not selected"
     },
     {
-        MSCONNECTOR_CAPABILITY_NONE,
+        MSCONNECTOR_CAPABILITY_CONNECTION_METADATA |
+            MSCONNECTOR_CAPABILITY_REQUEST_HEADERS |
+            MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID,
         "envoy",
-        "bridge-starter",
+        "ext-authz-service",
         "Envoy",
-        "local sidecar/HTTP bridge decision self-test; no Envoy SDK, no libmodsecurity adapter, no runtime ModSecurity capabilities claimed"
+        "minimal ext_authz request-header 200/403 smoke verified; response phases, CRS, security and production remain unverified"
     },
-    "bridge-starter",
+    "envoy",
+    "Envoy",
+    "repository-local-ext-authz-service",
     "connectors/envoy",
-    "sidecar/HTTP bridge starter; native Envoy SDK/API dependency not present in this repository",
-    "bridge-starter",
-    "not_verified",
+    "Envoy HTTP ext_authz service over connector-neutral common/runtime; request phase only",
+    "compile_verified",
+    "minimal_runtime_smoke",
     "connector-gap"
 };
 

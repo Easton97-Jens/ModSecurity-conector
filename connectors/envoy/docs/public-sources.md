@@ -1,7 +1,7 @@
 # Envoy Public Sources
 
 Status: references collected
-Runtime status: not-verified
+Runtime status: `minimal_runtime_smoke` for the targeted ext_authz request path
 
 These public Envoy documentation links were collected as candidate architecture
 research. They do not select an integration approach and do not prove that a

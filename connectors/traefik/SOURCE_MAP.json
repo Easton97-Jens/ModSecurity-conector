@@ -1,11 +1,11 @@
 {
   "connector": "traefik",
-  "status": "decision-service-starter",
-  "runtime_status": "not_verified",
+  "status": "minimal_runtime_smoke",
+  "runtime_status": "minimal_runtime_smoke",
   "upstream": {
     "traefik_source": "not selected",
     "traefik_version": "not selected",
-    "integration_api": "not selected",
+    "integration_api": "Traefik forwardAuth external HTTP authorization service",
     "license": "not documented"
   },
   "imported_upstream_files": [],
@@ -44,9 +44,68 @@
     },
     {
       "path": "connectors/traefik/src/traefik_modsecurity_mapper.h",
-      "purpose": "Common SDK generic mapper alias header; no runtime claim"
+      "purpose": "thin Common SDK mapper declarations; no runtime claim"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_modsecurity_mapper.c",
+      "purpose": "thin Common SDK mapper callsites"
+    },
+    {
+      "path": "connectors/traefik/src/traefik_forwardauth_service_main.c",
+      "purpose": "Traefik forwardAuth host profile and service entry point"
+    },
+    {
+      "path": "connectors/traefik/build/build-connector.sh",
+      "purpose": "C17 compile/link-only forwardAuth service build"
+    },
+    {
+      "path": "connectors/traefik/scripts/check-config.sh",
+      "purpose": "forwardAuth service configuration validation entry point"
+    },
+    {
+      "path": "connectors/traefik/scripts/start-smoke.sh",
+      "purpose": "forwardAuth service process start/stop smoke without requests"
+    },
+    {
+      "path": "connectors/traefik/scripts/runtime-smoke.sh",
+      "purpose": "real Traefik forwardAuth baseline 200 and request-header deny 403 smoke"
+    },
+    {
+      "path": "connectors/traefik/scripts/runtime_smoke.py",
+      "purpose": "bounded temporary upstream and HTTP runtime probe helper"
+    },
+    {
+      "path": "connectors/traefik/config/traefik-forwardauth.conf",
+      "purpose": "example Common runtime configuration with response processing disabled"
+    },
+    {
+      "path": "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
+      "purpose": "temporary Traefik forwardAuth File Provider configuration template"
     }
   ],
+  "shared_dependencies": [
+    "common/runtime/msconnector_runtime.h",
+    "common/runtime/msconnector_runtime.c",
+    "common/runtime/http_authorization_service.h",
+    "common/runtime/http_authorization_service.c",
+    "common/include/msconnector/adapter_metadata.h",
+    "common/include/msconnector/generic_mapper.h",
+    "common/include/msconnector/decision.h",
+    "common/include/msconnector/event.h",
+    "common/include/msconnector/resource_limits.h",
+    "common/src/*.c",
+    "common/rules/modsecurity_targeted_smoke.conf"
+  ],
   "verification_status": "connector-gap",
-  "starter_evidence_note": "local decision-service self-test is starter-only; not runtime evidence"
+  "runtime_evidence_scope": "local Traefik forwardAuth request-header rule 1000001: allow 200, block 403",
+  "claims_not_verified": [
+    "request_body",
+    "upstream_response_headers",
+    "response_body",
+    "crs_complete",
+    "security_verified",
+    "production_ready",
+    "full_matrix_ready"
+  ],
+  "starter_evidence_note": "legacy decision-service self-test remains non-runtime evidence"
 }

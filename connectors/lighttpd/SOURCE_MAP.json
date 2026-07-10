@@ -1,7 +1,8 @@
 {
   "connector": "lighttpd",
-  "status": "bridge-starter",
-  "runtime_status": "not_verified",
+  "status": "partial_runtime_path",
+  "runtime_status": "minimal_runtime_smoke",
+  "primary_integration": "native_lighttpd_module",
   "upstream": {
     "selected": true,
     "repository": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
@@ -12,69 +13,87 @@
   },
   "repo_owned_files": [
     {
-      "path": "connectors/lighttpd/metadata.c",
-      "role": "connector metadata bridge-starter"
-    },
-    {
-      "path": "connectors/lighttpd/metadata.h",
-      "role": "connector metadata declarations"
-    },
-    {
-      "path": "connectors/lighttpd/src/lighttpd_build_starter.c",
-      "role": "compile-time metadata probe; no lighttpd or ModSecurity runtime API calls"
-    },
-    {
-      "path": "connectors/lighttpd/src/lighttpd_bridge.h",
-      "role": "decision-service bridge-starter declarations"
-    },
-    {
-      "path": "connectors/lighttpd/src/lighttpd_bridge.c",
-      "role": "local bridge-starter probe flow; no FastCGI/SCGI/lighttpd/libmodsecurity runtime implementation"
-    },
-    {
-      "path": "connectors/lighttpd/src/lighttpd_bridge_main.c",
-      "role": "CLI status and self-test entrypoint for the bridge starter"
-    },
-    {
-      "path": "connectors/lighttpd/build/build_starter.sh",
-      "role": "standalone compile check for metadata/probe source"
-    },
-    {
-      "path": "connectors/lighttpd/build/bridge_starter.sh",
-      "role": "standalone compile and self-test check for bridge-starter source"
-    },
-    {
-      "path": "connectors/lighttpd/Makefile",
-      "role": "local starter build/self-test targets"
-    },
-    {
-      "path": "connectors/lighttpd/harness/run_lighttpd_smoke.sh",
-      "role": "connector entrypoint for framework-owned sidecar_proxy runtime smoke"
+      "path": "connectors/lighttpd/module/mod_msconnector.c",
+      "role": "native lighttpd plugin lifecycle, config, request/response hooks, decisions and cleanup"
     },
     {
       "path": "connectors/lighttpd/src/lighttpd_modsecurity_mapper.h",
-      "role": "Common SDK generic mapper alias header; no runtime claim"
+      "role": "lighttpd-to-Common mapper interface and owned header storage"
+    },
+    {
+      "path": "connectors/lighttpd/src/lighttpd_modsecurity_mapper.c",
+      "role": "native request/response metadata and length-delimited header mapping"
+    },
+    {
+      "path": "connectors/lighttpd/build/build_module.sh",
+      "role": "C17 PIC compile/link path for mod_msconnector.so against pinned host headers"
+    },
+    {
+      "path": "connectors/lighttpd/harness/prepare_native_smoke.sh",
+      "role": "temporary Common runtime and lighttpd native smoke configuration"
+    },
+    {
+      "path": "connectors/lighttpd/config/lighttpd-native.conf",
+      "role": "documented Common runtime configuration mapping for the native module"
+    },
+    {
+      "path": "connectors/lighttpd/harness/check_lighttpd_config.sh",
+      "role": "real lighttpd module/config load check"
+    },
+    {
+      "path": "connectors/lighttpd/harness/start_lighttpd_smoke.sh",
+      "role": "request-free real-process start, PID and clean-stop smoke"
+    },
+    {
+      "path": "connectors/lighttpd/harness/runtime_lighttpd_smoke.sh",
+      "role": "separate real-host baseline 200 and Phase-1 rule 403 smoke"
+    },
+    {
+      "path": "connectors/lighttpd/metadata.c",
+      "role": "native connector status metadata"
+    },
+    {
+      "path": "connectors/lighttpd/Makefile",
+      "role": "separate bridge build/self-test and native build/config/start/runtime targets"
+    },
+    {
+      "path": "connectors/lighttpd/src/lighttpd_bridge.c",
+      "role": "retained legacy bridge-starter probe; not native runtime evidence"
+    },
+    {
+      "path": "connectors/lighttpd/harness/run_lighttpd_smoke.sh",
+      "role": "retained legacy framework sidecar entrypoint; separate evidence path"
     }
   ],
   "shared_dependencies": [
-    "common/include/msconnector/capabilities.h",
-    "common/include/msconnector/intervention.h",
-    "common/include/msconnector/origin.h",
-    "common/include/msconnector/request.h",
-    "common/include/msconnector/status.h",
-    "common/src/capabilities.c",
-    "common/src/intervention.c",
-    "common/src/origin.c",
-    "common/src/status.c"
+    "common/runtime/msconnector_runtime.h",
+    "common/runtime/msconnector_runtime.c",
+    "common/include/msconnector/generic_mapper.h",
+    "common/include/msconnector/request_mapper_contract.h",
+    "common/include/msconnector/response_mapper_contract.h",
+    "common/include/msconnector/decision.h",
+    "common/include/msconnector/error.h",
+    "common/include/msconnector/resource_limits.h",
+    "common/include/msconnector/event.h",
+    "common/src/*.c",
+    "common/rules/modsecurity_targeted_smoke.conf"
   ],
-  "blocked_runtime_dependencies": [
-    "production hardening for the sidecar_proxy runtime path",
-    "No-CRS and With-CRS runtime matrix evidence",
-    "response-body buffering and blocking evidence",
-    "audit log evidence",
-    "native-module lighttpd headers or SDK/source tree if a native module path is selected later",
-    "FastCGI or SCGI protocol adapter if a bridge path is selected later"
+  "verified_evidence": [
+    "C17 PIC shared-module compile and link with warnings as errors",
+    "real pinned lighttpd 1.4.84 config and module load",
+    "real request-free lighttpd start and clean stop",
+    "real lighttpd baseline OPTIONS-star HTTP 200",
+    "real Phase-1 rule 1000001 HTTP 403 through the native module",
+    "JSONL connector and rule metadata without body payload fields"
   ],
-  "verification_status": "connector-gap",
-  "starter_evidence_note": "historical sidecar smoke entries are starter-only; not runtime evidence"
+  "unsupported_or_unverified": [
+    "request body mapping and Phase 2",
+    "response body mapping, Phase 4 and late intervention",
+    "redirect, drop and connection-abort semantics",
+    "native CRS evidence",
+    "production hardening and security verification",
+    "full runtime matrix"
+  ],
+  "verification_status": "partial_runtime_path",
+  "claim_boundary": "minimal_runtime_smoke applies only to the native request/response header path and Phase-1 deny"
 }

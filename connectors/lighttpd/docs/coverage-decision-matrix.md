@@ -2,65 +2,52 @@
 
 **Language:** English | [Deutsch](coverage-decision-matrix.de.md)
 
-Status: bridge-starter
-Runtime status: not-verified
+Status: `minimal_runtime_smoke` / `partial_runtime_path`
 
-This file records only the lighttpd-specific state. The global matrix, status
-vocabulary, promotion gates, No-CRS/With-CRS separation, runtime evidence
-requirements, and RESPONSE_BODY minimum evidence remain defined in
-`connectors/_template/docs/coverage-decision-matrix.md` and
-`reports/template-verification-nginx-apache/connector-scaffold-decisions.md`.
+This matrix records only the native lighttpd connector evidence. Global
+promotion and response-body gates remain defined by the repository-wide
+connector policy.
 
-## Current lighttpd Status
+## Current status
 
-| Gate | Status |
-| --- | --- |
-| Scaffold | OK |
-| Origin/Metadata | bridge-starter documented |
-| Metadata/probe build | PASS |
-| Bridge-starter build | PASS |
-| Bridge-starter self-test | PASS |
-| Native lighttpd module | not implemented |
-| FastCGI/SCGI implementation | not implemented |
-| Adapter implementation | not implemented |
-| Harness | contract only |
-| No-CRS | not-run |
-| With-CRS | not-run |
-| RESPONSE_BODY | not-verified |
-| Promotion | not allowed beyond bridge-starter/partial |
-
-## Gate Checklist
-
-- [x] Scaffold documentation exists.
-- [x] No local `connectors/lighttpd/tests` folder is used.
-- [x] Origin/license status for current repo-owned bridge starter exists.
-- [x] Source map for current repo-owned bridge starter exists.
-- [x] Metadata exists for bridge-starter status.
-- [x] Metadata/probe build-starter evidence path exists.
-- [x] Bridge-starter source exists.
-- [x] Bridge-starter self-test exists.
-- [ ] lighttpd API/SDK/source selected.
-- [ ] FastCGI/SCGI protocol adapter exists.
-- [ ] lighttpd adapter implementation exists.
-- [ ] lighttpd runtime harness evidence exists.
-- [ ] No-CRS runtime evidence exists.
-- [ ] With-CRS runtime evidence exists.
-- [ ] RESPONSE_BODY blocking evidence exists.
-- [ ] Negative/pass-through evidence exists.
-- [ ] Audit/log evidence exists.
-
-## Phase Matrix
-
-| Phase / Gate | lighttpd status | Evidence |
+| Gate | Status | Evidence or boundary |
 | --- | --- | --- |
-| Phase 0 Scaffold | OK | `connectors/lighttpd/` scaffold files |
-| Phase 1 Origin/Metadata | bridge-starter documented | `ORIGIN.md`, `SOURCE_MAP.json`, `metadata.c`, `metadata.h` |
-| Phase 2 Build | bridge-starter | `connectors/lighttpd/Makefile`, `build/build_starter.sh`, `build/bridge_starter.sh` |
-| Phase 3 Harness | contract only | `connectors/lighttpd/harness/README.md` |
-| Phase 4 No-CRS | not-run | no lighttpd runtime evidence |
-| Phase 5 With-CRS | not-run | no lighttpd runtime evidence |
-| Phase 6 Coverage Matrix | bridge-starter documented | this file references the global matrix |
-| Phase 7 RESPONSE_BODY | not-verified | no lighttpd runtime evidence |
-| Phase 8 Negative/pass-through | not-verified | no lighttpd runtime evidence |
-| Phase 9 Audit/log | not-verified | no lighttpd runtime evidence |
-| Phase 10 Promotion | not allowed beyond bridge-starter/partial | blocked by missing adapter and runtime evidence |
+| Origin/source map | documented | `ORIGIN.md`, `SOURCE_MAP.json` |
+| Common SDK adoption | implemented | Common config, mapper contracts, runtime, decisions, limits, events |
+| Native module lifecycle | implemented | init/defaults/hooks/reset/cleanup in `module/mod_msconnector.c` |
+| C17 compile/link | PASS | pinned lighttpd 1.4.84, PIC, shared object, `-Werror` |
+| Config/module load | PASS | real `lighttpd -tt` |
+| Start smoke | PASS | real process, clean stop, zero requests |
+| Request metadata/headers | PASS, narrow | real baseline 200 and rule-backed 403 |
+| Request body | unsupported / unverified | mapper advertises no body and passes no payload |
+| Response metadata/headers | executed in smoke | response-start hook and Common response processing |
+| Response body | unsupported / unverified | no body hook or payload mapping |
+| Decision/block status | PASS, Phase 1 | rule `1000001`, HTTP 403 via `http_status_set_err()` |
+| Events | PASS, narrow | JSONL connector/rule metadata; no body payload field |
+| Transaction cleanup | implemented | finish/destroy and mapper storage cleanup at reset |
+| No-CRS targeted smoke | PASS | only the repository targeted rule, not CRS |
+| CRS | not run / not claimed | no native CRS evidence |
+| Production/security/full matrix | not claimed | broader hardening and evidence absent |
+
+## Gate checklist
+
+- [x] Pinned lighttpd source, binary, and generated ABI header available.
+- [x] Native module and host mapper exist.
+- [x] Build and bridge self-test are separate.
+- [x] Config check loads the real module.
+- [x] Start smoke sends no requests.
+- [x] Separate runtime smoke traverses lighttpd and the module.
+- [x] Baseline request is allowed with 200.
+- [x] Phase-1 header rule blocks with 403.
+- [x] Decision event includes connector and rule metadata.
+- [ ] Request-body mapping and Phase 2 evidence.
+- [ ] Response-body mapping, Phase 4, and late-intervention evidence.
+- [ ] Redirect/drop/abort behavior evidence.
+- [ ] Native CRS evidence.
+- [ ] Stress, resilience, security, and production hardening evidence.
+
+## Promotion decision
+
+The connector may claim only `minimal_runtime_smoke` for the narrow native
+header path. It must not claim response-body verification, CRS verification,
+security verification, production readiness, or full-matrix readiness.

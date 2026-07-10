@@ -1,0 +1,24 @@
+# Start-smoke template. The connector script replaces both address tokens in a
+# temporary copy outside the checkout.
+http:
+  routers:
+    connector-start-smoke:
+      entryPoints:
+      - web
+      rule: PathPrefix(`/`)
+      middlewares:
+      - modsecurity-forwardauth
+      service: unused-upstream
+  middlewares:
+    modsecurity-forwardauth:
+      forwardAuth:
+        address: http://__AUTH_ADDRESS__/authorize
+        trustForwardHeader: false
+        authRequestHeaders:
+        - X-Modsec-Smoke
+        - X-Request-Id
+  services:
+    unused-upstream:
+      loadBalancer:
+        servers:
+        - url: http://__UPSTREAM_ADDRESS__

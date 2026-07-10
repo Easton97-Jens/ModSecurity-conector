@@ -1,87 +1,55 @@
-# Envoy Architecture
+# Envoy Connector Architecture
 
-Status: bridge-starter
-Runtime status: not-verified
+Status: `compile_verified`; targeted ext_authz request path is
+`minimal_runtime_smoke` / `connector-gap`.
 
-The selected repository-backed Envoy integration path is a sidecar/HTTP bridge
-starter. Native Envoy filter, ext_proc, and proxy-wasm implementations remain
-deferred because this checkout does not contain Envoy SDK/API headers,
-proxy-wasm SDK headers, Envoy ext_proc protobuf or gRPC bindings, or an Envoy
-runtime harness.
+## Selected host model
 
-## Repository Evidence
+The connector implements Envoy's external HTTP `ext_authz` model. Envoy sends
+request metadata, selected headers, and an optional bounded buffered request
+body to a connector-owned service. No Envoy SDK types cross into Common and no
+native filter, proxy-wasm module, or `ext_proc` protobuf service is required.
 
-- `common/` provides connector-neutral request, response, transaction,
-  intervention, status, origin, logging, and capability shapes without depending
-  on a server SDK.
-- Apache and NGINX have adapter-owned source plus server-specific build and
-  harness files.
-- Envoy now has repository-local metadata and a bridge starter that models
-  request data and returns an intervention decision in a CLI self-test.
+`src/envoy_ext_authz_service_main.c` owns the Envoy-specific profile:
 
-## Target parity with Apache/NGINX
+- connector name `envoy`;
+- integration mode `ext_authz`;
+- original-URI header preferences;
+- request and response mapper callbacks.
 
-Envoy should eventually prove the same core gates that Apache and NGINX prove in
-this repository:
+`src/envoy_modsecurity_mapper.c` is a thin C17 adapter over the Common generic
+mapper. `common/runtime` owns config parsing and validation, resource/body
+limits, rule loading, libmodsecurity engine/transaction lifecycle, transaction
+IDs, decision/action mapping, and metadata-only event JSONL.
 
-| Capability | Envoy bridge-starter status |
-| --- | --- |
-| Request headers inspection | local self-test model only; no Envoy traffic |
-| Request URI / args inspection | local self-test model only; no Envoy traffic |
-| Request body inspection | not implemented |
-| CRS loading | not implemented |
-| Blocking decision | local self-test returns `msconnector_intervention` 403 only |
-| No-CRS runtime | not-run |
-| With-CRS runtime | not-run |
-| RESPONSE_BODY | separate gate; not verified |
+## Request flow
 
-The bridge starter is a step toward request and intervention mapping. It is not
-Apache/NGINX-equivalent runtime evidence.
+```text
+client -> Envoy HTTP connection manager -> ext_authz HTTP request
+       -> msconnector_envoy_ext_authz -> Common mapper/runtime
+       -> libmodsecurity decision -> ext_authz allow/deny
+       -> upstream or local 403
+```
 
-## Integration Options
+The checked-in Envoy smoke config forwards `content-length`, `content-type`,
+`x-modsec-smoke`, and `x-request-id`; buffers at most 4096 request bytes and does
+not permit partial bodies. Connector config independently enforces header, body,
+event, and transaction constraints.
 
-| Option | Current status | Reason |
-| --- | --- | --- |
-| Native Envoy HTTP filter | deferred | Envoy C++ SDK/API headers are not present in this repository. |
-| External processing service | deferred | ext_proc protobuf/gRPC generated sources and service dependencies are not present. |
-| proxy-wasm/WASM | deferred | proxy-wasm SDK and WASM build toolchain are not present. |
-| Sidecar/HTTP bridge | selected starter path | A local C CLI can model request/intervention decisions using `common/` without fake Envoy APIs. |
+## Response boundary
 
-## Selected Minimal Path
+HTTP `ext_authz` executes before upstream routing. It cannot inspect the
+upstream response. The response mapper is linked and contract-checked for API
+completeness, but response headers and bodies are unsupported in this host
+model. A later response-phase implementation would require a separately proven
+model such as `ext_proc`; it must not be inferred from this connector.
 
-The selected path for this change is a sidecar/HTTP bridge starter. It compiles
-`connectors/envoy/src/envoy_bridge.c`, `envoy_bridge_main.c`, and Envoy metadata
-with connector-neutral `common/` code. The self-test exercises allow and block
-branches using local request data and `msconnector_intervention`.
+## Lifecycle and evidence
 
-No Envoy API, libmodsecurity transaction lifecycle, HTTP filter hook, ext_proc
-service, proxy-wasm function, CRS load, or Envoy runtime request handling is
-implemented or claimed.
+- `build-envoy-connector`: compile/link only.
+- `check-envoy-config`: load config, initialize runtime/rules, then clean up.
+- `start-smoke-envoy`: validate and start/stop Envoy plus connector service
+  without requests.
+- `runtime-smoke-envoy`: real Envoy 200/403 request path with clean shutdown.
 
-Global references:
-
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
-- `connectors/_template/docs/coverage-decision-matrix.md`
-
-## Parallel Phase Target
-
-The runtime-smoke target for the open-connector parallel phase is
-`integration_mode=ext_authz`.
-
-Envoy-specific code remains limited to Envoy ext_authz wiring, Envoy
-configuration, and the Envoy smoke harness. Shared data contracts remain in
-`common/include/msconnector/`:
-
-- `request.h` / `response.h` for HTTP mapping;
-- `intervention.h` for block decisions and future 403 responses;
-- `status.h` for neutral pass/BLOCKED/error status values;
-- `logging.h` for log records and callback shape;
-- `capabilities.h` for capability claims;
-- `origin.h` for source metadata;
-- `transaction.h` for transaction/decision views.
-
-Smoke evidence is generated by `common/scripts/write_smoke_result.py` via
-`common/scripts/run_blocked_runtime_smoke.sh`. Envoy must not add a separate
-Result/Evidence JSON model. Current BLOCKED evidence records
-`runtime_verified=false`, `production_ready=false`, `full_matrix_ready=false`,
-and `crs_complete=false`.
+The legacy `envoy_bridge` remains self-test-only and is not part of this flow.

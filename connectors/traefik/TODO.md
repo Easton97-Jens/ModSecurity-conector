@@ -1,7 +1,7 @@
 # Traefik Connector TODO
 
-Status: decision-service-starter
-Runtime status: not-verified
+Status: minimal_runtime_smoke (forwardAuth request path only)
+Runtime status: connector-gap outside the targeted request-header proof
 
 Global gate definitions:
 
@@ -33,10 +33,12 @@ Global gate definitions:
 - [x] decision-service starter implemented
 - [x] decision-service starter command executed
 - [x] decision-service local self-test executed
-- [ ] production Traefik build approach documented
-- [ ] production Traefik include paths documented
-- [ ] production Traefik library paths documented
-- [ ] production Traefik build artifact path documented
+- [x] connector-owned forwardAuth service entry point implemented
+- [x] C17 compile/link-only connector build implemented
+- [x] libmodsecurity include paths supplied explicitly
+- [x] libmodsecurity library paths supplied explicitly
+- [x] connector service artifact path documented
+- [x] config-check and process-only start-smoke separated from build
 - [ ] production Traefik build logs documented
 
 ## Phase 3: Harness
@@ -45,7 +47,7 @@ Global gate definitions:
 - [x] harness command documented
 - [x] BLOCKED evidence path documented
 - [x] common smoke result writer used instead of connector-local JSON writer
-- [ ] real Traefik forwardAuth runtime harness implemented
+- [x] connector-local real Traefik -> forwardAuth -> service harness implemented
 - [ ] allowed request returns expected runtime status
 - [ ] blocked request returns HTTP 403 through forwardAuth
 - [ ] Go plugin remains excluded from Phase 1
@@ -73,4 +75,5 @@ Global gate definitions:
 - [ ] eligible for `adapter-owned`
 - [ ] eligible for `runtime-smoke-verified`
 - [ ] eligible for `crs-verified`
-- [ ] eligible for more than `decision-service-starter`
+- [ ] eligible for promotion beyond targeted `minimal_runtime_smoke`
+- [ ] current-commit runtime evidence promotes service source beyond `connector-gap`

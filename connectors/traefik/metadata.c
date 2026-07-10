@@ -2,7 +2,7 @@
 
 static const msconnector_traefik_adapter_metadata traefik_metadata = {
     {
-        "Traefik decision-service starter",
+        "Traefik forwardAuth connector source",
         "not selected",
         "not selected",
         "not selected",
@@ -10,17 +10,21 @@ static const msconnector_traefik_adapter_metadata traefik_metadata = {
         "not documented"
     },
     {
-        MSCONNECTOR_CAPABILITY_NONE,
+        MSCONNECTOR_CAPABILITY_REQUEST_HEADERS |
+            MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID,
         "traefik",
-        "decision-service-starter",
+        "minimal-runtime-smoke",
         "traefik",
-        "Local decision-service starter only; no Traefik API, libmodsecurity runtime, "
-        "Traefik traffic handling, CRS execution, or runtime capability is verified."
+        "Minimal forwardAuth request-header runtime smoke is verified locally; no "
+        "request-body, upstream response, CRS, security, or production capability is verified."
     },
-    "repo-owned decision-service-starter",
+    "traefik",
+    "Traefik",
+    "repo-owned forwardAuth-service-source",
     "none",
-    "decision-service-starter",
-    "not_verified",
+    "external HTTP forwardAuth authorization service; request phase only",
+    "link_verified",
+    "minimal_runtime_smoke",
     "connector-gap"
 };
 

@@ -1,28 +1,60 @@
 # Traefik Connector
 
-Status: decision-service-starter with conditional local runtime smoke
-Runtime status: verified only when a local common.sh-managed Traefik binary runs the HTTP smoke
-Template alignment: scaffold-aligned with local decision-service starter
+Status: minimal_runtime_smoke for the forwardAuth request path only
+Runtime status: targeted local Traefik/Common-runtime allow 200/block 403
+Verification status: not_verified / connector-gap
 
-This connector now contains a repo-owned local decision-service starter in
-addition to the compile-time metadata starter. It still does not contain a
-production Traefik adapter implementation. When a local Traefik binary is
-provided through `TRAEFIK_BIN` or common.sh-managed caches, the runtime-smoke
-harness starts a minimal upstream, a minimal forwardAuth decision service, and
-Traefik with a generated local config to prove an allowed request and a blocked
-HTTP 403 path.
+The selected connector architecture is an external HTTP `forwardAuth` service.
+`src/traefik_forwardauth_service_main.c` registers a Traefik host profile with
+the connector-neutral Common runtime, while `traefik_modsecurity_mapper.c`
+provides real thin mapper functions. This is not a Traefik Go plugin or cgo
+module and does not establish production readiness.
 
-The starter compiles only repository-owned C code and shared common helpers:
+The repository build surfaces compile only repository-owned C code and shared
+Common helpers:
 
 - `connectors/traefik/metadata.c`
 - `connectors/traefik/metadata.h`
 - `connectors/traefik/src/traefik_build_starter.c`
 - `connectors/traefik/src/traefik_decision_service.*`
+- `connectors/traefik/src/traefik_modsecurity_mapper.*`
+- `connectors/traefik/src/traefik_forwardauth_service_main.c`
 - shared helpers from `common/src/` and `common/include/msconnector/`
+- shared runtime implementation from `common/runtime/`
 
-It does not include a Traefik API, Traefik plugin SDK, Go module,
-libmodsecurity runtime integration, Traefik traffic handling, CRS execution,
-RESPONSE_BODY handling, or a Traefik runtime harness.
+It does not include a Traefik plugin SDK, Go module, or cgo bridge. Upstream
+response headers and bodies are outside the selected request-phase
+`forwardAuth` protocol and remain explicitly unsupported.
+
+## Connector Service Build
+
+The real service build is compile/link-only and requires explicit local
+libmodsecurity paths:
+
+```sh
+MODSECURITY_INCLUDE_DIR=/local/include \
+MODSECURITY_LIB_DIR=/local/lib \
+make -C connectors/traefik build-connector
+```
+
+Build, configuration validation, and process startup are separate operations:
+
+```sh
+make -C connectors/traefik check-config
+make -C connectors/traefik start-smoke
+make -C connectors/traefik runtime-smoke
+```
+
+`check-config` invokes `--check-config`; `start-smoke` invokes `--serve`, starts
+a real local Traefik process with a temporary forwardAuth File Provider config,
+proves that both processes remain alive, and stops them without sending a
+request. Neither target silently rebuilds the service.
+
+`runtime-smoke` is the separate traffic proof. It starts the built service, a
+minimal upstream, and a local Traefik binary with a temporary File Provider
+configuration. It requires an allowed request to return 200 and
+`X-Modsec-Smoke: block` to return 403 through the Common runtime. Missing local
+binaries return Exit 77; config, startup, mapping, or status errors return FAIL.
 
 ## Global Contract
 
@@ -35,10 +67,10 @@ See:
 
 - Origin/license: documented for repo-owned starter; upstream Traefik source not selected
 - Metadata: repo-owned compile-time metadata present
-- Build: metadata and decision-service starter commands present
+- Build: C17 Common-runtime service plus legacy starter commands present
 - Self-test: local decision-service starter self-test present
 - Harness: conditional local Traefik forwardAuth smoke when a local binary is available
-- No-CRS runtime: not run
+- Targeted No-CRS runtime: pass-local; full No-CRS matrix not run
 - With-CRS runtime: not run
 - RESPONSE_BODY blocking: not verified
 
@@ -215,7 +247,9 @@ the targeted rule and returned the 403 intervention.
 This connector is prepared for the Common SDK but remains `not_verified` / `connector-gap`.
 
 - Common configuration is initialized through `traefik_modsecurity_config_init()` and maps to `msconnector_config`.
-- Request and response mapper contracts use the Common generic mapper helper and live in `connectors/traefik/src/traefik_modsecurity_mapper.*` and are structure/compile-level only until host runtime callsites exist.
-- Decisions use Common decision/intervention models; event, test-result, and artifact emission remain connector-gap until runtime integration exists.
-- Connector-specific code remains responsible for host API glue, runtime lifecycle, build glue, and protocol/frame handling.
-- No production, CRS, full-matrix, runtime, or RESPONSE_BODY verification is claimed.
+- Request and response mapper contracts use thin C17 functions in `connectors/traefik/src/traefik_modsecurity_mapper.*`; dead macro aliases are not used.
+- The service host profile selects `integration_mode=forwardAuth`, prefers `X-Forwarded-Uri` then `X-Original-Uri`, and passes the mapper callbacks to the neutral HTTP authorization service.
+- Runtime decisions use Common decision/intervention models; the targeted smoke verifies a Common blocked-event JSONL record without body payload fields.
+- Connector-specific code remains responsible for the host profile, build glue, example configuration, and process entry point.
+- Response mapping is linked for contract checking only; upstream response inspection is unsupported by `forwardAuth`.
+- No production, CRS-complete, full-matrix, broad runtime, or RESPONSE_BODY verification is claimed.

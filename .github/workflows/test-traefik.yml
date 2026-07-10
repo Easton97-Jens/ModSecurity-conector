@@ -8,19 +8,18 @@ permissions:
   contents: read
 
 jobs:
-  traefik-structure:
+  traefik-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
           persist-credentials: false
-      - name: Check Traefik scaffold
+      - name: Check Traefik Common and host contracts
         run: |
           set -eu
-          test -f connectors/traefik/README.md
-          test -f connectors/traefik/TODO.md
-          test -f connectors/traefik/docs/architecture.md
-          test -f connectors/traefik/docs/build.md
-          test -f connectors/traefik/docs/public-sources.md
-          grep -q 'Status:' connectors/traefik/TODO.md
+          make check-traefik-common-adoption
+          make check-remaining-connectors-host-integration
+          make check-remaining-connectors-build-wiring
+          make check-remaining-connectors-start-wiring
+          make check-remaining-connectors-claim-policy

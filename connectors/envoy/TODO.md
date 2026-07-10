@@ -1,7 +1,7 @@
 # Envoy Connector TODO
 
-Status: bridge-starter
-Runtime status: not-verified
+Status: `compile_verified` ext_authz connector service
+Runtime metadata: `minimal_runtime_smoke` / `connector-gap`
 
 Global gate definitions:
 
@@ -32,26 +32,28 @@ Global gate definitions:
 - [x] include paths documented for the bridge-starter build
 - [x] bridge starter source builds
 - [x] bridge CLI self-test runs
-- [ ] Envoy SDK/API include paths documented
-- [ ] Envoy/proxy-wasm/ext_proc library paths documented
+- [x] connector-owned C17 ext_authz service builds and links
+- [x] Common runtime and real mapper callbacks are linked
+- [x] Envoy SDK/API dependencies documented as not required for HTTP ext_authz
+- [x] proxy-wasm/ext_proc dependencies documented as outside the selected path
 - [ ] production adapter build logs documented
 
 ## Phase 3: ModSecurity Bridge
 
-- [ ] libmodsecurity headers located
-- [ ] libmodsecurity library located
-- [ ] ModSecurity transaction lifecycle implemented
-- [ ] real rule evaluation self-test executed
+- [x] libmodsecurity headers supplied through explicit/Framework environment
+- [x] libmodsecurity library linked with local runtime rpath
+- [x] ModSecurity transaction lifecycle delegated to `common/runtime`
+- [x] targeted real rule evaluation executed through the Envoy ext_authz smoke
 
 ## Phase 4: Envoy Harness
 
-- [x] `make smoke-envoy` targeted runtime-smoke entrypoint implemented
+- [x] connector-local `runtime-smoke-envoy` entrypoint implemented
 - [x] harness command documented
-- [x] BLOCKED evidence path documented
-- [x] common smoke result writer used instead of connector-local JSON writer
-- [ ] real Envoy ext_authz runtime harness implemented
-- [ ] allowed request returns expected runtime status
-- [ ] blocked request returns HTTP 403 through Envoy ext_authz
+- [x] missing dependencies are BLOCKED while real runtime errors fail
+- [ ] root evidence writer consumes the connector-local summary/event artifacts
+- [x] real Envoy ext_authz runtime harness implemented
+- [x] allowed request returns HTTP 200 in the local targeted smoke
+- [x] blocked request returns rule-backed HTTP 403 through Envoy ext_authz
 
 ## Phase 5: No-CRS Runtime
 
