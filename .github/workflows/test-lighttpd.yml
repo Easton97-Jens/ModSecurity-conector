@@ -8,19 +8,18 @@ permissions:
   contents: read
 
 jobs:
-  lighttpd-structure:
+  lighttpd-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: recursive
           persist-credentials: false
-      - name: Check Lighttpd scaffold
+      - name: Check lighttpd Common and host contracts
         run: |
           set -eu
-          test -f connectors/lighttpd/README.md
-          test -f connectors/lighttpd/TODO.md
-          test -f connectors/lighttpd/docs/architecture.md
-          test -f connectors/lighttpd/docs/build.md
-          test -f connectors/lighttpd/docs/public-sources.md
-          grep -q 'Status:' connectors/lighttpd/TODO.md
+          make check-lighttpd-common-adoption
+          make check-remaining-connectors-host-integration
+          make check-remaining-connectors-build-wiring
+          make check-remaining-connectors-start-wiring
+          make check-remaining-connectors-claim-policy

@@ -103,13 +103,19 @@ for rel in ("common/include/msconnector/request_mapper_contract.h", "common/incl
                 print(f"server token in mapper contract: {rel}: {token}")
                 ok = False
 
-for path in list((ROOT / "common/include/msconnector").glob("*.h")) + list((ROOT / "common/src").glob("*.c")):
+common_contract_files = (
+    list((ROOT / "common/include/msconnector").glob("*.h"))
+    + list((ROOT / "common/src").glob("*.c"))
+    + list((ROOT / "common/runtime").glob("*.h"))
+    + list((ROOT / "common/runtime").glob("*.c"))
+)
+for path in common_contract_files:
     text = path.read_text(errors="ignore")
     target = contains_server_include(text)
     if target:
         print(f"server-specific include in common: {path.relative_to(ROOT)}: {target}")
         ok = False
 
-print("adapter-contracts: common contracts present; connector runtime adoption not claimed")
+print("adapter-contracts: common contracts present; runtime remains host-neutral")
 if not ok:
     sys.exit(1)

@@ -2,8 +2,8 @@
 
 **Sprache:** [English](coverage-decision-matrix.md) | Deutsch
 
-Status: Entscheidungsdienststarter
-Laufzeitstatus: nicht überprüft
+Status: minimal_runtime_smoke (nur forwardAuth-Request-Pfad)
+Laufzeitstatus: breiteres Connector-Verhalten nicht verifiziert
 
 Diese Datei zeichnet nur den Traefik-spezifischen Status auf. Globale Matrixregeln und
 Promotion-Gates sind in definiert
@@ -16,9 +16,9 @@ Promotion-Gates sind in definiert
 | --- | --- | --- |
 | Scaffold | OK | `connectors/traefik/README.md`, `connectors/traefik/TODO.md` |
 | Origin/Metadata | starter-present | `ORIGIN.md`, `SOURCE_MAP.json`, `metadata.c`, `metadata.h` |
-| Build | decision-service-starter | metadata and decision-service starter compile |
+| Build | link-verified-local | C17-Service mit Common Runtime lokal kompiliert und gelinkt |
 | Self-test | pass-local | `make -C connectors/traefik self-test-decision-service` |
-| Harness | contract only | `connectors/traefik/harness/README.md` |
+| Harness | targeted-pass-local | realer Traefik -> forwardAuth -> Service 200/403-Pfad |
 | No-CRS | not-run | No Traefik runtime command was run |
 | With-CRS | not-run | No Traefik runtime command was run |
 | RESPONSE_BODY | not-verified | No blocking runtime evidence exists |
@@ -35,11 +35,11 @@ Promotion-Gates sind in definiert
 - [x] Lokaler Selbsttest des Decision-Service-Starters dokumentiert
 - [ ] Produktionstraefik origin/license Nachweis dokumentiert
 - [ ] Produktions-Traefik-Baunachweise dokumentiert
-- [ ] Harness implementiert und dokumentiert
+- [x] Connector-eigener Harness implementiert und dokumentiert
 - [ ] Kein CRS-Laufzeitbeweis dokumentiert
 - [ ] With-CRS-Laufzeitnachweis dokumentiert
 - [ ] RESPONSE_BODY Sperrbeweise dokumentiert
-- [ ] Negative/pass-through Nachweise dokumentiert
+- [x] Lokale gezielte Negative-/Pass-through-Evidence erzeugt
 - [ ] Audit/log Nachweise dokumentiert
 
 ## Phasenmatrix
@@ -48,12 +48,12 @@ Promotion-Gates sind in definiert
 | --- | --- | --- |
 | Phase 0 / Scaffold | OK | scaffold-aligned |
 | Phase 1 / Origin and metadata | starter-present | production origin remains open |
-| Phase 2 / Build | decision-service-starter | local compile and self-test only |
-| Phase 3 / Harness | contract only | do not claim runtime |
+| Phase 2 / Build | link-verified-local | echtes Service-Artefakt gegen Common Runtime/libmodsecurity gelinkt |
+| Phase 3 / Harness | targeted-pass-local | realer Traefik-200/403-Pfad; persistierte CI-Evidence noch offen |
 | Phase 4 / No-CRS | not-run | no runtime claim |
 | Phase 5 / With-CRS | not-run | no CRS claim |
 | Phase 6 / Coverage matrix | starter-documented | keep runtime statuses separate |
 | RESPONSE_BODY blocking | not-verified | no blocking claim |
-| Negative/pass-through | not-verified | no pass-through claim |
+| Negative/pass-through | pass-local | nur gezielte lokale Evidence |
 | Audit/log evidence | not-verified | no audit/log claim |
-| Promotion | not allowed | remains decision-service-starter at most |
+| Promotion | not allowed | bleibt not_verified / connector-gap bis zu persistierter CI-Evidence |

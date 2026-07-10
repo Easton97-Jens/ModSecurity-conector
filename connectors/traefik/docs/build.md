@@ -1,10 +1,37 @@
 # Traefik Build
 
-Status: decision-service-starter
-Runtime status: not-verified
+Status: minimal_runtime_smoke (forwardAuth request path only)
+Runtime status: broader connector behavior not verified
 
-A compile-time metadata starter and a local decision-service starter exist. They
-are not Traefik runtime adapter builds.
+A compile-time metadata starter and local decision-service self-test remain for
+compatibility. The real connector build now produces a long-running external
+`forwardAuth` service linked to the Common runtime and libmodsecurity.
+
+## Connector Build
+
+```sh
+MODSECURITY_INCLUDE_DIR=/local/include \
+MODSECURITY_LIB_DIR=/local/lib \
+make -C connectors/traefik build-connector
+```
+
+The build uses C17 with `-Wall -Wextra -Werror`, writes outside the checkout,
+and performs compile/link only. Its default artifact is
+`$BUILD_ROOT/traefik-connector/traefik-forwardauth`.
+
+Subsequent stages are intentionally separate:
+
+```sh
+make -C connectors/traefik check-config
+make -C connectors/traefik start-smoke
+make -C connectors/traefik runtime-smoke
+```
+
+The config check executes `--check-config`. The start smoke executes `--serve`,
+starts real Traefik with a temporary forwardAuth File Provider config, checks
+both process lifecycles, and stops both without sending HTTP requests.
+The runtime smoke is a third, separate stage that sends real traffic through
+Traefik and the built connector service.
 
 ## Build Starter Commands
 
@@ -15,9 +42,9 @@ make -C connectors/traefik build-decision-service
 make -C connectors/traefik self-test-decision-service
 ```
 
-Compatibility aliases `build-forwardauth-starter` and `self-test-forwardauth`
-currently run the same local decision-service starter. They do not implement or
-verify Traefik `forwardAuth` HTTP behavior.
+`build-forwardauth-starter` now aliases the real compile/link target.
+`self-test-forwardauth` remains an explicitly local legacy decision-model test
+and is not runtime evidence.
 
 The metadata starter compiles:
 
@@ -52,21 +79,22 @@ Default result paths:
 Last local status: metadata build-starter PASS; decision-service starter build
 PASS; decision-service self-test PASS.
 
-## Not Implemented
+## Not Implemented / Not Verified
 
-No production Traefik build is implemented. No Traefik binary, container,
-plugin, middleware, Go module, HTTP server, `forwardAuth` runtime, or
-libmodsecurity runtime integration is built by this starter.
+No Traefik plugin, middleware module, Go module, or cgo integration is built.
+The repository does not build Traefik itself. Response-phase inspection is not
+supported by the selected authorization protocol, and no production or current
+runtime verification is claimed by the service source alone.
 
 ## Production Build Blockers
 
-A production Traefik adapter build is blocked until these are selected and
-documented:
+A production-support claim remains blocked until these are implemented or
+evidenced:
 
-- Traefik integration API or bridge strategy
-- Traefik source, binary, container, plugin SDK, middleware SDK, or Go module
-- license and origin evidence for any imported Traefik-facing source
-- libmodsecurity runtime integration point
-- HTTP service or other bridge runtime if `forwardAuth` is selected
-- build command and reproducible artifact path
-- runtime harness command and evidence paths
+- retained CI build/link evidence with pinned libmodsecurity inputs
+- retained config-load and service-start evidence
+- retained Traefik-to-service allow/block request evidence
+- broader shutdown, concurrency, timeout, and error-path evidence
+- request-body limit and oversized-request evidence
+- event JSONL evidence without request-body payloads
+- explicit deployment and origin/license documentation

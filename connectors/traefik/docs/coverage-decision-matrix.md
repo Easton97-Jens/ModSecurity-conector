@@ -2,8 +2,8 @@
 
 **Language:** English | [Deutsch](coverage-decision-matrix.de.md)
 
-Status: decision-service-starter
-Runtime status: not-verified
+Status: minimal_runtime_smoke (forwardAuth request path only)
+Runtime status: broader connector behavior not verified
 
 This file records Traefik-specific status only. Global matrix rules and
 promotion gates are defined in
@@ -16,9 +16,9 @@ promotion gates are defined in
 | --- | --- | --- |
 | Scaffold | OK | `connectors/traefik/README.md`, `connectors/traefik/TODO.md` |
 | Origin/Metadata | starter-present | `ORIGIN.md`, `SOURCE_MAP.json`, `metadata.c`, `metadata.h` |
-| Build | decision-service-starter | metadata and decision-service starter compile |
+| Build | link-verified-local | C17 Common-runtime-backed service compile/link target |
 | Self-test | pass-local | `make -C connectors/traefik self-test-decision-service` |
-| Harness | contract only | `connectors/traefik/harness/README.md` |
+| Harness | targeted-pass-local | real Traefik -> forwardAuth -> service 200/403 path |
 | No-CRS | not-run | No Traefik runtime command was run |
 | With-CRS | not-run | No Traefik runtime command was run |
 | RESPONSE_BODY | not-verified | No blocking runtime evidence exists |
@@ -35,11 +35,11 @@ promotion gates are defined in
 - [x] Decision-service starter local self-test documented
 - [ ] Production Traefik origin/license evidence documented
 - [ ] Production Traefik build evidence documented
-- [ ] Harness implemented and documented
+- [x] Connector-owned harness implemented and documented
 - [ ] No-CRS runtime evidence documented
 - [ ] With-CRS runtime evidence documented
 - [ ] RESPONSE_BODY blocking evidence documented
-- [ ] Negative/pass-through evidence documented
+- [x] Local targeted negative/pass-through evidence produced
 - [ ] Audit/log evidence documented
 
 ## Phase Matrix
@@ -48,12 +48,12 @@ promotion gates are defined in
 | --- | --- | --- |
 | Phase 0 / Scaffold | OK | scaffold-aligned |
 | Phase 1 / Origin and metadata | starter-present | production origin remains open |
-| Phase 2 / Build | decision-service-starter | local compile and self-test only |
-| Phase 3 / Harness | contract only | do not claim runtime |
+| Phase 2 / Build | link-verified-local | real service artifact links to Common runtime/libmodsecurity |
+| Phase 3 / Harness | targeted-pass-local | real Traefik 200/403 path; retained CI evidence still open |
 | Phase 4 / No-CRS | not-run | no runtime claim |
 | Phase 5 / With-CRS | not-run | no CRS claim |
 | Phase 6 / Coverage matrix | starter-documented | keep runtime statuses separate |
 | RESPONSE_BODY blocking | not-verified | no blocking claim |
-| Negative/pass-through | not-verified | no pass-through claim |
+| Negative/pass-through | pass-local | targeted local evidence only |
 | Audit/log evidence | not-verified | no audit/log claim |
-| Promotion | not allowed | remains decision-service-starter at most |
+| Promotion | not allowed | remains not_verified / connector-gap pending retained CI evidence |

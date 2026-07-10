@@ -2,19 +2,31 @@
 
 static const msconnector_lighttpd_adapter_metadata lighttpd_metadata = {
     {
-        "lighttpd connector bridge starter",
-        "not selected",
-        "not selected",
-        "not selected",
-        "not selected",
-        "no upstream source imported"
+        "lighttpd native ModSecurity connector module",
+        "repository-owned",
+        "not applicable",
+        "not applicable",
+        "native module source",
+        "not separately declared"
     },
-    "bridge-starter",
+    {
+        MSCONNECTOR_CAPABILITY_CONNECTION_METADATA |
+            MSCONNECTOR_CAPABILITY_REQUEST_HEADERS |
+            MSCONNECTOR_CAPABILITY_RESPONSE_HEADERS |
+            MSCONNECTOR_CAPABILITY_CUSTOM_TRANSACTION_ID,
+        "lighttpd",
+        "minimal-runtime-smoke",
+        "lighttpd",
+        "Native request/response header mapping and a Phase-1 request-header deny are verified; request and response bodies remain unsupported."
+    },
+    "lighttpd",
+    "lighttpd",
+    "repository-local-native-module",
     "connectors/lighttpd",
-    "bridge-starter",
-    "not_verified",
-    "connector-gap",
-    "decision-service bridge starter; native lighttpd module and FastCGI/SCGI runtime integration deferred"
+    "native lighttpd plugin with request/response header mapping and Phase-1 deny; request and response bodies unsupported",
+    "link_verified",
+    "minimal_runtime_smoke",
+    "partial_runtime_path"
 };
 
 msconnector_origin msconnector_lighttpd_adapter_origin(void) {

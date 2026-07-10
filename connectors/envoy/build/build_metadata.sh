@@ -29,7 +29,7 @@ command -v "$CC_BIN" >/dev/null 2>&1 || {
 
 mkdir -p "$OUT_DIR"
 
-"$CC_BIN" -std=c99 -Wall -Wextra -Werror \
+"$CC_BIN" -std=c17 -Wall -Wextra -Werror \
     -I "$REPO_ROOT" \
     -I "$REPO_ROOT/common/include" \
     -I "$CONNECTOR_DIR/src" \
