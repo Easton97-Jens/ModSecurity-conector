@@ -1,6 +1,6 @@
 # Traefik Validation
 
-Status: decision-service-starter with conditional local runtime smoke
+Status: minimal_runtime_smoke for the forwardAuth request path only
 Runtime status: verified only when a local common.sh-managed Traefik binary runs the HTTP smoke
 
 Traefik runtime validation is conditional. Without a local binary from
@@ -29,6 +29,15 @@ make smoke-traefik
 - Metadata build starter: PASS for metadata compile smoke.
 - Decision-service starter build: PASS for local compile smoke.
 - Decision-service self-test: PASS for in-memory allow/block decisions.
+- Connector service: C17 compile/link target with explicit local libmodsecurity
+  include and library paths.
+- Config load: `make -C connectors/traefik check-config` invokes
+  `--check-config` on the built service.
+- Start smoke: `make -C connectors/traefik start-smoke` invokes `--serve`, starts
+  real Traefik with a temporary forwardAuth File Provider config, verifies both
+  process lifecycles, and cleans up without sending requests.
+- Connector runtime: `make -C connectors/traefik runtime-smoke` requires a real
+  Traefik -> forwardAuth -> Common runtime path with allowed 200 and blocked 403.
 - Request-body smoke: conditional via `make smoke-traefik-request-body`; PASS
   only with local body-forwarding evidence and rule `1000002`.
 - Minimal CRS smoke: conditional via `make smoke-traefik-crs`; PASS only with
@@ -49,10 +58,23 @@ Framework-owned paths and targets for future validation:
 - `make test-with-crs`
 - `make smoke-common`
 
-The local decision-service self-test is not a framework runtime result and is
-not evidence of Traefik `forwardAuth`, CRS, or libmodsecurity behavior. Traefik
-cannot be promoted beyond decision-service-starter without connector-specific
-runtime evidence.
+The local decision-service self-test remains non-runtime evidence. The real
+service source and local targeted smoke still do not establish production,
+full-matrix, CRS-complete, response-body, or retained CI verification.
+
+## Connector-Owned Service Entry Points
+
+```sh
+make -C connectors/traefik build-connector
+make -C connectors/traefik check-config
+make -C connectors/traefik start-smoke
+make -C connectors/traefik runtime-smoke
+```
+
+These stages do not invoke each other implicitly. The runtime harness writes
+temporary concrete service and Traefik File Provider configurations outside the
+checkout and cleans up every process. Missing pre-run local executables are
+BLOCKED/77; resolved config, startup, mapping, or status errors are FAIL.
 
 ## Framework-Owned Starter Evidence
 
@@ -112,8 +134,8 @@ the blocked body marker `modsec-request-body-block` to return 403 from rule
 `$TRAEFIK_RESULT_ROOT/request-body-result.json`,
 `$TRAEFIK_LOG_ROOT/request-body-decision.log`, and
 `$TRAEFIK_LOG_ROOT/request-body-request-transcript.jsonl`. It may set
-`request_body_smoke_verified=true`; `response_body_verified=true` remains
-forbidden.
+`request_body_smoke_verified` for that run; `response_body_verified` remains
+false.
 
 The minimal CRS smoke uses the same runtime entrypoint with CRS selected:
 
@@ -173,9 +195,9 @@ Current expected result without a local binary:
 - Missing dependencies when no local binary is found: `["traefik"]`
 - skipped_reason when no local binary is found:
   `traefik runtime dependency not available in local common.sh-managed paths`
-- Claims still forbidden for BLOCKED evidence: `runtime_verified=true`,
-  `production_ready=true`, `full_matrix_ready=true`, `crs_complete=true`,
-  `response_body_verified=true`
+- For BLOCKED evidence, `runtime_verified`, `production_ready`,
+  `full_matrix_ready`, `crs_complete`, and `response_body_verified` all remain
+  false.
 
 Expected PASS result with a local binary:
 
@@ -184,8 +206,8 @@ Expected PASS result with a local binary:
 - Blocked request status: `403`
 - Resolved runtime binary: local path from `TRAEFIK_BIN` or a common.sh-managed
   lookup root
-- Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
-  `crs_complete=true`, `response_body_verified=true`
+- `production_ready`, `full_matrix_ready`, `crs_complete`, and
+  `response_body_verified` remain false.
 - This local starter PASS status is not production, CRS, RESPONSE_BODY, or full-matrix verification.
 
 Expected targeted ModSecurity PASS result with local Traefik and local
@@ -198,8 +220,8 @@ libmodsecurity:
 - ModSecurity rule loaded: `true`
 - Intervention status: `403`
 - Decision log path: `$TRAEFIK_LOG_ROOT/modsecurity-decision.log`
-- Claims still forbidden: `production_ready=true`, `full_matrix_ready=true`,
-  `crs_complete=true`, `response_body_verified=true`
+- `production_ready`, `full_matrix_ready`, `crs_complete`, and
+  `response_body_verified` remain false.
 - This local starter PASS status is not production, CRS, RESPONSE_BODY, or full-matrix verification.
 
 Expected request-body PASS result with local Traefik and local libmodsecurity:
@@ -215,8 +237,8 @@ Expected request-body PASS result with local Traefik and local libmodsecurity:
 - Allowed request status: `200`
 - Blocked request status: `403`
 - `request_body_smoke_verified=true`
-- Still forbidden: `production_ready=true`, `full_matrix_ready=true`,
-  `crs_complete=true`, `response_body_verified=true`
+- `production_ready`, `full_matrix_ready`, `crs_complete`, and
+  `response_body_verified` remain false.
 
 Expected minimal CRS PASS result with local Traefik, local libmodsecurity, and
 local CRS:
@@ -229,8 +251,8 @@ local CRS:
 - Blocked request status: `403`
 - Observed CRS rule ID/message: from libmodsecurity intervention evidence
 - `crs_minimal_smoke_verified=true`
-- Still forbidden: `production_ready=true`, `full_matrix_ready=true`,
-  `crs_complete=true`, `response_body_verified=true`
+- `production_ready`, `full_matrix_ready`, `crs_complete`, and
+  `response_body_verified` remain false.
 
 Expected secondary CRS PASS result with local Traefik, local libmodsecurity,
 and local CRS:
@@ -243,8 +265,8 @@ and local CRS:
 - Blocked request status: `403`
 - Observed CRS rule ID/message: extracted from audit/intervention evidence
 - `crs_secondary_smoke_verified=true`
-- Still forbidden: `production_ready=true`, `full_matrix_ready=true`,
-  `crs_complete=true`, `response_body_verified=true`
+- `production_ready`, `full_matrix_ready`, `crs_complete`, and
+  `response_body_verified` remain false.
 
 No global installation is attempted. To run against a prepared local binary:
 

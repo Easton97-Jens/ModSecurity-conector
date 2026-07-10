@@ -1,21 +1,23 @@
 # lighttpd Source
 
-Status: bridge-starter
-Runtime status: sidecar_proxy smoke lives outside this starter source
+Status: native Phase-1 mapper plus retained legacy starters
 
-`lighttpd_build_starter.c` is repo-owned metadata/probe code.
+Primary native source:
 
-`lighttpd_bridge.h`, `lighttpd_bridge.c`, and `lighttpd_bridge_main.c` are
-repo-owned decision-service bridge-starter code. They compile and self-test a
-local probe flow using connector-neutral `common/` helpers.
+- `../module/mod_msconnector.c`: lighttpd plugin lifecycle and Common runtime
+  callsites;
+- `lighttpd_modsecurity_mapper.h/.c`: real request/response metadata and header
+  mapping from pinned lighttpd types to Common SDK types.
 
-This is not production lighttpd adapter source. It does not include lighttpd
-headers, call lighttpd APIs, call ModSecurity APIs, implement FastCGI/SCGI,
-inspect real traffic, block requests, load CRS, or write audit logs.
+The mapper has a non-host stub so repository-wide Common C-standard checks can
+compile without provisioning lighttpd headers. `build/build_module.sh` defines
+`MSCONNECTOR_LIGHTTPD_HOST_API` and compiles the real implementation against the
+pinned host source and generated `config.h`.
 
-The Phase 1 runtime smoke is implemented through the framework-owned
-sidecar_proxy harness and generated lighttpd config, not through these starter
-source files.
+`lighttpd_build_starter.c` remains a metadata probe.
+`lighttpd_bridge.h/.c` and `lighttpd_bridge_main.c` remain a separate historical
+decision-service bridge starter. Its self-test is not native-host evidence.
 
-Production source may only be added with repository-backed ORIGIN, license,
-source-map, metadata, build, harness, No-CRS, With-CRS, and runtime evidence.
+The native source currently maps headers only. It intentionally maps no request
+or response body and makes no body, CRS, production, security, or full-matrix
+claim.

@@ -629,10 +629,82 @@ probe-response-body: check-framework prepare-runtime-components
 connector-starter-checks: check-framework prepare-runtime-components
 	$(WITH_RUNTIME_COMPONENTS) env SOURCE_ROOT="$(SOURCE_ROOT)" BUILD_ROOT="$(BUILD_ROOT)" TMP_ROOT="$(TMP_ROOT)" LOG_ROOT="$(LOG_ROOT)" CONNECTOR_ROOT="$(CURDIR)" sh "$(FRAMEWORK_ROOT)/ci/run-connector-starter-checks.sh"
 
-.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator
+.PHONY: check-apache-common-adoption check-apache-c-standard-wiring check-apache-c-standards check-apache-c17 check-apache-c17-lint check-apache-c23 check-apache-future-c check-apache-c20 check-apache-c26 check-nginx-common-adoption check-nginx-c-standard-wiring check-nginx-c-standards check-nginx-c17 check-nginx-c17-lint check-nginx-c23 check-nginx-future-c check-nginx-c20 check-nginx-c26 check-haproxy-common-adoption check-haproxy-c-standard-wiring check-haproxy-c-standards check-haproxy-c17 check-haproxy-c17-lint check-haproxy-c23 check-haproxy-future-c check-haproxy-c20 check-haproxy-c26 check-common-helpers check-common-helpers-c17 check-common-helpers-c23 check-common-helpers-future-c check-common-helpers-c20 check-common-helpers-c26 check-common-sdk-contract check-common-security-contract check-common-memory-safety check-common-flow-integrity check-adapter-contracts check-directive-parity check-remaining-connectors-common-adoption check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy check-remaining-connectors-c-standard-wiring check-remaining-connectors-c-standards check-remaining-connectors-c17 check-remaining-connectors-c17-lint check-remaining-connectors-c23 check-remaining-connectors-future-c check-block-status-generator build-envoy-connector check-envoy-config start-smoke-envoy runtime-smoke-envoy build-traefik-connector check-traefik-config start-smoke-traefik runtime-smoke-traefik build-lighttpd-connector build-lighttpd-bridge self-test-lighttpd-bridge check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd build-remaining-connectors start-smoke-remaining-connectors runtime-smoke-remaining-connectors readiness-remaining-connectors
+
+build-envoy-connector:
+	sh ci/run-remaining-connector-target.sh envoy build-envoy-connector
+
+check-envoy-config: build-envoy-connector
+	sh ci/run-remaining-connector-target.sh envoy check-envoy-config
+
+start-smoke-envoy: check-envoy-config
+	sh ci/run-remaining-connector-target.sh envoy start-smoke-envoy
+
+runtime-smoke-envoy: build-envoy-connector
+	sh ci/run-remaining-connector-target.sh envoy runtime-smoke-envoy
+
+build-traefik-connector:
+	sh ci/run-remaining-connector-target.sh traefik build-traefik-connector
+
+check-traefik-config: build-traefik-connector
+	sh ci/run-remaining-connector-target.sh traefik check-traefik-config
+
+start-smoke-traefik: check-traefik-config
+	sh ci/run-remaining-connector-target.sh traefik start-smoke-traefik
+
+runtime-smoke-traefik: build-traefik-connector
+	sh ci/run-remaining-connector-target.sh traefik runtime-smoke-traefik
+
+build-lighttpd-connector:
+	sh ci/run-remaining-connector-target.sh lighttpd build-lighttpd-connector
+
+build-lighttpd-bridge:
+	sh ci/run-remaining-connector-target.sh lighttpd build-lighttpd-bridge
+
+self-test-lighttpd-bridge: build-lighttpd-bridge
+	sh ci/run-remaining-connector-target.sh lighttpd self-test-lighttpd-bridge
+
+check-lighttpd-config: build-lighttpd-connector
+	sh ci/run-remaining-connector-target.sh lighttpd check-lighttpd-config
+
+start-smoke-lighttpd: check-lighttpd-config
+	sh ci/run-remaining-connector-target.sh lighttpd start-smoke-lighttpd
+
+runtime-smoke-lighttpd: build-lighttpd-connector
+	sh ci/run-remaining-connector-target.sh lighttpd runtime-smoke-lighttpd
+
+build-remaining-connectors: build-envoy-connector build-traefik-connector build-lighttpd-connector
+
+start-smoke-remaining-connectors: start-smoke-envoy start-smoke-traefik start-smoke-lighttpd
+
+runtime-smoke-remaining-connectors: runtime-smoke-envoy runtime-smoke-traefik runtime-smoke-lighttpd
+
+readiness-remaining-connectors: check-envoy-common-adoption check-traefik-common-adoption check-lighttpd-common-adoption check-remaining-connectors-host-integration check-remaining-connectors-build-wiring check-remaining-connectors-start-wiring check-remaining-connectors-claim-policy
+	$(PYTHON) ci/check-bilingual-docs.py
 
 check-remaining-connectors-common-adoption:
 	$(PYTHON) ci/check-remaining-connectors-common-adoption.py
+
+check-envoy-common-adoption:
+	$(PYTHON) ci/check-remaining-connectors-common-adoption.py --connector envoy
+
+check-traefik-common-adoption:
+	$(PYTHON) ci/check-remaining-connectors-common-adoption.py --connector traefik
+
+check-lighttpd-common-adoption:
+	$(PYTHON) ci/check-remaining-connectors-common-adoption.py --connector lighttpd
+
+check-remaining-connectors-host-integration:
+	$(PYTHON) ci/check-remaining-connectors-host-integration.py
+
+check-remaining-connectors-build-wiring:
+	$(PYTHON) ci/check-remaining-connectors-build-wiring.py
+
+check-remaining-connectors-start-wiring:
+	$(PYTHON) ci/check-remaining-connectors-start-wiring.py
+
+check-remaining-connectors-claim-policy:
+	$(PYTHON) ci/check-remaining-connectors-claim-policy.py
 
 check-remaining-connectors-c-standard-wiring:
 	$(PYTHON) ci/check-remaining-connectors-c-standard-wiring.py
@@ -775,8 +847,9 @@ check-directive-parity:
 	$(PYTHON) ci/check-directive-parity.py
 
 lint: check-framework
-	sh -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh
-	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh connectors/*/harness/*.sh connectors/traefik/build/*.sh; else echo "bash unavailable"; fi
+	sh -n ci/*.sh
+	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec sh -n {} +
+	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh; find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -exec bash -n {} +; else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile ci/*.py
 	$(MAKE) check-apache-common-adoption
 	$(MAKE) check-apache-c-standard-wiring
@@ -788,6 +861,10 @@ lint: check-framework
 	$(MAKE) check-haproxy-c-standard-wiring
 	$(MAKE) check-haproxy-c17-lint
 	$(MAKE) check-remaining-connectors-common-adoption
+	$(MAKE) check-remaining-connectors-host-integration
+	$(MAKE) check-remaining-connectors-build-wiring
+	$(MAKE) check-remaining-connectors-start-wiring
+	$(MAKE) check-remaining-connectors-claim-policy
 	$(MAKE) check-remaining-connectors-c-standard-wiring
 	$(MAKE) check-remaining-connectors-c17-lint
 	$(MAKE) check-common-sdk-contract

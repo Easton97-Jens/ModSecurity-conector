@@ -1,141 +1,97 @@
 # lighttpd Architecture
 
-Status: bridge-starter plus sidecar_proxy runtime-smoke path
-Runtime status: locally verifiable with a staged lighttpd binary
-Integration path: sidecar_proxy for Phase 1; native module and FastCGI/SCGI deferred
+Status: native module, `minimal_runtime_smoke` for a Phase-1 header rule
 
-The repository now contains a concrete lighttpd decision-service bridge starter.
-It is a local CLI/self-test integration point only, not a production lighttpd
-adapter.
+## Runtime flow
 
-## Current Implemented Scope
+```text
+lighttpd handle_uri_clean
+  -> lighttpd request mapper
+  -> Common request contract and resource limits
+  -> Common/libmodsecurity transaction begin
+  -> allow or http_status_set_err(...)
 
-Implemented lighttpd-specific code is limited to:
+lighttpd handle_response_start
+  -> lighttpd response mapper
+  -> Common response contract and resource limits
+  -> Common/libmodsecurity response processing
 
-- repo-owned metadata in `connectors/lighttpd/metadata.c` and
-  `connectors/lighttpd/metadata.h`;
-- a compile-time metadata/probe starter in
-  `connectors/lighttpd/src/lighttpd_build_starter.c`;
-- local bridge-starter data flow in `connectors/lighttpd/src/lighttpd_bridge.h`,
-  `connectors/lighttpd/src/lighttpd_bridge.c`, and
-  `connectors/lighttpd/src/lighttpd_bridge_main.c`;
-- standalone compile scripts in `connectors/lighttpd/build/`;
-- local `Makefile` targets for build/self-test starter checks.
+lighttpd handle_request_reset
+  -> transaction finish and destroy
+  -> mapped header storage release
+```
 
-This starter scope uses connector-neutral `common/` origin, status,
-intervention, and capability helpers. It does not include lighttpd headers, call
-lighttpd APIs, call ModSecurity APIs, implement FastCGI/SCGI protocol handling,
-map native request/response hooks, or implement native-module intervention
-handling. The separate Phase 1 runtime smoke uses lighttpd as a local HTTP
-upstream behind a sidecar decision proxy.
+`module/mod_msconnector.c` is the only plugin-lifecycle layer.
+`src/lighttpd_modsecurity_mapper.c` is the only host-mapping layer. The Common
+runtime and all Common SDK types remain free of lighttpd headers and callback
+types.
 
-## Integration Path Decision
+## Plugin lifecycle
 
-| Option | Decision | Reason |
-| --- | --- | --- |
-| Native lighttpd module | deferred/blocked | No selected lighttpd headers, SDK/source tree, or module build system is present in this repository. |
-| FastCGI bridge | deferred/blocked | No FastCGI protocol adapter or lighttpd FastCGI runtime configuration is present. |
-| SCGI bridge | deferred/blocked | No SCGI protocol adapter or lighttpd SCGI runtime configuration is present. |
-| External HTTP service / sidecar | selected Phase 1 mode | Lowest coupling to lighttpd internals and no dependency on native module ABI or FastCGI/SCGI protocol work. Runtime success requires real local lighttpd 200 and sidecar 200/403 evidence. |
-| mod_magnet / Lua | spike only | Possible control-plane glue, but no selected Lua policy, request-body mapping, intervention semantics, or ModSecurity binding exists. |
+The module exports `mod_msconnector_plugin_init` for the lighttpd loader and
+registers:
 
-Repository evidence for future lighttpd options exists in
-`modules/ModSecurity-test-Framework/docs/imports/sources.md` and
-`modules/ModSecurity-test-Framework/docs/future-connectors.md`, but those files
-do not provide a local lighttpd SDK, module build, runtime harness, or
-ModSecurity integration implementation.
+- `init` to allocate plugin state;
+- `set_defaults` to register host directives, validate the Common runtime
+  config, load rules, and construct the shared runtime;
+- `handle_uri_clean` for request metadata and request headers;
+- `handle_response_start` for response metadata and response headers;
+- `handle_request_reset` for transaction finalization and cleanup;
+- `cleanup` to destroy the Common runtime.
 
-## Bridge-Starter Semantics
+The directives are server-scoped. A single runtime is created from
+`msconnector.config-file`; each request receives its own transaction and mapper
+storage in `r->plugin_ctx`.
 
-The bridge starter can:
+## Mapping and ownership
 
-- compile a local decision-service starter binary;
-- build local probe request data using shared request shapes;
-- return an explicit blocked decision for the probe;
-- self-test that no runtime capabilities are advertised.
+The request mapper exposes method, original target, HTTP version, hostname,
+client address/port, server name/port, and every lighttpd string header as a
+length-delimited Common header. The response mapper exposes status, HTTP
+version, and response headers.
 
-The bridge starter cannot:
+Header count and total-byte limits are checked before runtime entry. The Common
+DoS/resource guard applies the configured per-name, per-value, body, and other
+limits. Header values remain slices and are never treated as unvalidated C
+strings.
 
-- run as a lighttpd module;
-- implement FastCGI or SCGI;
-- receive real lighttpd traffic;
-- call libmodsecurity;
-- load CRS;
-- prove No-CRS, With-CRS, RESPONSE_BODY, audit/log, or negative/pass-through
-  behavior.
+The Common runtime borrows the mapped request and response. Therefore the
+handler context owns the mapped header arrays until `handle_request_reset`.
+All mapper-error and transaction-begin error paths release their owned state.
 
-## Selected Phase 1 Mode
+## Decisions and events
 
-The selected Phase 1 runtime direction is sidecar/proxy. It keeps the first
-runtime boundary outside the lighttpd module ABI, avoids committing to
-FastCGI/SCGI protocol ownership before the adapter contract is mature, and can
-be validated with explicit HTTP allow/block evidence.
+A disruptive request-header decision is converted to an error response using
+lighttpd's `http_status_set_err()`. The verified rule requests status 403.
+Runtime or mapper errors use the Common error-to-HTTP mapping. Redirect, drop,
+connection-abort, and late-intervention semantics have not been separately
+verified by this narrow smoke.
 
-That mode can prove:
+The Common runtime owns rule loading, transaction IDs, flow guards,
+libmodsecurity calls, decisions, event construction, integrity metadata, and
+JSONL serialization. The connector passes no request or response body payload
+to that event path.
 
-- a local common.sh-managed `lighttpd` binary can be resolved and started;
-- allowed requests can pass through the selected sidecar/proxy path to lighttpd;
-- blocked requests can return HTTP 403 before reaching the upstream path;
-- evidence can be written with the shared smoke-result schema.
+## Body boundary
 
-That mode cannot prove:
+lighttpd request and response bodies are not implemented in this module.
+Regardless of the runtime's general capabilities, the module overrides both
+mapper contracts to `MSCONNECTOR_MAPPER_UNSUPPORTED` and maps a zero-length
+body. The native smoke config sets `request_body_mode=none` and
+`response_body_mode=none`.
 
-- native lighttpd module hook correctness;
-- FastCGI/SCGI adapter semantics;
-- request-body or response-body mapping inside lighttpd;
-- CRS completeness, production readiness, or full matrix readiness.
+This boundary prevents compile/start/header evidence from being mislabeled as
+body evidence. Body buffering, truncation metadata, Phase 2, Phase 4, and late
+intervention remain future work.
 
-The current harness may set `runtime_verified=true` only when a resolved local
-lighttpd binary starts, direct lighttpd HTTP returns 200, the sidecar forwards an
-allowed request with 200, and `X-Modsec-Smoke: block` returns 403. It also writes
-`lighttpd_binary_verified`, `lighttpd_http_verified`,
-`sidecar_proxy_verified`, `lighttpd_log_path`, `upstream_log_path`, and
-`request_transcript_path` in the common result JSON.
+## Alternative paths
 
-With `DECISION_BACKEND=libmodsecurity`, the same sidecar path uses the shared
-targeted libmodsecurity evaluator. The evaluator is built from
-`common/scripts/modsecurity_targeted_eval.cc` against local common.sh-managed
-headers and libraries, loads `common/rules/modsecurity_targeted_smoke.conf`, and
-may set `modsecurity_backend_verified=true` only when rule `1000001` returns the
-403 intervention for `X-Modsec-Smoke: block`.
+The legacy bridge starter and framework `sidecar_proxy` smoke remain separate
+artifacts. The primary connector path is now the native module. FastCGI, SCGI,
+and mod_magnet/Lua are not implemented by this module.
 
-## Blockers Before Adapter Ownership
+## Current claim boundary
 
-A real lighttpd adapter needs, at minimum:
-
-- production hardening for the selected sidecar_proxy path or a later selected
-  native/FastCGI/SCGI path;
-- lighttpd headers/SDK/source or documented bridge protocol/runtime
-  dependencies;
-- hook or bridge mapping for request headers, request body, response headers,
-  response body, logging, and interventions;
-- real ModSecurity API integration and rule loading;
-- build output for the selected path;
-- a framework-owned real-world runtime harness;
-- No-CRS and With-CRS runtime evidence.
-
-Until then, lighttpd remains bridge-starter only and must not be promoted to
-adapter-owned or runtime-smoke-verified.
-
-## Parallel Phase Target
-
-The runtime-smoke target for the open-connector parallel phase is
-`integration_mode=sidecar_proxy`. The architecture spike compared native module,
-FastCGI/SCGI, sidecar/proxy, and mod_magnet/Lua; Phase 1 selects sidecar/proxy
-while leaving the other paths deferred.
-
-Shared data contracts remain in `common/include/msconnector/`:
-
-- `request.h` / `response.h` for HTTP mapping;
-- `intervention.h` for block decisions and future 403 responses;
-- `status.h` for neutral pass/BLOCKED/error status values;
-- `logging.h` for log records and callback shape;
-- `capabilities.h` for capability claims;
-- `origin.h` for source metadata;
-- `transaction.h` for transaction/decision views.
-
-Smoke evidence is generated by `common/scripts/write_smoke_result.py` via
-`common/scripts/run_blocked_runtime_smoke.sh`. lighttpd must not add a separate
-Result/Evidence JSON model. Current BLOCKED evidence records
-`runtime_verified=false`, `production_ready=false`, `full_matrix_ready=false`,
-and `crs_complete=false`.
+The verified 200/403 smoke supports `minimal_runtime_smoke` and
+`partial_runtime_path` only. It does not support production-ready, security
+verified, CRS verified, response-body verified, or full-matrix claims.

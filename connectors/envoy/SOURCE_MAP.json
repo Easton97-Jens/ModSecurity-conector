@@ -1,7 +1,7 @@
 {
   "connector": "envoy",
-  "status": "bridge-starter",
-  "runtime_status": "not_verified",
+  "status": "compile_verified",
+  "runtime_status": "minimal_runtime_smoke",
   "upstream_source": {
     "repository": "not selected",
     "branch": "not selected",
@@ -48,16 +48,90 @@
     },
     {
       "path": "connectors/envoy/src/envoy_modsecurity_mapper.h",
-      "kind": "repository-local Common SDK generic mapper alias header",
+      "kind": "repository-local Common SDK thin mapper header",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_modsecurity_mapper.c",
+      "kind": "repository-local Common SDK thin mapper implementation",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/src/envoy_ext_authz_service_main.c",
+      "kind": "repository-local Envoy ext_authz service profile entrypoint",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/build/build_connector.sh",
+      "kind": "repository-local C17 connector service build script",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/envoy-ext-authz.conf",
+      "kind": "repository-local Envoy ext_authz connector configuration template",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/envoy-ext-authz-smoke.yaml.in",
+      "kind": "repository-local temporary Envoy host-path smoke configuration template",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/prepare_envoy_config.sh",
+      "kind": "repository-local runtime configuration materializer",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/check_envoy_config.sh",
+      "kind": "repository-local connector configuration check entrypoint",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/harness/start_envoy_connector.sh",
+      "kind": "repository-local request-free Envoy plus connector-service start smoke",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/harness/envoy_smoke_helper.py",
+      "kind": "repository-local dependency-free host-path smoke upstream and HTTP probe helper",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/harness/run_envoy_connector_runtime.sh",
+      "kind": "repository-local real Envoy ext_authz 200/403 runtime smoke",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/harness/run_envoy_smoke.sh",
+      "kind": "repository-local Framework compatibility entrypoint for the connector host-path smoke",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/harness/serve_envoy_connector.sh",
+      "kind": "repository-local foreground connector service launcher",
       "upstream_origin": "none"
     }
   ],
+  "shared_dependencies": [
+    "common/runtime/msconnector_runtime.h",
+    "common/runtime/msconnector_runtime.c",
+    "common/runtime/http_authorization_service.h",
+    "common/runtime/http_authorization_service.c",
+    "common/include/msconnector/adapter_metadata.h",
+    "common/include/msconnector/generic_mapper.h",
+    "common/include/msconnector/decision.h",
+    "common/include/msconnector/event.h",
+    "common/include/msconnector/resource_limits.h",
+    "common/src/*.c",
+    "common/rules/modsecurity_targeted_smoke.conf"
+  ],
   "claims": {
-    "envoy_api_used": false,
+    "envoy_api_used": true,
     "bridge_self_test_implemented": true,
-    "libmodsecurity_adapter_implemented": false,
+    "ext_authz_service_source_implemented": true,
+    "libmodsecurity_adapter_implemented": true,
     "response_body_blocking_verified": false,
-    "runtime_status": "not_verified",
+    "runtime_status": "minimal_runtime_smoke",
     "verification_status": "connector-gap"
   },
   "verification_status": "connector-gap"

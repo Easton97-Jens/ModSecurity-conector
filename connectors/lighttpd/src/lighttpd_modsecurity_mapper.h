@@ -1,6 +1,8 @@
 #ifndef LIGHTTPD_MODSECURITY_MAPPER_H
 #define LIGHTTPD_MODSECURITY_MAPPER_H
 
+#include <stddef.h>
+
 #include "msconnector/config.h"
 #include "msconnector/generic_mapper.h"
 
@@ -8,12 +10,38 @@
 extern "C" {
 #endif
 
-typedef msconnector_generic_request_source lighttpd_modsecurity_request;
-typedef msconnector_generic_response_source lighttpd_modsecurity_response;
+typedef struct request_st request_st;
+
+typedef struct lighttpd_modsecurity_map_storage {
+    msconnector_header *headers;
+    size_t header_count;
+} lighttpd_modsecurity_map_storage;
 
 #define lighttpd_modsecurity_config_init msconnector_generic_config_init
-#define lighttpd_modsecurity_map_request msconnector_generic_map_request
-#define lighttpd_modsecurity_map_response msconnector_generic_map_response
+
+void lighttpd_modsecurity_map_storage_init(
+    lighttpd_modsecurity_map_storage *storage);
+
+void lighttpd_modsecurity_map_storage_free(
+    lighttpd_modsecurity_map_storage *storage);
+
+int lighttpd_modsecurity_map_request(
+    const request_st *request,
+    const msconnector_request_mapper_contract *contract,
+    size_t total_header_limit,
+    lighttpd_modsecurity_map_storage *storage,
+    msconnector_request *out,
+    char *error,
+    size_t error_len);
+
+int lighttpd_modsecurity_map_response(
+    const request_st *request,
+    const msconnector_response_mapper_contract *contract,
+    size_t total_header_limit,
+    lighttpd_modsecurity_map_storage *storage,
+    msconnector_response *out,
+    char *error,
+    size_t error_len);
 
 #ifdef __cplusplus
 }

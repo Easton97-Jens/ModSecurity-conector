@@ -1,89 +1,41 @@
 # lighttpd Connector TODO
 
-Status: bridge-starter plus sidecar_proxy runtime-smoke path
-Runtime status: locally verifiable with a staged lighttpd binary
+Status: native `minimal_runtime_smoke` for Phase-1 headers
 
-Global gate definitions:
+## Completed
 
-- `reports/template-verification-nginx-apache/connector-scaffold-decisions.md`
-- `connectors/_template/docs/coverage-decision-matrix.md`
+- [x] Repository-owned origin and source map documented.
+- [x] Pinned lighttpd 1.4.84 source/binary provisioning available.
+- [x] Native plugin init, config registration, defaults, cleanup implemented.
+- [x] Request metadata and length-delimited header mapping implemented.
+- [x] Response metadata and length-delimited header mapping implemented.
+- [x] Common runtime, rule loading, transaction ID, decisions, limits, flow
+  guard, DoS guard, events, and JSONL wired into live host callbacks.
+- [x] Phase-1 deny mapped to `http_status_set_err()`.
+- [x] Transaction finish/destroy and mapper storage cleanup implemented.
+- [x] C17 PIC shared-module build with `-Wall -Wextra -Werror` implemented.
+- [x] Build and bridge self-test separated.
+- [x] Real module/config load check implemented.
+- [x] Request-free real-process start smoke implemented.
+- [x] Separate real-host 200/403 runtime smoke implemented.
+- [x] Narrow JSONL event metadata check implemented.
 
-## Phase 0: Scaffold
+## Required before broader runtime claims
 
-- [x] Connector directory created
-- [x] README present
-- [x] TODO present
-- [x] docs present
-- [x] harness contract documented
-- [x] src placeholder documented
-- [x] no local `connectors/lighttpd/tests` folder
+- [ ] Define and implement bounded lighttpd request-body capture.
+- [ ] Preserve and test request-body truncation metadata.
+- [ ] Implement and test Phase-2 request-body processing.
+- [ ] Evaluate safe response-body hooks and output timing.
+- [ ] Implement response-body buffering only if intervention timing is honest.
+- [ ] Test Phase 4 and late-intervention behavior.
+- [ ] Verify redirects, drops, connection aborts, and non-403 decisions.
+- [ ] Add multi-worker, concurrency, keep-alive, HTTP/2, and abort-path tests.
+- [ ] Run native No-CRS negative/pass-through and expanded rule cases.
+- [ ] Add native CRS smoke only with explicit local CRS evidence.
+- [ ] Add long-running, memory, cleanup, and fault-injection evidence.
+- [ ] Complete security review and production hardening.
+- [ ] Run the relevant full matrix.
 
-## Phase 1: Origin / Metadata
-
-- [x] `ORIGIN.md` added for the current repo-owned build-starter
-- [x] `SOURCE_MAP.json` added for the current repo-owned build-starter
-- [x] `metadata.c` / `metadata.h` added for bridge-starter status
-- [x] upstream lighttpd source selected and documented for local runtime build
-- [ ] upstream lighttpd license documented if source is imported into repo source
-
-## Phase 2: Build
-
-- [x] build-starter approach documented
-- [x] build-starter command documented
-- [x] bridge-starter approach documented
-- [x] bridge-starter command documented
-- [x] bridge-starter self-test documented
-- [x] connector-neutral include paths documented
-- [x] pinned lighttpd source build documented
-- [x] expected local lighttpd binary path documented
-- [ ] native-module lighttpd include paths documented
-- [ ] native-module lighttpd library paths documented
-- [x] build-starter artifact path documented
-- [x] bridge-starter artifact path documented
-- [x] starter logs documented
-- [ ] native lighttpd module implemented
-- [ ] FastCGI/SCGI bridge implemented
-
-## Phase 3: Harness
-
-- [x] `make smoke-lighttpd` targeted runtime-smoke entrypoint implemented
-- [x] harness command documented
-- [x] BLOCKED evidence path documented
-- [x] common smoke result writer used instead of connector-local JSON writer
-- [x] integration options evaluated; sidecar/proxy documented as recommended Phase 1 mode
-- [x] Phase 1 integration path selected: `sidecar_proxy`
-- [x] lighttpd binary/source-build documented
-- [x] generated lighttpd config documented
-- [x] sidecar decision boundary documented
-- [x] targeted libmodsecurity smoke command documented
-- [x] targeted libmodsecurity smoke PASS documented
-- [x] result JSON documented through common smoke schema
-- [x] allowed request returns expected runtime status when local binary is available
-- [x] blocked request returns HTTP 403 through the selected path when local binary is available
-- [ ] production hardening for sidecar_proxy documented
-
-## Phase 4: No-CRS Runtime
-
-- [ ] `make test-no-crs` executed for lighttpd scope
-- [ ] PASS/FAIL/BLOCKED counts documented
-
-## Phase 5: With-CRS Runtime
-
-- [ ] `make test-with-crs` executed for lighttpd scope
-- [ ] CRS loaded/effective evidence documented
-- [ ] PASS/FAIL/BLOCKED counts documented
-
-## Phase 6: Coverage Matrix
-
-- [ ] Phase 1/2/3/4 runtime status documented
-- [ ] negative/pass-through status documented
-- [ ] audit/log evidence documented
-- [ ] RESPONSE_BODY blocking evaluated
-
-## Phase 7: Promotion
-
-- [ ] eligible for `adapter-owned`
-- [x] eligible for `bridge-starter`
-- [x] eligible for `runtime-smoke-verified`
-- [ ] eligible for `crs-verified`
-- [ ] eligible for more than `partial`
+Until those items are evidenced, keep status at `minimal_runtime_smoke` /
+`partial_runtime_path` and keep all body, CRS, security, production, and full
+matrix claims false.
