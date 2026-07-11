@@ -1,8 +1,9 @@
 Generated file - do not edit manually.
 
-**Language:** English | [Deutsch](test-coverage-overview.de.md)
 
 # ModSecurity Connector Test Coverage Overview
+
+**Language:** English | [Deutsch](test-coverage-overview.de.md)
 
 ## Summary
 - Total cases: **158**

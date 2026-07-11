@@ -20,8 +20,11 @@ Global scaffold gates remain in
 - `common/src/` provides connector-neutral helper implementations.
 - Apache and NGINX keep server-specific lifecycle, hook, filter, build, and
   harness logic in adapter-owned connector trees.
-- No Traefik plugin SDK, Traefik Go module, cgo bridge, or Traefik runtime source
-  is present in `connectors/traefik`.
+- `native_middleware/` is a repository-owned Go module with Traefik-shaped
+  `CreateConfig`, `New`, and `ServeHTTP` entry points. It has no Traefik SDK or
+  cgo dependency and uses a pass-through engine seam until a separate
+  Common/libmodsecurity bridge is reviewed.
+- No Traefik runtime source is present in `connectors/traefik`.
 
 ## Integration Path Decision
 
@@ -37,8 +40,8 @@ proves the built service behind a real Traefik request path.
 
 | Option | Current decision | Reason |
 | --- | --- | --- |
-| Traefik plugin | deferred | No Go module, plugin SDK, or Traefik plugin API is present in the repo |
-| Traefik middleware | deferred | No middleware API or Traefik Go dependency is present in the repo |
+| Traefik plugin | source/build groundwork | Repo-owned Go middleware API, bounded streaming wrappers, and local unit tests exist; no Traefik config-load or runtime evidence exists |
+| Traefik middleware | source/build groundwork | `native_middleware/` uses standard Go HTTP interfaces and a pass-through engine seam; it is not selected or rule-evaluation evidence |
 | `forwardAuth` / external HTTP decision service | selected | Connector-owned host profile and service binary source; current runtime evidence still required |
 | Sidecar / proxy bridge | deferred | No bridge runtime, proxy config, or harness exists |
 | Custom module/build | deferred | No Traefik source/build contract exists |
@@ -47,6 +50,24 @@ A future runtime path must document the exact Traefik version/API, source or SDK
 origin, license, build command, configuration, ModSecurity integration point,
 request/response mapping, intervention mapping, logging behavior, and runtime
 results.
+
+## Unselected native middleware path
+
+The Go package is intentionally separate from the selected `forwardAuth`
+architecture. It wraps a `net/http` request body in bounded reads and wraps the
+response writer with `Flush`, `Hijack`, `Push`, `ReadFrom`, and `Unwrap`
+preservation. Every observed body slice is sent synchronously to an
+`Engine`/`Transaction` seam, while the per-request summary retains counters
+only. It does not collect a full response body.
+
+Before commitment, a future engine could return a local deny/redirect decision.
+After response commitment, a disruptive prospective decision is recorded only
+as `log_only`; the source does not claim a changed visible status, connection
+reset, client abort, or upstream abort. The checked-in `PassthroughEngine`
+always allows and has no Common/runtime or libmodsecurity FFI. Therefore this
+path is not a replacement for `forwardAuth` and cannot alter the canonical
+capability states until a real selected Traefik configuration and runtime prove
+it independently.
 
 ## Parallel Phase Target
 

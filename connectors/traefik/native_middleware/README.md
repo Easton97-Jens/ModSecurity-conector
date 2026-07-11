@@ -1,0 +1,54 @@
+# Native Traefik streaming middleware source
+
+This is a repository-owned Go package shaped for Traefik's Go middleware
+entry points: `CreateConfig`, `New`, and `ServeHTTP`. `New` has the required
+`(http.Handler, error)` signature, and `.traefik.yml` records plugin metadata
+and test data. It uses only the Go standard library; Traefik supplies the next
+`http.Handler` when it loads a plugin. The package is an alternate, unselected
+path. It does not replace the existing C `forwardAuth` service or alter that
+path's capability declaration.
+
+## What the source does
+
+- wraps the request body so reads are capped to `maxRequestChunkBytes` and sent
+  synchronously to a per-request `Transaction` seam;
+- wraps the response writer, evaluates response headers before commitment, and
+  slices every `Write` into `maxResponseChunkBytes` callbacks before forwarding
+  each slice;
+- implements `http.Flusher`, `http.Hijacker`, `http.Pusher`, `io.ReaderFrom`,
+  and `Unwrap`; `ReadFrom` keeps the wrapped writer's fast path after one
+  bounded first chunk;
+- keeps only metadata and byte/chunk counters in `Summary`, never a complete
+  request or response body;
+- treats a disruptive result after response commitment as `log_only`; it does
+  not synthesize a changed status, reset, or client-abort claim.
+
+The optional-engine shape is intentional. `New` installs `PassthroughEngine`,
+which always allows. A future Common/libmodsecurity bridge must implement
+`Engine`/`Transaction` and be independently reviewed, configured, and proven
+against a real Traefik runtime. Source compilation and local unit tests are not
+that proof.
+
+## Local source checks
+
+```sh
+make -C connectors/traefik test-native-middleware
+make -C connectors/traefik build-native-middleware
+```
+
+The build script runs `go test ./...`, `go vet ./...`, and (for `build`) `go
+build ./...`. It writes only a compile report outside the checkout, defaulting
+to `$BUILD_ROOT/traefik-native-middleware/build.txt`. It does not install a
+Traefik plugin, start Traefik, call Common/libmodsecurity, or write runtime
+evidence.
+
+## Configuration boundary
+
+`../config/traefik-native-middleware-static.yaml` and
+`../config/traefik-native-middleware-dynamic.yaml` are matching local-plugin
+and File Provider shapes for an operator-created registration named
+`modsecurityNative`. They are deliberately separate from the selected
+`../config/traefik-forwardauth-dynamic.yaml`. A deployment must stage the
+module under the local plugin workspace used by its installed Traefik release;
+neither that setup nor config loading is asserted by this repository's current
+runtime contract.

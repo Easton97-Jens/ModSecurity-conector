@@ -72,6 +72,25 @@ int haproxy_modsecurity_transaction_begin(
     const haproxy_modsecurity_request *request,
     haproxy_modsecurity_decision *decision,
     haproxy_modsecurity_transaction **transaction);
+/* Start a transaction through Phase 1 only.  Hosts that receive request data
+ * incrementally must use this entry point followed by append_request_body_chunk
+ * for each borrowed chunk and finish_request_body exactly once at request EOS.
+ * The legacy transaction_begin() wrapper remains atomic for the SPOP path. */
+int haproxy_modsecurity_transaction_begin_request(
+    haproxy_modsecurity_engine *engine,
+    const haproxy_modsecurity_request *request,
+    haproxy_modsecurity_decision *decision,
+    haproxy_modsecurity_transaction **transaction);
+/* Borrowed request chunks are never retained by the binding.  Phase 2 is
+ * evaluated only by finish_request_body() at the host request EOS. */
+int haproxy_modsecurity_transaction_append_request_body_chunk(
+    haproxy_modsecurity_transaction *transaction,
+    const unsigned char *body,
+    unsigned int body_len,
+    haproxy_modsecurity_decision *decision);
+int haproxy_modsecurity_transaction_finish_request_body(
+    haproxy_modsecurity_transaction *transaction,
+    haproxy_modsecurity_decision *decision);
 int haproxy_modsecurity_transaction_process_response_headers(
     haproxy_modsecurity_transaction *transaction,
     const haproxy_modsecurity_response *response,

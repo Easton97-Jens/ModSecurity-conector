@@ -9,8 +9,8 @@ Verification status: not_verified / connector-gap
 The selected connector architecture is an external HTTP `forwardAuth` service.
 `src/traefik_forwardauth_service_main.c` registers a Traefik host profile with
 the connector-neutral Common runtime, while `traefik_modsecurity_mapper.c`
-provides real thin mapper functions. This is not a Traefik Go plugin or cgo
-module and does not establish production readiness.
+provides real thin mapper functions. It remains the selected path and does not
+establish production readiness.
 
 The repository build surfaces compile only repository-owned C code and shared
 Common helpers:
@@ -21,12 +21,38 @@ Common helpers:
 - `connectors/traefik/src/traefik_decision_service.*`
 - `connectors/traefik/src/traefik_modsecurity_mapper.*`
 - `connectors/traefik/src/traefik_forwardauth_service_main.c`
+- `connectors/traefik/native_middleware/` (unselected Go middleware source)
 - shared helpers from `common/src/` and `common/include/msconnector/`
 - shared runtime implementation from `common/runtime/`
 
-It does not include a Traefik plugin SDK, Go module, or cgo bridge. Upstream
-response headers and bodies are outside the selected request-phase
-`forwardAuth` protocol and remain explicitly unsupported.
+The selected `forwardAuth` path does not include a Traefik plugin SDK or cgo
+bridge. A separately documented, repository-owned Go middleware module now
+exists under `native_middleware/`, but it is an unselected source/build path
+with a `PassthroughEngine`; it does not change this connector's selected host
+model or verification state. Upstream response headers and bodies are outside
+the selected request-phase `forwardAuth` protocol and remain explicitly
+unsupported there.
+
+## Unselected native Go streaming groundwork
+
+`native_middleware/` implements Traefik-shaped `CreateConfig`, `New`, and
+`ServeHTTP` entry points using the Go `net/http` interfaces. Its response
+writer preserves `Flush`, `Hijack`, `Push`, `ReadFrom`, and `Unwrap`; it sends
+bounded request and response body slices to an explicit engine seam and never
+collects a whole response. The checked-in engine is deliberately pass-through,
+not Common/libmodsecurity.
+
+Run only the local source checks with:
+
+```sh
+make -C connectors/traefik test-native-middleware
+make -C connectors/traefik build-native-middleware
+```
+
+These commands compile and unit-test repository source. They do not register a
+Traefik local plugin, load its configuration, start Traefik, inspect a real
+upstream response, or promote any capability. The existing C `forwardAuth`
+commands and configuration remain the selected compatibility path.
 
 ## Connector Service Build
 
@@ -114,8 +140,8 @@ runtime result is claimed for Traefik by this starter.
 
 ## Parallel Runtime-Smoke Phase
 
-Phase 1 targets Traefik `forwardAuth`. A Go plugin is explicitly out of scope
-for this phase.
+Phase 1 targets Traefik `forwardAuth`. The Go middleware source is intentionally
+separate from this phase and has no runtime promotion.
 
 The Traefik connector-specific surface is limited to:
 

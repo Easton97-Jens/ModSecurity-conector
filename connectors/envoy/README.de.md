@@ -15,6 +15,23 @@ Autorisierungsantwort übertragen. `ext_authz` liefert dem Dienst keine
 Upstream-Response-Header oder -Bodies. Response-Inspektion bleibt deshalb
 nicht unterstützt und es wird kein Response-Body-Claim erhoben.
 
+## Separates, nicht hochgestuftes `ext_proc`-Grundgerüst
+
+`ext_proc/` ergänzt einen separaten Go-Dienst mit Envoys offiziellen generierten
+Go-Protobuf-/gRPC-APIs. Seine Envoy-Vorlage verwendet `STREAMED` für Request-
+und Response-Bodies, begrenzte Pro-Stream-Zähler und inkrementelle Callbacks;
+sie verwendet niemals `BUFFERED`. Das gepinnte Modul und der Envoy-Release sind
+in `ext_proc/go.mod`, `ext_proc/go.sum` und
+`config/envoy-ext-proc-versions.env` festgelegt.
+
+Dieser Pfad ist nur source/build-ready. `PassthroughEngine` ist eine explizite
+Nahtstelle für eine spätere Common/libmodsecurity-Anbindung, nicht diese
+Anbindung selbst. Der kanonische `ext_authz`-Capability- und Runtime-Status
+bleibt unverändert. Nach beobachteten Response-Headern notieren `minimal` und
+`safe` nur `log_only`; `strict` notiert `strict_abort_not_attempted`. Es wird
+kein später Statuswechsel, deterministischer Reset, Client-Reset oder
+Upstream-Reset behauptet.
+
 ## Quellstruktur
 
 - `src/envoy_ext_authz_service_main.c` definiert Hostprofil,
@@ -27,6 +44,9 @@ nicht unterstützt und es wird kein Response-Body-Claim erhoben.
 - `build/build_connector.sh` ist ein reiner C17-Compile-/Link-Build.
 - `harness/start_envoy_connector.sh` validiert die Envoy-Config, startet Envoy
   und Connector-Dienst und stoppt beide ohne Request.
+- `ext_proc/` enthält den separat baubaren Go-ext_proc-Stream-Dienst und
+  fokussierte Unit-Tests; `config/envoy-ext-proc-streaming.yaml.in` ist seine
+  nicht hochgestufte Vorlage im Streaming-Modus.
 
 Die ältere `envoy_bridge`-CLI bleibt ein lokaler Decision-Self-Test. Sie wird
 vom `ext_authz`-Dienst nicht verwendet und ist keine Runtime-Evidence.
@@ -56,6 +76,20 @@ begrenzt Request-Bodies auf 4096 Bytes, deaktiviert Response-Body-Verarbeitung,
 verwendet 403/500 als Block-/Fehlerstatus und schreibt metadaten-only JSONL
 außerhalb des Checkouts.
 
+Das unabhängige ext_proc-Grundgerüst verwendet eigene Befehle und benötigt beim
+Build noch kein libmodsecurity:
+
+```sh
+make -C connectors/envoy build-envoy-ext-proc
+make -C connectors/envoy test-envoy-ext-proc
+make -C connectors/envoy check-envoy-ext-proc-config
+make -C connectors/envoy prepare-envoy-ext-proc-config
+```
+
+Sie kompilieren/testen den gepinnten Go-Quelltext, validieren dessen Service-
+JSON und materialisieren YAML außerhalb des Checkouts. Sie starten Envoy nicht
+und beweisen keinen Envoy-/libmodsecurity-Pfad.
+
 Der Runtime-Smoke validiert eine temporäre Envoy-Config, startet Upstream,
 Connector-Dienst und Envoy und verlangt HTTP 200 für den erlaubten Request sowie
 einen regelbasierten HTTP 403 für `X-Modsec-Smoke: block`. Fehlende Binärdateien
@@ -72,6 +106,9 @@ Prozesse werden bei Erfolg und Fehler beendet.
   getrennt und darf nicht als Evidence dafür gelten.
 - Keine Production-, Security-, CRS-Complete-, Full-Matrix-, Response-Header-
   oder Response-Body-Verifikation wird behauptet.
+- Der ext_proc-Dienst hat nur Source-/Build-Tests, insbesondere keine
+  Envoy-Runtime-, Common/libmodsecurity-, Timeout-, Reset- oder First-Byte-
+  Evidence.
 
 ## Kanonische Grenze für Phase 4
 

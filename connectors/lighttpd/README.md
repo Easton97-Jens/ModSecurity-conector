@@ -18,10 +18,16 @@ Verified locally against pinned lighttpd 1.4.84 and libmodsecurity:
   `X-Modsec-Smoke: block` is denied with 403 by rule `1000001`;
 - JSONL decision metadata contains the connector and rule ID, not body payloads.
 
-This is a narrow, partial runtime path. Request and response bodies are not
-implemented in this native module and are never passed to the runtime. CRS,
+This is a narrow, partial runtime path. In the default stock build, request and
+response bodies are not implemented and are never passed to the runtime. CRS,
 production hardening, security verification, response-body handling, and
 full-matrix verification are not claimed.
+
+An optional versioned lighttpd 1.4.84 source patch exists for compile-only
+HTTP/1.x request streaming and pre-write output/EOS hooks. It has no runtime
+verification or capability promotion. Its native binding rejects response-body
+inspection because an HTTP/1.x socket-stage queue can contain transfer framing;
+HTTP/2 is deliberately excluded.
 
 ## Implemented path
 
@@ -52,8 +58,9 @@ msconnector.config-file = "/absolute/path/msconnector-runtime.conf"
 The referenced Common runtime file uses `key=value` syntax. Supported values
 include rule sources, transaction-ID settings, body policy and limits,
 block/error statuses, event path, and header/resource limits. The native
-Phase-1 module requires both body modes to be `none`; body payloads are not
-supported by this module yet.
+The stock Phase-1 module requires both body modes to be `none`. The optional
+patched build may use `request_body_mode=streaming`, but that source wiring is
+not a validated runtime path; it still requires `response_body_mode=none`.
 
 `config/lighttpd-native.conf` is a documented example; its two absolute
 placeholder paths must be replaced. The native harness generates a runnable
@@ -99,9 +106,10 @@ It does not establish:
 
 ## Canonical Phase-4 boundary
 
-The current native module has a response-start header hook but no native
-response-body hook.  It deliberately supplies no response-body data to
-ModSecurity.  `response_body_buffered`, `phase4`,
+The asserted native path has a response-start header hook but no verified
+native response-body data path. It deliberately supplies no response-body data
+to ModSecurity. The optional patch's output/EOS hook is raw HTTP/1.x wire
+output and is not used for response-body inspection. `response_body_buffered`, `phase4`,
 `phase4_rule_evaluation`, `phase4_pre_commit_deny`, `late_intervention`,
 `late_intervention_log_only`, `late_intervention_abort`, and
 `late_intervention_status_metadata` are therefore `not_implemented` in this

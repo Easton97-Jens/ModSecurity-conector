@@ -79,6 +79,27 @@ temporary concrete service and Traefik File Provider configurations outside the
 checkout and cleans up every process. Missing pre-run local executables are
 BLOCKED/77; resolved config, startup, mapping, or status errors are FAIL.
 
+## Unselected native Go middleware source checks
+
+The repository-owned `native_middleware/` package has focused unit tests for
+bounded request/response chunks, `io.ReaderFrom` delegation, optional
+`ResponseWriter` interface preservation, pre-commit rejection, and the
+conservative post-commit `log_only` outcome:
+
+```sh
+make -C connectors/traefik test-native-middleware
+make -C connectors/traefik build-native-middleware
+```
+
+Those commands run Go source checks only. They do not stage the package under
+a Traefik local-plugin directory, load
+`config/traefik-native-middleware-static.yaml` or
+`config/traefik-native-middleware-dynamic.yaml`, start Traefik, or exercise a
+Common/libmodsecurity engine. The checked-in `PassthroughEngine` always allows.
+Accordingly no native middleware runtime, Phase 2/3/4, first-byte, no-full-
+buffering, late-abort, or capability verification is claimed. The selected C
+`forwardAuth` validation path and its existing status remain unchanged.
+
 ## Framework-Owned Starter Evidence
 
 `make connector-starter-checks` runs Traefik metadata and decision-service

@@ -47,6 +47,33 @@ loads the module.
 The build is compile/link only. It never loads or executes the resulting
 module.
 
+## Optional patched 1.4.84 core
+
+Stock mode remains the default and continues to compile only against an
+unmodified lighttpd ABI:
+
+```sh
+make -C connectors/lighttpd build-lighttpd-connector
+```
+
+The repository also carries a source-only, versioned 1.4.84 patch for the
+local streaming-hook ABI. It never edits the supplied source tree; it checks
+or copies it into `BUILD_ROOT/lighttpd-core-patched/lighttpd-1.4.84`.
+
+```sh
+make -C connectors/lighttpd check-lighttpd-core-patch
+make -C connectors/lighttpd apply-lighttpd-core-patch
+make -C connectors/lighttpd build-lighttpd-patched-connector
+```
+
+`LIGHTTPD_MSCONNECTOR_CORE_MODE=patched` is required for a module built from
+that copied tree. The ABI tag rejects accidental stock/patched dynamic-module
+mixing. The patch exposes decoded HTTP/1.x request ranges and bounded
+pre-socket-write HTTP/1.x output/EOS ranges; it deliberately excludes HTTP/2,
+whose connection queue is multiplexed and framed. This is patch/application and
+compile evidence only, not a server rebuild, load, request, body, or
+late-intervention runtime claim.
+
 ## Separate operations
 
 ```sh

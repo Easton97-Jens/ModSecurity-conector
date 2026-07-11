@@ -38,3 +38,21 @@ make -C connectors/envoy runtime-smoke-envoy \
 
 The older `build-starter` and `self-test` targets remain isolated compatibility
 checks for the local bridge CLI and do not build or verify the connector service.
+
+## Separate ext_proc source/build target
+
+The unpromoted Go external-processing service is independently pinned and does
+not link libmodsecurity yet:
+
+```sh
+make -C connectors/envoy build-envoy-ext-proc
+make -C connectors/envoy test-envoy-ext-proc
+make -C connectors/envoy check-envoy-ext-proc-config
+make -C connectors/envoy prepare-envoy-ext-proc-config
+```
+
+`go.mod`/`go.sum` pin Envoy's official generated Go API and gRPC dependencies.
+`config/envoy-ext-proc-versions.env` pins the intended Envoy release. The build
+uses `go mod verify` and `go build -mod=readonly`; the config materializer only
+writes to `BUILD_ROOT`. These commands do not start Envoy, call Common or
+libmodsecurity, or validate runtime interoperability.

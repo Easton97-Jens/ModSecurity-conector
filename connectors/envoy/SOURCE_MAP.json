@@ -115,6 +115,66 @@
       "path": "connectors/envoy/harness/serve_envoy_connector.sh",
       "kind": "repository-local foreground connector service launcher",
       "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/go.mod",
+      "kind": "repository-local pinned Go module for the official Envoy ext_proc generated API",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/go.sum",
+      "kind": "repository-local checksum lock for Go ext_proc dependencies",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/cmd/msconnector-envoy-ext-proc/main.go",
+      "kind": "repository-local ext_proc gRPC service process entrypoint",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/processor/processor.go",
+      "kind": "repository-local bounded Envoy proto stream adapter and future Common bridge seam",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/processor/config.go",
+      "kind": "repository-local ext_proc service configuration parser and limit validation",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/ext_proc/internal/processor/processor_test.go",
+      "kind": "repository-local source/build unit coverage for streamed ext_proc lifecycle behavior",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/build/build_ext_proc.sh",
+      "kind": "repository-local pinned Go ext_proc build script",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/build/test_ext_proc.sh",
+      "kind": "repository-local Go ext_proc source test script",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/envoy-ext-proc-versions.env",
+      "kind": "repository-local Envoy release and official Go proto dependency pin record",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/envoy-ext-proc-service.json",
+      "kind": "repository-local bounded ext_proc service configuration",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/envoy-ext-proc-streaming.yaml.in",
+      "kind": "repository-local non-BUFFERED Envoy ext_proc template",
+      "upstream_origin": "none"
+    },
+    {
+      "path": "connectors/envoy/config/prepare_envoy_ext_proc_config.sh",
+      "kind": "repository-local ext_proc YAML materializer outside the checkout",
+      "upstream_origin": "none"
     }
   ],
   "shared_dependencies": [
@@ -134,6 +194,9 @@
     "envoy_api_used": true,
     "bridge_self_test_implemented": true,
     "ext_authz_service_source_implemented": true,
+    "ext_proc_source_build_groundwork_implemented": true,
+    "ext_proc_common_libmodsecurity_adapter_implemented": false,
+    "ext_proc_runtime_verified": false,
     "libmodsecurity_adapter_implemented": true,
     "response_body_blocking_verified": false,
     "runtime_status": "minimal_runtime_smoke",

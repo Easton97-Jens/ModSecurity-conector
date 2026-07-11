@@ -139,6 +139,67 @@ class CollectNoCrsSourceTest(unittest.TestCase):
         self.assertTrue(event["connection_aborted"])
         self.assertEqual("connection_aborted", event["transport_result"])
 
+    def test_synchronized_first_byte_metadata_is_allowlisted_without_payload(self) -> None:
+        event = collector.sanitized_event(
+            {
+                "connector": "nginx",
+                "transaction_id": "tx-first-byte",
+                "rule_id": 1100301,
+                "phase": "response_body",
+                "status": "blocked",
+                "client_first_byte_received": True,
+                "first_chunk_size": 17,
+                "upstream_paused": True,
+                "upstream_eos_sent_at_first_byte": False,
+                "first_byte_before_response_end": True,
+                "upstream_response_finished_at_first_byte": False,
+                "no_full_response_buffering": True,
+                "body_bytes_seen": 17,
+                "body_bytes_inspected": 17,
+            }
+        )
+        self.assertTrue(event["client_first_byte_received"])
+        self.assertEqual(17, event["first_chunk_size"])
+        self.assertTrue(event["upstream_paused"])
+        self.assertFalse(event["upstream_eos_sent_at_first_byte"])
+        self.assertTrue(event["first_byte_before_response_end"])
+        self.assertFalse(event["upstream_response_finished_at_first_byte"])
+        self.assertTrue(event["no_full_response_buffering"])
+        self.assertEqual(17, event["body_bytes_seen"])
+        self.assertEqual(17, event["body_bytes_inspected"])
+
+    def test_real_host_barrier_only_enriches_observed_phase4_event(self) -> None:
+        evidence = {
+            "evidence_type": "synchronized_first_byte",
+            "evidence_origin": "real_host",
+            "promotion_eligible": True,
+            "outcome": "PASS",
+            "body_payload_persisted": False,
+            "client_first_byte_received": True,
+            "first_byte_before_response_end": True,
+            "first_chunk_size": 17,
+            "upstream_paused": True,
+            "upstream_eos_sent_at_first_byte": False,
+            "upstream_response_finished_at_first_byte": False,
+            "response_committed": True,
+            "body_bytes_seen": 42,
+            "body_bytes_inspected": 42,
+            "no_full_response_buffering": True,
+            "connector_owned_full_response_buffer": False,
+        }
+        records = collector.merge_first_byte_evidence(
+            [
+                {"phase": 1, "rule_id": 1100001},
+                {"phase": "response_body", "rule_id": 1100301,
+                 "body_bytes_seen": 42, "body_bytes_inspected": 42},
+            ],
+            evidence,
+        )
+        self.assertNotIn("first_byte_before_response_end", records[0])
+        self.assertTrue(records[1]["first_byte_before_response_end"])
+        self.assertTrue(records[1]["no_full_response_buffering"])
+        self.assertEqual(42, records[1]["body_bytes_seen"])
+
     def test_response_status_is_not_dual_mapped_to_original_and_visible(self) -> None:
         event = collector.sanitized_event({"response_status": 200})
         self.assertNotIn("original_http_status", event)
@@ -204,6 +265,41 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             self.assertEqual("log_only", case["actual_action"])
             self.assertEqual(403, case["http_status"])
             self.assertEqual(200, case["visible_http_status"])
+
+    def test_phase4_case_rejects_audit_log_as_event_fallback(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-phase4-audit-") as temporary:
+            root = Path(temporary)
+            audit_path = root / "audit.log"
+            audit_path.write_text(
+                '[id "1100301"] (phase 4) [unique_id "tx-audit-phase4"]\n',
+                encoding="utf-8",
+            )
+            results_path = root / "results.jsonl"
+            results_path.write_text(
+                json.dumps(
+                    {
+                        "case_id": "phase4_rule_observed",
+                        "status": "PASS",
+                        "live_executed": True,
+                        "actual_status": 200,
+                        "audit_log_path": str(audit_path),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            cases, events = collector.case_observations(
+                [results_path],
+                "apache",
+                "1100001",
+                {"phase4_rule_observed": (None, "1100301")},
+                allowed_source_root=root,
+            )
+
+            self.assertEqual([], events)
+            self.assertEqual("FAIL", cases[0]["status"])
+            self.assertFalse(cases[0]["event_metadata_verified"])
 
     def test_traefik_runtime_output_rejects_symlink_before_cleanup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="traefik-output-") as temporary:

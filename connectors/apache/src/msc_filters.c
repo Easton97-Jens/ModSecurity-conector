@@ -54,7 +54,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
         ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, f->r->server,
                 "ModSecurity: Internal Error: msr is null in input filter.");
         ap_remove_input_filter(f);
-        return send_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
+        return send_input_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
     }
 
     pbbTmp = apr_brigade_create(r->pool, c->bucket_alloc);
@@ -82,7 +82,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
                 {
                     msr->request_body_intervention_sent = 1;
                     ap_remove_input_filter(f);
-                    return send_error_bucket(msr, f, it);
+                    return send_input_error_bucket(msr, f, it);
                 }
             }
             APR_BUCKET_REMOVE(pbktIn);
@@ -100,7 +100,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *pbbOut,
                 (const unsigned char *)data, len) < 0)
         {
             ap_remove_input_filter(f);
-            return send_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
+            return send_input_error_bucket(msr, f, HTTP_INTERNAL_SERVER_ERROR);
         }
         msr->request_body_bytes_seen += len;
         msr->request_body_bytes_inspected += len;

@@ -40,6 +40,14 @@ APPROVED_RAW_EVENT_KEYS = {
     "body_started",
     "body_bytes_seen",
     "body_bytes_inspected",
+    "client_first_byte_received",
+    "first_byte_before_response_end",
+    "first_chunk_size",
+    "upstream_paused",
+    "upstream_eos_sent_at_first_byte",
+    "upstream_response_finished_at_first_byte",
+    "upstream_response_complete_at_first_byte",
+    "no_full_response_buffering",
     "response_body_size",
     "body_truncated",
     "client_ip",
@@ -269,6 +277,9 @@ def safe_metadata_value(target: str, value: Any) -> Any | None:
         "visible_http_status",
     }:
         return scalar_int(value)
+    if target in {"first_chunk_size", "body_bytes_seen", "body_bytes_inspected"}:
+        numeric = scalar_int(value)
+        return numeric if numeric is not None and numeric >= 0 else None
     if target == "phase":
         numeric = scalar_int(value)
         if numeric is not None:
@@ -298,6 +309,12 @@ def safe_metadata_value(target: str, value: Any) -> Any | None:
         "body_started",
         "connection_aborted",
         "response_committed",
+        "client_first_byte_received",
+        "first_byte_before_response_end",
+        "upstream_paused",
+        "upstream_eos_sent_at_first_byte",
+        "upstream_response_finished_at_first_byte",
+        "no_full_response_buffering",
     }:
         return scalar_bool(value)
     if target in {"requested_action", "actual_action"}:
@@ -339,6 +356,18 @@ def sanitized_event(record: dict[str, Any]) -> dict[str, Any]:
         "connection_aborted": ("connection_aborted", "strict_abort"),
         "response_committed": ("response_committed",),
         "transport_result": ("transport_result", "observed_transport_result"),
+        "body_bytes_seen": ("body_bytes_seen",),
+        "body_bytes_inspected": ("body_bytes_inspected",),
+        "client_first_byte_received": ("client_first_byte_received",),
+        "first_chunk_size": ("first_chunk_size",),
+        "upstream_paused": ("upstream_paused",),
+        "upstream_eos_sent_at_first_byte": ("upstream_eos_sent_at_first_byte",),
+        "first_byte_before_response_end": ("first_byte_before_response_end",),
+        "upstream_response_finished_at_first_byte": (
+            "upstream_response_finished_at_first_byte",
+            "upstream_response_complete_at_first_byte",
+        ),
+        "no_full_response_buffering": ("no_full_response_buffering",),
         "truncated": ("truncated", "event_truncated"),
         "content_type": ("content_type",),
     }
@@ -453,6 +482,108 @@ def runtime_event_records(
     return load_jsonl(path)
 
 
+def first_byte_evidence_record(
+    path_value: Any,
+    allowed_source_root: Path | None,
+) -> dict[str, Any] | None:
+    """Read a real-host barrier record without treating it as an event stream.
+
+    The evidence is merged only into an actual Phase-4 event emitted by the
+    selected host.  This prevents a direct/synthetic helper invocation from
+    manufacturing a Phase-4 rule observation.
+    """
+    text = str(path_value or "")
+    if not text:
+        return None
+    path = Path(text)
+    if allowed_source_root is not None:
+        path = contained_source_event_path(path, allowed_source_root)
+    if not path.is_file():
+        return None
+    try:
+        value = load_json(path)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    if (
+        value.get("evidence_type") != "synchronized_first_byte"
+        or value.get("evidence_origin") != "real_host"
+        or value.get("promotion_eligible") is not True
+        or value.get("outcome") != "PASS"
+        or value.get("body_payload_persisted") is not False
+    ):
+        return None
+    required = (
+        "client_first_byte_received",
+        "first_byte_before_response_end",
+        "first_chunk_size",
+        "upstream_paused",
+        "upstream_eos_sent_at_first_byte",
+        "upstream_response_finished_at_first_byte",
+        "response_committed",
+        "body_bytes_seen",
+        "body_bytes_inspected",
+        "no_full_response_buffering",
+        "connector_owned_full_response_buffer",
+    )
+    if any(name not in value for name in required):
+        return None
+    if (
+        value.get("client_first_byte_received") is not True
+        or value.get("first_byte_before_response_end") is not True
+        or value.get("upstream_paused") is not True
+        or value.get("upstream_eos_sent_at_first_byte") is not False
+        or value.get("upstream_response_finished_at_first_byte") is not False
+        or value.get("response_committed") is not True
+        or value.get("no_full_response_buffering") is not True
+        or value.get("connector_owned_full_response_buffer") is not False
+    ):
+        return None
+    for name in ("first_chunk_size", "body_bytes_seen", "body_bytes_inspected"):
+        number = scalar_int(value.get(name))
+        if number is None or number < 0:
+            return None
+        value[name] = number
+    if value["first_chunk_size"] < 1 or value["body_bytes_inspected"] > value["body_bytes_seen"]:
+        return None
+    return value
+
+
+def merge_first_byte_evidence(
+    records: list[dict[str, Any]], evidence: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """Attach bounded causal metadata only to observed Phase-4 host events."""
+    if evidence is None:
+        return records
+    fields = (
+        "client_first_byte_received",
+        "first_byte_before_response_end",
+        "first_chunk_size",
+        "upstream_paused",
+        "upstream_eos_sent_at_first_byte",
+        "upstream_response_finished_at_first_byte",
+        "response_committed",
+        "body_bytes_seen",
+        "body_bytes_inspected",
+        "no_full_response_buffering",
+    )
+    merged: list[dict[str, Any]] = []
+    for record in records:
+        candidate = dict(record)
+        phase = safe_metadata_value("phase", candidate.get("phase"))
+        if phase == 4:
+            for field in fields:
+                # The barrier observation is authoritative for its causal
+                # fields.  Host counters must agree rather than be replaced.
+                if field in {"body_bytes_seen", "body_bytes_inspected"} and field in candidate:
+                    existing = scalar_int(candidate.get(field))
+                    if existing is not None and existing != evidence[field]:
+                        candidate["first_byte_evidence_counter_mismatch"] = True
+                        continue
+                candidate[field] = evidence[field]
+        merged.append(candidate)
+    return merged
+
+
 def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
     """Project only producer-observed Phase-4 metadata.
 
@@ -472,6 +603,15 @@ def canonical_semantics(records: list[dict[str, Any]]) -> dict[str, Any]:
         "connection_aborted",
         "response_committed",
         "transport_result",
+        "body_bytes_seen",
+        "body_bytes_inspected",
+        "client_first_byte_received",
+        "first_chunk_size",
+        "upstream_paused",
+        "upstream_eos_sent_at_first_byte",
+        "first_byte_before_response_end",
+        "upstream_response_finished_at_first_byte",
+        "no_full_response_buffering",
     }
     output: dict[str, Any] = {}
     for record in records:
@@ -614,16 +754,29 @@ def case_observations(
         for key in ("connector_phase4_log_path", "phase4_log_path"):
             runtime_records.extend(runtime_event_records(
                 row.get(key), allowed_source_root, consumed_event_paths))
+        runtime_records = merge_first_byte_evidence(
+            runtime_records,
+            first_byte_evidence_record(
+                row.get("first_byte_evidence_path"), allowed_source_root
+            ),
+        )
         for record in runtime_records:
             event = sanitized_event(record)
             derived_events.append(record)
             if event.get("rule_id") not in (None, ""):
                 observed_rule_ids.add(str(event["rule_id"]))
-        event = audit_event(audit_path, connector, actual)
-        if event:
-            derived_events.append(event)
-            observed_rule_ids.add(str(event["rule_id"]))
         phase4_case = case_id.startswith("phase4_")
+        # An audit log can corroborate the older request-path cases, but it
+        # is not a Phase-4 producer event.  In particular it lacks the
+        # canonical event/message identity that the Framework requires for a
+        # response-body observation.  Phase-4 cases therefore require the
+        # connector's structured Phase-4 log above; absent that log, leave
+        # the case unverified instead of manufacturing a malformed event.
+        if not phase4_case:
+            event = audit_event(audit_path, connector, actual)
+            if event:
+                derived_events.append(event)
+                observed_rule_ids.add(str(event["rule_id"]))
         passed = status == "PASS" and live
         if not phase4_case and expected_status is not None:
             passed = passed and actual == expected_status

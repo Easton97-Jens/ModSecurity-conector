@@ -17,6 +17,22 @@ response. `ext_authz` does not expose upstream response headers or response
 bodies to this service, so response inspection remains unsupported and no
 response-body claim is made.
 
+## Separate, unpromoted `ext_proc` groundwork
+
+`ext_proc/` adds a separate Go service based on Envoy's official generated Go
+protobuf/gRPC API. Its checked-in Envoy template uses `STREAMED` request and
+response body modes, with bounded per-stream counters and incremental callback
+delivery; it never selects `BUFFERED` processing. The pinned module and Envoy
+release record are in `ext_proc/go.mod`, `ext_proc/go.sum`, and
+`config/envoy-ext-proc-versions.env`.
+
+This path is source/build-ready only. Its current `PassthroughEngine` is an
+explicit seam for a later Common/libmodsecurity bridge, not such a bridge. It
+does not change the canonical `ext_authz` capabilities or runtime status.
+After response headers are observed, `minimal`/`safe` record a log-only adapter
+outcome and `strict` records `strict_abort_not_attempted`; it never claims a
+late status change, deterministic reset, client reset, or upstream reset.
+
 ## Source layout
 
 - `src/envoy_ext_authz_service_main.c` defines the Envoy host profile, original
@@ -29,6 +45,9 @@ response-body claim is made.
 - `build/build_connector.sh` performs a compile/link-only C17 build.
 - `harness/start_envoy_connector.sh` validates Envoy config, starts and observes
   both Envoy and the service, and stops both without sending a request.
+- `ext_proc/` contains the separately buildable Go ext_proc stream service and
+  its focused unit tests; `config/envoy-ext-proc-streaming.yaml.in` is its
+  unpromoted streamed-mode template.
 
 The older `envoy_bridge` CLI remains a local decision self-test. It is not used
 by the `ext_authz` service and is not runtime evidence.
@@ -90,6 +109,20 @@ transaction ID header, caps request bodies at 4096 bytes, disables response-body
 processing, uses 403/500 block/error defaults, applies explicit header/event
 limits, and writes metadata-only JSONL outside the checkout.
 
+The independent ext_proc groundwork has its own commands and does not require
+libmodsecurity at build time:
+
+```sh
+make -C connectors/envoy build-envoy-ext-proc
+make -C connectors/envoy test-envoy-ext-proc
+make -C connectors/envoy check-envoy-ext-proc-config
+make -C connectors/envoy prepare-envoy-ext-proc-config
+```
+
+They compile/test the pinned Go source, validate its service JSON, and
+materialize YAML outside the checkout. They do not start Envoy or prove an
+Envoy/libmodsecurity path.
+
 ## Current evidence boundary
 
 - The service is C17 compile/link verified and the targeted real Envoy request
@@ -101,6 +134,8 @@ limits, and writes metadata-only JSONL outside the checkout.
   this connector binary and must not be used as evidence for this implementation.
 - No production, security, CRS-complete, full-matrix, response-header, or
   response-body verification claim is made.
+- The ext_proc service has only source/build tests. In particular it has no
+  Envoy runtime, Common/libmodsecurity, timeout, reset, or first-byte evidence.
 
 ## Canonical Phase-4 boundary
 

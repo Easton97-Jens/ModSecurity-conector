@@ -2,6 +2,8 @@ BUILD_ROOT ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)/Mod
 
 .PHONY: build-starter self-test build-lighttpd-bridge build-bridge-starter \
 	self-test-lighttpd-bridge self-test-bridge build-lighttpd-connector \
+	check-lighttpd-core-patch apply-lighttpd-core-patch \
+	build-lighttpd-patched-connector \
 	check-lighttpd-config start-smoke-lighttpd runtime-smoke-lighttpd \
 	no-crs-baseline-lighttpd clean
 
@@ -24,6 +26,18 @@ self-test-bridge: self-test-lighttpd-bridge
 build-lighttpd-connector:
 	BUILD_ROOT="$(BUILD_ROOT)" sh build/build_module.sh
 
+check-lighttpd-core-patch:
+	BUILD_ROOT="$(BUILD_ROOT)" sh build/apply_core_patch.sh --check
+
+apply-lighttpd-core-patch:
+	BUILD_ROOT="$(BUILD_ROOT)" sh build/apply_core_patch.sh --apply
+
+build-lighttpd-patched-connector: apply-lighttpd-core-patch
+	BUILD_ROOT="$(BUILD_ROOT)" \
+	LIGHTTPD_MSCONNECTOR_CORE_MODE=patched \
+	LIGHTTPD_SOURCE_DIR="$(BUILD_ROOT)/lighttpd-core-patched/lighttpd-1.4.84" \
+	sh build/build_module.sh
+
 check-lighttpd-config: build-lighttpd-connector
 	BUILD_ROOT="$(BUILD_ROOT)" sh harness/check_lighttpd_config.sh
 
@@ -39,4 +53,5 @@ no-crs-baseline-lighttpd: runtime-smoke-lighttpd
 clean:
 	rm -rf "$(BUILD_ROOT)/lighttpd-build-starter" \
 		"$(BUILD_ROOT)/lighttpd-bridge-starter" \
-		"$(BUILD_ROOT)/lighttpd-connector"
+		"$(BUILD_ROOT)/lighttpd-connector" \
+		"$(BUILD_ROOT)/lighttpd-core-patched"

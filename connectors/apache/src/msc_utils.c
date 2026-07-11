@@ -32,15 +32,23 @@ int id(const char *fn, const char *format, ...)
 }
 
 
-/**
- * Sends a brigade with an error bucket down the filter chain.
+/*
+ * Build an error brigade and send it to an explicitly selected output
+ * destination.  Input and output filters have distinct chains in Apache;
+ * callers must never pass an input-filter `next` pointer to
+ * ap_pass_brigade().
  */
-apr_status_t send_error_bucket(msc_t *msr, ap_filter_t *f, int status)
+static apr_status_t pass_error_bucket(ap_filter_t *f, int status,
+    ap_filter_t *destination)
 {
     apr_bucket_brigade *brigade = NULL;
     apr_bucket *bucket = NULL;
 
-    /* Set the status line explicitly for the error document */
+    /* Keep Apache's request state consistent with the error bucket.  An
+     * input-filter failure is otherwise reduced to the core's generic 400
+     * while it drains the body, even though libmodsecurity selected a
+     * concrete disruptive status (for example the Phase-2 403). */
+    f->r->status = status;
     f->r->status_line = ap_get_status_line(status);
 
     brigade = apr_brigade_create(f->r->pool, f->r->connection->bucket_alloc);
@@ -66,7 +74,19 @@ apr_status_t send_error_bucket(msc_t *msr, ap_filter_t *f, int status)
 
     APR_BRIGADE_INSERT_TAIL(brigade, bucket);
 
-    ap_pass_brigade(f->next, brigade);
+    return ap_pass_brigade(destination, brigade);
+}
+
+
+/**
+ * Sends a brigade with an error bucket down an output filter's remaining
+ * output chain.
+ */
+apr_status_t send_error_bucket(msc_t *msr, ap_filter_t *f, int status)
+{
+    (void)msr;
+
+    (void)pass_error_bucket(f, status, f->next);
 
     /* NOTE:
      * It may not matter what we do from the filter as it may be too
@@ -77,3 +97,16 @@ apr_status_t send_error_bucket(msc_t *msr, ap_filter_t *f, int status)
     return APR_EGENERAL;
 }
 
+
+/**
+ * Send an input-filter failure through the request output chain.  Returning
+ * the output-chain result preserves Apache's AP_FILTER_ERROR signal, so
+ * ap_discard_request_body() does not remap a Phase-2 intervention to its
+ * generic HTTP 400 fallback.
+ */
+apr_status_t send_input_error_bucket(msc_t *msr, ap_filter_t *f, int status)
+{
+    (void)msr;
+
+    return pass_error_bucket(f, status, f->r->output_filters);
+}

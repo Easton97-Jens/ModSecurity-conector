@@ -85,6 +85,38 @@
     {
       "path": "connectors/traefik/config/traefik-forwardauth-dynamic.yaml",
       "purpose": "temporary Traefik forwardAuth File Provider configuration template"
+    },
+    {
+      "path": "connectors/traefik/native_middleware/go.mod",
+      "purpose": "unselected repository-owned Go module with no external dependencies"
+    },
+    {
+      "path": "connectors/traefik/native_middleware/.traefik.yml",
+      "purpose": "Traefik middleware plugin manifest and static test-data shape"
+    },
+    {
+      "path": "connectors/traefik/native_middleware/middleware.go",
+      "purpose": "unselected Traefik-shaped streaming middleware with bounded HTTP wrappers and an explicit pass-through engine seam"
+    },
+    {
+      "path": "connectors/traefik/native_middleware/middleware_test.go",
+      "purpose": "focused local Go tests for bounded chunks, response-writer interfaces, ReaderFrom delegation, and conservative late behavior"
+    },
+    {
+      "path": "connectors/traefik/native_middleware/README.md",
+      "purpose": "native middleware source/build boundary and non-claim documentation"
+    },
+    {
+      "path": "connectors/traefik/build/build-native-middleware.sh",
+      "purpose": "outside-checkout Go source build and test helper"
+    },
+    {
+      "path": "connectors/traefik/config/traefik-native-middleware-dynamic.yaml",
+      "purpose": "unselected local-plugin File Provider configuration shape"
+    },
+    {
+      "path": "connectors/traefik/config/traefik-native-middleware-static.yaml",
+      "purpose": "unselected Traefik local-plugin registration shape"
     }
   ],
   "shared_dependencies": [
@@ -111,5 +143,6 @@
     "production_ready",
     "full_matrix_ready"
   ],
-  "starter_evidence_note": "legacy decision-service self-test remains non-runtime evidence"
+  "starter_evidence_note": "legacy decision-service self-test remains non-runtime evidence",
+  "unselected_native_middleware_note": "The native Go middleware is source/build groundwork only, installs PassthroughEngine, and does not alter the selected forwardAuth host model or capability state."
 }

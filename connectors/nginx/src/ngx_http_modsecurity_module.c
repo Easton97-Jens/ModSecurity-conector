@@ -27,6 +27,7 @@
 #include "msconnector/directive_spec.h"
 #include "msconnector/directives.h"
 #include "msconnector/options.h"
+#include "msconnector/rule_id.h"
 #include "stdio.h"
 #include <ctype.h>
 #include <ngx_core.h>
@@ -177,24 +178,19 @@ ngx_http_modsecurity_process_intervention (Transaction *transaction, ngx_http_re
         return 0;
     }
     ctx->last_intervention_status = intervention.status;
-    ctx->last_intervention_log.len = 0;
-    ctx->last_intervention_log.data = NULL;
+    ctx->last_intervention_rule_id[0] = '\0';
     mcf = ngx_http_get_module_loc_conf(r, ngx_http_modsecurity_module);
     if (mcf == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* Keep the raw intervention only in request-pool memory so the Phase-4
-     * event writer can extract the rule ID.  It is never serialized. */
+    /* Extract only the bounded rule ID before libmodsecurity's message is
+     * released.  Phase-4 evidence is metadata-only, so retaining a complete
+     * intervention message in the request pool is unnecessary. */
     if (mcf->phase4_log_file != NULL && intervention.log != NULL) {
-        size_t l = ngx_strlen(intervention.log);
-        u_char *cp = ngx_pnalloc(r->pool, l + 1);
-        if (cp != NULL) {
-            ngx_memcpy(cp, intervention.log, l);
-            cp[l] = '\0';
-            ctx->last_intervention_log.data = cp;
-            ctx->last_intervention_log.len = l;
-        }
+        (void)msconnector_rule_id_extract_from_message(intervention.log,
+            ctx->last_intervention_rule_id,
+            sizeof(ctx->last_intervention_rule_id));
     }
 
     // logging to nginx error log can be disable by setting `modsecurity_use_error_log` to off
@@ -1114,10 +1110,13 @@ ngx_http_modsecurity_create_conf(ngx_conf_t *cf)
     conf->transaction_id = NGX_CONF_UNSET_PTR;
     conf->use_error_log = NGX_CONF_UNSET;
     conf->phase4_mode = NGX_CONF_UNSET_UINT;
-    conf->phase4_content_types = NULL;
+    /* These values are inherited with ngx_conf_merge_ptr_value().  They must
+     * use NGINX's unset sentinel here: NULL is a valid merged value for the
+     * log and causes a child location to suppress a server-level setting. */
+    conf->phase4_content_types = NGX_CONF_UNSET_PTR;
     conf->phase4_content_types_file.len = 0;
     conf->phase4_content_types_file.data = NULL;
-    conf->phase4_log_file = NULL;
+    conf->phase4_log_file = NGX_CONF_UNSET_PTR;
     conf->phase4_log_path.len = 0;
     conf->phase4_log_path.data = NULL;
 #if defined(MODSECURITY_SANITY_CHECKS) && (MODSECURITY_SANITY_CHECKS)

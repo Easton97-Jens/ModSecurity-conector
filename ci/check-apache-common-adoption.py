@@ -17,6 +17,7 @@ config_h = read(SRC / "mod_security3.h")
 config_c = read(SRC / "msc_config.c")
 filters_c = read(SRC / "msc_filters.c")
 module_c = read(SRC / "mod_security3.c")
+utils_c = read(SRC / "msc_utils.c")
 mapper_h = read(SRC / "msc_apache_mapper.h") if (SRC / "msc_apache_mapper.h").exists() else ""
 mapper_c = read(SRC / "msc_apache_mapper.c") if (SRC / "msc_apache_mapper.c").exists() else ""
 apache_text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.c")) + "\n" + "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in SRC.glob("*.h"))
@@ -47,6 +48,9 @@ checks.append(("msconnector_late_intervention_policy_init" in filters_c and "msc
 checks.append(("strcmp(actual, \"deny\")" in filters_c and "event.http.visible_http_status = msr->last_intervention_status" in filters_c and "response_not_committed" in filters_c, "Pre-commit deny events report the deny status as visible"))
 checks.append(("response_brigade" not in filters_c and "apache_phase4_append_bucket" in filters_c and "ap_pass_brigade(f->next, bb_in)" in filters_c, "Apache Phase4 passes each host brigade onward without connector-owned full-response buffering"))
 checks.append(("msc_finalize_request_body" in filters_c and "request_body_processed" in filters_c and "APR_BUCKET_REMOVE(pbktIn)" in filters_c, "Apache request chunks are borrowed and phase 2 finalizes once at EOS"))
+input_filter_c = filters_c.split("apr_status_t input_filter", 1)[1].split("static const char *apache_response_content_type", 1)[0]
+checks.append((input_filter_c.count("send_input_error_bucket") == 3 and "send_error_bucket(msr, f" not in input_filter_c, "Apache input-filter errors use the input-specific output-chain bridge"))
+checks.append(("return pass_error_bucket(f, status, f->r->output_filters);" in utils_c and "return ap_pass_brigade(destination, brigade);" in utils_c, "Apache input-error bridge propagates the output-chain filter result"))
 checks.append(("msc_process_request_body(msr->t)" not in module_c, "Apache does not finalize Phase 2 before the input filter reaches EOS"))
 checks.append(("ap_request_has_body(r)" in module_c and "msc_finalize_request_body(msr, r)" in module_c, "Apache completes Phase 2 for a known empty request body"))
 checks.append(("ap_discard_request_body(r)" in filters_c and "apache_finish_unread_request_body" in filters_c and "return APR_ECONNABORTED" in filters_c, "Apache drains an unread request body through the streaming input filter or aborts before Phase 3 when EOS is unavailable"))

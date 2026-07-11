@@ -1,6 +1,13 @@
 BUILD_ROOT ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)/ModSecurity-conector-build
 BRIDGE_BIN := $(BUILD_ROOT)/envoy-bridge-starter/envoy_bridge
 SERVICE_BIN := $(BUILD_ROOT)/envoy-connector/msconnector_envoy_ext_authz
+EXT_PROC_BIN := $(BUILD_ROOT)/envoy-ext-proc/msconnector_envoy_ext_proc
+EXT_PROC_CONFIG ?= $(CURDIR)/config/envoy-ext-proc-service.json
+EXT_PROC_ENVOY_CONFIG ?= $(BUILD_ROOT)/envoy-ext-proc/config/envoy-ext-proc.streaming.yaml
+EXT_PROC_LISTEN_PORT ?= 18080
+EXT_PROC_UPSTREAM_PORT ?= 18081
+EXT_PROC_LISTEN_SERVICE_PORT ?= 18083
+EXT_PROC_ADMIN_PORT ?= 19001
 CONFIG_FILE ?= $(CURDIR)/config/envoy-ext-authz.conf
 RULES_FILE ?= $(abspath $(CURDIR)/../../common/rules/modsecurity_targeted_smoke.conf)
 EVENT_LOG_PATH ?= $(BUILD_ROOT)/envoy-connector/events.jsonl
@@ -9,6 +16,8 @@ LISTEN_ADDRESS ?= 127.0.0.1
 LISTEN_PORT ?= 18082
 
 .PHONY: build-starter self-test self-test-envoy-bridge build-envoy-connector \
+	build-envoy-ext-proc test-envoy-ext-proc check-envoy-ext-proc-config \
+	prepare-envoy-ext-proc-config \
 	build-modsecurity-bridge check-envoy-config start-smoke-envoy \
 	serve-envoy-connector runtime-smoke-envoy no-crs-baseline-envoy \
 	self-test-modsecurity clean
@@ -21,7 +30,7 @@ self-test: build-starter
 
 self-test-envoy-bridge: self-test
 
-build-envoy-connector:
+build-envoy-connector: build-envoy-ext-proc
 	BUILD_ROOT="$(BUILD_ROOT)" \
 	MODSECURITY_INCLUDE_DIR="$(MODSECURITY_INCLUDE_DIR)" \
 	MODSECURITY_LIB_DIR="$(MODSECURITY_LIB_DIR)" \
@@ -30,9 +39,29 @@ build-envoy-connector:
 	CC="$(CC)" CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)" LDLIBS="$(LDLIBS)" \
 	sh build/build_connector.sh
 
+# The ext_proc service is intentionally independent of the ext_authz C service.
+# It is source/build groundwork only: it does not claim a Common/libmodsecurity
+# bridge or any runtime/evidence promotion.
+build-envoy-ext-proc:
+	BUILD_ROOT="$(BUILD_ROOT)" \
+	sh build/build_ext_proc.sh
+
+test-envoy-ext-proc:
+	BUILD_ROOT="$(BUILD_ROOT)" \
+	sh build/test_ext_proc.sh
+
+check-envoy-ext-proc-config: build-envoy-ext-proc
+	"$(EXT_PROC_BIN)" --check-config --config "$(EXT_PROC_CONFIG)"
+
+prepare-envoy-ext-proc-config:
+	OUTPUT_CONFIG="$(EXT_PROC_ENVOY_CONFIG)" \
+	LISTEN_PORT="$(EXT_PROC_LISTEN_PORT)" UPSTREAM_PORT="$(EXT_PROC_UPSTREAM_PORT)" \
+	EXT_PROC_PORT="$(EXT_PROC_LISTEN_SERVICE_PORT)" ADMIN_PORT="$(EXT_PROC_ADMIN_PORT)" \
+	sh config/prepare_envoy_ext_proc_config.sh
+
 build-modsecurity-bridge: build-envoy-connector
 
-check-envoy-config: build-envoy-connector
+check-envoy-config: build-envoy-connector check-envoy-ext-proc-config prepare-envoy-ext-proc-config
 	SERVICE_BIN="$(SERVICE_BIN)" CONFIG_FILE="$(CONFIG_FILE)" RULES_FILE="$(RULES_FILE)" \
 	EVENT_LOG_PATH="$(EVENT_LOG_PATH)" LISTEN_ADDRESS="$(LISTEN_ADDRESS)" LISTEN_PORT="$(LISTEN_PORT)" \
 	sh config/check_envoy_config.sh

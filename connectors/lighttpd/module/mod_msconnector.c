@@ -8,6 +8,7 @@
 #include "array.h"
 #include "base.h"
 #include "buffer.h"
+#include "fdevent.h"
 #include "http_status.h"
 #include "log.h"
 #include "plugin.h"
@@ -29,6 +30,9 @@ typedef struct {
     size_t response_body_limit;
     size_t total_header_limit;
     size_t header_count_limit;
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    int request_body_hooks_enabled;
+#endif
 } plugin_data;
 
 typedef struct {
@@ -39,7 +43,11 @@ typedef struct {
     msconnector_response response;
     char host_request_id[96];
     int response_processed;
+    int request_body_finished;
     int response_body_finished;
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    off_t request_body_next_offset;
+#endif
 } handler_ctx;
 
 INIT_FUNC(mod_msconnector_init);
@@ -48,6 +56,24 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults);
 REQUEST_FUNC(mod_msconnector_handle_uri_clean);
 REQUEST_FUNC(mod_msconnector_handle_response_start);
 REQUEST_FUNC(mod_msconnector_handle_request_reset);
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+static handler_t mod_msconnector_handle_request_body(
+    request_st *r,
+    const chunkqueue *queue,
+    off_t queue_offset,
+    off_t length,
+    off_t stream_offset,
+    int eos,
+    void *p_d);
+static plugin_body_hook_result mod_msconnector_handle_response_body(
+    request_st *r,
+    const chunkqueue *queue,
+    off_t queue_offset,
+    off_t length,
+    off_t stream_offset,
+    int eos,
+    void *p_d);
+#endif
 
 static const plugin mod_msconnector_plugin = {
   .name                         = "msconnector",
@@ -57,7 +83,11 @@ static const plugin mod_msconnector_plugin = {
   .set_defaults                 = mod_msconnector_set_defaults,
   .handle_uri_clean             = mod_msconnector_handle_uri_clean,
   .handle_response_start        = mod_msconnector_handle_response_start,
-  .handle_request_reset         = mod_msconnector_handle_request_reset
+  .handle_request_reset         = mod_msconnector_handle_request_reset,
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+  .handle_request_body          = mod_msconnector_handle_request_body,
+  .handle_response_body         = mod_msconnector_handle_response_body,
+#endif
 };
 
 INIT_FUNC(mod_msconnector_init) {
@@ -115,8 +145,13 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         T_CONFIG_SCOPE_UNSET }
     };
     plugin_data * const p = p_d;
+#ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     msconnector_request_mapper_contract request_contract;
     msconnector_response_mapper_contract response_contract;
+#else
+    msconnector_body_mode request_body_mode;
+    msconnector_body_mode response_body_mode;
+#endif
     char error[512] = "";
 
     if (!config_plugin_values_init(srv, p, keys, "mod_msconnector")) {
@@ -169,6 +204,22 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
         return HANDLER_ERROR;
     }
 
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    request_body_mode = msconnector_runtime_request_body_mode(p->runtime);
+    response_body_mode = msconnector_runtime_response_body_mode(p->runtime);
+    if (request_body_mode == MSCONNECTOR_BODY_MODE_BUFFERED ||
+        response_body_mode != MSCONNECTOR_BODY_MODE_NONE) {
+        log_error(
+            srv->errh,
+            __FILE__,
+            __LINE__,
+            "patched lighttpd module requires request_body_mode=none or streaming and response_body_mode=none (HTTP/1.x output hooks expose wire bytes, not a decoded response entity)");
+        msconnector_runtime_destroy(&p->runtime);
+        return HANDLER_ERROR;
+    }
+    p->request_body_hooks_enabled =
+        request_body_mode == MSCONNECTOR_BODY_MODE_STREAMING;
+#else
     msconnector_runtime_request_contract(p->runtime, &request_contract);
     msconnector_runtime_response_contract(p->runtime, &response_contract);
     if (request_contract.request_body != MSCONNECTOR_MAPPER_UNSUPPORTED ||
@@ -177,10 +228,11 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
             srv->errh,
             __FILE__,
             __LINE__,
-            "native lighttpd module requires request_body_mode=none and response_body_mode=none");
+            "stock lighttpd module requires request_body_mode=none and response_body_mode=none; rebuild lighttpd with the 1.4.84 streaming-hook patch for request streaming");
         msconnector_runtime_destroy(&p->runtime);
         return HANDLER_ERROR;
     }
+#endif
 
     p->request_body_limit =
         msconnector_runtime_request_body_limit(p->runtime);
@@ -191,11 +243,6 @@ SETDEFAULTS_FUNC(mod_msconnector_set_defaults) {
     p->header_count_limit =
         msconnector_runtime_header_count_limit(p->runtime);
 
-    /*
-     * Body limits are retained for the later body-hook implementation. This
-     * Phase-1 module deliberately advertises request and response bodies as
-     * unsupported and never exposes a body payload to the runtime.
-     */
     return HANDLER_GO_ON;
 }
 
@@ -255,6 +302,200 @@ static handler_t mod_msconnector_apply_decision(
     return http_status_set_err(r, status);
 }
 
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+
+typedef struct {
+    handler_ctx *ctx;
+    msconnector_error runtime_error;
+} mod_msconnector_body_append_context;
+
+static int mod_msconnector_append_request_body_range(
+        void *userdata,
+        const unsigned char *data,
+        size_t size,
+        char *error,
+        size_t error_len) {
+    mod_msconnector_body_append_context *append = userdata;
+
+    if (!msconnector_runtime_transaction_append_request_body_chunk(
+            append->ctx->transaction,
+            data,
+            size,
+            &append->runtime_error)) {
+        (void)snprintf(
+            error,
+            error_len,
+            "request body append failed: %s",
+            msconnector_error_code_name(append->runtime_error.code));
+        return 0;
+    }
+    return 1;
+}
+
+static handler_t mod_msconnector_finish_request_body(
+        request_st *r,
+        plugin_data *p,
+        handler_ctx *ctx) {
+    msconnector_decision decision;
+    msconnector_error runtime_error;
+
+    if (ctx->request_body_finished) {
+        return HANDLER_GO_ON;
+    }
+    msconnector_decision_init(&decision);
+    msconnector_error_init(&runtime_error);
+    if (!msconnector_runtime_transaction_finish_request_body(
+            ctx->transaction,
+            &decision,
+            &runtime_error)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector request-body finalization failed: %s",
+            msconnector_error_code_name(runtime_error.code));
+        return mod_msconnector_error_response(r, p->runtime, runtime_error.code);
+    }
+    ctx->request_body_finished = 1;
+    return mod_msconnector_apply_decision(r, &decision);
+}
+
+static handler_t mod_msconnector_prepare_request_body(
+        request_st *r,
+        plugin_data *p,
+        handler_ctx *ctx) {
+    handler_t rc;
+
+    if (!p->request_body_hooks_enabled || ctx->request_body_finished) {
+        return HANDLER_GO_ON;
+    }
+    if (r->http_version > HTTP_VERSION_1_1) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "patched msconnector request streaming is limited to HTTP/1.x");
+        return http_status_set_err(r, 501);
+    }
+    if (r->reqbody_length == 0) {
+        return mod_msconnector_finish_request_body(r, p, ctx);
+    }
+
+    r->conf.stream_request_body |= FDEVENT_STREAM_REQUEST;
+    rc = r->con->reqbody_read(r);
+    if (rc != HANDLER_GO_ON) {
+        return rc;
+    }
+    return ctx->request_body_finished ? HANDLER_GO_ON : HANDLER_WAIT_FOR_EVENT;
+}
+
+static handler_t mod_msconnector_handle_request_body(
+        request_st *r,
+        const chunkqueue *queue,
+        off_t queue_offset,
+        off_t length,
+        off_t stream_offset,
+        int eos,
+        void *p_d) {
+    plugin_data *p = p_d;
+    handler_ctx *ctx = r->plugin_ctx[p->id];
+    mod_msconnector_body_append_context append;
+    char mapper_error[256] = "";
+
+    if (!p->request_body_hooks_enabled || ctx == NULL ||
+        ctx->transaction == NULL || ctx->request_body_finished) {
+        return HANDLER_GO_ON;
+    }
+    if (stream_offset != ctx->request_body_next_offset) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector request-body hook received a non-contiguous range");
+        return mod_msconnector_error_response(
+            r, p->runtime, MSCONNECTOR_ERROR_HOST_API_FAILURE);
+    }
+
+    append.ctx = ctx;
+    msconnector_error_init(&append.runtime_error);
+    if (length > 0 && !lighttpd_modsecurity_visit_body_range(
+            queue,
+            queue_offset,
+            length,
+            mod_msconnector_append_request_body_range,
+            &append,
+            mapper_error,
+            sizeof(mapper_error))) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector request-body mapping failed: %s",
+            mapper_error[0] == '\0' ? "unknown error" : mapper_error);
+        return mod_msconnector_error_response(
+            r,
+            p->runtime,
+            append.runtime_error.code == MSCONNECTOR_ERROR_NONE
+              ? MSCONNECTOR_ERROR_HOST_API_FAILURE : append.runtime_error.code);
+    }
+    ctx->request_body_next_offset += length;
+    return eos ? mod_msconnector_finish_request_body(r, p, ctx) : HANDLER_GO_ON;
+}
+
+static plugin_body_hook_result mod_msconnector_handle_response_body(
+        request_st *r,
+        const chunkqueue *queue,
+        off_t queue_offset,
+        off_t length,
+        off_t stream_offset,
+        int eos,
+        void *p_d) {
+    plugin_data *p = p_d;
+    handler_ctx *ctx = r->plugin_ctx[p->id];
+    msconnector_decision decision;
+    msconnector_error runtime_error;
+
+    (void)queue;
+    (void)queue_offset;
+    (void)length;
+    (void)stream_offset;
+    if (!eos || ctx == NULL || ctx->transaction == NULL ||
+        !ctx->response_processed || ctx->response_body_finished) {
+        return PLUGIN_BODY_HOOK_CONTINUE;
+    }
+
+    msconnector_runtime_transaction_set_response_commit_state(
+        ctx->transaction,
+        r->write_queue.bytes_out >= (off_t)r->resp_header_len,
+        r->write_queue.bytes_out > (off_t)r->resp_header_len);
+    msconnector_decision_init(&decision);
+    msconnector_error_init(&runtime_error);
+    if (!msconnector_runtime_transaction_finish_response_body(
+            ctx->transaction,
+            &decision,
+            &runtime_error)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector response-body EOS finalization failed: %s",
+            msconnector_error_code_name(runtime_error.code));
+        return PLUGIN_BODY_HOOK_ERROR;
+    }
+    ctx->response_body_finished = 1;
+    if (msconnector_decision_is_disruptive(&decision)) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "msconnector response-body EOS produced a disruptive decision; closing HTTP/1.x connection");
+        return PLUGIN_BODY_HOOK_ABORT;
+    }
+    return PLUGIN_BODY_HOOK_CONTINUE;
+}
+
+#endif
+
 REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
     plugin_data * const p = p_d;
     handler_ctx **ctx_slot;
@@ -267,9 +508,23 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
     if (!p->defaults.enabled || p->runtime == NULL) {
         return HANDLER_GO_ON;
     }
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    if (r->http_version > HTTP_VERSION_1_1) {
+        log_error(
+            r->conf.errh,
+            __FILE__,
+            __LINE__,
+            "patched msconnector full lifecycle is limited to HTTP/1.x; HTTP/2 uses a multiplexed output queue");
+        return http_status_set_err(r, 501);
+    }
+#endif
     ctx_slot = (handler_ctx **)&r->plugin_ctx[p->id];
     if (*ctx_slot != NULL) {
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+        return mod_msconnector_prepare_request_body(r, p, *ctx_slot);
+#else
         return HANDLER_GO_ON;
+#endif
     }
     ctx = handler_ctx_create(r);
     if (ctx == NULL) {
@@ -279,8 +534,10 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
     *ctx_slot = ctx;
 
     msconnector_runtime_request_contract(p->runtime, &contract);
+#ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     contract.request_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
     contract.max_body_bytes = 0U;
+#endif
     if (p->header_count_limit > 0U &&
         (contract.max_header_count == 0U ||
          p->header_count_limit < contract.max_header_count)) {
@@ -326,7 +583,17 @@ REQUEST_FUNC(mod_msconnector_handle_uri_clean) {
         return mod_msconnector_error_response(
             r, p->runtime, runtime_error.code);
     }
-    return mod_msconnector_apply_decision(r, &decision);
+    {
+        const handler_t rc = mod_msconnector_apply_decision(r, &decision);
+        if (rc != HANDLER_GO_ON) {
+            return rc;
+        }
+    }
+#ifdef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
+    return mod_msconnector_prepare_request_body(r, p, ctx);
+#else
+    return HANDLER_GO_ON;
+#endif
 }
 
 REQUEST_FUNC(mod_msconnector_handle_response_start) {
@@ -346,8 +613,10 @@ REQUEST_FUNC(mod_msconnector_handle_response_start) {
     }
 
     msconnector_runtime_response_contract(p->runtime, &contract);
+#ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
     contract.response_body = MSCONNECTOR_MAPPER_UNSUPPORTED;
     contract.max_body_bytes = 0U;
+#endif
     if (p->header_count_limit > 0U &&
         (contract.max_header_count == 0U ||
          p->header_count_limit < contract.max_header_count)) {
@@ -405,6 +674,7 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
     if (ctx->transaction != NULL) {
         msconnector_error_init(&runtime_error);
         if (ctx->response_processed && !ctx->response_body_finished) {
+#ifndef LIGHTTPD_MSCONNECTOR_STREAM_HOOK_ABI_VERSION
             msconnector_decision decision;
             msconnector_decision_init(&decision);
             if (!msconnector_runtime_transaction_finish_response_body(
@@ -418,6 +688,7 @@ REQUEST_FUNC(mod_msconnector_handle_request_reset) {
             }
             ctx->response_body_finished = 1;
             msconnector_error_init(&runtime_error);
+#endif
         }
         if (!msconnector_runtime_transaction_finish(
                 ctx->transaction,

@@ -25,10 +25,13 @@ Canonical capability source: `connectors/lighttpd/capabilities.json`.
 
 ## Required before broader runtime claims
 
-- [ ] Define and implement bounded lighttpd request-body capture.
+- [x] Versioned 1.4.84 source patch defines bounded HTTP/1.x request-body
+      capture and has a compile-only check; no runtime capability is promoted.
 - [ ] Preserve and test request-body truncation metadata.
 - [ ] Implement and test Phase-2 request-body processing.
-- [ ] Evaluate safe response-body hooks and output timing.
+- [x] Versioned 1.4.84 source patch defines a bounded pre-socket-write HTTP/1.x
+      output/EOS hook with short-write deduplication; no response-body runtime
+      claim is made.
 - [ ] Implement response-body buffering only if intervention timing is honest.
 - [ ] Test Phase 4 and late-intervention behavior.
 - [ ] Exercise the implemented response-header hook with a real Phase-3 rule;

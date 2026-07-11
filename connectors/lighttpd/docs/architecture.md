@@ -69,20 +69,27 @@ verified by this narrow smoke.
 
 The Common runtime owns rule loading, transaction IDs, flow guards,
 libmodsecurity calls, decisions, event construction, integrity metadata, and
-JSONL serialization. The connector passes no request or response body payload
-to that event path.
+JSONL serialization. The stock connector mode passes no request or response
+body payload to that event path.
 
 ## Body boundary
 
-lighttpd request and response bodies are not implemented in this module.
-Regardless of the runtime's general capabilities, the module overrides both
-mapper contracts to `MSCONNECTOR_MAPPER_UNSUPPORTED` and maps a zero-length
-body. The native smoke config sets `request_body_mode=none` and
-`response_body_mode=none`.
+The stock mode overrides both mapper contracts to
+`MSCONNECTOR_MAPPER_UNSUPPORTED` and maps a zero-length body. The native smoke
+config sets `request_body_mode=none` and `response_body_mode=none`.
 
-This boundary prevents compile/start/header evidence from being mislabeled as
-body evidence. Body buffering, truncation metadata, Phase 2, Phase 4, and late
-intervention remain future work.
+The optional, source-only lighttpd 1.4.84 patch appends a versioned ABI for
+decoded HTTP/1.x request-body ranges and bounded pre-write HTTP/1.x output/EOS
+ranges. Its native binding can incrementally pass request ranges to the Common
+runtime when `request_body_mode=streaming`. It intentionally rejects buffered
+request mode and every response-body mode: the output callback sees HTTP/1.x
+wire bytes (including possible chunk framing), not a decoded response entity.
+It uses the output EOS only to finalize the no-response-body lifecycle. HTTP/2
+is rejected in patched mode because the core output queue is multiplexed.
+
+This is source and compile wiring, not body runtime evidence. Capabilities and
+Phase 2/4, truncation, first-byte, late-intervention, and response-body claims
+remain unchanged until real host verification exists.
 
 ## Alternative paths
 

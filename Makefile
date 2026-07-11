@@ -208,6 +208,8 @@ export LIGHTTPD_DECISION_BACKEND
 .PHONY: capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy capabilities-traefik capabilities-lighttpd capabilities-all-connectors capabilities-all-connectors-evidence
 .PHONY: evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd evidence-check-all-connectors
 .PHONY: check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency check-no-crs-source-normalization
+.PHONY: full-lifecycle-apache full-lifecycle-nginx full-lifecycle-haproxy full-lifecycle-envoy full-lifecycle-traefik full-lifecycle-lighttpd full-lifecycle-all-connectors
+.PHONY: check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion
 
 define RUN_WITH_REFRESH_ALL
 	@set +e; \
@@ -681,6 +683,15 @@ capabilities-apache capabilities-nginx capabilities-haproxy capabilities-envoy c
 no-crs-baseline-apache no-crs-baseline-nginx no-crs-baseline-haproxy no-crs-baseline-envoy no-crs-baseline-traefik no-crs-baseline-lighttpd: no-crs-baseline-%: check-framework
 	sh ci/run-no-crs-baseline.sh "$*"
 
+# The strict profile requires the complete canonical artifact set, including
+# sanitized host logs.  It deliberately does not change a capability manifest:
+# a later promotion check only accepts real host PASS records from this run.
+full-lifecycle-apache full-lifecycle-nginx full-lifecycle-haproxy full-lifecycle-envoy full-lifecycle-traefik full-lifecycle-lighttpd: full-lifecycle-%: check-framework
+	NO_CRS_ARTIFACT_PROFILE=full_lifecycle sh ci/run-no-crs-baseline.sh "$*" no_crs_baseline
+
+full-lifecycle-all-connectors: check-framework
+	NO_CRS_ARTIFACT_PROFILE=full_lifecycle sh ci/run-full-lifecycle-all-connectors.sh
+
 evidence-check-apache evidence-check-nginx evidence-check-haproxy evidence-check-envoy evidence-check-traefik evidence-check-lighttpd: evidence-check-%: check-framework
 	@run_id="$(NO_CRS_RUN_ID)"; \
 	if [ -z "$$run_id" ]; then \
@@ -798,12 +809,29 @@ check-no-crs-body-payload-absence: check-framework
 check-no-crs-status-consistency: check-framework
 	$(call RUN_NO_CRS_EVIDENCE_CHECK,status)
 
+check-first-byte-before-response-end: check-framework
+	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
+	"$(PYTHON)" ci/check-full-lifecycle-evidence.py --connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" --run-id "$(NO_CRS_RUN_ID)" --check first-byte
+
+check-no-full-response-buffering: check-framework
+	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
+	"$(PYTHON)" ci/check-full-lifecycle-evidence.py --connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" --run-id "$(NO_CRS_RUN_ID)" --check no-full-buffer
+
+check-full-lifecycle-event-privacy: check-framework
+	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
+	$(call RUN_NO_CRS_EVIDENCE_CHECK,body-payload)
+
+check-full-lifecycle-promotion: check-framework
+	@test -n "$(NO_CRS_RUN_ID)" || { echo "NO_CRS_RUN_ID is required" >&2; exit 2; }
+	"$(PYTHON)" ci/check-full-lifecycle-evidence.py --connector-root "$(CURDIR)" --evidence-root "$(EVIDENCE_ROOT)" --run-id "$(NO_CRS_RUN_ID)" --check promotion
+
 check-no-crs-doc-consistency:
 	"$(PYTHON)" ci/check-no-crs-doc-consistency.py
 
 check-no-crs-source-normalization:
 	PYTHONDONTWRITEBYTECODE=1 "$(PYTHON)" -m unittest -v \
 		tests.test_collect_no_crs_source \
+		tests.test_full_lifecycle_evidence \
 		tests.test_prepare_runtime_components \
 		tests.test_runtime_component_cache_identity
 

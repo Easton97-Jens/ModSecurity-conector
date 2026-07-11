@@ -71,6 +71,9 @@ MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 NGINX_WORKER_USER="${NGINX_WORKER_USER:-nobody}"
 NGINX_WORKER_GROUP="${NGINX_WORKER_GROUP:-}"
 PERMISSIONS_LOG="${PERMISSIONS_LOG:-}"
+MSCONNECTOR_FULL_LIFECYCLE_SYNC="${MSCONNECTOR_FULL_LIFECYCLE_SYNC:-0}"
+FULL_LIFECYCLE_EVIDENCE_OUTPUT="${FULL_LIFECYCLE_EVIDENCE_OUTPUT:-}"
+SYNCHRONIZED_UPSTREAM="$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py"
 
 load_connector_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$REPO_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell nginx --prefix CONNECTOR_ADAPTER)"
@@ -575,6 +578,11 @@ render_config() {
 }
 
 cleanup() {
+    if [ -n "${SYNCHRONIZED_UPSTREAM_PID:-}" ] && kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
+        [ -n "${SYNCHRONIZED_RELEASE_FILE:-}" ] && : > "$SYNCHRONIZED_RELEASE_FILE"
+        kill "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+        wait "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1 || true
+    fi
     if [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" >/dev/null 2>&1; then
         kill "$NGINX_PID" >/dev/null 2>&1 || true
         wait "$NGINX_PID" >/dev/null 2>&1 || true
@@ -649,6 +657,96 @@ select_free_port() {
         offset=$((offset + 1))
     done
     return 1
+}
+
+start_synchronized_upstream() {
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] || return 0
+    [ -f "$SYNCHRONIZED_UPSTREAM" ] || blocked "missing synchronized upstream helper: $SYNCHRONIZED_UPSTREAM"
+    SYNCHRONIZED_DIR="$RUNTIME_ROOT/first-byte"
+    SYNCHRONIZED_READY_FILE="$SYNCHRONIZED_DIR/upstream-ready.json"
+    SYNCHRONIZED_PAUSED_FILE="$SYNCHRONIZED_DIR/upstream-paused.json"
+    SYNCHRONIZED_RELEASE_FILE="$SYNCHRONIZED_DIR/upstream-release"
+    SYNCHRONIZED_SERVER_EVIDENCE_FILE="$SYNCHRONIZED_DIR/upstream-server.json"
+    rm -rf "$SYNCHRONIZED_DIR"
+    mkdir -p "$SYNCHRONIZED_DIR"
+    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --serve \
+        --ready-file "$SYNCHRONIZED_READY_FILE" \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
+        --release-file "$SYNCHRONIZED_RELEASE_FILE" \
+        --server-evidence-file "$SYNCHRONIZED_SERVER_EVIDENCE_FILE" \
+        --timeout 30 >"$LOG_DIR/synchronized-upstream.stdout.log" \
+        2>"$LOG_DIR/synchronized-upstream.stderr.log" &
+    SYNCHRONIZED_UPSTREAM_PID=$!
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if [ -f "$SYNCHRONIZED_READY_FILE" ]; then
+            break
+        fi
+        if ! kill -0 "$SYNCHRONIZED_UPSTREAM_PID" >/dev/null 2>&1; then
+            blocked "synchronized upstream exited before publishing its address"
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    [ -f "$SYNCHRONIZED_READY_FILE" ] || blocked "synchronized upstream did not publish its address"
+    RESPONSE_HEADER_BACKEND_PORT=$("$PYTHON_BIN" - "$SYNCHRONIZED_READY_FILE" <<'PY'
+import json
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+port = payload.get("upstream_port")
+if not isinstance(port, int) or port < 1 or port > 65535:
+    raise SystemExit(1)
+print(port)
+PY
+    ) || blocked "synchronized upstream ready record has no valid port"
+}
+
+send_synchronized_first_byte_request() {
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] || return 1
+    [ -n "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" ] || fail "FULL_LIFECYCLE_EVIDENCE_OUTPUT is required for synchronized lifecycle mode"
+    request_url_path=$(quote_request_path "$REQUEST_PATH")
+    : > "$RESPONSE_BODY"
+    "$CURL_BIN" -sS --no-buffer -X GET -o "$RESPONSE_BODY" -w "%{http_code}" \
+        "http://127.0.0.1:$PORT$request_url_path" >"$LOG_DIR/first-byte-status.txt" \
+        2>"$LOG_DIR/first-byte-client.err" &
+    FIRST_BYTE_CLIENT_PID=$!
+    observed_first_byte=0
+    i=0
+    while [ "$i" -lt 300 ]; do
+        if [ -f "$SYNCHRONIZED_PAUSED_FILE" ] && [ -s "$RESPONSE_BODY" ]; then
+            observed_first_byte=1
+            break
+        fi
+        if ! kill -0 "$FIRST_BYTE_CLIENT_PID" >/dev/null 2>&1; then
+            break
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    : > "$SYNCHRONIZED_RELEASE_FILE"
+    set +e
+    wait "$FIRST_BYTE_CLIENT_PID"
+    client_rc=$?
+    set -e
+    [ "$observed_first_byte" -eq 1 ] || fail "client did not receive a first response byte while upstream was paused"
+    [ "$client_rc" -eq 0 ] || fail "synchronized client failed after upstream release rc=$client_rc"
+    http_status=$(cat "$LOG_DIR/first-byte-status.txt" 2>/dev/null || true)
+    [ "$http_status" = "200" ] || fail "synchronized safe response status was not 200: $http_status"
+    [ -s "$NGINX_PHASE4_LOG_FILE" ] || fail "Phase-4 host log is missing after synchronized response"
+    FIRST_BYTE_HOST_METADATA="$SYNCHRONIZED_DIR/host-metadata.json"
+    "$PYTHON_BIN" "$REPO_ROOT/ci/write-first-byte-host-metadata.py" \
+        --phase4-log "$NGINX_PHASE4_LOG_FILE" --output "$FIRST_BYTE_HOST_METADATA" || \
+        fail "could not derive bounded host metadata from the Phase-4 event"
+    "$PYTHON_BIN" "$SYNCHRONIZED_UPSTREAM" --merge-evidence \
+        --paused-file "$SYNCHRONIZED_PAUSED_FILE" \
+        --client-first-byte-file "$RESPONSE_BODY" \
+        --host-metadata-json "$FIRST_BYTE_HOST_METADATA" \
+        --evidence-origin real_host \
+        --output "$FULL_LIFECYCLE_EVIDENCE_OUTPUT" || \
+        fail "could not write synchronized first-byte evidence"
+    printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
+    printf '%s\n' "http_status" > "$LOG_DIR/observed-transport-result.txt"
+    return 0
 }
 
 stop_stale_runtime_pid() {
@@ -786,11 +884,16 @@ PY
 }
 
 response_header_backend_needed() {
+    [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ] && return 0
     grep -Eq "RESPONSE_HEADERS:([Cc]ontent-[Tt]ype|[Ll]ocation|[Ss]et-[Cc]ookie)" "$RULES_FILE"
 }
 
 start_response_header_backend() {
     response_header_backend_needed || return 0
+    if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+        start_synchronized_upstream
+        return 0
+    fi
     RESPONSE_HEADER_BACKEND_PORT=$(select_free_port $((PORT + 1000)) "$PORT_SEARCH_LIMIT") || \
         blocked "no free response-header backend port found"
     "$PYTHON_BIN" "$REPO_ROOT/ci/response-header-test-backend.py" \
@@ -810,6 +913,13 @@ write_location_handler_directives() {
         {
             echo "# Generated proxy route for response-header smoke cases."
             echo "proxy_pass http://127.0.0.1:$RESPONSE_HEADER_BACKEND_PORT;"
+            # The synchronized first-byte proof observes a client-visible
+            # chunk while the upstream is paused.  NGINX's default proxy
+            # buffering can defer that chunk until EOS, which would test its
+            # buffer policy rather than the connector's forwarding path.
+            if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+                echo "proxy_buffering off;"
+            fi
             echo "proxy_set_header Host \$host;"
         } > "$output"
         return 0
@@ -949,6 +1059,12 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then
 fi
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
     echo "nginx_smoke: pass start_smoke (request-free host liveness verified)"
+    exit 0
+fi
+
+if [ "$MSCONNECTOR_FULL_LIFECYCLE_SYNC" = "1" ]; then
+    send_synchronized_first_byte_request
+    echo "nginx_smoke: pass synchronized-first-byte"
     exit 0
 fi
 

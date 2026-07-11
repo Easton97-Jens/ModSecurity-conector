@@ -4,9 +4,10 @@ Status: minimal_runtime_smoke (forwardAuth request path only)
 Runtime status: targeted local 200/403; broader verification remains open
 
 No upstream Traefik connector source has been imported into this repository.
-No Traefik plugin SDK, middleware SDK, Go module, cgo bridge, or Traefik runtime
-source is vendored under `connectors/traefik`. The selected integration boundary
-is Traefik's external HTTP `forwardAuth` protocol.
+The repository owns a small standard-library Go module under
+`native_middleware/`; it is not imported Traefik source, a Traefik SDK, or a
+cgo bridge. The selected integration boundary remains Traefik's external HTTP
+`forwardAuth` protocol.
 
 ## Current Source Inventory
 
@@ -29,12 +30,20 @@ is Traefik's external HTTP `forwardAuth` protocol.
 | `connectors/traefik/scripts/runtime_smoke.py` | repo-owned validation helper | not selected | repository root license not documented | Traefik/forwardAuth/upstream orchestration and evidence |
 | `connectors/traefik/config/traefik-forwardauth.conf` | repo-owned example config | not selected | repository root license not documented | Request-phase configuration; response processing disabled |
 | `connectors/traefik/config/traefik-forwardauth-dynamic.yaml` | repo-owned example config | not selected | repository root license not documented | Start-smoke Traefik File Provider template |
+| `connectors/traefik/native_middleware/middleware.go` | repo-owned Go middleware source | not selected | repository root license not documented | Bounded streaming wrapper and explicit pass-through engine seam; not runtime verified |
+| `connectors/traefik/native_middleware/middleware_test.go` | repo-owned Go unit tests | not selected | repository root license not documented | Focused source-level behavior tests only |
+| `connectors/traefik/native_middleware/go.mod` | repo-owned Go module metadata | not selected | repository root license not documented | No external dependencies |
+| `connectors/traefik/native_middleware/.traefik.yml` | repo-owned plugin manifest | not selected | repository root license not documented | Traefik plugin metadata/test data; no load proof |
+| `connectors/traefik/build/build-native-middleware.sh` | repo-owned build helper | not selected | repository root license not documented | Go source build/test command, outside-checkout report only |
+| `connectors/traefik/config/traefik-native-middleware-dynamic.yaml` | repo-owned example config | not selected | repository root license not documented | Unselected local-plugin File Provider shape |
+| `connectors/traefik/config/traefik-native-middleware-static.yaml` | repo-owned example config | not selected | repository root license not documented | Unselected local-plugin registration shape |
 
 ## Not Imported
 
 - Traefik source: not selected.
 - Traefik plugin or middleware SDK: not selected.
-- Traefik Go module: not present.
+- Traefik Go module: not imported; the repo-owned standard-library module is
+  source/build groundwork only.
 - Traefik plugin/cgo integration source: not present and not selected.
 
 ## Runtime Claim

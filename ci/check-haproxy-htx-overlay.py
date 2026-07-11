@@ -15,6 +15,8 @@ OVERLAY = ROOT / "connectors/haproxy/htx-overlay"
 SOURCE = OVERLAY / "haproxy_modsecurity_htx_filter.c"
 PATCH = OVERLAY / "haproxy-3.2.21-makefile.patch"
 BUILD = OVERLAY / "build-overlay.sh"
+BINDING = ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.c"
+BINDING_HEADER = ROOT / "connectors/haproxy/src/haproxy_modsecurity_binding.h"
 
 
 def function_body(text: str, signature: str) -> str:
@@ -35,6 +37,14 @@ def main() -> int:
     source = SOURCE.read_text(encoding="utf-8")
     makefile_patch = PATCH.read_text(encoding="utf-8")
     build = BUILD.read_text(encoding="utf-8")
+    binding = BINDING.read_text(encoding="utf-8")
+    binding_header = BINDING_HEADER.read_text(encoding="utf-8")
+    headers = function_body(
+        source, "static int haproxy_modsecurity_htx_filter_http_headers(")
+    request_payload = function_body(
+        source, "static int haproxy_modsecurity_htx_filter_http_payload(")
+    request_append = function_body(
+        source, "static int haproxy_modsecurity_htx_append_request_payload(")
     response_payload = function_body(
         source, "static int haproxy_modsecurity_htx_filter_http_payload(")
     response_append = function_body(
@@ -51,6 +61,27 @@ def main() -> int:
         ("haproxy_modsecurity_transaction_append_response_body_chunk" in response_append and
          "return (int)len;" in response_payload,
          "response payload forwards borrowed chunks and never holds HAProxy output"),
+        ("haproxy_modsecurity_transaction_begin_request" in binding_header and
+         "haproxy_modsecurity_transaction_append_request_body_chunk" in binding_header and
+         "haproxy_modsecurity_transaction_finish_request_body" in binding_header and
+         "int haproxy_modsecurity_transaction_begin_request(" in binding and
+         "int haproxy_modsecurity_transaction_append_request_body_chunk(" in binding and
+         "int haproxy_modsecurity_transaction_finish_request_body(" in binding,
+         "binding exposes an explicit Phase-1/request-chunk/request-EOS lifecycle"),
+        ("haproxy_modsecurity_htx_begin_request(s, filter)" in headers and
+         headers.index("haproxy_modsecurity_htx_begin_request(s, filter)") <
+         headers.rindex("register_data_filter(s, msg->chn, filter)"),
+         "request headers start the per-stream transaction before payload forwarding"),
+        ("haproxy_modsecurity_transaction_append_request_body_chunk" in request_append and
+         "return (int)len;" in request_payload,
+         "request payload forwards borrowed chunks without a connector-owned body buffer"),
+        ("ctx->request_finished = 1;" in response_end and
+         "haproxy_modsecurity_transaction_finish_request_body" in response_end and
+         response_end.index("ctx->request_finished = 1;") <
+         response_end.index("haproxy_modsecurity_transaction_finish_request_body"),
+         "request Phase 2 finalization is guarded before the sole request EOS call"),
+        (source.count("haproxy_modsecurity_transaction_finish_request_body(") == 1,
+         "source has one binding finish_request_body callsite"),
         ("ctx->response_finished = 1;" in response_end and
          "haproxy_modsecurity_transaction_finish_response_body" in response_end and
          response_end.index("ctx->response_finished = 1;") <
@@ -58,11 +89,16 @@ def main() -> int:
          "response Phase 4 finalization is guarded before the sole EOS call"),
         (source.count("haproxy_modsecurity_transaction_finish_response_body(") == 1,
          "source has one binding finish_response_body callsite"),
-        ("no late HAProxy action is attempted" in source and
-         "response-body (late)" in source,
-         "late Phase 4 interventions are explicitly observer-only"),
-        (all(token not in source for token in ("wait-for-body", "res.body", "chunk_memcat")),
-         "overlay does not reintroduce a wait-for-body or connector-owned response buffer"),
+        ("msconnector_late_intervention_policy_init" in source and
+         "msconnector_late_intervention_resolve" in source and
+         "msconnector_late_intervention_action_name" in source and
+         "resolved_policy_action" in source,
+         "post-commit Phase 4 outcomes use the shared late-intervention policy"),
+        (all(token not in source for token in (
+            "bodyless", "request_advertises_body", "request_body_bytes",
+            "wait-for-body", "res.body", "chunk_memcat"
+        )),
+         "overlay has no bodyless-request bypass or connector-owned response buffer"),
         ("register_data_filter" in source and "unregister_data_filter" in source,
          "overlay registers only the active HAProxy data callbacks"),
         ("expected HAProxy 3.2.21" in build and

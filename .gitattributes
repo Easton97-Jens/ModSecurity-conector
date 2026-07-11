@@ -1,0 +1,3 @@
+# This is a literal release-pinned unified diff.  Its context prefixes and
+# upstream tab indentation are patch data, not whitespace in repository source.
+connectors/lighttpd/patches/*.patch -whitespace

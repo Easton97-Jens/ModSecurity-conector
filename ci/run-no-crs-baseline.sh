@@ -13,6 +13,7 @@ EVIDENCE_ROOT=${EVIDENCE_ROOT:-$BUILD_ROOT/no-crs-evidence}
 NO_CRS_RUN_ID=${NO_CRS_RUN_ID:-$(date -u +%Y-%m-%dT%H-%M-%SZ)-$(git -C "$CONNECTOR_ROOT" rev-parse --short=8 HEAD 2>/dev/null || printf unknown)}
 NO_CRS_RULES_FILE=${NO_CRS_RULES_FILE:-$FRAMEWORK_ROOT/tests/rules/no-crs-baseline.conf}
 NO_CRS_RAW_ROOT=${NO_CRS_RAW_ROOT:-$BUILD_ROOT/canonical-raw/$evidence_stage}
+NO_CRS_ARTIFACT_PROFILE=${NO_CRS_ARTIFACT_PROFILE:-generic}
 EXPECTED_RULE_ID=1100001
 
 case "$connector" in
@@ -22,6 +23,10 @@ esac
 case "$evidence_stage" in
     minimal_runtime_smoke|no_crs_baseline) ;;
     *) echo "usage: $0 connector [minimal_runtime_smoke|no_crs_baseline]" >&2; exit 2 ;;
+esac
+case "$NO_CRS_ARTIFACT_PROFILE" in
+    generic|full_lifecycle) ;;
+    *) echo "FAIL: unsupported NO_CRS_ARTIFACT_PROFILE: $NO_CRS_ARTIFACT_PROFILE" >&2; exit 2 ;;
 esac
 case "$NO_CRS_RUN_ID" in
     [A-Za-z0-9]* ) ;;
@@ -59,10 +64,25 @@ PLAN=$RAW_DIR/plan.json
 SOURCE_RESULT=$RAW_DIR/source-result.json
 NORMALIZED_EVENTS=$RAW_DIR/events.normalized.jsonl
 SOURCE_EVENT_SCRUB_LOG=$LOG_DIR/source-event-scrub.log
+CANONICAL_STDOUT_LOG=$LOG_DIR/stdout.canonical.log
+CANONICAL_STDERR_LOG=$LOG_DIR/stderr.canonical.log
+CANONICAL_HOST_LOG=$LOG_DIR/host.canonical.log
+LOG_SANITIZER=$CONNECTOR_ROOT/ci/sanitize-full-lifecycle-log.py
+SYNCHRONIZED_UPSTREAM=$FRAMEWORK_ROOT/tests/runners/synchronized_upstream.py
+FIRST_BYTE_EVIDENCE=$RAW_DIR/first-byte-evidence.json
+FIRST_BYTE_EVIDENCE_SOURCE=${FIRST_BYTE_EVIDENCE_SOURCE:-}
 
 [ -f "$FRAMEWORK_ROOT/ci/no_crs_baseline.py" ] || {
     echo "BLOCKED: canonical framework runner is missing: $FRAMEWORK_ROOT/ci/no_crs_baseline.py" >&2
     exit 77
+}
+[ -f "$LOG_SANITIZER" ] || {
+    echo "FAIL: canonical log sanitizer is missing: $LOG_SANITIZER" >&2
+    exit 1
+}
+[ -f "$SYNCHRONIZED_UPSTREAM" ] || {
+    echo "FAIL: synchronized upstream helper is missing: $SYNCHRONIZED_UPSTREAM" >&2
+    exit 1
 }
 [ -f "$CAPABILITIES_FILE" ] || {
     echo "FAIL: connector capability manifest is missing: $CAPABILITIES_FILE" >&2
@@ -137,6 +157,7 @@ mkdir -p "$RAW_DIR" "$LOG_DIR" "$RESULTS_DIR"
     --connector "$connector" \
     --capabilities "$CAPABILITIES_FILE" \
     --evidence-stage "$evidence_stage" \
+    --artifact-profile "$NO_CRS_ARTIFACT_PROFILE" \
     --output "$PLAN"
 NO_CRS_SELECTED_CASES=$("$PYTHON" -c '
 import json, sys
@@ -171,6 +192,7 @@ esac
     --connector-root "$CONNECTOR_ROOT" \
     --run-id "$NO_CRS_RUN_ID" \
     --evidence-stage "$evidence_stage" \
+    --artifact-profile "$NO_CRS_ARTIFACT_PROFILE" \
     --executed-target "$([ "$evidence_stage" = no_crs_baseline ] && printf no-crs-baseline || printf runtime-smoke)-$connector" \
     --host-version not_provisioned \
     --libmodsecurity-version not_provisioned
@@ -197,6 +219,8 @@ MSCONNECTOR_RULES_FILE="$NO_CRS_RULES_FILE" \
 NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
 NO_CRS_SELECTED_CASES="$NO_CRS_SELECTED_CASES" \
 NO_CRS_SELECTED_CASE_IDS="$NO_CRS_SELECTED_CASE_IDS" \
+NO_CRS_ARTIFACT_PROFILE="$NO_CRS_ARTIFACT_PROFILE" \
+FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FIRST_BYTE_EVIDENCE" \
 MSCONNECTOR_EXPECTED_RULE_ID="$EXPECTED_RULE_ID" \
 NO_CRS_RUN_ID="$NO_CRS_RUN_ID" \
 sh "$CONNECTOR_ROOT/ci/run-connector-stage.sh" "$connector" "$evidence_stage" \
@@ -223,9 +247,36 @@ else
     fi
 fi
 
+# Apache and NGINX have native proxy/filter paths.  Run their additional
+# synchronized upstream proof separately from the ordinary case runner so the
+# client can be observed while the upstream is deliberately paused.  Other
+# connectors retain a diagnostic-only synthetic barrier until their selected
+# full-lifecycle host integration exists.
+if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    case "$connector" in
+        apache|nginx)
+            native_first_byte_rc=0
+            CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+            FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+            BUILD_ROOT="$BUILD_ROOT" \
+            RESULTS_DIR="$RESULTS_DIR" \
+            HOST_RUNTIME_ROOT="$HOST_RUNTIME_ROOT" \
+            HOST_LOG_ROOT="$HOST_LOG_ROOT" \
+            NO_CRS_RULES_FILE="$NO_CRS_RULES_FILE" \
+            FULL_LIFECYCLE_EVIDENCE_OUTPUT="$FIRST_BYTE_EVIDENCE" \
+            SKIP_RUNTIME_COMPONENT_PREPARE=1 \
+            sh "$CONNECTOR_ROOT/ci/run-native-first-byte.sh" "$connector" || native_first_byte_rc=$?
+            if [ "$native_first_byte_rc" -ne 0 ]; then
+                stage_rc=$native_first_byte_rc
+            fi
+            ;;
+    esac
+fi
+
 source_results=
 source_result=
 source_events=
+source_first_byte_results=$RESULTS_DIR/$connector-first-byte-results.jsonl
 case "$connector" in
     apache|nginx|haproxy)
         source_results=$RESULTS_DIR/$connector-results.jsonl
@@ -262,10 +313,75 @@ fi
 if [ -n "$source_results" ] && [ -f "$source_results" ]; then
     set -- "$@" --source-results-jsonl "$source_results"
 fi
+if [ -f "$source_first_byte_results" ]; then
+    set -- "$@" --source-results-jsonl "$source_first_byte_results"
+fi
 if [ -n "$source_events" ] && [ -f "$source_events" ]; then
     set -- "$@" --source-events "$source_events"
 fi
 "$PYTHON" "$CONNECTOR_ROOT/ci/collect-no-crs-source.py" "$@"
+
+# Raw host logs remain in the disposable run directory.  Canonical evidence
+# receives only bounded, sentinel-free diagnostics plus a metadata-only host
+# summary, so body fixtures and credentials cannot be retained accidentally.
+"$PYTHON" "$LOG_SANITIZER" --input "$LOG_DIR/stdout.log" \
+    --output "$CANONICAL_STDOUT_LOG" --label "${connector}-stage-stdout"
+"$PYTHON" "$LOG_SANITIZER" --input "$LOG_DIR/stderr.log" \
+    --output "$CANONICAL_STDERR_LOG" --label "${connector}-stage-stderr"
+{
+    printf 'connector=%s\n' "$connector"
+    printf 'evidence_stage=%s\n' "$evidence_stage"
+    printf 'artifact_profile=%s\n' "$NO_CRS_ARTIFACT_PROFILE"
+    printf 'stage_exit_code=%s\n' "$stage_rc"
+    printf 'process_cleanup_log=%s\n' "$(basename "$PROCESS_CLEANUP_LOG")"
+    "$PYTHON" - "$LOG_DIR/stdout.log" "$LOG_DIR/stderr.log" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+for label, value in zip(("stage_stdout", "stage_stderr"), sys.argv[1:]):
+    raw = Path(value).read_bytes() if Path(value).is_file() else b""
+    print(f"{label}_sha256={hashlib.sha256(raw).hexdigest()}")
+    print(f"{label}_bytes={len(raw)}")
+PY
+} > "$CANONICAL_HOST_LOG"
+if [ ! -f "$NORMALIZED_EVENTS" ]; then
+    : > "$NORMALIZED_EVENTS"
+fi
+if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    if [ -n "$FIRST_BYTE_EVIDENCE_SOURCE" ]; then
+        case "$FIRST_BYTE_EVIDENCE_SOURCE" in
+            /*) ;;
+            *) echo "FAIL: FIRST_BYTE_EVIDENCE_SOURCE must be absolute" >&2; exit 1 ;;
+        esac
+        case "$FIRST_BYTE_EVIDENCE_SOURCE" in
+            "$RAW_DIR"/*) ;;
+            *) echo "FAIL: FIRST_BYTE_EVIDENCE_SOURCE must remain inside this raw run: $FIRST_BYTE_EVIDENCE_SOURCE" >&2; exit 1 ;;
+        esac
+        [ ! -L "$FIRST_BYTE_EVIDENCE_SOURCE" ] || {
+            echo "FAIL: FIRST_BYTE_EVIDENCE_SOURCE must not be a symlink" >&2
+            exit 1
+        }
+        [ -f "$FIRST_BYTE_EVIDENCE_SOURCE" ] || {
+            echo "FAIL: FIRST_BYTE_EVIDENCE_SOURCE is missing: $FIRST_BYTE_EVIDENCE_SOURCE" >&2
+            exit 1
+        }
+        if [ "$FIRST_BYTE_EVIDENCE_SOURCE" != "$FIRST_BYTE_EVIDENCE" ]; then
+            cp "$FIRST_BYTE_EVIDENCE_SOURCE" "$FIRST_BYTE_EVIDENCE"
+        fi
+    elif [ ! -f "$FIRST_BYTE_EVIDENCE" ]; then
+        # Preserve an explicit synthetic barrier observation when no connector
+        # harness supplied a real-host one.  The Framework records its origin
+        # and refuses to promote either low-latency capability from it.
+        "$PYTHON" "$SYNCHRONIZED_UPSTREAM" --output "$FIRST_BYTE_EVIDENCE" \
+            >"$LOG_DIR/synchronized-upstream.stdout.log" \
+            2>"$LOG_DIR/synchronized-upstream.stderr.log" || true
+        [ -f "$FIRST_BYTE_EVIDENCE" ] || {
+            echo "FAIL: synchronized first-byte diagnostic did not produce evidence" >&2
+            exit 1
+        }
+    fi
+fi
 
 host_version=not_provisioned
 host_binary=
@@ -322,8 +438,8 @@ set -- \
     --connector-root "$CONNECTOR_ROOT" \
     --capabilities "$CAPABILITIES_FILE" \
     --source-result "$SOURCE_RESULT" \
-    --stdout-log "$LOG_DIR/stdout.log" \
-    --stderr-log "$LOG_DIR/stderr.log" \
+    --stdout-log "$CANONICAL_STDOUT_LOG" \
+    --stderr-log "$CANONICAL_STDERR_LOG" \
     --source-log "process_cleanup=$PROCESS_CLEANUP_LOG" \
     --source-log "source_event_scrub=$SOURCE_EVENT_SCRUB_LOG" \
     --stage-rc "$stage_rc" \
@@ -331,8 +447,12 @@ set -- \
     --libmodsecurity-version "$libmodsecurity_version" \
     --started-at "$started_at" \
     --ended-at "$ended_at"
-if [ -s "$NORMALIZED_EVENTS" ]; then
+if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ] || [ -s "$NORMALIZED_EVENTS" ]; then
     set -- "$@" --source-events "$NORMALIZED_EVENTS"
+fi
+if [ "$NO_CRS_ARTIFACT_PROFILE" = full_lifecycle ]; then
+    set -- "$@" --host-log "$CANONICAL_HOST_LOG" \
+        --first-byte-evidence "$FIRST_BYTE_EVIDENCE"
 fi
 
 set +e

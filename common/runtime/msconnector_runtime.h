@@ -64,6 +64,10 @@ void msconnector_runtime_response_contract(
 
 size_t msconnector_runtime_request_body_limit(const msconnector_runtime *runtime);
 size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtime);
+msconnector_body_mode msconnector_runtime_request_body_mode(
+    const msconnector_runtime *runtime);
+msconnector_body_mode msconnector_runtime_response_body_mode(
+    const msconnector_runtime *runtime);
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime);
 size_t msconnector_runtime_header_count_limit(const msconnector_runtime *runtime);
 

@@ -28,7 +28,6 @@
 #include "msconnector/event_jsonl.h"
 #include "msconnector/late_intervention.h"
 #include "msconnector/limits.h"
-#include "msconnector/rule_id.h"
 
 static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
 static ngx_int_t ngx_http_modsecurity_phase4_in_scope(ngx_http_request_t *r);
@@ -36,7 +35,6 @@ static ngx_int_t ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ng
 static ngx_int_t ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_modsecurity_conf_t *mcf);
 static ngx_int_t ngx_http_modsecurity_validate_response_mapper_once(ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx);
 static ngx_int_t ngx_http_modsecurity_append_limited_response_body(ngx_http_modsecurity_ctx_t *ctx, ngx_http_modsecurity_conf_t *mcf, u_char *data, size_t len, ngx_int_t in_scope);
-static void ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id);
 static const char *ngx_http_modsecurity_phase4_actual_action(msconnector_late_intervention_action action, const char *requested_action);
 
 /* XXX: check behaviour on few body filters installed */
@@ -295,6 +293,7 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
     ngx_int_t in_scope = ngx_http_modsecurity_phase4_in_scope(r);
     msconnector_late_intervention_policy policy;
     msconnector_late_intervention_action action;
+    ngx_int_t log_result;
     const char *actual;
     const char *wanted = "deny";
     if (ctx && ctx->last_intervention_status >= 300 && ctx->last_intervention_status < 400) {
@@ -308,8 +307,9 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
     }
 
     if (in_scope == 0) {
-        ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, "log_only", r->headers_out.content_type.len ? "content_type_not_in_scope" : "content_type_missing");
-        return NGX_OK;
+        return ngx_http_modsecurity_phase4_log_event(r, mcf, wanted,
+            "log_only", r->headers_out.content_type.len
+                ? "content_type_not_in_scope" : "content_type_missing");
     }
 
     msconnector_late_intervention_policy_init(&policy);
@@ -320,8 +320,11 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
     actual = ngx_http_modsecurity_phase4_actual_action(action, wanted);
 
     if (action == MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE) {
-        ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, actual,
+        log_result = ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, actual,
             "response_not_committed");
+        if (log_result != NGX_OK) {
+            return log_result;
+        }
         return ctx != NULL && ctx->last_intervention_status > 0
             ? ctx->last_intervention_status : NGX_HTTP_FORBIDDEN;
     }
@@ -329,16 +332,18 @@ ngx_http_modsecurity_phase4_handle_intervention(ngx_http_request_t *r, ngx_http_
         if (ctx) {
             ctx->phase4_strict_abort = 1;
         }
-        ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, actual,
-            "response_committed_strict");
+        r->connection->error = 1;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "modsecurity phase4 intervention after response commit, action=abort_connection, uri=\"%V\"", &r->uri);
-        r->connection->error = 1;
+        log_result = ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, actual,
+            "response_committed_strict");
+        if (log_result != NGX_OK) {
+            return log_result;
+        }
         return NGX_ERROR;
     }
-    ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, actual,
+    return ngx_http_modsecurity_phase4_log_event(r, mcf, wanted, actual,
         "response_committed_safe");
-    return NGX_OK;
 }
 
 static const char *
@@ -381,8 +386,6 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     char line[4096];
     char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     char content_type[256];
-    ngx_str_t raw_log;
-    ngx_str_t extracted_rule;
     int original_status;
     int json_truncated = 0;
     size_t content_type_length = 0U;
@@ -407,18 +410,14 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
         content_type[content_type_length] = '\0';
     }
     rule_id[0] = '\0';
-    if (ctx) {
-        raw_log = ctx->last_intervention_log;
-        ngx_http_modsecurity_common_rule(r->pool, &raw_log, &extracted_rule);
-        if (extracted_rule.data != NULL && extracted_rule.len > 0U) {
-            size_t length = extracted_rule.len < sizeof(rule_id) - 1U
-                ? extracted_rule.len : sizeof(rule_id) - 1U;
-            ngx_memcpy(rule_id, extracted_rule.data, length);
-            rule_id[length] = '\0';
+    if (ctx != NULL && ctx->last_intervention_rule_id[0] != '\0') {
+        size_t length = ngx_strlen(ctx->last_intervention_rule_id);
+
+        if (length >= sizeof(rule_id)) {
+            length = sizeof(rule_id) - 1U;
         }
-    } else {
-        raw_log.len = 0;
-        raw_log.data = (u_char *)"";
+        ngx_memcpy(rule_id, ctx->last_intervention_rule_id, length);
+        rule_id[length] = '\0';
     }
 
     msconnector_event_init(&event);
@@ -473,42 +472,16 @@ ngx_http_modsecurity_phase4_log_event(ngx_http_request_t *r, ngx_http_modsecurit
     line_length = ngx_strlen(line);
     written = ngx_write_fd(mcf->phase4_log_file->fd, (u_char *)line,
         line_length);
-    if (written < 0 || (size_t)written != line_length) {
+    if (written < 0) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, ngx_errno,
             "modsecurity phase4 log write failed");
         return NGX_ERROR;
     }
+    if ((size_t)written != line_length) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "modsecurity phase4 log short write: %z of %uz bytes",
+            written, line_length);
+        return NGX_ERROR;
+    }
     return NGX_OK;
-}
-
-static void
-ngx_http_modsecurity_common_rule(ngx_pool_t *pool, ngx_str_t *intervention, ngx_str_t *rule_id)
-{
-    char extracted[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
-    int rule_id_result;
-
-    extracted[0] = '\0';
-    rule_id->data = (u_char *)"";
-    rule_id->len = 0;
-    if (intervention == NULL || intervention->data == NULL) {
-        return;
-    }
-    char *message = ngx_pnalloc(pool, intervention->len + 1U);
-    if (message == NULL) {
-        return;
-    }
-    ngx_memcpy(message, intervention->data, intervention->len);
-    message[intervention->len] = '\0';
-    rule_id_result = msconnector_rule_id_extract_from_message(message, extracted, sizeof(extracted));
-    if (rule_id_result > 0) {
-        rule_id->len = ngx_strlen(extracted);
-        rule_id->data = ngx_pnalloc(pool, rule_id->len + 1U);
-        if (rule_id->data == NULL) {
-            rule_id->len = 0;
-            rule_id->data = (u_char *)"";
-            return;
-        }
-        ngx_memcpy(rule_id->data, extracted, rule_id->len);
-        rule_id->data[rule_id->len] = '\0';
-    }
 }

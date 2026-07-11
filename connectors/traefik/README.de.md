@@ -7,6 +7,15 @@ Der Connector besitzt einen eigenen C17-Entry-Point und bleibt für Request-Body
 Upstream-Response, CRS, Security, Produktion und Full Matrix bewusst
 `not_verified` / `connector-gap`.
 
+Daneben existiert unter `native_middleware/` ein nicht ausgewähltes,
+repo-eigenes Go-Middleware-Quellmodul. Es verarbeitet begrenzte Request- und
+Response-Chunks über einen expliziten `PassthroughEngine`, puffert keine ganze
+Response und erhält `Flush`, `Hijack`, `Push` sowie `ReadFrom`. Seine lokalen
+Go-Tests/Builds sind über `make -C connectors/traefik test-native-middleware`
+und `build-native-middleware` erreichbar. Das Modul ersetzt den C-
+`forwardAuth`-Pfad nicht, lädt keine Traefik-Plugin-Konfiguration und belegt
+keine Capability oder Laufzeitintegration.
+
 - Common Config wird über `traefik_modsecurity_config_init()` initialisiert.
 - Request- und Response-Mapper sind dünne Funktionen, keine Makro-Aliase.
 - `traefik_forwardauth_service_main.c` registriert das Hostprofil beim neutralen

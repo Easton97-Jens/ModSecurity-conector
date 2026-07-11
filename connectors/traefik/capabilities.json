@@ -17,13 +17,18 @@
     "connectors/traefik/config/traefik-forwardauth.conf",
     "connectors/traefik/src/traefik_forwardauth_service_main.c",
     "connectors/traefik/src/traefik_modsecurity_mapper.c",
-    "connectors/traefik/scripts/runtime_smoke.py"
+    "connectors/traefik/scripts/runtime_smoke.py",
+    "connectors/traefik/native_middleware/middleware.go",
+    "connectors/traefik/native_middleware/.traefik.yml",
+    "connectors/traefik/config/traefik-native-middleware-dynamic.yaml",
+    "connectors/traefik/config/traefik-native-middleware-static.yaml"
   ],
   "host_model_constraints": [
     "The selected forwardAuth service observes the authorization request before the upstream request and cannot inspect the later upstream response headers or body.",
     "Traefik v3.7 supports buffered forwardAuth request bodies with forwardBody and maxBodySize, but the checked-in dynamic configuration does not enable them and the service config sets request_body_mode=none.",
     "Traefik documents that forwardBody buffering breaks streaming, so streaming request-body inspection is outside this host path.",
-    "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata."
+    "The authorization service currently sees the Traefik-to-service socket endpoints and does not map original client connection endpoints into Common connection metadata.",
+    "The repository-owned native_middleware Go source is an unselected source/build path with PassthroughEngine only; it has no Traefik config-load or runtime evidence and does not change this selected forwardAuth declaration."
   ],
   "capabilities": {
     "connection_metadata": {

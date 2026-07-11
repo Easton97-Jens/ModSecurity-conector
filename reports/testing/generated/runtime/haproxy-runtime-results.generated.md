@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T12:42:41Z`
-> Verified run id: `2026-06-16-614c804`
+> Generated at: `2026-07-11T15:34:51Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
 > Data source policy: `verified-inputs-only`
 > Generator: `framework:ci/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `062e5ef84bcb3e385ac7b5335129eb578fe30833`
-> Framework SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
+> Connector SHA: `2548ba0b61635aa718d23f3ebde4267bbb8cc47b`
+> Framework SHA: `9415da97a6cbac472bec3c3e1343b636a51c267b`
 > Input status: `complete`
 
 # Generated HAProxy Runtime Results
@@ -348,8 +348,8 @@
 
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
-| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16-614c804` | present |
-| Declared input | `reports/testing/runtime-validation-snapshot.json` | `d3017f038a44a5f5596e36e3482f92cd93ce6f2173bb958da98cddc05884cd8f` | `2026-06-16-614c804` | present |
+| Declared input | `config/testing/import-status.json` | `5eea82df1ded18c34bbc8cf6fc5992572edaa6723a33b6dd4a0b49ee00ab5a4f` | `2026-06-16T19-12-00Z-614c8049` | present |
+| Declared input | `reports/testing/runtime-validation-snapshot.json` | `d3017f038a44a5f5596e36e3482f92cd93ce6f2173bb958da98cddc05884cd8f` | `2026-06-16T19-12-00Z-614c8049` | present |
 
 ## Data Availability / Missing Information
 

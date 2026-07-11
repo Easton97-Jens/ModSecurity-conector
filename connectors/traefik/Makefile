@@ -1,9 +1,9 @@
-.PHONY: build-connector build-traefik-connector build-forwardauth-service check-config check-traefik-config start-smoke start-smoke-traefik runtime-smoke runtime-smoke-traefik no-crs-baseline-traefik build-starter build-decision-service build-forwardauth-starter self-test self-test-decision-service self-test-forwardauth clean
+.PHONY: build-connector build-traefik-connector build-forwardauth-service check-config check-traefik-config start-smoke start-smoke-traefik runtime-smoke runtime-smoke-traefik no-crs-baseline-traefik build-starter build-decision-service build-forwardauth-starter self-test self-test-decision-service self-test-forwardauth build-native-middleware build-traefik-native-middleware test-native-middleware test-traefik-native-middleware check-native-middleware clean
 
 build-connector:
 	build/build-connector.sh
 
-build-traefik-connector: build-connector
+build-traefik-connector: build-connector build-native-middleware
 
 build-forwardauth-service: build-connector
 
@@ -40,6 +40,21 @@ self-test-decision-service:
 
 self-test-forwardauth: self-test-decision-service
 
+# The native Go middleware is an unselected alternate source/build path. These
+# targets never replace or invoke the C forwardAuth service targets above.
+build-native-middleware:
+	build/build-native-middleware.sh build
+
+build-traefik-native-middleware: build-native-middleware
+
+test-native-middleware:
+	build/build-native-middleware.sh test
+
+test-traefik-native-middleware: test-native-middleware
+
+check-native-middleware: test-native-middleware
+
 clean:
 	build/build-starter.sh clean
 	build/build-connector.sh clean
+	build/build-native-middleware.sh clean

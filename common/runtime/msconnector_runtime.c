@@ -1084,6 +1084,18 @@ size_t msconnector_runtime_response_body_limit(const msconnector_runtime *runtim
     return runtime == NULL ? 0U : runtime->limits.max_response_body_bytes;
 }
 
+msconnector_body_mode msconnector_runtime_request_body_mode(
+    const msconnector_runtime *runtime) {
+    return runtime == NULL ? MSCONNECTOR_BODY_MODE_NONE
+        : runtime->body_policy.request_body_mode;
+}
+
+msconnector_body_mode msconnector_runtime_response_body_mode(
+    const msconnector_runtime *runtime) {
+    return runtime == NULL ? MSCONNECTOR_BODY_MODE_NONE
+        : runtime->body_policy.response_body_mode;
+}
+
 size_t msconnector_runtime_total_header_limit(const msconnector_runtime *runtime) {
     return runtime == NULL ? 0U : runtime->limits.max_total_header_bytes;
 }

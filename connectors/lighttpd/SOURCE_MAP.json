@@ -30,7 +30,15 @@
     },
     {
       "path": "connectors/lighttpd/build/build_module.sh",
-      "role": "C17 PIC compile/link path for mod_msconnector.so against pinned host headers"
+      "role": "C17 PIC compile/link path for stock or explicitly tagged patched mod_msconnector.so host headers"
+    },
+    {
+      "path": "connectors/lighttpd/build/apply_core_patch.sh",
+      "role": "non-mutating check and managed-copy application path for the pinned lighttpd 1.4.84 core patch"
+    },
+    {
+      "path": "connectors/lighttpd/patches/0001-lighttpd-1.4.84-msconnector-stream-hooks.patch",
+      "role": "versioned local ABI extension for borrowed HTTP/1.x request-body and bounded pre-write output/EOS callbacks"
     },
     {
       "path": "connectors/lighttpd/harness/prepare_native_smoke.sh",

@@ -26,6 +26,7 @@
 #include <modsecurity/transaction.h>
 
 #include "msconnector/config.h"
+#include "msconnector/limits.h"
 #include "msconnector/rule_load_stats.h"
 
 
@@ -115,7 +116,10 @@ typedef struct {
     size_t response_body_bytes_seen;
     size_t response_body_bytes_inspected;
     ngx_str_t event_transaction_id;
-    ngx_str_t last_intervention_log;
+    /* Keep only the bounded rule identifier needed for a metadata-only
+     * Phase-4 event.  Do not retain the full libmodsecurity intervention
+     * message in the request pool. */
+    char last_intervention_rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U];
     ngx_int_t last_intervention_status;
 } ngx_http_modsecurity_ctx_t;
 

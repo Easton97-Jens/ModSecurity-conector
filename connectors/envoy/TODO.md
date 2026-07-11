@@ -40,6 +40,22 @@ Global gate definitions:
 - [x] proxy-wasm/ext_proc dependencies documented as outside the selected path
 - [ ] production adapter build logs documented
 
+## Separate unpromoted ext_proc groundwork
+
+- [x] Pinned official Go Envoy proto/gRPC module and checksum lock added.
+- [x] Connector-local `ExternalProcessor` stream service added with per-stream
+      state, bounded incremental header/body callbacks, EOS cleanup, and
+      cancellation cleanup.
+- [x] Non-`BUFFERED` `STREAMED` request/response Envoy template and external
+      materializer added.
+- [x] Source/unit test covers chunks, EOS, cancellation, pre-response deny,
+      and the conservative late-action result.
+- [ ] Replace `PassthroughEngine` with a separately reviewed Common/
+      libmodsecurity transaction bridge; do not promote the ext_proc path before
+      its real Envoy evidence exists.
+- [ ] Validate the pinned Envoy release against the materialized config and run
+      real HTTP/1.1/HTTP/2, timeout, reset, cleanup, and first-byte cases.
+
 ## Phase 3: ModSecurity Bridge
 
 - [x] libmodsecurity headers supplied through explicit/Framework environment
