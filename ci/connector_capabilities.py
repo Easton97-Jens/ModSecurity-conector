@@ -1090,6 +1090,11 @@ def generate(
             else None
         ),
     )
+    # An evidence-backed view has one explicit, already validated run.  Do not
+    # let an unrelated VERIFIED_RUN_ID inherited from another report workflow
+    # make the generated header disagree with the selected evidence paths.
+    if runtime_evidence is not None:
+        metadata["verified_run_id"] = runtime_evidence["run_id"]
     _atomic_write(outputs[0], generated_json_text(payload, metadata))
     english_metadata = dict(metadata, output_name=outputs[1].name)
     german_metadata = dict(metadata, output_name=outputs[2].name)

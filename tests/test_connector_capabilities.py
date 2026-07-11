@@ -190,6 +190,7 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
             )
         self.assertTrue(payload["runtime_promotion"])
         self.assertEqual(run_id, payload["runtime_evidence"]["run_id"])
+        self.assertEqual(run_id, payload["metadata"]["verified_run_id"])
         self.assertEqual(
             "verified",
             payload["connectors"]["apache"]["capabilities"]["request_headers"]["state"],
